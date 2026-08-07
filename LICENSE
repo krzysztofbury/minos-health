@@ -1,0 +1,12 @@
+Minos software, infrastructure, tests, and project documentation are
+dual-licensed under your choice of:
+
+- Apache License, Version 2.0 (see LICENSE-APACHE); or
+- MIT License (see LICENSE-MIT).
+
+SPDX-License-Identifier: Apache-2.0 OR MIT
+
+This choice does not apply to medical source data, generated databases, or
+container images containing that data. Those artifacts remain subject to the
+source-specific terms documented in NOTICE.md and
+docs/v0.0.1/data-and-licensing.md.

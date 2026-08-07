@@ -1,0 +1,23 @@
+# Rust build output
+/target/
+
+# Local datasets and generated artifacts
+/data/
+/artifacts/
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Test and coverage output
+*.profraw
+lcov.info
+/coverage/

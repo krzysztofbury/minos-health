@@ -1,0 +1,256 @@
+# Data And Licensing
+
+Operational source details (endpoints, cadence, watchers) live in
+[data-sources.md](data-sources.md). This document covers provenance
+requirements and the legal boundary. Planning observations are dated
+2026-08-06; none of this is legal advice, and the two formal opinions listed
+under gates are release requirements for the paid product.
+
+## License Position By Dataset
+
+| Dataset | Stated license | Position |
+| --- | --- | --- |
+| Zarządzenia Prezesa NFZ and załączniki (katalog 1a, charakterystyka 9, coefficients) | none stated | Normative acts of a public payer issued under statutory authority. Strong reading: copyright-exempt official materials under Art. 4 pkt 1-2 ustawy o prawie autorskim. 15-plus years of commercial grouper precedent (KAMSOFT, CGM, Asseco, SGA). Formal opinion pending. |
+| NFZ komunikaty JGP (algorithm description, rank tables) | none stated | Same Art. 4 argument (urzędowe dokumenty i materiały). Published expressly so providers could buy groupers on the open market. |
+| ICD-9 PL (NFZ files) | none stated on the NFZ page | Same Art. 4 argument. A stale dane.gov.pl dataset (v5.39, 2018) declares `CC0 1.0`; extrapolating that to current versions is inference (NIEPEWNE). |
+| ICD-10 PL (RSK `00CD10`) | `CC BY-NC-SA 3.0 IGO` quoted in RSK metadata | The license sentence grammatically attaches to the WHO 2019 English edition; whether the Polish translation itself is under it is ambiguous. Treated as NC-constrained until resolved. |
+| NFZ statistics API | portal terms | Open data: attribution to api.nfz.gov.pl required, 10 requests/s per IP, no data modification, no warranty. |
+
+## The Strategic Consequence
+
+Załącznik 9 (charakterystyka JGP) carries ICD-10 codes **with full Polish
+titles**, verified by sampling the 1/2022 edition on 2026-08-06 (8,759
+code-plus-title strings in that file, a count that also includes JGP group
+names; confirm against the current 101/2025 edition during fixturing). The
+billing-relevant ICD-10 subset therefore lives inside the Art. 4-arguable
+normative acts, alongside the complete ICD-9 PL and all JGP rules.
+
+Consequences:
+
+- The commercial core does not depend on the RSK `CC BY-NC-SA` resource.
+- The full RSK ICD-10 dictionary (complete hierarchy, all descriptions) is
+  free-tier enrichment. Until the NC scope is legally resolved, no paid
+  feature may require it.
+- Every concept row records which source release it came from, so the
+  boundary is enforceable in data, not just in policy.
+
+## RSK ICD-10 Source Record
+
+Planning metadata observed 2026-08-06:
+
+| Field | Value |
+| --- | --- |
+| Resource | ICD-10, HCD `00CD10` |
+| Selected version | `013` |
+| Publisher | `Biuro Światowej Organizacji Zdrowia w Polsce` (`WHO PL`) |
+| Valid from | `2025-10-16T22:00:00Z` (`2025-10-17` in Poland) |
+| XML label | `ICD10_2008_PL_v2026_07_20` |
+| XML UUID | `b8dd1741-c048-489e-84d6-47a915425b2d` |
+| XML size | `12738027` bytes |
+| XML created | `2026-08-05T10:43:22.502Z` |
+| Stated license | `CC BY-NC-SA 3.0 IGO` (scope ambiguity noted above) |
+
+RSK states that the Polish translation was not prepared by WHO, that WHO is
+not responsible for its content or accuracy, and that the 2019 English
+edition is the binding and authentic edition. This warning and the publisher
+identity are mandatory provenance in artifacts and user-facing views.
+
+RSK provides no checksums, no ETag/Last-Modified, ignores Range requests, and
+replaces files in place without version bumps (observed 2026-08-05: the XML
+above was recreated while `version` stayed `013`). Checksums are computed at
+archive time and pinned in the manifest.
+
+## Dataset Manifest
+
+Every data refresh is a reviewed manifest change. The manifest pins every
+upstream file and the ruleset pairing:
+
+```toml
+schema_version = 2
+
+[[source]]
+system = "icd10-pl"
+origin = "rsk"
+hcd = "00CD10"
+source_version = "013"
+source_file_id = "b8dd1741-c048-489e-84d6-47a915425b2d"
+source_url = "<resolved-download-url>"
+fetched_at = "<utc-timestamp>"
+archived_sha256 = "<sha256-computed-at-archive-time>"
+source_bytes = 12738027
+source_license = "CC-BY-NC-SA-3.0-IGO (scope under review)"
+
+[[source]]
+system = "icd9-pl"
+origin = "nfz-slowniki"
+source_version = "5.88"
+# url, fetch, checksum fields as above
+
+[[source]]
+scheme = "jgp-szp"
+origin = "nfz-baw"
+act = "101/2025/DSOZ"
+baw_document_id = "43718"
+attachments = ["1a", "9"]
+# per-file url, fetch, checksum fields as above
+
+[[source]]
+scheme = "jgp-szp"
+origin = "nfz-komunikat"
+algorithm_version = "1.1.2026"
+# per-file fields as above
+
+[ruleset."2026-07"]
+act = "101/2025/DSOZ+74/2026/DSOZ"
+algorithm_version = "1.1.2026"
+icd9_version = "5.88"
+icd10_version = "013"
+published_at = "2026-07-23"
+effective_from = "2026-07-01"   # retroactive; store both dates
+
+transform_version = "<git-commit-or-tool-version>"
+```
+
+The generated artifact manifest additionally records database SHA-256, byte
+size, schema version, row counts per table, build timestamp, and Rust tool
+version.
+
+CI builds from the exact manifest. Watchers propose changes; CI must never
+follow a `latest` link or replace a pinned source automatically.
+
+## Import Pipeline
+
+1. Resolve every pinned source from the manifest.
+2. Fetch from the archive (S3), not live upstream; live fetch happens only in
+   watchers, which archive immediately.
+3. Verify byte count and checksum against the manifest before parsing.
+4. Parse with hardened parsers: XML (no DTDs or external entities; bounded
+   depth, value size, record count, bytes), XLSX/DOCX (zip entry-count,
+   expansion-ratio, size limits; merged-cell-aware headers), with line or
+   element context on failure.
+5. Validate required values, encoding, uniqueness, hierarchy references, and
+   condition list references.
+6. Convert records into source-preserving domain values plus separate
+   normalized search keys; apply curated overlay rows (coefficients from
+   legal prose) with `manual` provenance.
+7. Write a fresh database inside one transaction with bitemporal fields.
+8. Run integrity queries and deterministic count checks.
+9. Finalize the database and emit the artifact manifest, checksum, and a
+   human-readable diff against the previous release.
+
+A failed stage leaves no publishable database. Existing valid artifacts are
+not modified in place.
+
+## Validation Requirements
+
+At minimum, a complete build verifies:
+
+- exactly one ruleset release per reporting period in scope;
+- unique concept identity within each source release;
+- non-empty source code and preferred description;
+- all hierarchy references resolve or match a documented source root rule;
+- all condition list references resolve to known concepts;
+- no relation creates an unexpected hierarchy cycle;
+- normalized search keys retain a link to exact source text;
+- point values carry validity periods and settlement modes;
+- source ordering is stable when present;
+- repeated builds from identical inputs produce the same logical rows and
+  artifact checksum, excluding deliberately isolated non-deterministic
+  metadata;
+- row counts match reviewed expectations.
+
+Unsupported structures that could alter meaning are errors, not warnings. A
+source exception is allowed only with a fixture, an explicit conversion rule,
+and a recorded modification notice.
+
+## Normalization
+
+Normalization supports lookup without rewriting the source:
+
+- Unicode text is normalized consistently.
+- Search may use case folding and documented punctuation/whitespace handling.
+- Polish letters are not discarded from displayed or authoritative text.
+- Any optional accent-insensitive key is additional and tested for collisions.
+- Codes use a source-aware canonical comparison rather than unrestricted text
+  cleanup.
+
+Normalization versions are part of artifact provenance because changing them
+can change search results.
+
+## Storage And Distribution
+
+Raw and generated data are absent from Git.
+
+| Material | Canonical storage | Notes |
+| --- | --- | --- |
+| Source manifest | Git | No source bytes or credentials |
+| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Keyed by source, version, archive-time checksum |
+| Independent raw backup | Encrypted QNAP archive | Separate credentials and restore drill |
+| Generated database | Private artifact storage and runtime image | Immutable by checksum |
+| Runtime image | Private GHCR | Canonical digest used for releases |
+| AWS deploy copy | Private ECR | Same manifest copied by digest |
+| Small fixtures | Git | Synthetic or separately redistributable |
+
+S3 lifecycle rules may move old raw snapshots to cheaper storage, but must
+retain every snapshot needed to reproduce a supported release. A current
+upstream URL is not a backup; upstream deletes its own history.
+
+## Repository License
+
+Software, infrastructure, tests, and project documentation are dual-licensed
+under:
+
+```text
+Apache-2.0 OR MIT
+```
+
+This allows the application, parser framework, search implementation, grouper
+engine, CLI, HTTP adapter, frontend, infrastructure code, tests, and
+documentation to be reused commercially, subject to normal dependency
+licensing.
+
+## Dataset License Boundary
+
+The repository licenses do not grant rights to source data, generated medical
+content, or an image containing that content. Likewise, no data license
+applies to separable repository materials.
+
+Before charging for the product, confirm through counsel:
+
+- the Art. 4 status of zarządzenia appendices and komunikat files when
+  redistributed inside a commercial database and container;
+- required attribution wording for NFZ-sourced materials;
+- the scope of `CC BY-NC-SA 3.0 IGO` on the RSK ICD-10 translation and the
+  treatment of the derived free-tier database (attribution, modification
+  notice, share-alike, noncommercial boundary);
+- non-endorsement and warranty statements for all publishers.
+
+## Artifact Notice
+
+Each generated database and image containing it must expose or package:
+
+- attribution per source: NFZ (zarządzenia, komunikaty, ICD-9 PL), RSK/CeZ and
+  Biuro WHO w Polsce (ICD-10 PL);
+- act numbers, HCDs, source versions, file identities, and exact upstream
+  timestamps;
+- archive-time checksums and generated checksums;
+- retrieval dates and transformation version;
+- a clear statement that Minos transformed the sources;
+- the WHO translation warning for ICD-10 PL (not prepared by WHO; 2019
+  English edition binding and authentic);
+- a statement that no publisher endorses Minos;
+- the Minos reference-only and completeness-not-upcoding disclaimers.
+
+The web footer, API metadata, CLI output, and artifact manifest should derive
+these fields from the database rather than maintaining divergent hard-coded
+copies.
+
+## Other Sources
+
+WHO ICD-10-specific commercial redistribution and WHO-derived ICD-9 rights
+have not been resolved. No WHO dataset may be bundled based on assumptions
+derived from Polish sources.
+
+Each future namespace requires its own source manifest, rights review,
+attribution, provenance, and release identity. Similar codes do not imply
+interchangeable text or licensing.

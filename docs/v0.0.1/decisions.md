@@ -1,0 +1,274 @@
+# Decisions
+
+Status: accepted planning record, 2026-08-06
+
+## Product
+
+### From Reference Tool To Settlement Platform
+
+The project began as a Polish drug-substitution CLI, was reframed once into an
+ICD-10 terminology reference (Apollo Codebook), and on 2026-08-06 was reframed
+again after practitioner feedback: the problem worth solving is JGP settlement
+intelligence. An ICD-10 browser alone is a commodity; the grouper, its rules,
+its versions, and their explanation are the product.
+
+The layered scope is:
+
+1. terminology (`icd10-pl`, `icd9-pl`);
+2. JGP knowledge base (`jgp-szp`): groups, conditions, points, versions,
+   diffs;
+3. grouper engine with full rule trace (`v0.0.2`);
+4. what-if optimizer framed as completeness (`v0.0.3`).
+
+The drug-substitution design remains outside scope and must not influence the
+data model.
+
+### Compliance Framing
+
+Minos supports complete and correct coding of documented care and prevention
+of avoidable claim rejections. It must never recommend coding beyond
+documentation. This is both an ethical boundary and the commercially
+defensible position: NFZ audits punish upcoding, and the durable customer
+value is captured legitimate revenue plus fewer rejections.
+
+Grouping output is points and product codes. Contractual PLN amounts vary by
+payer contract and the PSZ ryczałt stream and are out of scope.
+
+### Interfaces
+
+An offline CLI and an anonymous webpage backed by a read-only HTTP API share
+the same domain and store behaviour. Grouping (`v0.0.2`) adds one stateless
+POST endpoint. Accounts, mutable user data, and personalization are deferred.
+
+### Competitive Position (researched 2026-08-06)
+
+- CGM/UHC gruper (jgp.uhc.com.pl): maintained, freemium capped at 5 groupings
+  per day, 2009-era JSF stack, no API, licensing by phone.
+- SGA WikiJGP: modern rules encyclopedia; optimization answers are sold as
+  1-day human consulting reports.
+- Asseco, KAMSOFT: HIS-embedded groupers; distribution moat, no standalone
+  API.
+
+Market gaps Minos targets: API access, explainability (rule trace, near-miss),
+unified rules-plus-grouping-plus-diffs, interface quality. Content currency is
+not a gap; incumbents track NFZ files within days. Minos must match that via
+phase 0 watchers.
+
+## Brand And Domains
+
+### Provisional Brand: Minos
+
+The public product name is **Minos** (Dante's judge who hears each case and
+assigns it to its circle; the mythological line continues the operator's
+Pythia and Virgil projects). The repository is `minos-health`; crate prefix
+and CLI remain `minos`.
+
+Registry pre-screen (2026-08-06, TMview API, registration numbers verbatim):
+
+- EUTM `009772146` (MINOS, word, MINOS-EMI SA, GR): class 9 includes
+  "interactive computer software" without field limitation; registered,
+  renewed, expires 2031. Primary risk; attorney must assess narrowed-spec
+  filing and non-use revocation exposure (registered 2011).
+- EUTM `010138105` (MINOS, CEA, FR): class 42 limited to nuclear research; low
+  overlap.
+- PL national: Grupa INCO holds MINOS in class 3 (cleaning products; this is
+  why `minos.pl` is occupied); a funeral-services mark exists in class 45.
+  Dissimilar goods and services; not expected blockers.
+- EUTM-opposition layer: CZ `593741` (investment-project software, 2024), FR
+  MINOS 400 (Inetum ERP), IT MINOSSE (software house), GR `D43553`.
+
+Verdict: usable only with counsel; moderate-high opposition exposure at EUIPO,
+lower for a narrowed PL national filing. UPRP does not examine relative
+grounds ex officio.
+
+Point-in-time domain checks (2026-08-06): `minoshealth.com` free (~70 PLN/yr),
+`minoshealth.pl` free, `minos.health` free (~450 PLN/yr, verify renewal
+pricing), `minos.pl` and `minos.com` taken. Intended setup: `minoshealth.com`
+canonical, `minoshealth.pl` proxied redirect, `minos.health` optional alias
+after clearance. Availability is not reserved and is not trademark clearance.
+
+### Fallback And Rejected Names
+
+- **Telesphoros / Telesfor**: accepted fallback. God of convalescence and
+  bringing-to-completion (coding completeness); registry-clean in EM/PL/WO on
+  2026-08-06; `telesphoros.health`, `telesphoros.pl`, `telesforhealth.pl`
+  free; `telesfor.pl` taken 09.2025.
+- **Obol** (Charon's passage coin): rejected. EUTM `018756046` (THE OBOL
+  ASSOCIATION, the Ethereum Obol Network entity) covers classes 9/36/42;
+  class 36 financial services is directly adjacent to billing software.
+- **Ariadne** (thread through the labyrinth): rejected. `ariadne.health`
+  registered 2018, `ariadne.pl` taken, Ariadne Labs operates in healthcare.
+- **Charon**: rejected for death connotations in a hospital product.
+- **Apollo Codebook**: superseded by the pivot; the Apollo base name was
+  crowded in healthcare (Apollo Hospitals and others).
+- Earlier rejections retained from the Apollo Codebook process: Athelas
+  (active healthcare AI company plus Tolkien estate risk), Apollo
+  Ref/Index/Codes/Health/Med, Paeon, Iaso, Aceso, Epione, Meditrina, Machaon,
+  and direct Tolkien names.
+
+Domain registration remains a manual external action. The registrar account
+must use 2FA, auto-renewal, registrar lock, recovery codes stored off-host,
+and DNSSEC when the complete DNS chain supports it.
+
+## Scope And Namespaces
+
+Bundled systems: `icd10-pl`, `icd9-pl`; grouping scheme `jgp-szp`. Future
+systems and schemes must remain distinct even when codes overlap:
+
+- `icd10-who`, `icd10-pl`, `icd9-who`, `icd9-cm-us`, `icd9-pl`
+- `jgp-szp`, `jgp-aos`, `jgp-reh`
+
+No source may be presented under a generic `icd10`, `icd9`, or `jgp` identity
+when its country, modification, or release affects meaning. The abstraction
+layers (terminology systems, grouping schemes, tariff schedules) are the
+mechanism by which other markets arrive without schema changes.
+
+## Licensing
+
+Repository software, infrastructure, tests, and documentation are reusable
+under `Apache-2.0 OR MIT`. Generated datasets and images containing them
+remain under source-specific terms.
+
+The commercial core (JGP catalogs, charakterystyka, algorithm, ICD-9 PL, and
+the billing-relevant ICD-10 codes with Polish titles embedded in załącznik 9;
+verified by sampling the 1/2022 edition on 2026-08-06, 8,759 code-plus-title
+strings in that file including JGP group names) is published inside
+zarządzenia Prezesa NFZ and NFZ komunikaty. The strong reading is that these
+are copyright-exempt official materials under Art. 4 pr. aut., with 15-plus
+years of commercial grouper precedent (KAMSOFT, CGM, Asseco, SGA). A formal
+legal opinion is a release gate for the paid product, not for development.
+
+The RSK ICD-10 resource metadata identifies `CC BY-NC-SA 3.0 IGO`, with the
+license sentence grammatically attached to the WHO 2019 English edition. The
+full RSK dictionary is therefore treated as free-tier enrichment whose
+noncommercial constraint must never sit under the paid path until the scope
+question is legally resolved.
+
+WHO-specific ICD-10 and international ICD-9 redistribution rights are
+unresolved and those datasets are excluded.
+
+## Architecture
+
+### Rust Workspace
+
+The accepted crates are:
+
+- `minos-domain`
+- `minos-store`
+- `minos-cli`
+- `minos-http`
+- `minos-grouper` (planned, `v0.0.2`)
+
+The domain remains synchronous and independent of CLI, HTTP, database, and
+frontend frameworks. The HTTP crate is an asynchronous adapter, not the owner
+of search or grouping rules. The grouper is deterministic: rules are versioned
+data, the engine is versioned code, and every result carries its trace.
+
+### Bitemporal Versioning
+
+Every rule-bearing fact carries valid time (the reporting period it governs)
+and knowledge time (when it was ingested). This is mandatory, not optional:
+NFZ amendments apply retroactively (74/2026/DSOZ published 2026-07-23,
+reportedly effective 2026-07-01; source mbrk.pl, verify in BAW). Queries
+select rules by service date; "what did we believe on date Y about service
+date X" must be answerable for audit support.
+
+A `ruleset_release` is a composite: zarządzenie plus załącznik versions,
+algorithm version, ICD-9 version, and ICD-10 version paired per reporting
+period (per § 10 of the base act).
+
+### Search Storage
+
+With vector search cut from scope, the engine spike shrinks: the default
+candidate is plain SQLite through a pinned Rust crate with FTS5. libSQL
+remains an option if the spike reveals a need. The spike verifies local
+read-only operation, Lambda compatibility, deterministic Polish search, and
+FTS. Normalized B-tree search remains the portable fallback. Semantic
+neighbours are deferred entirely and would require their own safety gates to
+return.
+
+### Ingestion Model
+
+Watchers-first. Scheduled CI jobs poll upstream sources daily, archive raw
+files immediately (upstream replaces files in place without version bumps and
+offers no public history), and open reviewed data PRs with manifest changes
+and diffs. Automation proposes, a human approves, CI builds immutable
+artifacts. The "CI never follows latest" rule is unchanged; it gained a robot
+that writes the PRs. Details in [data-sources.md](data-sources.md).
+
+### Frontend
+
+The first webpage uses static HTML, CSS, and JavaScript embedded in
+`minos-http`. The `v0.0.2` encounter builder and trace visualization will
+likely justify a real frontend toolchain; that is recorded as an expected
+future decision rather than scope creep.
+
+## Artifact And Release
+
+One `linux/amd64` HTTP image is the runtime artifact for local Docker, QNAP,
+Mikr.us, and AWS Lambda through Lambda Web Adapter.
+
+Private GHCR is canonical. Images are built on `main`, tagged by commit, and
+addressed by digest. A build attestation binds the digest to its source commit
+and workflow identity. A mandatory signed `v*` tag promotes the verified
+digest; it does not rebuild. AWS receives the same single-architecture
+manifest in same-region ECR and deploys a versioned Lambda through a `live`
+alias-qualified Function URL. Prebuilt CLI and data artifacts follow the same
+promotion rule.
+
+Mutable `latest` deployment and Watchtower-style production promotion are
+rejected. Helm is rejected because there is no Kubernetes deployment.
+
+## Production Hosting
+
+### Primary: AWS Lambda
+
+AWS Lambda was selected because it supports the desired Terraform and GitHub
+OIDC workflow, immutable image versions, atomic aliases, and recovery from
+declarative state without a server disk.
+
+The planned ingress is CloudFront with Origin Access Control to an `AWS_IAM`
+Lambda Function URL qualified by `live`. Cloudflare manages DNS but does not
+replace CloudFront's signed origin access. The `v0.0.2` POST grouping path
+requires explicit design for signed POST handling (`x-amz-content-sha256`)
+before implementation.
+
+### Fallback: Mikr.us 3.0
+
+Mikr.us `3.0` remains the low-fixed-cost fallback if representative AWS
+benchmarks fail. If used, it is disposable: Ansible provisions Docker and
+Compose, a restricted token pulls an exact GHCR digest, and Cloudflare Tunnel
+provides ingress.
+
+## Infrastructure Ownership
+
+- Terraform/OpenTofu owns stable AWS and Cloudflare resources, including the
+  snapshot bucket.
+- Ansible owns a future Mikr.us host configuration.
+- Docker Compose owns local, QNAP, and Mikr.us process topology.
+- GitHub Actions owns test, build, attestation, promotion, deployment, and
+  scheduled watcher orchestration. Watcher jobs may write only to the snapshot
+  bucket and open PRs; they hold no deployment permissions.
+- A registrar remains responsible only for domain registration and delegation.
+
+## Privacy And Observability
+
+Raw medical search queries and encounter payloads are prohibited in logs and
+analytics. Grouping is stateless: inputs are evaluated in memory and
+discarded. Structured events use route templates, request IDs, status classes,
+timings, result counts, and dataset versions. Any future query analytics
+require a separate privacy design and accepted decision.
+
+## Open Gates
+
+- Trademark counsel review of Minos; fallback decision if negative.
+- Domain registration (`minoshealth.com`, `minoshealth.pl`; `minos.health`
+  decision).
+- Formal Art. 4 legal opinion for commercial use of NFZ-published data.
+- `CC BY-NC-SA 3.0 IGO` scope resolution for the RSK ICD-10 dictionary.
+- Inspection and fixturing of complete RSK XML, NFZ XLSX, and komunikat DOCX
+  structures.
+- Launch SLOs, cost budget, and benchmark thresholds.
+- Pinned embedded database engine after the reduced-scope spike.
+- Grouper correctness validation protocol with real ward cases (before
+  `v0.0.2` ships).
