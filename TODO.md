@@ -1,5 +1,10 @@
 # TODO
 
+Execution backlog lives in [GitHub issues](https://github.com/krzysztofbury/minos-health/issues)
+(milestones M0-M7, numbered tasks with step-by-step descriptions and
+estimates). This file remains the spec-level checklist; issues carry the
+day-to-day order.
+
 ## Accepted Decisions
 
 - [x] Pivot from an ICD-10 reference (Apollo Codebook) to an explainable JGP
