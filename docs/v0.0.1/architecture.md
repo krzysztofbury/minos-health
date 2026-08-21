@@ -26,7 +26,7 @@ differentiate Minos from incumbent tools.
 
 ## Component Boundaries
 
-### minos-domain
+### minos.domain
 
 Responsibilities:
 
@@ -38,10 +38,10 @@ Responsibilities:
 - lexical rank and stable tie-break rules;
 - explicit domain errors.
 
-The crate is synchronous and has no dependency on an executor, web framework,
-CLI framework, SQL driver, or frontend representation.
+The package is synchronous and has no dependency on FastAPI, the CLI adapter,
+the SQL driver, or frontend representation.
 
-### minos-store
+### minos.store
 
 Responsibilities:
 
@@ -56,12 +56,12 @@ The store supports a local database path. Remote database connectivity is not
 required for lookup and must not become an implicit runtime dependency.
 
 With vector search out of scope, the default engine candidate is plain SQLite
-through a pinned Rust crate with FTS5; libSQL remains an option. A short spike
-pins the engine, crate, version, and features and verifies read-only
-operation, deterministic Polish search, FTS, and Lambda compatibility before
-the physical schema is accepted.
+with FTS5 through the pinned Python runtime and database driver. A short spike
+pins the Python and SQLite versions and verifies read-only operation,
+deterministic Polish search, FTS5 availability, standalone CLI packaging, and
+Lambda compatibility before the physical schema is accepted.
 
-### minos-grouper (planned, v0.0.2)
+### minos.grouper (planned, v0.0.2)
 
 Responsibilities:
 
@@ -72,11 +72,11 @@ Responsibilities:
 - the near-miss report: conditions that almost changed the outcome.
 
 Rules are data; the engine is versioned code, because the published algorithm
-changes structure between versions. The crate is synchronous, deterministic,
+changes structure between versions. The package is synchronous, deterministic,
 and side-effect free: same release plus same encounter equals same result and
 same trace. Encounter values never leave the evaluation; nothing is persisted.
 
-### minos-cli
+### minos.cli
 
 Responsibilities:
 
@@ -86,12 +86,12 @@ Responsibilities:
 - stable exit codes;
 - human-readable and versioned JSON output.
 
-Release artifacts include checksummed CLI binaries for supported platforms and
-a separately licensed data bundle. The CLI accepts an explicit data path,
-verifies the external artifact manifest before opening the database, and
-reports the application and dataset versions independently.
+Release artifacts include checksummed standalone CLI bundles for supported
+platforms and a separately licensed data bundle. The CLI accepts an explicit
+data path, verifies the external artifact manifest before opening the database,
+and reports the application and dataset versions independently.
 
-### minos-http
+### minos.http
 
 Responsibilities:
 
@@ -102,8 +102,8 @@ Responsibilities:
 - embedded static frontend assets;
 - cache and security headers.
 
-It runs as an ordinary HTTP process. Lambda Web Adapter translates Lambda
-events to HTTP without adding Lambda-specific code to the application.
+It runs as an ordinary FastAPI/ASGI process. Lambda Web Adapter translates
+Lambda events to HTTP without adding Lambda-specific code to the application.
 
 ### Watchers (CI, not runtime)
 
@@ -117,21 +117,41 @@ part of the runtime image.
 
 ```text
 minos-health/
-|-- crates/
-|   |-- minos-domain/
-|   |-- minos-store/
-|   |-- minos-grouper/        # v0.0.2
-|   |-- minos-cli/
-|   `-- minos-http/
-|-- fixtures/
-|-- watchers/
-|-- docs/v0.0.1/
+|-- apps/
+|   `-- web/                       # responsive web client; later installable PWA
+|-- src/minos/
+|   |-- domain/
+|   |-- store/
+|   |-- ingest/
+|   |-- grouper/                   # v0.0.2
+|   |-- cli/
+|   `-- http/
+|-- database/
+|   |-- reference/
+|   |   `-- sqlite/
+|   |       |-- migrations/        # raw numbered build-time SQL
+|   |       `-- queries/
+|   `-- application/               # future accounts, billing, and usage
+|       `-- postgresql/migrations/
+|-- tests/
+|   |-- unit/
+|   |-- integration/
+|   |-- compatibility/
+|   |-- fixtures/
+|   `-- golden/
+|-- manifests/
+|   |-- sources/
+|   `-- releases/
 |-- infra/
 |   |-- bootstrap/
-|   `-- aws/
-|-- web/
+|   |-- terraform/
+|   `-- ansible/
+|-- scripts/
+|-- docs/v0.0.1/
 |-- .github/workflows/
-|-- Cargo.toml
+|-- pyproject.toml
+|-- uv.lock
+|-- .dockerignore
 |-- Dockerfile
 `-- compose.yaml
 ```
@@ -139,6 +159,19 @@ minos-health/
 Raw source data remains under ignored `/data`; generated databases and
 manifests remain under ignored `/artifacts`. Only small reviewed fixtures are
 committed.
+
+`database/reference` is the language-neutral SQLite contract owned by
+`minos.store`. It contains raw SQL, not an ORM model. The artifact builder
+creates a fresh database, applies every numbered migration transactionally,
+records migration checksums, imports data, and publishes the verified result.
+The CLI, HTTP runtime, and future PWA open that artifact read-only and never run
+reference migrations at startup.
+
+`database/application` is a reserved future boundary, not part of `v0.0.1`.
+If accounts and billing are introduced, its PostgreSQL migrations and backups
+remain independent from replaceable reference artifacts and local browser
+state. Empty future directories do not need to be committed before their
+phase starts.
 
 ## Logical Data Model
 
@@ -262,20 +295,52 @@ a privacy review addresses medical terms in URLs.
 
 The runtime image contains:
 
-- one `minos-http` binary;
+- the Minos Python environment and ASGI entry point;
 - embedded or packaged static assets;
 - the generated read-only database;
 - dataset and build provenance;
 - Lambda Web Adapter files needed by the Lambda profile.
 
-The CLI binary and data bundle are promoted alongside the image but are not
-installed in the HTTP runtime image unless a measured operational need
+The standalone CLI bundle and data bundle are promoted alongside the image but
+are not installed in the HTTP runtime image unless a measured operational need
 emerges.
 
 The process listens on a configurable unprivileged port, runs as non-root,
 uses a read-only filesystem, writes only to an explicitly allowed temporary
 path, and handles termination cleanly. No runtime migration or upstream data
 download is allowed.
+
+## Future PWA And Commercial Boundary
+
+The web client can evolve in phases without a desktop application:
+
+1. `v0.0.1` serves an anonymous responsive web interface through the HTTP
+   runtime.
+2. A later installable PWA stores a versioned reference SQLite snapshot through
+   SQLite WASM and supported browser storage. On startup or restored
+   connectivity it checks a release manifest, downloads a complete compatible
+   snapshot, verifies size, checksum, schema metadata, integrity, and sentinel
+   queries, then switches the active release. Failure leaves the prior release
+   active.
+3. Online commercial calculations add central identity, entitlement, payment,
+   and idempotent usage services backed by a separate application database.
+4. Premium hospital offline calculation uses an expiring signed organization
+   entitlement. Browser controls are not treated as strong per-run enforcement;
+   the commercial control is organization licensing plus periodic renewal or
+   manual signed-license import for an air-gapped installation. This phase also
+   requires a browser-executable grouper, through Python/WASM or a separately
+   validated client implementation, that passes the same golden cases and
+   produces the same trace as the canonical engine.
+
+Application code and reference data have independent versions and an explicit
+schema compatibility range. Full client snapshots are the default because a
+returning browser can skip any number of releases. Delta updates require
+measured evidence that full compressed snapshots are too large.
+
+The PWA only disables online paid actions as user feedback. Every online
+calculation is authorized and metered by the server. Offline reference use
+continues against the last verified local dataset, with its release and last
+successful update check visible to the user.
 
 ## Concurrency And Limits
 
@@ -314,7 +379,8 @@ The following require a new design decision rather than an incremental
 shortcut:
 
 - semantic or embedding-based search;
-- user accounts or stored favourites;
+- implementation details for user accounts, payments, plans, quotas, and
+  stored favourites;
 - stored encounters or grouping history;
 - mutable production terminology edits;
 - query-history analytics;

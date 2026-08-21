@@ -5,7 +5,8 @@
 The delivery system must:
 
 - build one portable HTTP image;
-- build checksummed CLI and data-bundle artifacts for supported platforms;
+- build checksummed standalone CLI and data-bundle artifacts for supported
+  platforms;
 - promote an already tested digest rather than rebuild for release;
 - avoid long-lived cloud credentials in GitHub;
 - keep data-bearing images and raw datasets private;
@@ -27,8 +28,8 @@ ghcr.io/krzysztofbury/minos-health@sha256:<digest>
 The lifecycle is:
 
 1. A pull request builds a fixture image and runs an actual container search.
-2. `main` builds the pinned full dataset, supported CLI binaries and data bundle,
-   and the `linux/amd64` HTTP image.
+2. `main` builds the pinned full dataset, supported standalone CLI bundles and
+   data bundle, and the `linux/amd64` HTTP image.
 3. `main` pushes `sha-<commit>`, stores CLI/data artifacts immutably by commit and
    checksum, and creates a signed build attestation binding the image digest to
    the source commit and workflow identity.
@@ -56,9 +57,9 @@ The release workflow never rebuilds application code or data.
 Required checks:
 
 - repository hygiene and document formatting;
-- `cargo fmt --all -- --check`;
-- Clippy with warnings denied;
-- unit and integration tests;
+- Ruff formatting and linting with warnings denied;
+- mypy type checking;
+- pytest unit and integration tests;
 - fixture ingestion and deterministic artifact checks;
 - dependency license/advisory policy;
 - image build and container search smoke test.
@@ -107,8 +108,9 @@ tag rebuilds and retains only a bounded number of rollback images.
 ## Container
 
 The multi-stage image targets `linux/amd64` for portability across GitHub-hosted
-builders, QNAP, Mikr.us, and Lambda. It includes the ordinary HTTP binary,
-static assets, read-only database, provenance, and Lambda Web Adapter.
+builders, QNAP, Mikr.us, and Lambda. It includes the pinned Python environment,
+ordinary FastAPI/ASGI service, static assets, read-only database, provenance,
+and Lambda Web Adapter.
 
 Before promotion, CI inspects the registry media type and architecture and runs
 the exact ECR digest with Lambda-compatible settings. Build provenance and
@@ -120,7 +122,7 @@ Runtime requirements:
 - non-root user and unprivileged port;
 - read-only filesystem;
 - no shell or package manager unless required for a demonstrated runtime need;
-- no source files, build tools, credentials, or raw snapshots;
+- no watcher sources, test fixtures, compilers, credentials, or raw snapshots;
 - deterministic database path and dataset release configuration;
 - liveness and readiness endpoints;
 - graceful termination;
@@ -139,7 +141,7 @@ Browser
   -> Origin Access Control signed request
   -> AWS_IAM Lambda Function URL qualified by live
   -> Lambda Web Adapter
-  -> minos-http container
+  -> minos.http FastAPI service
 ```
 
 The Function URL is created for the `live` alias qualifier, not `$LATEST`, so an

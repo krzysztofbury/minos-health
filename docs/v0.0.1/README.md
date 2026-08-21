@@ -11,8 +11,8 @@ model.
 
 - [decisions.md](decisions.md): accepted, rejected, and still-open decisions,
   including the 2026-08-06 pivot record and the naming screen.
-- [architecture.md](architecture.md): crates, bitemporal data model, search,
-  grouping, API, and runtime.
+- [architecture.md](architecture.md): Python packages, bitemporal data model,
+  search, grouping, API, and runtime.
 - [data-sources.md](data-sources.md): every upstream source, its endpoints,
   cadence, and the watcher/archive rules.
 - [data-and-licensing.md](data-and-licensing.md): provenance requirements and

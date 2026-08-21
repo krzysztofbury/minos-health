@@ -11,6 +11,8 @@ release.
 
 ### Added
 
+- Python 3.14 and uv development environment with Ruff, BasedPyright, mypy,
+  pytest, a runnable `minos` command, and terminal/Neovim setup guidance.
 - Initial project documentation and development configuration.
 - Accepted `v0.0.1` architecture, data, delivery, and operations
   documentation.
@@ -24,6 +26,19 @@ release.
 
 ### Changed
 
+- Recorded the phased client and commercial direction: one responsive PWA,
+  immutable offline reference-data synchronization, centrally enforced online
+  calculation allowances, and separately licensed organization/hospital
+  offline calculation.
+- Expanded the target repository layout with explicit web, raw reference SQL,
+  compatibility-test, manifest, infrastructure, and future application-data
+  boundaries.
+- Replaced the planned Rust workspace with one Python 3.14 application using
+  strict domain, store, ingestion, CLI, HTTP, and grouper package boundaries.
+  Rust is frozen until 2027-08-21 unless measured product requirements prove
+  Python cannot satisfy them.
+- Replaced Cargo/Clippy CI and binary terminology with Ruff, mypy, pytest, and
+  standalone Python application bundles.
 - Reframed the project (2026-08-06) from a Polish ICD-10 terminology reference
   (Apollo Codebook) into Minos, an explainable JGP settlement intelligence
   platform: terminology plus JGP knowledge base in `v0.0.1`, grouper engine

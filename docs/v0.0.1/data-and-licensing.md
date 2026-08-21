@@ -112,8 +112,8 @@ transform_version = "<git-commit-or-tool-version>"
 ```
 
 The generated artifact manifest additionally records database SHA-256, byte
-size, schema version, row counts per table, build timestamp, and Rust tool
-version.
+size, schema version, row counts per table, build timestamp, Python version,
+SQLite version, and lockfile identity.
 
 CI builds from the exact manifest. Watchers propose changes; CI must never
 follow a `latest` link or replace a pinned source automatically.
@@ -224,6 +224,11 @@ Before charging for the product, confirm through counsel:
   treatment of the derived free-tier database (attribution, modification
   notice, share-alike, noncommercial boundary);
 - non-endorsement and warranty statements for all publishers.
+
+The same clearance applies before publishing a downloadable offline PWA
+artifact. A paid hospital licence must not unlock or redistribute RSK-derived
+content whose noncommercial or share-alike boundary has not been resolved;
+commercial and free client database variants remain technically separable.
 
 ## Artifact Notice
 

@@ -42,24 +42,45 @@ systems, grouping schemes, and tariff schedules rather than schema changes.
 
 ## Architecture
 
-The planned Rust workspace has four initial crates plus one planned:
+Minos is one Python 3.14 distribution with strict internal package boundaries:
 
-- `minos-domain`: synchronous domain types, normalization, ranking, and errors;
-- `minos-store`: read-only persistence and indexed search through an embedded
-  database engine;
-- `minos-cli`: data build, inspection, and offline lookup commands;
-- `minos-http`: HTTP endpoints and embedded static web assets;
-- `minos-grouper` (planned, `v0.0.2`): versioned grouping engine evaluating
+- `minos.domain`: synchronous domain types, normalization, ranking, and errors;
+- `minos.store`: read-only persistence and indexed search through SQLite/FTS5;
+- `minos.ingest`: hardened source parsing and reproducible artifact builds;
+- `minos.cli`: data build, inspection, and offline lookup commands;
+- `minos.http`: FastAPI endpoints and packaged static web assets;
+- `minos.grouper` (planned, `v0.0.2`): versioned grouping engine evaluating
   encounter facts against rules-as-data.
 
 One immutable `linux/amd64` container runs locally, on a conventional Docker
-host, or on AWS Lambda through Lambda Web Adapter. AWS Lambda is the primary
-production target; Mikr.us remains a benchmark-triggered fallback. Source
-watchers run as scheduled CI jobs and propose reviewed data updates; they are
-not part of the runtime.
+host, or on AWS Lambda through Lambda Web Adapter. Offline CLI distributions
+bundle the Python runtime and use the same generated database. AWS Lambda is
+the primary production target; Mikr.us remains a benchmark-triggered fallback.
+Source watchers run as scheduled CI jobs and propose reviewed data updates;
+they are not part of the runtime.
+
+The initial service remains anonymous. The accepted later client direction is
+one installable responsive PWA that can synchronize a verified immutable
+SQLite reference snapshot for offline use. Future individual calculations are
+authorized and metered online; premium offline calculation is licensed
+separately to an organization or hospital. Accounts, payments, usage storage,
+and exact commercial terms are not part of `v0.0.1`.
 
 See [the v0.0.1 documentation](docs/v0.0.1/README.md) for accepted decisions
 and the implementation plan.
+
+## Development
+
+Install the pinned Python runtime and all development tools from a clean
+checkout:
+
+```sh
+uv sync --all-groups
+uv run minos --version
+```
+
+Ruff, BasedPyright, mypy, and pytest are pinned in `uv.lock`. Terminal and
+Neovim integration is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Data
 

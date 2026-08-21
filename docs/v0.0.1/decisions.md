@@ -1,6 +1,6 @@
 # Decisions
 
-Status: accepted planning record, 2026-08-06
+Status: accepted planning record, 2026-08-06; amended 2026-08-21
 
 ## Product
 
@@ -40,6 +40,39 @@ An offline CLI and an anonymous webpage backed by a read-only HTTP API share
 the same domain and store behaviour. Grouping (`v0.0.2`) adds one stateless
 POST endpoint. Accounts, mutable user data, and personalization are deferred.
 
+### Phased Offline And Commercial Model
+
+The first web release remains anonymous and online; the CLI remains the initial
+offline interface. The accepted client direction after that foundation is one
+responsive installable PWA, not a separate desktop application. A later
+offline phase publishes a complete, immutable client SQLite artifact; the PWA
+downloads and verifies a new release when it regains connectivity and
+atomically replaces its prior local snapshot. It does not replicate the central
+operational database or migrate the active reference database in place.
+
+Commercial calculations are introduced only with central authentication,
+entitlements, and usage accounting. A small free allowance and individual paid
+plans remain online so the server is the enforcement boundary. The PWA may
+disable those actions while offline, but the server remains authoritative.
+Premium offline calculation is licensed separately to a hospital or other
+organization through an expiring signed entitlement and contract, not an
+untrusted browser-side per-run counter. Exact allowances, prices, identity
+provider, payment provider, check-in period, and organization licensing terms
+remain future product decisions.
+
+Offline calculation also requires the deterministic grouper to execute in the
+browser. The implementation choice is intentionally open: a Python/WASM route
+or a separately implemented client engine must satisfy the same golden cases
+and traces before release. Offline PWA support is a measured requirement that
+may reopen the application-language decision at its documented checkpoint; it
+does not justify duplicating grouping rules prematurely.
+
+Reference data, mutable application data, and local browser state remain
+separate. A future application database may hold accounts, payment-provider
+identifiers, subscriptions, entitlements, and an idempotent usage ledger; it
+must never hold card details or encounter payloads. Offline distribution in a
+paid product is limited to datasets cleared for commercial redistribution.
+
 ### Competitive Position (researched 2026-08-06)
 
 - CGM/UHC gruper (jgp.uhc.com.pl): maintained, freemium capped at 5 groupings
@@ -60,7 +93,7 @@ phase 0 watchers.
 
 The public product name is **Minos** (Dante's judge who hears each case and
 assigns it to its circle; the mythological line continues the operator's
-Pythia and Virgil projects). The repository is `minos-health`; crate prefix
+Pythia and Virgil projects). The repository is `minos-health`; Python package
 and CLI remain `minos`.
 
 Registry pre-screen (2026-08-06, TMview API, registration numbers verbatim):
@@ -149,20 +182,30 @@ unresolved and those datasets are excluded.
 
 ## Architecture
 
-### Rust Workspace
+### Python Application
 
-The accepted crates are:
+On 2026-08-21 Python 3.14 replaced the planned Rust workspace as the sole
+application language through the 2027-08-21 checkpoint. This aligns the product
+with the owner's applied-AI, backend, and data work while making Minos the place
+to rebuild independent code review, testing, and debugging. Rust is frozen;
+reconsideration requires the checkpoint or a measured requirement Python cannot
+meet.
 
-- `minos-domain`
-- `minos-store`
-- `minos-cli`
-- `minos-http`
-- `minos-grouper` (planned, `v0.0.2`)
+The accepted internal packages are:
+
+- `minos.domain`
+- `minos.store`
+- `minos.ingest`
+- `minos.cli`
+- `minos.http`
+- `minos.grouper` (planned, `v0.0.2`)
 
 The domain remains synchronous and independent of CLI, HTTP, database, and
-frontend frameworks. The HTTP crate is an asynchronous adapter, not the owner
-of search or grouping rules. The grouper is deterministic: rules are versioned
-data, the engine is versioned code, and every result carries its trace.
+frontend frameworks. FastAPI is a thin adapter, not the owner of search or
+grouping rules. The grouper is deterministic: rules are versioned data, the
+engine is versioned code, and every result carries its trace. AI may assist
+implementation, but code is accepted only when the owner can explain, review,
+test, and debug it.
 
 ### Bitemporal Versioning
 
@@ -180,10 +223,10 @@ period (per § 10 of the base act).
 ### Search Storage
 
 With vector search cut from scope, the engine spike shrinks: the default
-candidate is plain SQLite through a pinned Rust crate with FTS5. libSQL
-remains an option if the spike reveals a need. The spike verifies local
-read-only operation, Lambda compatibility, deterministic Polish search, and
-FTS. Normalized B-tree search remains the portable fallback. Semantic
+candidate is plain SQLite with FTS5 through the pinned Python runtime and
+database driver. The spike verifies local read-only operation, standalone CLI
+packaging, Lambda compatibility, deterministic Polish search, and FTS5.
+Normalized B-tree search remains the portable fallback. Semantic
 neighbours are deferred entirely and would require their own safety gates to
 return.
 
@@ -198,10 +241,13 @@ that writes the PRs. Details in [data-sources.md](data-sources.md).
 
 ### Frontend
 
-The first webpage uses static HTML, CSS, and JavaScript embedded in
-`minos-http`. The `v0.0.2` encounter builder and trace visualization will
-likely justify a real frontend toolchain; that is recorded as an expected
-future decision rather than scope creep.
+Frontend source lives under `apps/web`. The first webpage may remain static
+HTML, CSS, and JavaScript whose build output is served by `minos.http`; this
+does not require a separate deployed frontend service. The later installable
+PWA adds a service worker, local SQLite through WASM and browser storage, and
+one-way dataset-release synchronization. The `v0.0.2` encounter builder and
+trace visualization may justify introducing the frontend toolchain before the
+offline phase.
 
 ## Artifact And Release
 
@@ -213,8 +259,8 @@ addressed by digest. A build attestation binds the digest to its source commit
 and workflow identity. A mandatory signed `v*` tag promotes the verified
 digest; it does not rebuild. AWS receives the same single-architecture
 manifest in same-region ECR and deploys a versioned Lambda through a `live`
-alias-qualified Function URL. Prebuilt CLI and data artifacts follow the same
-promotion rule.
+alias-qualified Function URL. Prebuilt standalone CLI and data artifacts follow
+the same promotion rule.
 
 Mutable `latest` deployment and Watchtower-style production promotion are
 rejected. Helm is rejected because there is no Kubernetes deployment.
