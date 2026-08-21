@@ -10,7 +10,7 @@ day-to-day order.
 - [x] Pivot from an ICD-10 reference (Apollo Codebook) to an explainable JGP
       settlement platform (2026-08-06).
 - [x] Use **Minos** as the provisional public brand pending trademark counsel.
-- [x] Keep `minos` as the crate prefix and CLI command; repository is
+- [x] Keep `minos` as the Python package and CLI command; repository is
       `minos-health`.
 - [x] `v0.0.1` datasets: `icd10-pl`, `icd9-pl`, and the `jgp-szp` knowledge
       base; grouper engine in `v0.0.2`; optimizer in `v0.0.3`.
@@ -27,6 +27,8 @@ day-to-day order.
 - [x] Build one immutable `linux/amd64` HTTP container.
 - [x] Use AWS Lambda as the primary target and Mikr.us as a measured fallback.
 - [x] Deploy tested image digests from signed version tags without rebuilding.
+- [x] Use Python 3.14 as the sole application language through 2027-08-21;
+      keep synchronous domain rules independent of FastAPI and persistence.
 
 ## Domains
 
@@ -98,11 +100,18 @@ day-to-day order.
 
 ## Repository Baseline
 
-- [ ] Initialize the Cargo workspace and the four initial crates.
-- [ ] Reduced engine spike: pin SQLite crate (or libSQL) with FTS5; verify
-      read-only operation, deterministic Polish search, and Lambda
-      compatibility.
-- [ ] Add `rust-toolchain.toml`, dependency policy, and workspace metadata.
+- [x] Initialize `pyproject.toml`, `uv.lock`, and the `src/minos` package with
+      domain, store, ingest, CLI, and HTTP modules; add grouper in `v0.0.2`.
+- [x] Establish `apps/web`, `database/reference/sqlite/{migrations,queries}`,
+      `tests/{unit,integration,compatibility,fixtures,golden}`, `manifests`,
+      `infra`, and `scripts` boundaries; do not commit empty future components.
+- [ ] Implement raw numbered SQLite migrations with transactional application,
+      an applied-migration checksum table, and fresh-database build tests. The
+      runtime must only validate and open the reference artifact read-only.
+- [ ] Reduced engine spike: pin Python and SQLite versions with FTS5; verify
+      read-only operation, deterministic Polish search, standalone CLI
+      packaging, and Lambda compatibility.
+- [ ] Add Ruff, mypy, pytest, dependency policy, and package metadata.
 - [ ] Add small committed fixtures (XML, XLSX, DOCX) outside the ignored
       `/data` directory.
 - [ ] Add a checked-in dataset manifest containing source identities and
@@ -154,7 +163,7 @@ day-to-day order.
 
 ## Grouper (v0.0.2)
 
-- [ ] Implement `minos-grouper`: encounter facts against a pinned ruleset
+- [ ] Implement `minos.grouper`: encounter facts against a pinned ruleset
       release; rules as data, engine as versioned code.
 - [ ] Full rule trace: every consulted condition with outcome; near-miss
       report for conditions that almost changed the group.
@@ -171,16 +180,16 @@ day-to-day order.
 - [ ] Add human-readable output, stable exit codes, and versioned JSON output.
 - [ ] Include dataset provenance and the reference-only disclaimer in output.
 - [ ] Verify lookup requires no network access after a dataset is built.
-- [ ] Define checksummed CLI binary and data-bundle artifacts and promote them
-      from `main` to a release without rebuilding.
+- [ ] Define checksummed standalone CLI and data-bundle artifacts and promote
+      them from `main` to a release without rebuilding.
 
 ## HTTP And Web
 
 - [ ] Add `/healthz`, `/readyz`, bounded search, concept detail, and JGP group
       detail endpoints with explicit service-date parameters.
 - [ ] Add versioned response schemas and consistent error mapping.
-- [ ] Embed a responsive static interface: terminology search, JGP group
-      browser, and version diff views.
+- [ ] Build the responsive interface under `apps/web`: terminology search, JGP
+      group browser, and version diff views; serve its output from `minos.http`.
 - [ ] Display code hierarchy, grouping conditions, point values, source
       release, and the safety/compliance disclaimer.
 - [ ] Exclude raw query text and encounter payloads from logs and analytics.
@@ -196,7 +205,7 @@ day-to-day order.
 
 ## CI And Release
 
-- [ ] Add PR checks for formatting, Clippy, tests, fixture ingestion,
+- [ ] Add PR checks for Ruff formatting/linting, mypy, pytest, fixture ingestion,
       dependency policy, and container smoke testing.
 - [ ] Build the pinned full dataset and private GHCR image on `main`.
 - [ ] Tag images by commit and address releases by digest; never deploy
@@ -255,6 +264,9 @@ day-to-day order.
 
 ## Later
 
+- [ ] Revisit optional editor conveniences only after observed friction: debug
+      adapter integration, test-navigation plugins, and project task shortcuts.
+      Do not add repository-owned Neovim dotfiles.
 - [ ] `v0.0.3` optimizer: what-if simulation framed as completeness and
       rejection prevention, validated with settlement practitioners.
 - [ ] AOS and REH grouping schemes (`jgp-aos`, `jgp-reh`) after `jgp-szp`.
@@ -263,6 +275,20 @@ day-to-day order.
 - [ ] Add separately namespaced international ICD variants after licensing
       review.
 - [ ] Revisit Polish medicinal products and substitution as a separate module.
-- [ ] Evaluate Python bindings only after the domain API is stable.
-- [ ] Design mutable user features only with authentication, privacy analysis,
+- [ ] Evaluate a public Python SDK only after the internal domain API is stable.
+- [ ] Evolve `apps/web` into an installable PWA with SQLite WASM, supported
+      browser storage, versioned client-data manifests, verified full-snapshot
+      updates, atomic activation, rollback, and visible dataset freshness.
+- [ ] Design central authentication, subscriptions, entitlements, payment
+      webhooks, and an idempotent usage ledger in a separate application
+      database; store no card details or encounter payloads.
+- [ ] Define online free and paid calculation allowances with server-side
+      enforcement; offline UI state is feedback, never authorization.
+- [ ] Define premium organization/hospital offline licensing through signed,
+      expiring entitlements and periodic renewal or manual import; do not use
+      browser-side per-run billing as a security boundary.
+- [ ] Before offline calculation, select and validate a browser-executable
+      grouper against the canonical golden cases and complete rule traces; do
+      not duplicate grouping rules before this requirement is measured.
+- [ ] Design any mutable user features with authentication, privacy analysis,
       and a separate database backup and restore strategy.

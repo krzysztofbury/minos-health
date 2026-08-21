@@ -6,12 +6,32 @@ deployment decisions remain deliberate.
 
 ## Development setup
 
-Once the Cargo workspace exists, the project requires a stable Rust toolchain
-with `rustfmt` and `clippy`:
+The project uses the Python version pinned in `.python-version`. From a clean
+checkout, one command installs Python when needed and synchronizes every
+dependency group:
 
 ```sh
-rustup component add rustfmt clippy
+uv sync --all-groups
 ```
+
+Verify the installed command:
+
+```sh
+uv run minos --version
+```
+
+### Terminal and Neovim
+
+The repository provides editor tooling inside `.venv`; it does not own personal
+Neovim configuration. Point the existing Neovim LSP client at:
+
+| Capability | Executable |
+| --- | --- |
+| Python navigation and type diagnostics | `.venv/bin/basedpyright-langserver --stdio` |
+| Ruff diagnostics and formatting | `.venv/bin/ruff server` |
+
+Tests run with `uv run pytest`. File search remains the responsibility of the
+existing terminal and Neovim setup rather than project-specific dotfiles.
 
 Install and enable the repository hooks:
 
@@ -22,14 +42,15 @@ pre-commit install
 
 ## Before submitting a change
 
-Run the complete pre-commit suite. The Cargo commands below are its Rust-specific
-checks:
+Run the complete pre-commit suite and the explicit Python checks:
 
 ```sh
 pre-commit run --all-files
-cargo fmt --all -- --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all-features
+uv run ruff format --check .
+uv run ruff check .
+uv run basedpyright
+uv run mypy src
+uv run pytest
 ```
 
 Keep changes focused, add tests for observable behavior, and update the

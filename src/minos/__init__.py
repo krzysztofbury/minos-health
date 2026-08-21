@@ -1,0 +1,1 @@
+"""Minos settlement intelligence platform."""

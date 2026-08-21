@@ -1,7 +1,7 @@
 # Minos Specification
 
-Status: accepted implementation baseline, 2026-08-06 (reframed from the Apollo
-Codebook ICD-10 reference baseline of the same date)
+Status: accepted implementation baseline, 2026-08-06; Python architecture and
+phased PWA/commercial direction accepted 2026-08-21
 
 ## Goal
 
@@ -24,7 +24,7 @@ coding beyond documentation.
 
 Two interfaces share the same domain behaviour:
 
-1. An offline-capable Rust CLI for developers and advanced users.
+1. An offline-capable Python CLI packaged for supported desktop platforms.
 2. An anonymous web application and read-only HTTP API.
 
 ## Scope
@@ -60,7 +60,7 @@ Two interfaces share the same domain behaviour:
 
 ### Planned For v0.0.2 (design baseline now, implementation later)
 
-- `minos-grouper`: deterministic encounter evaluation producing the JGP group,
+- `minos.grouper`: deterministic encounter evaluation producing the JGP group,
   point value, complete rule trace, and near-miss report (which conditions
   almost changed the outcome). Grouping requests use POST and are stateless:
   never stored, never logged.
@@ -77,7 +77,32 @@ Two interfaces share the same domain behaviour:
 - Accounts, personalization, favourites, or mutable production data.
 - WHO ICD-10, WHO ICD-9, ICD-9-CM-US variants until separate source and
   redistribution reviews are complete.
-- Python bindings, mobile applications, and write APIs.
+- A public Python SDK, mobile applications, and write APIs.
+
+These exclusions describe `v0.0.1`, not permanent product constraints.
+
+### Accepted Future Direction
+
+- One responsive installable PWA is the client direction; no separate desktop
+  application is planned.
+- Offline reference use receives complete versioned SQLite snapshots through
+  one-way synchronization when connectivity returns. The active local snapshot
+  is replaced only after compatibility and integrity checks.
+- Individual calculations remain online when commercial controls arrive: a
+  small free allowance and paid plans are authorized and metered centrally.
+- Premium offline calculation is an organization or hospital licence using a
+  signed expiring entitlement, not browser-side per-run billing.
+- Premium offline calculation also requires a browser-executable grouper that
+  passes the canonical engine's golden cases and trace assertions; its language
+  and packaging are deferred until measured browser requirements exist.
+- Accounts, subscriptions, entitlements, usage, and payment-provider identifiers
+  use a separate future application database. Card data and encounter payloads
+  are not stored there.
+- Commercial offline artifacts contain only data cleared for paid
+  redistribution.
+
+Exact pricing, quotas, payment and identity providers, and offline licence
+terms remain out of scope until that phase is designed.
 
 Future classification and scheme variants must remain explicitly namespaced,
 including `icd10-who`, `icd10-pl`, `icd9-pl`, `icd9-cm-us`, `jgp-szp`,
@@ -88,7 +113,7 @@ when its country, modification, or release affects meaning.
 
 ### Domain
 
-`minos-domain` is synchronous and framework-independent. It owns terminology
+`minos.domain` is synchronous and framework-independent. It owns terminology
 identifiers, concept and relation types, normalization rules, search result
 types, deterministic ordering, grouping-scheme and ruleset identities, and
 explicit errors. It does not own HTTP, database connections, command-line
@@ -96,20 +121,20 @@ parsing, or serialization policy.
 
 ### Store
 
-`minos-store` owns the generated database schema, read-only queries, and
+`minos.store` owns the generated database schema, read-only queries, and
 ingestion transactions. Lookup must work against a local database without
 network access.
 
 With vector search removed from scope, the default engine candidate is plain
-SQLite through a pinned Rust crate with FTS5; libSQL remains an option. A
-short implementation spike pins one engine, crate version, and feature set and
-verifies local read-only operation, deterministic Polish search, FTS, and
-Lambda compatibility before the physical schema is accepted. Portable
-normalized B-tree search remains the required fallback.
+SQLite with FTS5 through Python's pinned runtime and database driver. A short
+implementation spike pins the Python and SQLite versions and verifies local
+read-only operation, deterministic Polish search, FTS5 availability, packaged
+CLI operation, and Lambda compatibility before the physical schema is
+accepted. Portable normalized B-tree search remains the required fallback.
 
 ### Grouper (v0.0.2)
 
-`minos-grouper` evaluates encounter facts (principal and secondary diagnoses,
+`minos.grouper` evaluates encounter facts (principal and secondary diagnoses,
 procedures with dates, age, admission and discharge modes and dates, length of
 stay, department) against a pinned ruleset release. Rules are data; the engine
 is versioned code, because the published algorithm changes structure between
@@ -118,7 +143,7 @@ identical, and the trace lists every rule consulted with its outcome.
 
 ### CLI
 
-`minos-cli` produces and inspects datasets and performs offline searches. It
+`minos.cli` produces and inspects datasets and performs offline searches. It
 owns argument parsing, output formatting, stable exit codes, and JSON schemas.
 A representative command shape is:
 
@@ -133,11 +158,12 @@ dataset explicitly.
 
 ### HTTP And Web
 
-`minos-http` is a thin asynchronous adapter over the synchronous domain and
-store. It embeds static HTML, CSS, and JavaScript to avoid a separate frontend
-build toolchain in `v0.0.1`. The `v0.0.2` encounter builder and trace views
-will likely outgrow this; introducing a frontend toolchain then is an accepted
-future decision, not scope creep now.
+`minos.http` is a thin FastAPI adapter over the synchronous domain and store.
+Frontend source lives under `apps/web`; `minos.http` packages or serves its
+build output. Static HTML, CSS, and JavaScript avoid requiring a frontend build
+toolchain in `v0.0.1`. The `v0.0.2` encounter builder, trace views, and later
+offline PWA may outgrow this; introducing a frontend toolchain then is an
+accepted future decision, not scope creep now.
 
 The initial endpoint set is:
 
@@ -299,9 +325,15 @@ deployment copies the same single-architecture image manifest to ECR,
 publishes a Lambda version, and atomically updates a `live` alias. The public
 Function URL is qualified by that alias.
 
-CLI binaries and their separate data bundle are also built and checksummed on
-`main`, stored immutably by commit, and promoted without rebuilding. The CLI
-verifies the data manifest before opening it.
+Standalone CLI application bundles and their separate data bundle are also
+built and checksummed on `main`, stored immutably by commit, and promoted
+without rebuilding. The CLI verifies the data manifest before opening it.
+
+A future PWA data release reuses the same immutable-artifact discipline: a
+versioned client SQLite snapshot and release manifest are published separately
+from application code, verified before local activation, and retained briefly
+for rollback. A browser never receives or replicates the future central
+application database.
 
 AWS Lambda is the primary production target. The container remains portable to
 local Docker, QNAP, or Mikr.us if representative benchmarks or cost invalidate
