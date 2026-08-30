@@ -80,10 +80,11 @@ stores commit-bound checksums for the CLI/data artifacts.
 Separate scheduled workflows implement phase 0 (see
 [data-sources.md](data-sources.md)): they poll RSK and NFZ endpoints daily,
 archive every fetched raw file to the private versioned S3 snapshot bucket
-(with checksums computed at archive time), run the headless-browser step for
-BAW downloads, and open data pull requests carrying manifest changes and
-human-readable diffs. Watcher jobs hold credentials for the snapshot bucket
-and PR creation only; they have no deployment, ECR, or Lambda permissions.
+(with checksums computed at archive time), retrieve BAW document graphs and
+files through anonymous HTTP APIs, and open data pull requests carrying
+manifest changes and human-readable diffs. A browser is fallback only after a
+captured challenge. Watcher jobs hold credentials for the snapshot bucket and
+PR creation only; they have no deployment, ECR, or Lambda permissions.
 Watcher failures and upstream schema drift raise alerts rather than failing
 silently.
 

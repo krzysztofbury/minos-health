@@ -110,8 +110,9 @@ Lambda events to HTTP without adding Lambda-specific code to the application.
 Scheduled GitHub Actions jobs poll upstream sources, archive raw files, and
 open data PRs (see [data-sources.md](data-sources.md)). They share the
 manifest format with `minos data build` but are otherwise scripts plus a
-headless-browser step for BAW; they hold no deployment permissions and are not
-part of the runtime image.
+BAW/CZS source adapter; they hold no deployment permissions and are not part of
+the runtime image. BAW uses anonymous JSON and binary endpoints by default;
+browser automation is an isolated fallback, not a baseline dependency.
 
 ## Target Repository Layout
 

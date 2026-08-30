@@ -77,17 +77,15 @@ day-to-day order.
 
 ## Phase 0: Watchers And Archive
 
-- [ ] Scheduled watcher: RSK catalog and per-resource metadata
-      (`GET /api/rsk/resource/role/UZYNLG` plus `basic-info/{hcd}` for all 8
-      public HCDs); diff `files[].uuid + creationDate + sizeBytes`, not the
-      `version` field alone (files are silently replaced; observed
-      2026-08-05 on `00CD10`).
-- [ ] Scheduled watcher: NFZ zarządzenia listing filtered on the szpitalne
-      DSOZ family; komunikaty JGP page; ICD-9 PL files page; AOTMiT
-      obwieszczenia (leading indicator). No RSS exists anywhere; poll HTML.
-- [ ] Headless-browser fetch step for BAW (`baw.nfz.gov.pl`, Angular SPA
-      behind Incapsula) to download załącznik files and tekst ujednolicony by
-      BAW document ID.
+- [ ] Scheduled watcher: archive the RSK catalog and metadata for every returned
+      HCD; alert on set/schema drift; download only allowlisted product files
+      (initially `00CD10` XML), compare complete metadata, and compute SHA-256.
+- [ ] Scheduled watcher: NFZ DSOZ listing, general Centrala provider news,
+      Komunikaty JGP, CZS ICD-9 metadata/pinned XML, projects, and AOTMiT tariff
+      signals. Use official machine interfaces where available, not HTML only.
+- [ ] BAW anonymous-API fetcher: archive source, amendment, and consolidated
+      document graphs, root ZIPX packages, selected attachments, all relevant
+      dates, and checksums. Browser automation is diagnostic fallback only.
 - [ ] Archive every fetched raw file immediately to private versioned S3,
       keyed by source, version, and SHA-256 computed at archive time (upstream
       publishes no checksums).

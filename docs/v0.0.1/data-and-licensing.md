@@ -21,7 +21,8 @@ under gates are release requirements for the paid product.
 Załącznik 9 (charakterystyka JGP) carries ICD-10 codes **with full Polish
 titles**, verified by sampling the 1/2022 edition on 2026-08-06 (8,759
 code-plus-title strings in that file, a count that also includes JGP group
-names; confirm against the current 101/2025 edition during fixturing). The
+names; confirm against the current 46/2026 consolidated edition during
+fixturing). The
 billing-relevant ICD-10 subset therefore lives inside the Art. 4-arguable
 normative acts, alongside the complete ICD-9 PL and all JGP rules.
 
@@ -36,7 +37,7 @@ Consequences:
 
 ## RSK ICD-10 Source Record
 
-Planning metadata observed 2026-08-06:
+Planning metadata observed 2026-08-06 and revalidated 2026-08-21:
 
 | Field | Value |
 | --- | --- |
@@ -55,10 +56,17 @@ not responsible for its content or accuracy, and that the 2019 English
 edition is the binding and authentic edition. This warning and the publisher
 identity are mandatory provenance in artifacts and user-facing views.
 
-RSK provides no checksums, no ETag/Last-Modified, ignores Range requests, and
-replaces files in place without version bumps (observed 2026-08-05: the XML
-above was recreated while `version` stayed `013`). Checksums are computed at
-archive time and pinned in the manifest.
+RSK provides no checksums or useful ETag/Last-Modified or Range behavior.
+Resource versions are not immutable file-set revisions: files can be added or
+recreated while the resource version remains unchanged. The current XML was
+created 2026-08-05 while version `013` remained selected, but no predecessor
+fixture exists to prove mutation behind the same UUID. Checksums are computed
+at archive time and pinned in the manifest.
+
+The stale `dane.gov.pl` RSK dataset metadata must not be generalized to current
+resources. Its dataset-level `CC BY 4.0` label refers to an obsolete two-file
+publication and conflicts with other metadata; current rights remain a
+per-resource review.
 
 ## Dataset Manifest
 
@@ -89,8 +97,9 @@ source_version = "5.88"
 [[source]]
 scheme = "jgp-szp"
 origin = "nfz-baw"
-act = "101/2025/DSOZ"
-baw_document_id = "43718"
+act = "46/2026/DSOZ"
+baw_source_document_id = "43868"
+baw_consolidated_document_id = "43943"
 attachments = ["1a", "9"]
 # per-file url, fetch, checksum fields as above
 
@@ -101,12 +110,13 @@ algorithm_version = "1.1.2026"
 # per-file fields as above
 
 [ruleset."2026-07"]
-act = "101/2025/DSOZ+74/2026/DSOZ"
+act = "46/2026/DSOZ+74/2026/DSOZ"
 algorithm_version = "1.1.2026"
 icd9_version = "5.88"
 icd10_version = "013"
 published_at = "2026-07-23"
-effective_from = "2026-07-01"   # retroactive; store both dates
+entry_into_force_on = "2026-07-24"
+applies_from = "2026-07-01"      # retroactive; preserve the legal evidence
 
 transform_version = "<git-commit-or-tool-version>"
 ```

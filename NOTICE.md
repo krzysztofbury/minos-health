@@ -16,11 +16,12 @@ procedure classification are derived from materials published by Narodowy
 Fundusz Zdrowia:
 
 - zarządzenia Prezesa NFZ in the leczenie szpitalne (DSOZ) family, published
-  through <https://baw.nfz.gov.pl> (current base act: `101/2025/DSOZ`);
+  through <https://baw.nfz.gov.pl> (current base act: `46/2026/DSOZ`);
 - komunikaty JGP:
   <https://www.nfz.gov.pl/dla-swiadczeniodawcy/jednorodne-grupy-pacjentow/komunikaty-jgp/>;
-- ICD-9 PL dictionary files:
-  <https://www.nfz.gov.pl/dla-swiadczeniodawcy/slowniki/pliki-icd-9-pl/>.
+- ICD-9 PL through Centralne Zasoby Słownikowe:
+  <https://slowniki.nfz.gov.pl/Help/WersjaSlownikow#pobieranieAutomatyczne>,
+  cross-checked against the NFZ ICD-9 download page and announcements.
 
 These are treated as official documents and materials within the meaning of
 Art. 4 of the Polish Act on Copyright and Related Rights, pending a formal

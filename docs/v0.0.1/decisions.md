@@ -232,9 +232,9 @@ return.
 
 ### Ingestion Model
 
-Watchers-first. Scheduled CI jobs poll upstream sources daily, archive raw
-files immediately (upstream replaces files in place without version bumps and
-offers no public history), and open reviewed data PRs with manifest changes
+Watchers-first. Scheduled CI jobs poll upstream sources daily, archive scoped
+raw files immediately (publishers can mutate file sets or reuse URLs without
+useful content validators), and open reviewed data PRs with manifest changes
 and diffs. Automation proposes, a human approves, CI builds immutable
 artifacts. The "CI never follows latest" rule is unchanged; it gained a robot
 that writes the PRs. Details in [data-sources.md](data-sources.md).
