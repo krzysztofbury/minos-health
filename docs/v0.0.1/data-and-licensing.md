@@ -92,6 +92,14 @@ source_license = "CC-BY-NC-SA-3.0-IGO (scope under review)"
 system = "icd9-pl"
 origin = "nfz-slowniki"
 source_version = "5.88"
+source_generation = 91
+# historical source required by the 2026-07 ruleset below
+
+[[source]]
+system = "icd9-pl"
+origin = "nfz-slowniki"
+source_version = "5.89"
+source_generation = 92
 # url, fetch, checksum fields as above
 
 [[source]]
@@ -194,16 +202,21 @@ Raw and generated data are absent from Git.
 | Material | Canonical storage | Notes |
 | --- | --- | --- |
 | Source manifest | Git | No source bytes or credentials |
-| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Keyed by source, version, archive-time checksum |
+| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Content-addressed, conditional creates, no watcher overwrite/delete permission |
 | Independent raw backup | Encrypted QNAP archive | Separate credentials and restore drill |
 | Generated database | Private artifact storage and runtime image | Immutable by checksum |
 | Runtime image | Private GHCR | Canonical digest used for releases |
 | AWS deploy copy | Private ECR | Same manifest copied by digest |
 | Small fixtures | Git | Synthetic or separately redistributable |
 
-S3 lifecycle rules may move old raw snapshots to cheaper storage, but must
-retain every snapshot needed to reproduce a supported release. A current
-upstream URL is not a backup; upstream deletes its own history.
+The watcher role can create content-addressed objects and immutable provenance
+sidecars under archive prefixes but cannot overwrite or delete them. A separate
+state prefix permits conditional compare-and-swap updates. S3 versioning
+provides recovery from privileged operational mistakes; an independently
+credentialed QNAP copy provides a separate failure domain. Lifecycle rules may
+move old raw snapshots to cheaper storage, but must retain every snapshot
+needed to reproduce a supported release. A current upstream URL is not a
+backup; upstream may remove its own history.
 
 ## Repository License
 
@@ -237,8 +250,11 @@ Before charging for the product, confirm through counsel:
 
 The same clearance applies before publishing a downloadable offline PWA
 artifact. A paid hospital licence must not unlock or redistribute RSK-derived
-content whose noncommercial or share-alike boundary has not been resolved;
-commercial and free client database variants remain technically separable.
+content whose noncommercial or share-alike boundary has not been resolved.
+Minos publishes one canonical SQLite artifact per dataset release rather than
+silently diverging free and commercial copies. Any future reduced dataset must
+be an explicitly named and independently versioned profile with the same domain
+compatibility tests.
 
 ## Artifact Notice
 

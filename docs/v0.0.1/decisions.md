@@ -212,9 +212,10 @@ test, and debug it.
 Every rule-bearing fact carries valid time (the reporting period it governs)
 and knowledge time (when it was ingested). This is mandatory, not optional:
 NFZ amendments apply retroactively (74/2026/DSOZ published 2026-07-23,
-reportedly effective 2026-07-01; source mbrk.pl, verify in BAW). Queries
-select rules by service date; "what did we believe on date Y about service
-date X" must be answerable for audit support.
+entered into force 2026-07-24, and applies to services from 2026-07-01 under
+section 4 of the act in BAW). Queries select rules by service date; "what did
+we believe on date Y about service date X" must be answerable for audit
+support.
 
 A `ruleset_release` is a composite: zarządzenie plus załącznik versions,
 algorithm version, ICD-9 version, and ICD-10 version paired per reporting
@@ -234,10 +235,11 @@ return.
 
 Watchers-first. Scheduled CI jobs poll upstream sources daily, archive scoped
 raw files immediately (publishers can mutate file sets or reuse URLs without
-useful content validators), and open reviewed data PRs with manifest changes
-and diffs. Automation proposes, a human approves, CI builds immutable
-artifacts. The "CI never follows latest" rule is unchanged; it gained a robot
-that writes the PRs. Details in [data-sources.md](data-sources.md).
+useful content validators), and emit immutable change records or incidents.
+The later automation in issue #21 turns reviewed changes into data PRs with
+manifest changes and diffs. A human approves and CI builds immutable artifacts.
+The "CI never follows latest" rule is unchanged. Details in
+[data-sources.md](data-sources.md).
 
 ### Frontend
 
@@ -293,8 +295,9 @@ provides ingress.
 - Ansible owns a future Mikr.us host configuration.
 - Docker Compose owns local, QNAP, and Mikr.us process topology.
 - GitHub Actions owns test, build, attestation, promotion, deployment, and
-  scheduled watcher orchestration. Watcher jobs may write only to the snapshot
-  bucket and open PRs; they hold no deployment permissions.
+  scheduled watcher orchestration. Source collectors in issues #6-#8 may write
+  only to the snapshot bucket; issue #21 may also open manifest PRs. They hold
+  no deployment permissions.
 - A registrar remains responsible only for domain registration and delegation.
 
 ## Privacy And Observability

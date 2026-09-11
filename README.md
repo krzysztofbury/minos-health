@@ -56,8 +56,9 @@ One immutable `linux/amd64` container runs locally, on a conventional Docker
 host, or on AWS Lambda through Lambda Web Adapter. Offline CLI distributions
 bundle the Python runtime and use the same generated database. AWS Lambda is
 the primary production target; Mikr.us remains a benchmark-triggered fallback.
-Source watchers run as scheduled CI jobs and propose reviewed data updates;
-they are not part of the runtime.
+Source watchers run as scheduled CI jobs. The collectors in issues #6-#8 emit
+archived change records and issue #21 proposes reviewed manifest PRs. They are
+not part of the runtime.
 
 The initial service remains anonymous. The accepted later client direction is
 one installable responsive PWA that can synchronize a verified immutable

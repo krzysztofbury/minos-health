@@ -1,8 +1,9 @@
 # Data Sources
 
-Status: primary sources revalidated 2026-08-21. Earlier research was performed
-2026-08-06. Facts below are point-in-time observations; items marked NIEPEWNE
-are inferences or third-party statements that must not control production data.
+Status: primary sources revalidated 2026-08-21; ICD-9 currency rechecked
+2026-09-11. Earlier research was performed 2026-08-06. Facts below are
+point-in-time observations; items marked NIEPEWNE are inferences or third-party
+statements that must not control production data.
 
 This document is operational: which publisher controls each fact, where the
 bytes live, how changes are discovered, and which watcher owns them. The legal
@@ -99,8 +100,9 @@ source checksum for these files.
 
 Document role cannot be inferred from act number. Original and consolidated
 documents can share `46/2026/DSOZ`; classify them through document IDs,
-`AutomaticType`, `SourceDocumentId`, and `IntroductoryDocumentId`. Current
-anchors are:
+`AutomaticType`, `SourceDocumentId`, and `IntroductoryDocumentId`. Traverse
+those document relationships, amendments, consolidations, and comparison
+documents recursively until no unseen document ID remains. Current anchors are:
 
 | Role | Document ID | Important file IDs |
 | --- | ---: | --- |
@@ -112,8 +114,9 @@ anchors are:
 The amendment replacements are byte-identical to the corresponding current
 consolidated attachments. Archive content-addressed blobs and preserve both
 provenance edges rather than storing by filename alone. Playwright is an
-isolated diagnostic fallback only after a recognized Imperva challenge; it is
-not a default dependency or a reliable solution to runner-IP blocking.
+optional subject of a separate task only after ordinary HTTP fails and captured
+evidence shows browser automation succeeds from the affected environment. It is
+not a default dependency or an assumed solution to runner-IP blocking.
 
 ## NFZ Grouper Algorithm And Operational Guidance
 
@@ -144,7 +147,7 @@ retrieval:
 ```text
 WSDL: https://slowniki-ws.nfz.gov.pl/ws-broker-czs/services/ServiceBrokerAnonymous?wsdl
 latest XML: https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9
-pinned XML: https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=91
+pinned XML: https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=92
 ```
 
 `getListSlowniki` returns public version metadata; `getSlownik` returns a ZIP
@@ -152,9 +155,9 @@ with XML. A syntactically valid direct request for a missing version can return
 HTTP 200 with header `XML_STATUS: NO_CONTENT`, which is an error, not an empty
 dictionary.
 
-Current ICD-9 PL is `5.88`, generation `91`, generated 2026-07-21 and announced
-2026-07-23:
-<https://www.nfz.gov.pl/aktualnosci/aktualnosci-centrali/komunikat-dla-swiadczeniodawcow,8982.html>.
+Current ICD-9 PL is `5.89`, generation `92`, published and announced
+2026-09-01:
+<https://www.nfz.gov.pl/aktualnosci/aktualnosci-centrali/opublikowano-nowa-wersje-slownika-icd-9-pl-cm-w-wersji-5-89,9006.html>.
 The NFZ XLSX page is a useful human-readable cross-check but is not a complete
 version archive. CZS exposes more historical semantic versions.
 
@@ -190,9 +193,9 @@ without product value.
 
 For allowlisted bytes, compare complete file metadata and compute SHA-256.
 `uuid + creationDate + sizeBytes` is a useful trigger, not a sufficient content
-identity. Re-fetch metadata after download to detect rotation during transfer,
-and periodically re-hash unchanged scoped files because the source provides no
-validators.
+identity. Re-fetch metadata after download to detect rotation during transfer.
+Re-download and re-hash unchanged allowlisted files at least weekly, and on a
+manual forced run, because the source provides no validators.
 
 ## NFZ Statistics API
 
@@ -239,7 +242,7 @@ the authoritative rule or legal effective date.
   version selection, not provenance.
 
 Never parse competitor identifiers (`SZP2689`, Asseco `nr-gen=268`, CZS
-`nr_gen=91`, or official algorithm `1.1.2026`) as interchangeable version
+`nr_gen=92`, or official algorithm `1.1.2026`) as interchangeable version
 systems.
 
 ## Watcher Ownership
@@ -253,6 +256,15 @@ systems.
 Issue #7 dispatches discovered BAW IDs to #8. It does not duplicate BAW file
 retrieval. Issue #8 does not discover unrelated NFZ news or own CZS.
 
+Implementation order is #6, then #8, then #7. Issue #6 establishes the local
+and S3 archive contract. Issue #8 supplies the working BAW dispatch target that
+issue #7 subsequently calls.
+
+Issues #6-#8 stop at exact raw observations, selected source bytes, provenance,
+change records, and incidents. They do not parse terminology or JGP facts into
+the generated SQLite reference database. Issue #21 owns conversion of reviewed
+change records into manifest PRs.
+
 ## Archive And Failure Rules
 
 1. Poll with bounded timeouts, low concurrency, descriptive user agent, and
@@ -262,15 +274,20 @@ retrieval. Issue #8 does not discover unrelated NFZ news or own CZS.
 3. Stream allowlisted bytes while hashing. Validate declared and received byte
    counts, magic, extension, archive safety, and parser bounds.
 4. Address blobs by SHA-256 and store immutable provenance sidecars by source
-   IDs. Filenames and mutable URLs are metadata, not identity.
+   IDs under archive prefixes. Use conditional creates and deny overwrite and
+   deletion under those prefixes. S3 versioning provides recovery; content
+   addressing and IAM enforce the application-level write-once rule. Filenames
+   and mutable URLs are metadata, not identity.
 5. Fetch metadata before and after a download batch. A changed source view
    invalidates that attempt rather than publishing a mixed observation.
 6. Advance state only after all blobs and sidecars exist in primary storage.
-   Use compare-and-swap semantics and idempotent notification keys.
+   Keep mutable state under a separate prefix that permits conditional
+   compare-and-swap updates, and use idempotent notification keys.
 7. Preserve publication, entry-into-force, service-applicability, first-seen,
    fetch, and ingestion times separately. Never invent one from another.
-8. Automation proposes a reviewed manifest or incident. It never auto-promotes
-   an upstream change into production rules.
+8. Source collectors emit a bounded change record or incident. Issue #21 may
+   turn a reviewed change into a manifest PR; no automation auto-promotes an
+   upstream change into production rules.
 9. A source disagreement opens a review item with bounded evidence. Competitor
    agreement cannot override a primary source.
 10. A quiet run is valid only after selectors, expected source IDs, and
@@ -281,8 +298,10 @@ retrieval. Issue #8 does not discover unrelated NFZ news or own CZS.
 - Capture dated raw fixtures for every endpoint before implementing parsers.
 - Ask CeZ whether RSK file UUIDs and bytes are contractually immutable and for
   automation/rate-limit guidance.
-- Verify BAW plain-HTTP behavior from a GitHub-hosted runner; browser fallback
-  remains optional until a real challenge is captured.
+- Verify BAW plain-HTTP behavior from a GitHub-hosted runner. On runner-IP
+  blocking, use local/QNAP execution; consider browser automation only in a
+  separate task after captured evidence shows it succeeds from the affected
+  environment.
 - Confirm per-resource redistribution rights separately; stale `dane.gov.pl`
   dataset-level license metadata does not license current RSK resources.
 - Formal legal review remains required before commercial redistribution.

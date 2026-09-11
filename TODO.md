@@ -85,14 +85,21 @@ day-to-day order.
       signals. Use official machine interfaces where available, not HTML only.
 - [ ] BAW anonymous-API fetcher: archive source, amendment, and consolidated
       document graphs, root ZIPX packages, selected attachments, all relevant
-      dates, and checksums. Browser automation is diagnostic fallback only.
-- [ ] Archive every fetched raw file immediately to private versioned S3,
-      keyed by source, version, and SHA-256 computed at archive time (upstream
-      publishes no checksums).
+      dates, and checksums. Use local/QNAP execution if a runner is blocked;
+      browser automation requires a separate task and captured evidence that it
+      succeeds from the affected environment.
+- [ ] Provision the phase-0 private versioned S3 snapshot bucket and watcher
+      OIDC role before the first production watcher run. Archive objects under
+      content-addressed prefixes with conditional creates; deny overwrite and
+      delete there. Allow conditional compare-and-swap updates only under a
+      separate state prefix.
+- [ ] Archive every selected raw file immediately, keyed by source identity and
+      SHA-256 computed at archive time (upstream publishes no checksums).
 - [ ] Independent encrypted QNAP copy with credentials outside the AWS
       deployment account; restore drill.
-- [ ] On detected change: open a data PR with updated manifest and a
-      human-readable diff; never auto-merge.
+- [ ] Issues #6-#8 emit immutable observations and bounded change or incident
+      records. Issue #21 turns reviewed change records into data PRs with
+      manifest updates and human-readable diffs; never auto-merge.
 - [ ] Alert on watcher failure and on upstream schema drift (new załącznik
       names, changed file formats).
 
@@ -221,8 +228,9 @@ day-to-day order.
 
 - [ ] Bootstrap a private versioned S3 Terraform state bucket with native
       locking.
-- [ ] Provision S3 snapshot bucket, ECR, IAM, Lambda, Function URL, CloudFront
-      OAC, ACM, logs, alarms, and budgets with Terraform.
+- [ ] Import and extend the phase-0 S3 snapshot bucket; provision ECR, IAM,
+      Lambda, Function URL, CloudFront OAC, ACM, logs, alarms, and budgets with
+      Terraform.
 - [ ] Restrict the deploy role to the repository and release-tag OIDC subject;
       watcher jobs get write access to the snapshot bucket only.
 - [ ] Authenticate to GHCR with a GitHub token scoped to `read:packages`; use

@@ -200,9 +200,11 @@ image on Mikr.us `3.0` and compare under the same request profile.
 An upstream refresh is not an automatic production update. The flow is:
 
 1. A scheduled watcher detects the upstream change (new zarządzenie,
-   komunikat, ICD-9 version, or a silently replaced RSK file) and immediately
-   archives the raw files by identity and archive-time checksum.
-2. The watcher opens a data pull request updating the manifest, including the
+   komunikat, ICD-9 version, changed source file set, or changed bytes behind a
+   reused URL) and immediately archives the raw files by identity and
+   archive-time checksum.
+2. The source collector emits an immutable change record. The automation in
+   issue #21 opens a data pull request updating the manifest, including the
    ruleset pairing for the affected reporting periods and a human-readable
    diff.
 3. The operator reviews source metadata, terms, effective dates (which may be

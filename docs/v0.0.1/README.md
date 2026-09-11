@@ -26,8 +26,9 @@ model.
 
 `v0.0.1` is complete only when:
 
-1. Phase 0 watchers run on schedule, archive every upstream file, and open
-   reviewed data PRs with diffs.
+1. Phase 0 watchers run on schedule, archive every exact metadata observation
+   and selected in-scope source file, and issue #21 opens reviewed data PRs
+   with diffs from their change records.
 2. The pinned multi-source ruleset (ICD-10 PL, ICD-9 PL, JGP katalog and
    charakterystyka, algorithm metadata) transforms reproducibly into a
    validated bitemporal database with provenance and checksums.

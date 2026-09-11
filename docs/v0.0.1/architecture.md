@@ -3,9 +3,9 @@
 ## Context
 
 Minos is a versioned data platform with a read-only serving layer. Upstream
-publishers (NFZ, RSK) change rules 10-20 times a year across sources, replace
-files in place, and apply amendments retroactively. The architecture therefore
-has two halves:
+publishers (NFZ, RSK) change rules 10-20 times a year across sources, can change
+file sets or reuse URLs without useful content validators, and apply amendments
+retroactively. The architecture therefore has two halves:
 
 1. an ingestion loop (watchers, archive, reviewed data PRs, deterministic
    builds) that turns messy upstream publications into immutable, bitemporal
@@ -107,12 +107,16 @@ Lambda events to HTTP without adding Lambda-specific code to the application.
 
 ### Watchers (CI, not runtime)
 
-Scheduled GitHub Actions jobs poll upstream sources, archive raw files, and
-open data PRs (see [data-sources.md](data-sources.md)). They share the
-manifest format with `minos data build` but are otherwise scripts plus a
-BAW/CZS source adapter; they hold no deployment permissions and are not part of
-the runtime image. BAW uses anonymous JSON and binary endpoints by default;
-browser automation is an isolated fallback, not a baseline dependency.
+Scheduled GitHub Actions jobs poll upstream sources and archive raw files (see
+[data-sources.md](data-sources.md)). The source collectors in issues #6-#8 emit
+immutable observations and bounded change or incident records; the automation
+in issue #21 translates reviewed changes into the checked-in source manifest
+consumed by `minos data build`. Observation/change schemas and the build
+manifest are separate contracts. The collectors are otherwise scripts plus
+BAW/CZS source adapters; they hold no deployment permissions and are not part
+of the runtime image. BAW uses anonymous JSON and binary endpoints by default;
+browser automation requires a separate evidence-backed task and is not a
+baseline dependency.
 
 ## Target Repository Layout
 
@@ -228,9 +232,10 @@ curated overlay rows with `manual` provenance and mandatory review.
 
 ## Ingestion Pipeline
 
-1. Watchers detect and archive upstream changes, then open a manifest PR with
-   a human-readable diff (added, removed, changed, reparented concepts; group
-   and point changes).
+1. Source collectors detect and archive upstream changes, then emit an
+   immutable change record. Issue #21 proposes a manifest PR with a
+   human-readable diff (added, removed, changed, reparented concepts; group and
+   point changes).
 2. A human reviews and merges. Large or unexplained diffs block.
 3. CI builds the database transactionally and deterministically from the
    pinned manifest, runs integrity checks, and emits the artifact manifest,
