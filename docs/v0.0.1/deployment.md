@@ -79,13 +79,18 @@ stores commit-bound checksums for the CLI/data artifacts.
 
 Separate scheduled workflows implement phase 0 (see
 [data-sources.md](data-sources.md)): they poll RSK and NFZ endpoints daily,
-archive every fetched raw file to the private versioned S3 snapshot bucket
-(with checksums computed at archive time), run the headless-browser step for
-BAW downloads, and open data pull requests carrying manifest changes and
-human-readable diffs. Watcher jobs hold credentials for the snapshot bucket
-and PR creation only; they have no deployment, ECR, or Lambda permissions.
-Watcher failures and upstream schema drift raise alerts rather than failing
-silently.
+archive every exact metadata observation and selected in-scope source file to
+the private versioned S3 snapshot bucket (with checksums computed at archive
+time), and retrieve BAW document graphs and files through anonymous HTTP APIs.
+The watcher role can conditionally create content-addressed objects under
+archive prefixes but cannot overwrite or delete them; conditional
+compare-and-swap updates are allowed only under a separate state prefix. Issues
+#6-#8 emit immutable change records or incidents; issue #21 later opens data
+pull requests carrying manifest changes and human-readable diffs. A blocked
+GitHub runner falls back to local/QNAP execution. Browser automation requires a
+separate task backed by evidence that it works from the affected environment.
+Watcher jobs have no deployment, ECR, or Lambda permissions. Watcher failures
+and upstream schema drift raise alerts rather than failing silently.
 
 ### Release Tags
 
@@ -185,7 +190,9 @@ The AWS stack owns:
 - CloudWatch log group with finite retention;
 - alarms for errors, throttles, duration, and readiness failures;
 - account or project budget notifications;
-- private versioned S3 storage for source snapshots and artifacts where needed.
+- private versioned, content-addressed S3 storage for source snapshots and
+  artifacts, with write-once archive prefixes and a separate conditional state
+  prefix for the watcher role.
 
 Terraform owns stable resource configuration. The release workflow owns Lambda
 image updates, published versions, and the `live` alias target through narrowly

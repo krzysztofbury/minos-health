@@ -19,6 +19,10 @@ release.
 - Data-sources reference covering NFZ zarządzenia, komunikaty JGP, ICD-9 PL,
   RSK ICD-10, the NFZ statistics API, and AOTMiT tariff signals, with watcher
   and archive rules.
+- Revalidated the watcher source hierarchy against live RSK, NFZ, BAW, CZS,
+  AOTMiT, SGA, CGM/UHC, Asseco, Comarch, and KAMSOFT evidence; corrected the
+  current hospital-act lineage and replaced browser-first BAW retrieval with
+  anonymous JSON and binary APIs.
 - Apache-2.0 or MIT dual licensing for repository materials, excluding medical
   datasets and data-bearing artifacts.
 - Explicit provenance, privacy, safety, compliance, and data-license

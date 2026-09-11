@@ -28,7 +28,7 @@ pre-screen was performed on 2026-08-06 (see
 
 | Phase | Ships |
 | --- | --- |
-| `0` watchers | Daily source watchers, raw snapshot archive, reviewed data-update PRs. Runs before product code because upstream files are silently replaced and history is otherwise unrecoverable. |
+| `0` watchers | Daily source watchers, scoped raw snapshot archive, reviewed data-update PRs. Runs before product code because upstream file sets and reused URLs can change without useful validators and prior public bytes may become undiscoverable. |
 | `v0.0.1` foundation | Bitemporal store, terminology and JGP knowledge base, search, CLI, read-only HTTP API, anonymous web browser with version diffs. |
 | `v0.0.2` grouper | Encounter grouping with points, full rule trace, and near-miss reporting. |
 | `v0.0.3` optimizer | What-if simulation framed as coding completeness and rejection prevention. |
@@ -56,8 +56,9 @@ One immutable `linux/amd64` container runs locally, on a conventional Docker
 host, or on AWS Lambda through Lambda Web Adapter. Offline CLI distributions
 bundle the Python runtime and use the same generated database. AWS Lambda is
 the primary production target; Mikr.us remains a benchmark-triggered fallback.
-Source watchers run as scheduled CI jobs and propose reviewed data updates;
-they are not part of the runtime.
+Source watchers run as scheduled CI jobs. The collectors in issues #6-#8 emit
+archived change records and issue #21 proposes reviewed manifest PRs. They are
+not part of the runtime.
 
 The initial service remains anonymous. The accepted later client direction is
 one installable responsive PWA that can synchronize a verified immutable

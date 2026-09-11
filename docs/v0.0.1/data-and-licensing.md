@@ -21,7 +21,8 @@ under gates are release requirements for the paid product.
 Załącznik 9 (charakterystyka JGP) carries ICD-10 codes **with full Polish
 titles**, verified by sampling the 1/2022 edition on 2026-08-06 (8,759
 code-plus-title strings in that file, a count that also includes JGP group
-names; confirm against the current 101/2025 edition during fixturing). The
+names; confirm against the current 46/2026 consolidated edition during
+fixturing). The
 billing-relevant ICD-10 subset therefore lives inside the Art. 4-arguable
 normative acts, alongside the complete ICD-9 PL and all JGP rules.
 
@@ -36,7 +37,7 @@ Consequences:
 
 ## RSK ICD-10 Source Record
 
-Planning metadata observed 2026-08-06:
+Planning metadata observed 2026-08-06 and revalidated 2026-08-21:
 
 | Field | Value |
 | --- | --- |
@@ -55,10 +56,17 @@ not responsible for its content or accuracy, and that the 2019 English
 edition is the binding and authentic edition. This warning and the publisher
 identity are mandatory provenance in artifacts and user-facing views.
 
-RSK provides no checksums, no ETag/Last-Modified, ignores Range requests, and
-replaces files in place without version bumps (observed 2026-08-05: the XML
-above was recreated while `version` stayed `013`). Checksums are computed at
-archive time and pinned in the manifest.
+RSK provides no checksums or useful ETag/Last-Modified or Range behavior.
+Resource versions are not immutable file-set revisions: files can be added or
+recreated while the resource version remains unchanged. The current XML was
+created 2026-08-05 while version `013` remained selected, but no predecessor
+fixture exists to prove mutation behind the same UUID. Checksums are computed
+at archive time and pinned in the manifest.
+
+The stale `dane.gov.pl` RSK dataset metadata must not be generalized to current
+resources. Its dataset-level `CC BY 4.0` label refers to an obsolete two-file
+publication and conflicts with other metadata; current rights remain a
+per-resource review.
 
 ## Dataset Manifest
 
@@ -84,13 +92,22 @@ source_license = "CC-BY-NC-SA-3.0-IGO (scope under review)"
 system = "icd9-pl"
 origin = "nfz-slowniki"
 source_version = "5.88"
+source_generation = 91
+# historical source required by the 2026-07 ruleset below
+
+[[source]]
+system = "icd9-pl"
+origin = "nfz-slowniki"
+source_version = "5.89"
+source_generation = 92
 # url, fetch, checksum fields as above
 
 [[source]]
 scheme = "jgp-szp"
 origin = "nfz-baw"
-act = "101/2025/DSOZ"
-baw_document_id = "43718"
+act = "46/2026/DSOZ"
+baw_source_document_id = "43868"
+baw_consolidated_document_id = "43943"
 attachments = ["1a", "9"]
 # per-file url, fetch, checksum fields as above
 
@@ -101,12 +118,13 @@ algorithm_version = "1.1.2026"
 # per-file fields as above
 
 [ruleset."2026-07"]
-act = "101/2025/DSOZ+74/2026/DSOZ"
+act = "46/2026/DSOZ+74/2026/DSOZ"
 algorithm_version = "1.1.2026"
 icd9_version = "5.88"
 icd10_version = "013"
 published_at = "2026-07-23"
-effective_from = "2026-07-01"   # retroactive; store both dates
+entry_into_force_on = "2026-07-24"
+applies_from = "2026-07-01"      # retroactive; preserve the legal evidence
 
 transform_version = "<git-commit-or-tool-version>"
 ```
@@ -184,16 +202,21 @@ Raw and generated data are absent from Git.
 | Material | Canonical storage | Notes |
 | --- | --- | --- |
 | Source manifest | Git | No source bytes or credentials |
-| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Keyed by source, version, archive-time checksum |
+| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Content-addressed, conditional creates, no watcher overwrite/delete permission |
 | Independent raw backup | Encrypted QNAP archive | Separate credentials and restore drill |
 | Generated database | Private artifact storage and runtime image | Immutable by checksum |
 | Runtime image | Private GHCR | Canonical digest used for releases |
 | AWS deploy copy | Private ECR | Same manifest copied by digest |
 | Small fixtures | Git | Synthetic or separately redistributable |
 
-S3 lifecycle rules may move old raw snapshots to cheaper storage, but must
-retain every snapshot needed to reproduce a supported release. A current
-upstream URL is not a backup; upstream deletes its own history.
+The watcher role can create content-addressed objects and immutable provenance
+sidecars under archive prefixes but cannot overwrite or delete them. A separate
+state prefix permits conditional compare-and-swap updates. S3 versioning
+provides recovery from privileged operational mistakes; an independently
+credentialed QNAP copy provides a separate failure domain. Lifecycle rules may
+move old raw snapshots to cheaper storage, but must retain every snapshot
+needed to reproduce a supported release. A current upstream URL is not a
+backup; upstream may remove its own history.
 
 ## Repository License
 
@@ -227,8 +250,11 @@ Before charging for the product, confirm through counsel:
 
 The same clearance applies before publishing a downloadable offline PWA
 artifact. A paid hospital licence must not unlock or redistribute RSK-derived
-content whose noncommercial or share-alike boundary has not been resolved;
-commercial and free client database variants remain technically separable.
+content whose noncommercial or share-alike boundary has not been resolved.
+Minos publishes one canonical SQLite artifact per dataset release rather than
+silently diverging free and commercial copies. Any future reduced dataset must
+be an explicitly named and independently versioned profile with the same domain
+compatibility tests.
 
 ## Artifact Notice
 

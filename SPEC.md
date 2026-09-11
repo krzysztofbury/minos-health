@@ -34,8 +34,8 @@ Two interfaces share the same domain behaviour:
 - Daily watchers over all upstream sources (see
   [data sources](docs/v0.0.1/data-sources.md)).
 - Immutable raw snapshot archive (private versioned S3 plus independent QNAP
-  copy). Upstream files are replaced in place without version bumps; an
-  unarchived file is unrecoverable.
+  copy). Publishers can change file sets or reuse URLs without useful content
+  validators; an uncaptured predecessor may be unrecoverable.
 - Automated data-update pull requests carrying manifest changes and
   human-readable diffs. Automation proposes; a human reviews and merges.
 
@@ -237,8 +237,9 @@ The build process must:
 9. Emit a human-readable diff against the previous release for review.
 
 CI must never silently replace a pinned source with the latest upstream file.
-Watchers detect upstream changes, archive raw files immediately, and open a
-manifest pull request; refreshing data is always a reviewed change.
+The source collectors in issues #6-#8 detect changes, archive raw files, and
+emit change records. The automation in issue #21 turns reviewed change records
+into manifest pull requests; refreshing data is always a reviewed change.
 
 ## Search Behaviour
 
