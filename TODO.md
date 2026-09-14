@@ -81,8 +81,9 @@ day-to-day order.
       HCD; alert on set/schema drift; download only allowlisted product files
       (initially `00CD10` XML), compare complete metadata, and compute SHA-256.
 - [ ] Scheduled watcher: NFZ DSOZ listing, general Centrala provider news,
-      Komunikaty JGP, CZS ICD-9 metadata/pinned XML, projects, and AOTMiT tariff
-      signals. Use official machine interfaces where available, not HTML only.
+      Komunikaty JGP, CZS ICD-9 and MODTAR metadata/pinned XML, projects, and
+      AOTMiT tariff signals. Use official machine interfaces where available,
+      not HTML only.
 - [ ] BAW anonymous-API fetcher: archive source, amendment, and consolidated
       document graphs, root ZIPX packages, selected attachments, all relevant
       dates, and checksums. Use local/QNAP execution if a runner is blocked;
@@ -128,7 +129,7 @@ day-to-day order.
 
 - [ ] Download and fixture the RSK ICD-10 XML (HCD `00CD10`), the NFZ ICD-9 PL
       XLSX/XML, załącznik 1a (katalog JGP), załącznik 9 (charakterystyka JGP),
-      and the komunikat algorithm DOCX plus rank tables.
+      CZS MODTAR XML, and the komunikat algorithm DOCX plus rank tables.
 - [ ] Record source identity for every file: URL or UUID, byte size, computed
       SHA-256, upstream timestamps, publisher, and disclaimers, without
       inventing publication dates.
@@ -145,7 +146,7 @@ day-to-day order.
       fixture-backed tests.
 - [ ] Curated overlay dataset for rules living in legal prose (correction
       coefficients, coefficient-combination formula) with `manual` provenance
-      and mandatory review.
+      and mandatory review; reconcile it against CZS MODTAR mappings.
 - [ ] Reject duplicate codes, broken parents, unresolved list references,
       missing descriptions, and unknown structural elements that affect
       meaning.
@@ -276,8 +277,9 @@ day-to-day order.
 - [ ] `v0.0.3` optimizer: what-if simulation framed as completeness and
       rejection prevention, validated with settlement practitioners.
 - [ ] AOS and REH grouping schemes (`jgp-aos`, `jgp-reh`) after `jgp-szp`.
-- [ ] NFZ statistics integration (api.nfz.gov.pl, attribution required) for
-      group-level utilization context.
+- [ ] NFZ statistics integration (api.nfz.gov.pl, attribution required) plus
+      `dane.gov.pl` datasets `2581` and `3009` for group-level utilization and
+      plausibility context; evaluate `4896` only against a concrete feature.
 - [ ] Add separately namespaced international ICD variants after licensing
       review.
 - [ ] Revisit Polish medicinal products and substitution as a separate module.

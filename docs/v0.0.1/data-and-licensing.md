@@ -13,6 +13,7 @@ under gates are release requirements for the paid product.
 | Zarządzenia Prezesa NFZ and załączniki (katalog 1a, charakterystyka 9, coefficients) | none stated | Normative acts of a public payer issued under statutory authority. Strong reading: copyright-exempt official materials under Art. 4 pkt 1-2 ustawy o prawie autorskim. 15-plus years of commercial grouper precedent (KAMSOFT, CGM, Asseco, SGA). Formal opinion pending. |
 | NFZ komunikaty JGP (algorithm description, rank tables) | none stated | Same Art. 4 argument (urzędowe dokumenty i materiały). Published expressly so providers could buy groupers on the open market. |
 | ICD-9 PL (NFZ files) | none stated on the NFZ page | Same Art. 4 argument. A stale dane.gov.pl dataset (v5.39, 2018) declares `CC0 1.0`; extrapolating that to current versions is inference (NIEPEWNE). |
+| CZS `MODTAR` (JGP tariff modifiers) | none stated on CZS | Machine-readable NFZ dictionary derived from cited provisions of the governing order. Treat under the same pending Art. 4 and attribution review; the legal text remains controlling. |
 | ICD-10 PL (RSK `00CD10`) | `CC BY-NC-SA 3.0 IGO` quoted in RSK metadata | The license sentence grammatically attaches to the WHO 2019 English edition; whether the Polish translation itself is under it is ambiguous. Treated as NC-constrained until resolved. |
 | NFZ statistics API | portal terms | Open data: attribution to api.nfz.gov.pl required, 10 requests/s per IP, no data modification, no warranty. |
 
@@ -117,11 +118,24 @@ origin = "nfz-komunikat"
 algorithm_version = "1.1.2026"
 # per-file fields as above
 
+[[source]]
+scheme = "jgp-szp"
+origin = "nfz-slowniki"
+dictionary = "MODTAR"
+source_generation = 100
+year = 2026
+grouper_type = "SZP"
+display_version_observed = "202662"
+# The UI label and XML generation were observed separately. Preserve both
+# source identities; do not infer reporting-month applicability from them.
+# url, fetch, checksum fields as above
+
 [ruleset."2026-07"]
 act = "46/2026/DSOZ+74/2026/DSOZ"
 algorithm_version = "1.1.2026"
 icd9_version = "5.88"
 icd10_version = "013"
+modtar_generation = "<reviewed-applicable-generation>"
 published_at = "2026-07-23"
 entry_into_force_on = "2026-07-24"
 applies_from = "2026-07-01"      # retroactive; preserve the legal evidence
