@@ -1,7 +1,7 @@
 # Data Sources
 
-Status: primary sources revalidated 2026-08-21; ICD-9 currency rechecked
-2026-09-11. Earlier research was performed 2026-08-06. Facts below are
+Status: primary sources revalidated 2026-08-21; CZS and `dane.gov.pl` currency
+rechecked 2026-09-14. Earlier research was performed 2026-08-06. Facts below are
 point-in-time observations; items marked NIEPEWNE are inferences or third-party
 statements that must not control production data.
 
@@ -21,6 +21,7 @@ domain and per reporting period.
 | Grouper algorithm and procedure ranks | NFZ Komunikaty JGP | General NFZ provider news may add operational guidance |
 | ICD-9 PL | NFZ Centralne Zasoby Słownikowe (CZS) | NFZ ICD-9 page and general announcements; RSK is secondary and may lag |
 | ICD-10 PL | RSK HCD `00CD10` | JGP attachment 9 contains the billing-relevant subset |
+| JGP tariff modifier mapping | NFZ CZS `MODTAR`, discovered by year/type and pinned by generation | Governing NFZ act text controls legal applicability |
 | Tariff signals | AOTMiT obwieszczenia | Issued NFZ catalog remains controlling |
 | Competitor output | Never authoritative | SGA, CGM/UHC, Asseco, Comarch, and KAMSOFT are review oracles only |
 
@@ -165,6 +166,44 @@ RSK HCD `00CD09` currently exposes `5.87`, with validity ending 2026-07-20.
 It is secondary and stale for this domain. Alert on disagreement, but never
 select RSK ICD-9 over CZS merely because both are government systems.
 
+The NFZ-published `dane.gov.pl` dataset `696` is a historical mirror, not a
+current discovery channel. Its 16 XLS resources cover selected versions from
+`5.22` through `5.39`; the newest content is `5.39` from 2018-08-02. The portal
+labels the dataset `CC0 1.0` and `Yearly`, but it has received no newer content
+despite the live NFZ series reaching `5.89`. The license applies to those listed
+historical resources and must not be extrapolated to current CZS files.
+
+## JGP Tariff Modifiers
+
+CZS publishes the machine-readable `MODTAR` dictionary separately from the JGP
+catalog and algorithm files. On 2026-09-14, the current 2026 SZP page displayed
+version label `202662`; the separately fetched latest 2026 SZP XML reported
+technical generation `100`, `data_pub="2026-08-20T08:00:30"`, and
+`data_gen="2026-08-20T08:37:01"`:
+
+```text
+latest 2026 SZP XML: https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=MODTAR&rok=2026&typGrupera=SZP
+version page: https://slowniki.nfz.gov.pl/ModyfikatoryTaryfyJgp/SlownikModyfikatorowTaryfJgp/7297
+```
+
+The XML timestamps contain no timezone offset and are not effective dates.
+
+The XML maps a modifier symbol and cited legal clause to status, month range,
+coefficient, and one or more JGP group codes. This is required for complete
+tariff determination and must be pinned in each applicable `ruleset_release`.
+The inspected outputs do not directly link display version `202662` to
+generation `100` or state an effective date. Store both observations, but bind
+a generation to a reporting-month ruleset only after reviewing legal and
+applicability evidence; the presence of `mies_od="7"` and `mies_do="12"` rows
+alone does not establish a 2026-07 effective date.
+The governing NFZ act remains controlling for eligibility, combination rules,
+and legal applicability; disagreement between the act and `MODTAR` blocks the
+release for review rather than selecting either silently.
+
+Issue #7 monitors `MODTAR` metadata and pinned bytes through the same documented
+CZS automation interface used for ICD-9. No equivalent current dataset was
+found on `dane.gov.pl`.
+
 ## ICD-10 PL And RSK
 
 The anonymous catalog is:
@@ -203,6 +242,27 @@ manual forced run, because the source provides no validators.
 statistics by JGP group. Its terms state 10 requests/s per IP, attribution,
 no data modification, and no warranty. It does not provide grouper definitions
 or point values and remains a later contextual source.
+
+`dane.gov.pl` contains useful NFZ-published empirical data, but no operative
+JGP catalog, characteristics, grouper algorithm, procedure-rank table, NFZ act
+collection, or AOTMiT tariff table was found in the 2026-09-14 audit:
+
+| Dataset | Freshness and license | Minos use |
+| --- | --- | --- |
+| `1519`, API Statystyki NFZ - Świadczenia | Live API pointer, `CC BY 4.0` | Existing later utilization source; portal metadata is not the data API |
+| `2581`, Miesięczny raport dot. hospitalizacji JGP | Monthly, verified 2026-08-12, `CC0 1.0` | Best fresh aggregate source for utilization trends and product-level context |
+| `3009`, hospitalizacje rozliczone JGP 2019-2025 | Annual, published 2026-07-09, `CC0 1.0` | Historical JGP, provider, and ICD-9 procedure distributions for plausibility checks and analytics |
+| `4896`, ICD-10 diagnosis plus ICD-9 procedure by provider | Quarterly, updated 2026-06-15, `CC0 1.0` | Optional diagnosis-procedure plausibility context; not a grouper golden-case source |
+
+Dataset `1734` (NFZ contracts), CeZ dataset `728` (RPWDL), and broader
+diagnosis-count datasets are potentially useful for future organization or
+market features. They do not support current point-only grouping requirements
+and are not ingestion dependencies. Dataset `4864` is a narrower, one-off JGP
+provider reimbursement extract already covered better by the sources above.
+
+The CeZ `dane.gov.pl` dataset `27`, Rejestr Systemów Kodowania, is also a stale
+two-file publication. Its `CC BY 4.0` dataset label and portal verification
+timestamp do not establish the currency or licensing of current RSK resources.
 
 ## AOTMiT Tariff Signals
 
@@ -250,7 +310,7 @@ systems.
 | Issue | Responsibility |
 | --- | --- |
 | `#6` | RSK catalog and all returned resource metadata; allowlisted RSK bytes and content drift |
-| `#7` | NFZ HTML discovery, general provider news, Komunikaty JGP, CZS ICD-9, projects, and AOTMiT signals |
+| `#7` | NFZ HTML discovery, general provider news, Komunikaty JGP, CZS ICD-9 and `MODTAR`, projects, and AOTMiT signals |
 | `#8` | BAW JSON document graph, original/amending/consolidated packages, attachment bytes, dates, and hashes |
 
 Issue #7 dispatches discovered BAW IDs to #8. It does not duplicate BAW file
@@ -304,4 +364,6 @@ change records into manifest PRs.
   environment.
 - Confirm per-resource redistribution rights separately; stale `dane.gov.pl`
   dataset-level license metadata does not license current RSK resources.
+- Revisit `dane.gov.pl` datasets `2581`, `3009`, and `4896` only when the
+  later utilization or plausibility feature has an explicit product contract.
 - Formal legal review remains required before commercial redistribution.
