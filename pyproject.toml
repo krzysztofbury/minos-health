@@ -5,18 +5,17 @@ description = "Explainable settlement intelligence for Polish hospital care"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 license = "MIT OR Apache-2.0"
-dependencies = []
+dependencies = [
+  "pydantic>=2.13.5",
+  "pydantic-settings>=2.15.0",
+  "httpx>=0.28.0",
+]
 
 [project.scripts]
 minos = "minos.cli.main:main"
 
 [dependency-groups]
-dev = [
-  "basedpyright>=1.31",
-  "mypy>=1.17",
-  "pytest>=8.4",
-  "ruff>=0.12",
-]
+dev = ["basedpyright>=1.31", "mypy>=1.17", "pytest>=8.4", "ruff>=0.12"]
 
 [build-system]
 requires = ["hatchling"]
