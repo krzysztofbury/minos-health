@@ -4,7 +4,7 @@ from pydantic import AnyHttpUrl
 
 class RskSettings(BaseSettings):
     model_config=SettingsConfigDict(
-        env_prefix="MiNOS_RSK_",
+        env_prefix="MINOS_RSK_",
         env_file=".env",
         extra="ignore",
     )

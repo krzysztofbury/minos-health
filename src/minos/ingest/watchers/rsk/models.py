@@ -17,7 +17,7 @@ class RskRoleUriModel(BaseModel):
 
 
 class RskCatalogPublisher(BaseModel):
-    model_config = ConfigDict(alias="forbid")
+    model_config = ConfigDict(extra="forbid")
 
     uuid: UUID = Field(alias="uuid")
     name: str = Field(alias="name")
@@ -37,14 +37,14 @@ class RskCatalogPublisher(BaseModel):
     contact_person: str | None = Field(default=None, alias="contactPerson")
 
 
-class RskCatalogResource(BaseModel):
-    model_config = ConfigDict(alias="forbid")
+class RskCatalogFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
     uuid: UUID = Field(alias="uuid")
     file: str | None = Field(default=None, alias="file")
     file_name: str | None = Field(default=None, alias="fileName")
     size_bytes: int | None = Field(default=None, alias="sizeBytes")
-    creation_date: datetime | None = Field(default=None, alias="creationdate")
+    creation_date: datetime | None = Field(default=None, alias="creationDate")
     extension: str | None = Field(default=None, alias="extension")
     extension_name: str | None = Field(default=None, alias="extensionName")
     description: str | None = Field(default=None, alias="description")
@@ -52,6 +52,13 @@ class RskCatalogResource(BaseModel):
     version: str | None = Field(default=None, alias="version")
     archivication_date: datetime | None = Field(default=None, alias="archivizationDate")
     education_file: bool | None = Field(default=False, alias="educationFile")
+
+    @property
+    def file_change_trigger(self) -> tuple[UUID, datetime, int] | None:
+        if self.creation_date is None or self.size_bytes is None:
+            return None
+
+        return (self.uuid, self.creation_date, self.size_bytes)
 
 
 class RskCatalogMetadata(BaseModel):
@@ -65,7 +72,7 @@ class RskCatalogMetadata(BaseModel):
     valid_date_to: datetime | None = Field(default=None, alias="validDateTo")
     version: str = Field(alias="version")
     publisher: RskCatalogPublisher | None
-    resources: list[RskCatalogResource] = Field(default_factory=list, alias="files")
+    files: list[RskCatalogFile] = Field(default_factory=list, alias="files")
     specify_download: bool | None = Field(default=False, alias="specifyDownload")
     get_as_rest: bool | None = Field(default=False, alias="getAsRest")
     resource_type: str | None = Field(default=None, alias="resourceType")
