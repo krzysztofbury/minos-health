@@ -15,6 +15,8 @@ fallback VPS disk is never the only copy of anything required for recovery.
 | Raw source snapshots (RSK, NFZ, AOTMiT) | Private S3 data bucket | Versioning and lifecycle policy |
 | Independent raw backup | Encrypted QNAP archive | Separate credentials and restore test |
 | Generated database | Private GHCR image/artifacts | Digest and release retention |
+| Prebuilt static web archive | Private build-artifact S3 bucket | Versioning, checksum, independent encrypted backup |
+| Static web bundle | Private frontend S3 bucket | Versioning, checksum, release retention |
 | AWS deploy image | Private ECR | Digest copy; reproducible from GHCR |
 | Terraform state | Private S3 state bucket | Versioning, encryption, locking |
 | Domain | Registrar | Lock, 2FA, auto-renewal, recovery codes |
@@ -36,24 +38,28 @@ version. It then verifies:
 3. A known normalized-text search.
 4. Error, throttle, and duration metrics under representative launch traffic.
 5. Static application loading from a clean browser session.
+6. Responsive search and comparison flows in representative mobile and desktop
+   viewports.
 
 The workflow reports success only after these checks. A low-traffic quiet window
 is not sufficient evidence.
 
 ## Rollback
 
-Rollback moves the `live` alias to the previously recorded immutable Lambda
-version. It does not rebuild, retag, mutate a database, or edit the function by
-hand.
+Rollback first restores and verifies the previous versioned frontend entry HTML
+that references its immutable hashed assets, then moves the `live` alias to the
+previously recorded compatible Lambda version. It does not rebuild, retag,
+mutate a database, or edit the function by hand.
 
 The release workflow owns this alias target. Terraform intentionally ignores
 only the dynamic code/version and alias-pointer fields while continuing to own
 the alias, alias-qualified Function URL, permissions, and all stable settings.
 
-After rollback, repeat readiness and known-search tests through the public host.
-Preserve failed-version logs and release metadata for investigation. A rollback
-does not delete the failed image until the incident is understood and retention
-policy permits deletion.
+After rollback, repeat readiness, static integrity, mobile rendering, and
+known-search tests through the public host. Preserve failed-version logs and
+release metadata for investigation. A rollback does not delete the failed image
+or web assets until the incident is understood and retention policy permits
+deletion.
 
 ## Recovery
 
@@ -63,11 +69,20 @@ policy permits deletion.
 2. Confirm the correct account, region, state bucket, and Cloudflare zone.
 3. Restore a prior Terraform state version only if the current state is corrupt;
    do not replace valid state merely because resources are missing.
-4. Ensure the required release digest exists in GHCR.
-5. Copy that manifest to a recreated same-region ECR repository.
-6. Apply the reviewed Terraform plan.
-7. Publish or select the expected Lambda version and set `live`.
-8. Verify DNS, TLS, readiness, known searches, and representative load.
+4. Apply the reviewed foundation plan to recreate Terraform-owned registries
+   and artifact buckets before writing objects to them.
+5. Ensure the required release digest exists in GHCR and copy that manifest to
+   the recreated same-region ECR repository.
+6. Recover the exact static web archive from the build-artifact bucket or its
+   independent encrypted backup by recorded key and checksum.
+7. Apply the reviewed service plan to recreate the frontend bucket, Lambda,
+   Function URL, CloudFront distribution, and stable permissions.
+8. Restore the immutable web assets, publish or select the expected Lambda
+   version, verify it directly, and set `live`.
+9. Restore the recorded frontend entry-object version, then invalidate and
+   verify it at CloudFront.
+10. Verify DNS, TLS, readiness, mobile rendering, known searches, and
+    representative load.
 
 ### Raw Dataset Loss
 
@@ -118,6 +133,11 @@ alone is not a tested backup.
 
 ## Logging
 
+Loguru is configured once at process entry and emits allowlisted structured JSON
+to stdout in cloud environments. Local development may use a human-readable
+console format with the same fields. Libraries and domain code must not install
+independent sinks or serialize arbitrary request and exception objects.
+
 Application logs are structured and contain:
 
 - timestamp and severity;
@@ -142,6 +162,27 @@ CloudFront and platform access logs require a separate retention and privacy
 review before enablement because IP addresses and complete URLs can become
 personal or medical data. Query parameters should be excluded or transformed at
 the source rather than scrubbed after broad collection.
+
+Loguru is not an external error-reporting service. GitHub Actions failures and
+CloudWatch metrics and alarms provide the initial operational signal. Any future
+service such as Sentry requires a separate privacy review, explicit event
+allowlisting, bounded retention, and proof that medical terms and encounter
+content cannot leave the application.
+
+## Secrets And Configuration
+
+Local development uses ignored `.env` files created from `.env.example` for
+application secrets. Local cloud credentials stay in external profiles or
+keychains. Production workload secrets live in AWS Secrets Manager and are
+injected only into the component that needs them. Operator and recovery
+credentials stay in the password manager. Non-secret endpoints, timeouts,
+bucket names, regions, and release identifiers remain normal configuration and
+must not be hidden in Secrets Manager.
+
+GitHub Actions uses OIDC for AWS access and stores no long-lived AWS access
+keys. Local AWS integration uses the developer's authenticated profile outside
+the repository; credentials are never copied into `.env` or a container image.
+The anonymous RSK source requires no application credential.
 
 ## Metrics And Alerts
 
@@ -177,6 +218,8 @@ Before selecting Lambda memory and concurrency, measure:
 - cold-start p50/p95 latency;
 - error and throttle rate at expected launch concurrency and a documented burst;
 - estimated monthly cost at measured duration and traffic.
+- mobile and desktop static startup, interaction readiness, and end-to-end
+  search and comparison latency through CloudFront.
 
 The launch SLO and budget are recorded before the final benchmark so results are
 not judged against thresholds invented afterward. If Lambda fails, use the same

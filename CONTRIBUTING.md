@@ -4,6 +4,11 @@ Minos is at an early stage. Please discuss substantial changes in an issue
 before implementing them so that terminology, grouping-rule, licensing, and
 deployment decisions remain deliberate.
 
+Engineering priorities are security and correctness first, measured
+performance second, and developer convenience third. Fast behavior is a product
+requirement, but an optimization is accepted only with representative evidence
+and without weakening validation, provenance, privacy, or determinism.
+
 ## Development setup
 
 The project uses the Python version pinned in `.python-version`. From a clean
@@ -33,6 +38,34 @@ Neovim configuration. Point the existing Neovim LSP client at:
 Tests run with `uv run pytest`. File search remains the responsibility of the
 existing terminal and Neovim setup rather than project-specific dotfiles.
 
+### Dependencies
+
+Prefer the Python standard library when it is sufficient. Approved foundation
+tools include uv, Pydantic, HTTPX, pytest, and Loguru. Pydantic belongs at
+configuration and untrusted-input boundaries; domain behavior must not depend
+on transport or serialization libraries. Add a dependency only with working
+code, a clear ownership boundary, and a licence review.
+
+### Local And Cloud Parity
+
+Docker Compose is the supported full local runtime. It must execute the same
+application artifacts and commands used by cloud workflows, with persistent
+ignored local storage instead of ephemeral `/tmp` for watcher archives. Tests
+may use temporary directories for isolated operations.
+
+The local filesystem and production S3 archive adapters must pass the same
+contract tests. A local AWS emulator may accelerate development, but it does
+not replace a disposable real-AWS integration test for versioning, conditional
+writes, IAM, and state compare-and-swap behavior.
+
+Copy `.env.example` to an ignored `.env` for local configuration. Local secrets
+for the application belong only in `.env`; local cloud credentials stay in an
+external profile or keychain. Production workload secrets belong in AWS Secrets
+Manager, while operator and recovery credentials stay in the password manager.
+GitHub uses AWS OIDC and must not store long-lived AWS access keys. A narrowly
+scoped third-party deployment token that cannot use workload identity may use a
+protected GitHub secret after review.
+
 Install and enable the repository hooks:
 
 ```sh
@@ -41,6 +74,12 @@ pre-commit install
 ```
 
 ## Before submitting a change
+
+Every behavior change needs unit tests and relevant integration tests. Mutation
+testing targets safety-critical decisions such as source validation, archive
+state transitions, and ruleset selection. The mutation runner will be selected
+only after Python 3.14 compatibility is demonstrated; until then, documented
+manual mutation or fault-injection cases are the required evidence.
 
 Run the complete pre-commit suite and the explicit Python checks:
 
@@ -60,6 +99,9 @@ rather than allowing implementation details to override them silently.
 
 ## Commit and pull request guidance
 
+- Work in small, coherent chunks. After each chunk, run the relevant checks,
+  perform a `pair-programmer` TigerStyle review, show the diff and evidence,
+  and pause for review before continuing.
 - Use short, imperative commit subjects.
 - Explain the user-visible behavior and important tradeoffs in the pull request.
 - Do not commit upstream source data (RSK, NFZ, AOTMiT), generated databases,
@@ -76,5 +118,7 @@ rather than allowing implementation details to override them silently.
   logs, analytics, traces, or error reports.
 - Keep code and dataset licensing separate. A dependency or data-source change
   must include a licensing review.
+- Write comments only for non-obvious intent, invariants, source constraints,
+  or safety decisions. Do not narrate syntax.
 
 By participating, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).

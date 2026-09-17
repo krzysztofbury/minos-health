@@ -48,14 +48,17 @@ Minos is one Python 3.14 distribution with strict internal package boundaries:
 - `minos.store`: read-only persistence and indexed search through SQLite/FTS5;
 - `minos.ingest`: hardened source parsing and reproducible artifact builds;
 - `minos.cli`: data build, inspection, and offline lookup commands;
-- `minos.http`: FastAPI endpoints and packaged static web assets;
+- `minos.http`: bounded FastAPI endpoints and privacy-safe telemetry;
 - `minos.grouper` (planned, `v0.0.2`): versioned grouping engine evaluating
   encounter facts against rules-as-data.
 
-One immutable `linux/amd64` container runs locally, on a conventional Docker
-host, or on AWS Lambda through Lambda Web Adapter. Offline CLI distributions
-bundle the Python runtime and use the same generated database. AWS Lambda is
-the primary production target; Mikr.us remains a benchmark-triggered fallback.
+One immutable `linux/amd64` API container runs locally, on a conventional Docker
+host, or on AWS Lambda through Lambda Web Adapter. One immutable static web
+bundle runs in the mobile or desktop browser and is served by CloudFront from a
+private S3 bucket. Docker Compose runs the same API image and web bundle locally.
+Offline CLI distributions bundle the Python runtime and use the same generated
+database. AWS Lambda is the primary API target; Mikr.us remains a
+benchmark-triggered fallback.
 Source watchers run as scheduled CI jobs. The collectors in issues #6-#8 emit
 archived change records and issue #21 proposes reviewed manifest PRs. They are
 not part of the runtime.
@@ -82,6 +85,8 @@ uv run minos --version
 
 Ruff, BasedPyright, mypy, and pytest are pinned in `uv.lock`. Terminal and
 Neovim integration is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
+Security and correctness come first; performance is measured as product
+behavior, with targeted mutation and integration testing for critical paths.
 
 ## Data
 

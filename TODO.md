@@ -24,11 +24,16 @@ day-to-day order.
 - [x] Provide both an offline CLI and an anonymous read-only web application.
 - [x] License repository software, infrastructure, tests, and documentation as
       `MIT OR Apache-2.0` and license data separately.
-- [x] Build one immutable `linux/amd64` HTTP container.
+- [x] Build one immutable `linux/amd64` API container and one checksummed static
+      web bundle; run both through Compose locally and private S3/CloudFront plus
+      Lambda in production.
 - [x] Use AWS Lambda as the primary target and Mikr.us as a measured fallback.
 - [x] Deploy tested image digests from signed version tags without rebuilding.
 - [x] Use Python 3.14 as the sole application language through 2027-08-21;
       keep synchronous domain rules independent of FastAPI and persistence.
+- [x] Prioritize security and correctness, then measured performance, then
+      developer convenience; require unit, targeted mutation or fault injection,
+      integration, and pair-programmer review gates for implementation chunks.
 
 ## Domains
 
@@ -89,11 +94,18 @@ day-to-day order.
       dates, and checksums. Use local/QNAP execution if a runner is blocked;
       browser automation requires a separate task and captured evidence that it
       succeeds from the affected environment.
-- [ ] Provision the phase-0 private versioned S3 snapshot bucket and watcher
-      OIDC role before the first production watcher run. Archive objects under
-      content-addressed prefixes with conditional creates; deny overwrite and
-      delete there. Allow conditional compare-and-swap updates only under a
-      separate state prefix.
+- [ ] Bootstrap the dedicated versioned Terraform state bucket locally, back up
+      bootstrap state independently, and initialize an empty `phase0` root
+      directly against its own remote-state key.
+- [ ] Provision the phase-0 private versioned S3 snapshot bucket, monitoring,
+      and watcher OIDC role in remote Terraform state before the first
+      production run. Create or reference/import an existing account-level OIDC
+      provider explicitly. Archive objects under content-addressed prefixes with
+      conditional creates; deny overwrite and delete there. Allow conditional
+      compare-and-swap updates only under a separate state prefix.
+- [ ] Run issue #6 through one Docker/Compose watcher command locally and in
+      scheduled CI; use a persistent filesystem archive locally and the S3
+      archive in AWS, with shared contract tests and a disposable AWS test.
 - [ ] Archive every selected raw file immediately, keyed by source identity and
       SHA-256 computed at archive time (upstream publishes no checksums).
 - [ ] Independent encrypted QNAP copy with credentials outside the AWS
@@ -117,7 +129,9 @@ day-to-day order.
 - [ ] Reduced engine spike: pin Python and SQLite versions with FTS5; verify
       read-only operation, deterministic Polish search, standalone CLI
       packaging, and Lambda compatibility.
-- [ ] Add Ruff, mypy, pytest, dependency policy, and package metadata.
+- [ ] Add Ruff, BasedPyright, mypy, pytest, dependency policy, and package
+      metadata; select an automated mutation runner only after proving Python
+      3.14 compatibility and bounded runtime.
 - [ ] Add small committed fixtures (XML, XLSX, DOCX) outside the ignored
       `/data` directory.
 - [ ] Add a checked-in dataset manifest containing source identities and
@@ -195,7 +209,8 @@ day-to-day order.
       detail endpoints with explicit service-date parameters.
 - [ ] Add versioned response schemas and consistent error mapping.
 - [ ] Build the responsive interface under `apps/web`: terminology search, JGP
-      group browser, and version diff views; serve its output from `minos.http`.
+      group browser, and version diff views; publish its immutable output to
+      private S3/CloudFront and route API paths to `minos.http`.
 - [ ] Display code hierarchy, grouping conditions, point values, source
       release, and the safety/compliance disclaimer.
 - [ ] Exclude raw query text and encounter payloads from logs and analytics.
@@ -204,15 +219,23 @@ day-to-day order.
 ## Container And Local Runtime
 
 - [ ] Add a multi-stage non-root `linux/amd64` Dockerfile.
-- [ ] Embed static assets, provenance, and the read-only generated database.
+- [ ] Add a separate immutable watcher image or Dockerfile target used by both
+      local Compose and scheduled GitHub Actions; keep watchers out of the API
+      runtime image.
+- [ ] Embed provenance and the read-only generated database in the API image;
+      build static assets as a separate checksummed artifact.
 - [ ] Run with a read-only filesystem and no unnecessary Linux capabilities.
-- [ ] Add `compose.yaml` for local and QNAP-compatible smoke testing.
+- [ ] Add `compose.yaml` for the API, static web artifact, watcher profiles, and
+      QNAP-compatible smoke testing; its local edge serves static assets and
+      proxies API paths under the same origin.
 - [ ] Exercise one real search in the container smoke test.
 
 ## CI And Release
 
-- [ ] Add PR checks for Ruff formatting/linting, mypy, pytest, fixture ingestion,
-      dependency policy, and container smoke testing.
+- [ ] Add PR checks for Ruff formatting/linting, BasedPyright, mypy, pytest,
+      fixture ingestion, documented mutation/fault-injection evidence,
+      dependency policy, and a Compose browser-to-API search; automate mutation
+      checks after tool selection.
 - [ ] Build the pinned full dataset and private GHCR image on `main`.
 - [ ] Tag images by commit and address releases by digest; never deploy
       `latest`.
@@ -227,11 +250,13 @@ day-to-day order.
 
 ## AWS And Cloudflare
 
-- [ ] Bootstrap a private versioned S3 Terraform state bucket with native
-      locking.
-- [ ] Import and extend the phase-0 S3 snapshot bucket; provision ECR, IAM,
-      Lambda, Function URL, CloudFront OAC, ACM, logs, alarms, and budgets with
-      Terraform.
+- [ ] Reuse and recovery-test the phase-0 private versioned S3 Terraform state
+      bucket with native locking.
+- [ ] Create separate `foundation` and `service` Terraform roots with distinct
+      remote-state keys. Consume phase-0 outputs without extending or co-owning
+      its state; provision ECR and artifact storage in `foundation`, then
+      Lambda, Function URL, private frontend S3, separate S3/Lambda CloudFront
+      OACs, path routing, ACM, logs, alarms, and budgets in `service`.
 - [ ] Restrict the deploy role to the repository and release-tag OIDC subject;
       watcher jobs get write access to the snapshot bucket only.
 - [ ] Authenticate to GHCR with a GitHub token scoped to `read:packages`; use
@@ -249,7 +274,8 @@ day-to-day order.
       design before implementation, not during.
 - [ ] Manage Cloudflare DNS with Terraform and keep the CloudFront record
       DNS-only.
-- [ ] Verify rollback by restoring the previous Lambda alias version.
+- [ ] Verify rollback by restoring the previous Lambda alias, frontend entry
+      object version, and compatible API/web release manifest.
 
 ## Verification And Operations
 

@@ -30,6 +30,12 @@ release.
 
 ### Changed
 
+- Split the initial web delivery into a private S3/CloudFront static frontend
+  and a Lambda-hosted API, with the same artifacts exercised through local
+  Docker Compose.
+- Made security and correctness the first engineering priority, followed by
+  measured performance, and adopted unit, targeted mutation, integration, and
+  pair-programmer review gates for incremental work.
 - Recorded the phased client and commercial direction: one responsive PWA,
   immutable offline reference-data synchronization, centrally enforced online
   calculation allowances, and separately licensed organization/hospital

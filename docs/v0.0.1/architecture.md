@@ -15,14 +15,16 @@ retroactively. The architecture therefore has two halves:
 
 Datasets are small enough to build ahead of deployment and ship with the
 runtime. This removes a production database dependency. One generated database
-is reused by the CLI and HTTP service; the HTTP image and CLI distribution
-remain separate release artifacts.
+is reused by the CLI and HTTP service; the API image, static web bundle, and CLI
+distribution remain separate release artifacts built from one source commit.
 
-The architecture optimizes for correctness, provenance, reproducibility,
-explainability, low operating cost, and simple recovery. It does not optimize
-for mutable user data or high write throughput. Determinism and provenance are
-product features here: the rule trace and the audit history are what
-differentiate Minos from incumbent tools.
+The architecture prioritizes security and correctness, then measured
+performance, then developer convenience. It also optimizes for provenance,
+reproducibility, explainability, low operating cost, and simple recovery. It
+does not optimize for mutable user data or high write throughput. Determinism,
+provenance, and faster completion of real settlement workflows are product
+features: the rule trace, audit history, and measured response time differentiate
+Minos from incumbent tools.
 
 ## Component Boundaries
 
@@ -99,8 +101,7 @@ Responsibilities:
 - health and readiness endpoints;
 - mapping domain errors to stable HTTP errors;
 - privacy-safe request telemetry;
-- embedded static frontend assets;
-- cache and security headers.
+- API cache and security headers.
 
 It runs as an ordinary FastAPI/ASGI process. Lambda Web Adapter translates
 Lambda events to HTTP without adding Lambda-specific code to the application.
@@ -117,6 +118,10 @@ BAW/CZS source adapters; they hold no deployment permissions and are not part
 of the runtime image. BAW uses anonymous JSON and binary endpoints by default;
 browser automation requires a separate evidence-backed task and is not a
 baseline dependency.
+
+Collectors run in a dedicated immutable watcher image or Dockerfile target,
+separate from the production API image. Local Compose and scheduled GitHub
+Actions execute the same watcher digest, entry point, and arguments.
 
 ## Target Repository Layout
 
@@ -150,6 +155,9 @@ minos-health/
 |-- infra/
 |   |-- bootstrap/
 |   |-- terraform/
+|   |   |-- phase0/                 # watcher archive, OIDC, monitoring
+|   |   |-- foundation/             # registries and artifact storage
+|   |   `-- service/                # API, frontend, CDN, alarms
 |   `-- ansible/
 |-- scripts/
 |-- docs/v0.0.1/
@@ -291,21 +299,27 @@ stateless, and is excluded from any body logging. POST is mandatory because
 encounter facts must never appear in URLs, caches, or access logs.
 
 The static interface and API share an origin. Hashed static assets receive
-long cache lifetimes. CloudFront caching is disabled for `/api/*`, `/healthz`,
-and `/readyz`; the API origin request policy forwards only documented query
-parameters such as `system`, `q`, `date`, and `limit`, with no cookies or
-viewer authorization header. CloudFront access logging remains disabled until
-a privacy review addresses medical terms in URLs.
+long cache lifetimes from a private S3 origin protected by CloudFront OAC.
+CloudFront routes `/api/*`, `/healthz`, and `/readyz` to the alias-qualified
+Lambda Function URL and disables caching for those paths; the API origin request
+policy forwards only documented query parameters such as `system`, `q`, `date`,
+and `limit`, with no cookies or viewer authorization header. CloudFront access
+logging remains disabled until a privacy review addresses medical terms in
+URLs. Mobile and desktop browsers receive the same responsive static artifact.
 
 ## Runtime
 
 The runtime image contains:
 
 - the Minos Python environment and ASGI entry point;
-- embedded or packaged static assets;
 - the generated read-only database;
 - dataset and build provenance;
 - Lambda Web Adapter files needed by the Lambda profile.
+
+The separate static web artifact contains only reviewed HTML, CSS, JavaScript,
+icons, and build metadata. Docker Compose serves the exact artifact locally;
+production synchronizes it to a private S3 bucket and exposes it only through
+CloudFront.
 
 The standalone CLI bundle and data bundle are promoted alongside the image but
 are not installed in the HTTP runtime image unless a measured operational need
@@ -320,8 +334,9 @@ download is allowed.
 
 The web client can evolve in phases without a desktop application:
 
-1. `v0.0.1` serves an anonymous responsive web interface through the HTTP
-   runtime.
+1. `v0.0.1` serves an anonymous responsive web interface from private S3 through
+   CloudFront and sends bounded API requests to the Lambda origin under the same
+   public hostname.
 2. A later installable PWA stores a versioned reference SQLite snapshot through
    SQLite WASM and supported browser storage. On startup or restored
    connectivity it checks a release manifest, downloads a complete compatible

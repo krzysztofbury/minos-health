@@ -15,6 +15,20 @@ __pycache__/
 .env.*
 !.env.example
 
+# Terraform local state and private inputs
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
 # Editors and operating systems
 .idea/
 .vscode/

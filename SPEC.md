@@ -1,7 +1,8 @@
 # Minos Specification
 
 Status: accepted implementation baseline, 2026-08-06; Python architecture and
-phased PWA/commercial direction accepted 2026-08-21
+phased PWA/commercial direction accepted 2026-08-21; security, performance,
+testing, and web-hosting direction accepted 2026-09-17
 
 ## Goal
 
@@ -56,7 +57,8 @@ Two interfaces share the same domain behaviour:
 - Deterministic code and normalized-text search.
 - Human-readable and JSON CLI output.
 - A versioned read-only HTTP API and responsive anonymous webpage.
-- One immutable runtime container for local Docker and AWS Lambda.
+- One immutable API container for local Docker and AWS Lambda, plus one
+  immutable static web artifact for local Compose and private S3/CloudFront.
 
 ### Planned For v0.0.2 (design baseline now, implementation later)
 
@@ -159,11 +161,16 @@ dataset explicitly.
 ### HTTP And Web
 
 `minos.http` is a thin FastAPI adapter over the synchronous domain and store.
-Frontend source lives under `apps/web`; `minos.http` packages or serves its
-build output. Static HTML, CSS, and JavaScript avoid requiring a frontend build
-toolchain in `v0.0.1`. The `v0.0.2` encounter builder, trace views, and later
-offline PWA may outgrow this; introducing a frontend toolchain then is an
-accepted future decision, not scope creep now.
+Frontend source lives under `apps/web` and builds into a separate immutable
+static artifact. Production serves that artifact from a private S3 bucket
+through CloudFront; `/api/*`, `/healthz`, and `/readyz` route to the Lambda API.
+Docker Compose serves the exact same frontend artifact and API image locally.
+Static HTML, CSS, and JavaScript avoid requiring a frontend build toolchain in
+`v0.0.1`. This topology works on mobile because application code executes in
+the browser and makes bounded API requests; no persistent frontend server is
+required. The `v0.0.2` encounter builder, trace views, and later offline PWA may
+outgrow this; introducing a frontend toolchain then is an accepted future
+decision, not scope creep now.
 
 The initial endpoint set is:
 
@@ -285,8 +292,16 @@ queries, or encounter payloads in production logs.
 
 ## Quality Requirements
 
+- Security and correctness take precedence over performance; measured
+  performance takes precedence over developer convenience. Minos must not claim
+  to be faster than competing workflows without representative browser and API
+  benchmarks.
 - Unit tests cover normalization, hierarchy, ranking, condition evaluation,
   and error mapping.
+- Targeted mutation tests cover safety-critical validation, state transitions,
+  ruleset selection, and grouper decisions. Tool selection is gated on Python
+  3.14 compatibility; documented manual mutation or fault-injection cases are
+  required until automation is selected.
 - Fixture-driven ingestion tests include malformed and adversarial XML, XLSX,
   and DOCX inputs.
 - Integration tests exercise CLI and HTTP behaviour against the same fixture.
@@ -318,13 +333,16 @@ queries, or encounter payloads in production logs.
 
 ## Delivery
 
-The canonical runtime artifact is a private GHCR image addressed by digest. A
-mandatory signed `v*` tag promotes an image already built and tested from
-`main`; release workflows do not rebuild it. The resolved digest must have a
-verified build attestation binding it to the tagged source commit. AWS
-deployment copies the same single-architecture image manifest to ECR,
-publishes a Lambda version, and atomically updates a `live` alias. The public
-Function URL is qualified by that alias.
+The canonical runtime artifacts are a private GHCR API image addressed by digest
+and a checksummed static web bundle addressed by source commit. A mandatory
+signed `v*` tag promotes artifacts already built and tested from `main`; release
+workflows do not rebuild them. The resolved image digest and web-bundle checksum
+must have verified build provenance binding them to the tagged source commit.
+AWS deployment copies the same single-architecture image manifest to ECR,
+publishes a Lambda version, atomically updates a `live` alias, and synchronizes
+the exact web bundle to the private frontend S3 bucket before CloudFront smoke
+tests. The public Function URL is qualified by the `live` alias and is reachable
+only through CloudFront.
 
 Standalone CLI application bundles and their separate data bundle are also
 built and checksummed on `main`, stored immutably by commit, and promoted

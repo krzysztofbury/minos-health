@@ -4,7 +4,8 @@
 
 The delivery system must:
 
-- build one portable HTTP image;
+- build one portable API image;
+- build one immutable static web bundle for mobile and desktop browsers;
 - build checksummed standalone CLI and data-bundle artifacts for supported
   platforms;
 - promote an already tested digest rather than rebuild for release;
@@ -27,12 +28,14 @@ ghcr.io/krzysztofbury/minos-health@sha256:<digest>
 
 The lifecycle is:
 
-1. A pull request builds a fixture image and runs an actual container search.
+1. A pull request builds a fixture API image and static web bundle, runs them
+   through Docker Compose, and performs an actual browser-to-API search.
 2. `main` builds the pinned full dataset, supported standalone CLI bundles and
-   data bundle, and the `linux/amd64` HTTP image.
+   data bundle, the static web bundle, and the `linux/amd64` API image.
 3. `main` pushes `sha-<commit>`, stores CLI/data artifacts immutably by commit and
-   checksum, and creates a signed build attestation binding the image digest to
-   the source commit and workflow identity.
+   checksum, stores the web bundle archive immutably by commit and checksum in
+   private artifact storage, and creates build provenance binding the image
+   digest and web bundle checksum to the source commit and workflow identity.
 4. The main workflow verifies that the deployable digest is one runnable
    single-architecture image manifest, not an OCI index or attestation manifest.
 5. A mandatory signed `v*` tag points to a commit with successful prebuilt
@@ -43,10 +46,21 @@ The lifecycle is:
 7. GitHub authenticates to GHCR with `GITHUB_TOKEN` package permission and copies
    the verified image manifest into same-region private ECR using short-lived AWS
    OIDC credentials.
-8. A narrowly scoped release step publishes a Lambda version and moves `live`.
-9. Public readiness and known-search smoke tests run through the canonical host.
-10. Failed verification restores the prior alias version.
-11. The release promotes the existing CLI/data artifacts without rebuilding.
+8. A narrowly scoped release step retrieves the exact prebuilt web archive,
+   uploads immutable hashed assets under the commit release prefix, publishes
+   and directly verifies the new Lambda version, then moves `live`.
+9. The release updates the short-cached entry HTML only after every referenced
+   object exists and the new API is active, invalidates that entry object, and
+   waits until CloudFront returns its expected checksum. The API remains
+   compatible with the previous frontend for at least the maximum HTML cache
+   and rollback window.
+10. Public readiness and known-search smoke tests run through the canonical host
+    in desktop and mobile browser viewports.
+11. Failed verification restores the prior entry-object version, invalidates and
+    verifies it at CloudFront, then restores the prior compatible alias version;
+    immutable assets remain available for rollback until retention permits
+    deletion.
+12. The release promotes the existing CLI/data artifacts without rebuilding.
 
 The release workflow never rebuilds application code or data.
 
@@ -58,11 +72,13 @@ Required checks:
 
 - repository hygiene and document formatting;
 - Ruff formatting and linting with warnings denied;
-- mypy type checking;
+- BasedPyright and mypy type checking;
 - pytest unit and integration tests;
+- documented mutation or fault-injection cases for safety-critical decisions,
+  automated after a Python 3.14-compatible runner is selected;
 - fixture ingestion and deterministic artifact checks;
 - dependency license/advisory policy;
-- image build and container search smoke test.
+- Compose build and real browser-to-API search smoke test.
 
 PRs use committed fixtures and do not receive production secrets or raw source
 access.
@@ -96,9 +112,13 @@ and upstream schema drift raise alerts rather than failing silently.
 
 The AWS trust policy restricts audience and repository/ref claims to the
 expected repository and release tags. The release role can write the deployment
-ECR repository and update only the specific Lambda function and alias. It has no
-Terraform-state permission and no GitHub package permission. GHCR access comes
-from `GITHUB_TOKEN` with explicit `packages: read` workflow permission.
+ECR repository, update only the specific Lambda function and alias, read only
+the selected immutable web archive, create versioned objects in the frontend
+bucket, read only the recorded current and prior frontend object versions,
+never delete object versions, and invalidate only the project CloudFront
+distribution. It has no Terraform-state permission and no GitHub package
+permission. GHCR access comes from `GITHUB_TOKEN` with explicit `packages: read`
+workflow permission.
 
 A separate infrastructure workflow and OIDC role run reviewed Terraform plans
 and applies. That role can lock and update remote state but cannot publish
@@ -112,10 +132,11 @@ tag rebuilds and retains only a bounded number of rollback images.
 
 ## Container
 
-The multi-stage image targets `linux/amd64` for portability across GitHub-hosted
-builders, QNAP, Mikr.us, and Lambda. It includes the pinned Python environment,
-ordinary FastAPI/ASGI service, static assets, read-only database, provenance,
-and Lambda Web Adapter.
+The multi-stage API image targets `linux/amd64` for portability across
+GitHub-hosted builders, QNAP, Mikr.us, and Lambda. It includes the pinned Python
+environment, ordinary FastAPI/ASGI service, read-only database, provenance, and
+Lambda Web Adapter. Static frontend assets remain a separate checksummed
+artifact.
 
 Before promotion, CI inspects the registry media type and architecture and runs
 the exact ECR digest with Lambda-compatible settings. Build provenance and
@@ -133,7 +154,18 @@ Runtime requirements:
 - graceful termination;
 - OCI labels for source commit, build, dataset release, and licenses.
 
-Compose runs the same image locally without Lambda-specific orchestration.
+Compose runs the same API image locally without Lambda-specific orchestration.
+A small unprivileged local edge container serves the exact static web bundle and
+proxies `/api/*`, `/healthz`, and `/readyz` to the API image, preserving the same
+origin and relative URLs used in production. A real browser-to-API request tests
+that route.
+
+Issue #6 owns a separate immutable watcher image or Dockerfile target. Compose
+and scheduled GitHub Actions execute the same watcher digest, entry point, and
+arguments, with a persistent filesystem archive mounted at
+`/var/lib/minos/archive` locally and S3 selected in the cloud. The API image
+contains no watcher source. Temporary directories are reserved for tests and
+incomplete downloads, not durable local state.
 
 ## AWS Architecture
 
@@ -143,24 +175,32 @@ Compose runs the same image locally without Lambda-specific orchestration.
 Browser
   -> Cloudflare DNS-only record
   -> CloudFront distribution
-  -> Origin Access Control signed request
-  -> AWS_IAM Lambda Function URL qualified by live
-  -> Lambda Web Adapter
-  -> minos.http FastAPI service
+     -> default/static paths -> S3 OAC -> private frontend S3 bucket
+     -> /api/* and probes -> Lambda OAC -> AWS_IAM Function URL qualified by live
+        -> Lambda Web Adapter
+        -> minos.http FastAPI service
 ```
+
+The frontend executes in mobile and desktop browsers. CloudFront edge delivery
+keeps static startup independent of Lambda cold starts. Search, filtering,
+version comparison, and later grouping use bounded API calls. An undefined
+future conversational `ask` capability is not assumed to fit this runtime; its
+streaming, model, privacy, and latency requirements need a separate decision.
 
 The Function URL is created for the `live` alias qualifier, not `$LATEST`, so an
 alias update changes public traffic without changing the URL. It is not public
 anonymous origin access. CloudFront signs origin requests with OAC. Terraform
-adds both `lambda:InvokeFunctionUrl` and `lambda:InvokeFunction` resource-policy
-permissions for `cloudfront.amazonaws.com`, restricted to the exact CloudFront
-distribution ARN and alias-qualified function.
+uses separate S3 and Lambda origin access controls. The S3 REST-origin bucket
+policy and both `lambda:InvokeFunctionUrl` and `lambda:InvokeFunction`
+resource-policy permissions are restricted to the exact CloudFront distribution
+ARN and, for Lambda, the alias-qualified function.
 
 Initial search uses GET requests; signed POST requests to a Lambda Function URL
 require correct `x-amz-content-sha256` handling and are not needed for `v0.0.1`.
 The `v0.0.2` stateless grouping endpoint is a POST and requires that handling
-to be designed and tested before implementation, including confirmation that
-encounter payloads never reach CloudFront or platform logs.
+to be designed and tested before implementation. Its encrypted payload
+necessarily traverses CloudFront, but it must never appear in CloudFront,
+Lambda platform, or application logs.
 
 CloudFront uses separate behaviours:
 
@@ -176,6 +216,8 @@ CloudFront uses separate behaviours:
 
 The AWS stack owns:
 
+- private frontend S3 bucket with versioning, encryption, and CloudFront OAC;
+- private versioned build-artifact S3 bucket for commit-addressed web archives;
 - private ECR repository and lifecycle policy;
 - GitHub OIDC provider or references to an account-level provider;
 - narrowly scoped build and release roles;
@@ -184,7 +226,7 @@ The AWS stack owns:
 - reserved concurrency as a cost and overload guard;
 - alias-qualified Function URL with `AWS_IAM` authorization;
 - both CloudFront invocation policy statements scoped to the distribution ARN;
-- CloudFront Origin Access Control and distribution;
+- separate S3 and Lambda CloudFront Origin Access Controls and one distribution;
 - explicit cache and origin-request policies per behaviour;
 - ACM certificate in `us-east-1` for CloudFront;
 - CloudWatch log group with finite retention;
@@ -210,7 +252,10 @@ during research and must not force a console-managed production exception.
 ### Remote State
 
 `infra/bootstrap` creates a dedicated private S3 state bucket through a small
-one-time local state, then migrates the main stack to it. The bucket uses:
+one-time local state. Bootstrap state remains separate and receives an encrypted
+independent backup. Each Terraform root initializes directly against a distinct
+remote-state key; there is no empty phase-0 state to migrate. The state bucket
+uses:
 
 - versioning;
 - encryption;
@@ -219,9 +264,12 @@ one-time local state, then migrates the main stack to it. The bucket uses:
 - native S3 state locking;
 - a recovery procedure for prior state versions.
 
-Production state is never stored as a GitHub artifact or committed to Git.
-Bootstrap state and recovery metadata are backed up securely after migration,
-including an encrypted independent copy outside the AWS deployment account.
+The `phase0` root owns the snapshot bucket, watcher identity, and monitoring.
+Later `foundation` and `service` roots consume its outputs where needed but do
+not import or co-own those resources. Production state is never stored as a
+GitHub artifact or committed to Git. Bootstrap state and recovery metadata are
+backed up securely, including an encrypted independent copy outside the AWS
+deployment account.
 
 ## Cloudflare And Domains
 
@@ -254,6 +302,16 @@ GitHub stores only secrets that cannot be replaced by OIDC. AWS credentials are
 short-lived. The runtime should not require application secrets for a bundled
 read-only database.
 
+Local development reads ignored `.env` files based on committed `.env.example`
+for application secrets. Local cloud credentials stay in an external profile or
+keychain. Production workload secrets live in AWS Secrets Manager and are
+injected into the relevant runtime or workflow. Operator, registrar, SSH, and
+recovery credentials stay in the password manager. Ordinary endpoints,
+timeouts, regions, bucket names, and feature flags are configuration, not
+secrets, and remain Terraform inputs or environment variables. The phase-0 RSK
+watcher uses anonymous source endpoints and should require no application
+secret.
+
 Registrar credentials, recovery codes, SSH material for fallback hosts, and
 emergency credentials live in the password manager. They must not be copied
 from another project's deployment files.
@@ -268,6 +326,11 @@ AWS Lambda best matches the chosen priorities:
 - Lambda Web Adapter preserves the standard HTTP image;
 - no host patching or runtime disk backup is required;
 - low traffic can remain inexpensive.
+
+Private S3 plus CloudFront serves the responsive frontend independently, so
+mobile startup does not wait for Lambda. Lambda is evaluated on API latency,
+including cold starts. Provisioned concurrency is enabled only if representative
+measurements justify its fixed cost.
 
 These benefits are hypotheses until representative benchmarks confirm startup,
 memory, throughput, and cost.
@@ -316,11 +379,14 @@ A successful release record contains:
 - verified commit-to-digest build attestation;
 - single-architecture runnable image media type;
 - GHCR and ECR digest equality;
+- web bundle checksum, immutable artifact key, frontend entry-object VersionId
+  and ETag, and their previous release values;
 - dataset release and checksums;
 - CLI/data artifact checksums;
 - infrastructure revision, plus Terraform plan/apply evidence if infrastructure
   or route selection changed;
 - prior and new Lambda version and alias weights;
+- API/web compatibility range and CloudFront entry invalidation result;
 - readiness and known-search results through the public hostname;
 - representative post-deploy latency/error sample.
 

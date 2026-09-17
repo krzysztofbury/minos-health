@@ -207,6 +207,27 @@ engine is versioned code, and every result carries its trace. AI may assist
 implementation, but code is accepted only when the owner can explain, review,
 test, and debug it.
 
+### Engineering Priorities And Dependencies
+
+Security and correctness come first, measured performance second, and developer
+convenience third. Minos is intended to outperform incumbent workflows, but a
+performance claim requires representative browser, API, container, and data
+benchmarks. Validation, privacy, provenance, and determinism are not traded for
+an unmeasured speed improvement.
+
+Prefer the Python standard library when sufficient. Approved foundation tools
+are uv for environments and locking, Pydantic at configuration and untrusted
+input boundaries, HTTPX for bounded HTTP communication, pytest for testing, and
+Loguru for allowlisted structured process logs. Dependencies enter the lockfile
+only with working code, a defined boundary, and a licence review.
+
+Testing uses unit, targeted mutation, and integration layers. Mutation testing
+focuses on safety-critical decisions and starts only after the selected tool is
+proven compatible with Python 3.14; documented manual mutation or
+fault-injection cases are required until then. Each coherent implementation
+chunk receives a pair-programmer TigerStyle review and user-visible diff before
+the next chunk.
+
 ### Bitemporal Versioning
 
 Every rule-bearing fact carries valid time (the reporting period it governs)
@@ -244,25 +265,32 @@ The "CI never follows latest" rule is unchanged. Details in
 ### Frontend
 
 Frontend source lives under `apps/web`. The first webpage may remain static
-HTML, CSS, and JavaScript whose build output is served by `minos.http`; this
-does not require a separate deployed frontend service. The later installable
-PWA adds a service worker, local SQLite through WASM and browser storage, and
-one-way dataset-release synchronization. The `v0.0.2` encounter builder and
-trace visualization may justify introducing the frontend toolchain before the
-offline phase.
+HTML, CSS, and JavaScript with no frontend build framework. Its immutable output
+is a separate artifact: Docker Compose serves it locally and a private S3 bucket
+serves it through CloudFront in production. CloudFront routes API paths under
+the same public hostname to Lambda. This is the initial desktop and mobile
+architecture; the browser runs the frontend, so no always-on frontend server is
+required. The later installable PWA adds a service worker, local SQLite through
+WASM and browser storage, and one-way dataset-release synchronization. The
+`v0.0.2` encounter builder and trace visualization may justify introducing the
+frontend toolchain before the offline phase.
 
 ## Artifact And Release
 
-One `linux/amd64` HTTP image is the runtime artifact for local Docker, QNAP,
-Mikr.us, and AWS Lambda through Lambda Web Adapter.
+One `linux/amd64` API image and one checksummed static web bundle are the web
+runtime artifacts. Docker Compose runs both locally. Production serves the
+bundle from private S3 through CloudFront and runs the API image on AWS Lambda
+through Lambda Web Adapter. QNAP and Mikr.us can run both artifacts as a
+fallback.
 
 Private GHCR is canonical. Images are built on `main`, tagged by commit, and
 addressed by digest. A build attestation binds the digest to its source commit
-and workflow identity. A mandatory signed `v*` tag promotes the verified
-digest; it does not rebuild. AWS receives the same single-architecture
-manifest in same-region ECR and deploys a versioned Lambda through a `live`
-alias-qualified Function URL. Prebuilt standalone CLI and data artifacts follow
-the same promotion rule.
+and workflow identity; the web bundle has equivalent commit-bound checksum
+provenance. A mandatory signed `v*` tag promotes the verified artifacts; it does
+not rebuild. AWS receives the same single-architecture manifest in same-region
+ECR, deploys a versioned Lambda through a `live` alias-qualified Function URL,
+and synchronizes the exact static bundle to the frontend bucket. Prebuilt
+standalone CLI and data artifacts follow the same promotion rule.
 
 Mutable `latest` deployment and Watchtower-style production promotion are
 rejected. Helm is rejected because there is no Kubernetes deployment.
@@ -273,7 +301,10 @@ rejected. Helm is rejected because there is no Kubernetes deployment.
 
 AWS Lambda was selected because it supports the desired Terraform and GitHub
 OIDC workflow, immutable image versions, atomic aliases, and recovery from
-declarative state without a server disk.
+declarative state without a server disk. The responsive frontend is not
+executed by Lambda: CloudFront serves its static artifact from private S3 to
+mobile and desktop browsers. Lambda handles bounded search, filtering,
+comparison, and later grouping API calls.
 
 The planned ingress is CloudFront with Origin Access Control to an `AWS_IAM`
 Lambda Function URL qualified by `live`. Cloudflare manages DNS but does not
@@ -287,6 +318,12 @@ Mikr.us `3.0` remains the low-fixed-cost fallback if representative AWS
 benchmarks fail. If used, it is disposable: Ansible provisions Docker and
 Compose, a restricted token pulls an exact GHCR digest, and Cloudflare Tunnel
 provides ingress.
+
+The fallback remains conditional on benchmarks. It is not preferred merely to
+avoid Lambda cold starts because an unmanaged host increases patching, secret,
+backup, and recovery responsibility. Provisioned concurrency or an always-on
+managed AWS container may be reconsidered only if measured mobile and API
+latency fails the launch budget.
 
 ## Infrastructure Ownership
 
@@ -307,6 +344,22 @@ analytics. Grouping is stateless: inputs are evaluated in memory and
 discarded. Structured events use route templates, request IDs, status classes,
 timings, result counts, and dataset versions. Any future query analytics
 require a separate privacy design and accepted decision.
+
+Loguru emits allowlisted structured events to stdout for collection by the
+active platform. It is not the incident model or an external error tracker.
+Watcher failures initially surface through failed GitHub Actions runs and
+alerts; application failures surface through CloudWatch metrics and alarms.
+Selection of an external error-reporting service remains open and must pass a
+privacy review before receiving events.
+
+Local application secrets live only in ignored `.env` files; local cloud
+credentials stay in external profiles or keychains. Production workload secrets
+live in AWS Secrets Manager and are injected at runtime. Operator and recovery
+credentials stay in the password manager. Non-secret settings remain normal
+environment variables or Terraform inputs. GitHub authenticates to AWS through
+OIDC and never stores long-lived AWS access keys. A narrowly scoped third-party
+deployment token may use a protected GitHub secret when workload identity is
+unavailable.
 
 ## Open Gates
 

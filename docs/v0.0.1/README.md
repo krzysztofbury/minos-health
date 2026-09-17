@@ -1,6 +1,6 @@
 # Minos v0.0.1
 
-Status: accepted planning baseline, implementation not started
+Status: accepted planning baseline, implementation in progress
 
 This directory records the decisions and constraints for the first Minos
 release. Root-level [SPEC.md](../../SPEC.md) defines observable product
@@ -37,10 +37,12 @@ model.
 4. The anonymous webpage works on desktop and mobile and presents terminology
    search, the JGP knowledge base, version diffs, and source and safety
    information clearly.
-5. The same tested image runs locally and on AWS Lambda.
-6. A signed version tag promotes a commit-bound, attested image digest and
-   prebuilt CLI/data artifacts, deploys without rebuilding, exercises a real
-   search through the public hostname, and can roll back the Lambda alias.
+5. The same tested API image and static web bundle run through Docker Compose
+   locally and through private S3/CloudFront plus AWS Lambda in production.
+6. A signed version tag promotes a commit-bound, attested image digest,
+   checksummed static web bundle, and prebuilt CLI/data artifacts, deploys
+   without rebuilding, exercises desktop and mobile searches through the public
+   hostname, and can roll back the Lambda alias and web bundle.
 7. Representative load, cold-start, memory, image-size, and cost measurements
    meet explicitly recorded launch thresholds.
 8. Code and data notices are present in source, generated artifacts, and the
