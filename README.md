@@ -52,16 +52,16 @@ Minos is one Python 3.14 distribution with strict internal package boundaries:
 - `minos.grouper` (planned, `v0.0.2`): versioned grouping engine evaluating
   encounter facts against rules-as-data.
 
-One immutable `linux/amd64` API container runs locally, on a conventional Docker
-host, or on AWS Lambda through Lambda Web Adapter. One immutable static web
-bundle runs in the mobile or desktop browser and is served by CloudFront from a
-private S3 bucket. Docker Compose runs the same API image and web bundle locally.
-Offline CLI distributions bundle the Python runtime and use the same generated
-database. AWS Lambda is the primary API target; Mikr.us remains a
-benchmark-triggered fallback.
-Source watchers run as scheduled CI jobs. The collectors in issues #6-#8 emit
-archived change records and issue #21 proposes reviewed manifest PRs. They are
-not part of the runtime.
+The target deployment uses one immutable `linux/amd64` API container locally,
+on a conventional Docker host, or on AWS Lambda through Lambda Web Adapter. One
+immutable static web bundle will run in the mobile or desktop browser and be
+served by CloudFront from a private S3 bucket. Docker Compose will run the same
+API image and web bundle locally. Offline CLI distributions will bundle the
+Python runtime and use the same generated database. AWS Lambda is the primary
+API target; Mikr.us remains a benchmark-triggered fallback.
+Source watchers will run as scheduled jobs. The collectors in issues #6-#8 will
+emit archived change records and issue #21 proposes reviewed manifest PRs. They
+are not part of the product runtime.
 
 The initial service remains anonymous. The accepted later client direction is
 one installable responsive PWA that can synchronize a verified immutable
@@ -87,6 +87,13 @@ Ruff, BasedPyright, mypy, and pytest are pinned in `uv.lock`. Terminal and
 Neovim integration is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 Security and correctness come first; performance is measured as product
 behavior, with targeted mutation and integration testing for critical paths.
+
+Docker Compose is not available yet. The current issue #6 implementation is a
+tested RSK transport library without an executable watcher, archive adapter, or
+container image. `.env.example` identifies which RSK settings are active and
+comments out settings reserved for the archive and container work. Compose will
+be added only after the archive contract and local persistence behavior are
+accepted.
 
 ## Data
 
