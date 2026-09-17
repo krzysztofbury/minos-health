@@ -1,13 +1,15 @@
-from uuid import UUID
 from datetime import datetime
+from typing import ClassVar
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class RskRoleUriModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
 
     ordinal_number: int = Field(alias="ordinalNumber")
-    hcd: str = Field(alias="hcd")
+    hcd: str = Field(alias="hcd", min_length=6, max_length=6, pattern=r"^[0-9A-Z]+$")
     name: str = Field(alias="name")
     description: str | None = Field(default=None, alias="description")
     version: str = Field(alias="version")
@@ -17,7 +19,7 @@ class RskRoleUriModel(BaseModel):
 
 
 class RskCatalogPublisher(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
 
     uuid: UUID = Field(alias="uuid")
     name: str = Field(alias="name")
@@ -38,7 +40,7 @@ class RskCatalogPublisher(BaseModel):
 
 
 class RskCatalogFile(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
 
     uuid: UUID = Field(alias="uuid")
     file: str | None = Field(default=None, alias="file")
@@ -50,7 +52,7 @@ class RskCatalogFile(BaseModel):
     description: str | None = Field(default=None, alias="description")
     archived: bool | None = Field(default=False, alias="archived")
     version: str | None = Field(default=None, alias="version")
-    archivication_date: datetime | None = Field(default=None, alias="archivizationDate")
+    archivization_date: datetime | None = Field(default=None, alias="archivizationDate")
     education_file: bool | None = Field(default=False, alias="educationFile")
 
     @property
@@ -62,9 +64,9 @@ class RskCatalogFile(BaseModel):
 
 
 class RskCatalogMetadata(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
 
-    hcd: str = Field(alias="hcd")
+    hcd: str = Field(alias="hcd", min_length=6, max_length=6, pattern=r"^[0-9A-Z]+$")
     name: str = Field(alias="name")
     short_name: str = Field(alias="shortName")
     description: str | None = Field(default=None, alias="description")
@@ -80,6 +82,6 @@ class RskCatalogMetadata(BaseModel):
     fhir_or_rest_api_version: str | None = Field(
         default=None, alias="fhirOrRestApiVersion"
     )
-    education_links: list[dict] | None = Field(
+    education_links: list[dict[str, object]] | None = Field(
         default_factory=list, alias="educationLinks"
     )

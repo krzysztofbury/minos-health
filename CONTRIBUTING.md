@@ -46,6 +46,11 @@ configuration and untrusted-input boundaries; domain behavior must not depend
 on transport or serialization libraries. Add a dependency only with working
 code, a clear ownership boundary, and a licence review.
 
+Loguru (MIT) emits allowlisted structured process events without installing
+library-level sinks. backoff (MIT) supplies the bounded exponential schedule
+and full jitter for idempotent source reads; retry classification, `Retry-After`
+handling, and streaming rollback remain explicit in Minos code.
+
 ### Local And Cloud Parity
 
 Docker Compose is the supported full local runtime. It must execute the same
