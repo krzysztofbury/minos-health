@@ -17,10 +17,23 @@ dependencies = [
 minos = "minos.cli.main:main"
 
 [dependency-groups]
-dev = ["basedpyright>=1.31", "mypy>=1.17", "pytest>=8.4", "ruff>=0.12"]
+dev = [
+    "bandit[toml]>=1.9,<2",
+    "basedpyright>=1.31",
+    "hatchling==1.32.0",
+    "mypy>=1.17",
+    "pip-audit>=2.9,<3",
+    "pip-licenses>=5,<6",
+    "pre-commit>=4.6,<5",
+    "pytest>=8.4",
+    "pyyaml>=6,<7",
+    "ruff>=0.12",
+    "types-pyyaml>=6,<7",
+    "zizmor>=1.30,<2",
+]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.0"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

@@ -1,5 +1,9 @@
 # Deployment
 
+Status: target architecture. The current repository has the CI verification
+baseline and Terraform state bootstrap, but not the API image, watcher entry
+point, archive adapters, Compose stack, scheduled watchers, or release workflow.
+
 ## Goals
 
 The delivery system must:
@@ -26,7 +30,8 @@ ghcr.io/krzysztofbury/minos-health@sha256:<digest>
 
 `latest` is not a deployable reference.
 
-The lifecycle is:
+The target lifecycle, after the corresponding artifacts and workflows are
+implemented, is:
 
 1. A pull request builds a fixture API image and static web bundle, runs them
    through Docker Compose, and performs an actual browser-to-API search.
@@ -68,16 +73,23 @@ The release workflow never rebuilds application code or data.
 
 ### Pull Requests
 
-Required checks:
+The current baseline workflow checks:
 
 - repository hygiene and document formatting;
 - Ruff formatting and linting with warnings denied;
 - BasedPyright and mypy type checking;
-- pytest unit and integration tests;
+- pytest unit tests;
+- Bandit static security analysis and full-history secret scanning;
+- dependency licence and advisory policy;
+- Terraform formatting, validation, and configuration scanning;
+- Python package build and installed-wheel smoke test.
+
+Planned checks are added with the components they exercise:
+
+- integration tests;
 - documented mutation or fault-injection cases for safety-critical decisions,
   automated after a Python 3.14-compatible runner is selected;
 - fixture ingestion and deterministic artifact checks;
-- dependency license/advisory policy;
 - Compose build and real browser-to-API search smoke test.
 
 PRs use committed fixtures and do not receive production secrets or raw source
@@ -85,44 +97,47 @@ access.
 
 ### Main
 
-The main workflow obtains short-lived AWS credentials through GitHub OIDC only
-when it needs the private raw snapshot or immutable build-artifact storage. It
-builds the pinned complete artifact, runs integrity tests, builds and scans the
-image, executes the runtime path, pushes to private GHCR, signs the digest, and
-stores commit-bound checksums for the CLI/data artifacts.
+The planned main workflow will obtain short-lived AWS credentials through
+GitHub OIDC only when it needs the private raw snapshot or immutable
+build-artifact storage. It will build the pinned complete artifact, run
+integrity tests, build and scan the image, execute the runtime path, push to
+private GHCR, sign the digest, and store commit-bound checksums for the CLI/data
+artifacts.
 
 ### Scheduled Watchers
 
-Separate scheduled workflows implement phase 0 (see
-[data-sources.md](data-sources.md)): they poll RSK and NFZ endpoints daily,
+Planned separate scheduled workflows will implement phase 0 (see
+[data-sources.md](data-sources.md)). They will poll RSK and NFZ endpoints daily,
 archive every exact metadata observation and selected in-scope source file to
-the private versioned S3 snapshot bucket (with checksums computed at archive
-time), and retrieve BAW document graphs and files through anonymous HTTP APIs.
-The watcher role can conditionally create content-addressed objects under
-archive prefixes but cannot overwrite or delete them; conditional
-compare-and-swap updates are allowed only under a separate state prefix. Issues
-#6-#8 emit immutable change records or incidents; issue #21 later opens data
-pull requests carrying manifest changes and human-readable diffs. A blocked
-GitHub runner falls back to local/QNAP execution. Browser automation requires a
-separate task backed by evidence that it works from the affected environment.
-Watcher jobs have no deployment, ECR, or Lambda permissions. Watcher failures
-and upstream schema drift raise alerts rather than failing silently.
+the private versioned S3 snapshot bucket with checksums computed at archive
+time, and retrieve BAW document graphs and files through anonymous HTTP APIs.
+The watcher role will conditionally create content-addressed objects under
+archive prefixes but will not overwrite or delete them; conditional
+compare-and-swap updates will be allowed only under a separate state prefix.
+Issues #6-#8 will emit immutable change records or incidents; issue #21 will
+later open data pull requests carrying manifest changes and human-readable
+diffs. A blocked GitHub runner will fall back to local/QNAP execution. Browser
+automation requires a separate task backed by evidence that it works from the
+affected environment. Watcher jobs will have no deployment, ECR, or Lambda
+permissions. Watcher failures and upstream schema drift will raise alerts
+rather than failing silently.
 
 ### Release Tags
 
-The AWS trust policy restricts audience and repository/ref claims to the
-expected repository and release tags. The release role can write the deployment
-ECR repository, update only the specific Lambda function and alias, read only
-the selected immutable web archive, create versioned objects in the frontend
-bucket, read only the recorded current and prior frontend object versions,
-never delete object versions, and invalidate only the project CloudFront
-distribution. It has no Terraform-state permission and no GitHub package
-permission. GHCR access comes from `GITHUB_TOKEN` with explicit `packages: read`
-workflow permission.
+The planned AWS trust policy will restrict audience and repository/ref claims
+to the expected repository and release tags. The release role can write the
+deployment ECR repository, update only the specific Lambda function and alias,
+read only the selected immutable web archive, create versioned objects in the
+frontend bucket, read only the recorded current and prior frontend object
+versions, never delete object versions, and invalidate only the project
+CloudFront distribution. It has no Terraform-state permission and no GitHub
+package permission. GHCR access comes from `GITHUB_TOKEN` with explicit
+`packages: read` workflow permission.
 
-A separate infrastructure workflow and OIDC role run reviewed Terraform plans
-and applies. That role can lock and update remote state but cannot publish
-application releases unless an infrastructure change requires it.
+A separate infrastructure workflow and OIDC role will run reviewed Terraform
+plans and applies. That role will be able to lock and update remote state but
+will not publish application releases unless an infrastructure change requires
+it.
 
 GitHub Free private repository planning limits observed during design were
 2,000 Actions minutes per month, 500 MB shared package/artifact storage, and
@@ -132,15 +147,15 @@ tag rebuilds and retains only a bounded number of rollback images.
 
 ## Container
 
-The multi-stage API image targets `linux/amd64` for portability across
-GitHub-hosted builders, QNAP, Mikr.us, and Lambda. It includes the pinned Python
-environment, ordinary FastAPI/ASGI service, read-only database, provenance, and
-Lambda Web Adapter. Static frontend assets remain a separate checksummed
-artifact.
+The planned multi-stage API image will target `linux/amd64` for portability
+across GitHub-hosted builders, QNAP, Mikr.us, and Lambda. It will include the
+pinned Python environment, ordinary FastAPI/ASGI service, read-only database,
+provenance, and Lambda Web Adapter. Static frontend assets will remain a
+separate checksummed artifact.
 
-Before promotion, CI inspects the registry media type and architecture and runs
-the exact ECR digest with Lambda-compatible settings. Build provenance and
-signatures are attached as supply-chain metadata, not substituted for the
+Before promotion, CI will inspect the registry media type and architecture and
+run the exact ECR digest with Lambda-compatible settings. Build provenance and
+signatures will be attached as supply-chain metadata, not substituted for the
 runnable image manifest.
 
 Runtime requirements:
@@ -154,15 +169,15 @@ Runtime requirements:
 - graceful termination;
 - OCI labels for source commit, build, dataset release, and licenses.
 
-Compose runs the same API image locally without Lambda-specific orchestration.
-A small unprivileged local edge container serves the exact static web bundle and
-proxies `/api/*`, `/healthz`, and `/readyz` to the API image, preserving the same
-origin and relative URLs used in production. A real browser-to-API request tests
-that route.
+Compose will run the same API image locally without Lambda-specific
+orchestration. A small unprivileged local edge container will serve the exact
+static web bundle and proxy `/api/*`, `/healthz`, and `/readyz` to the API image,
+preserving the same origin and relative URLs used in production. A real
+browser-to-API request will test that route.
 
 Issue #6 owns a separate immutable watcher image or Dockerfile target. Compose
-and scheduled GitHub Actions execute the same watcher digest, entry point, and
-arguments, with a persistent filesystem archive mounted at
+and scheduled GitHub Actions will execute the same watcher digest, entry point,
+and arguments, with a persistent filesystem archive mounted at
 `/var/lib/minos/archive` locally and S3 selected in the cloud. The API image
 contains no watcher source. Temporary directories are reserved for tests and
 incomplete downloads, not durable local state.
@@ -263,6 +278,10 @@ uses:
 - least-privilege access;
 - native S3 state locking;
 - a recovery procedure for prior state versions.
+
+The bootstrap bucket uses SSE-S3 so state recovery does not depend on a
+separately managed KMS key and policy. This is a scoped bootstrap tradeoff, not
+a default encryption decision for snapshot or application buckets.
 
 The `phase0` root owns the snapshot bucket, watcher identity, and monitoring.
 Later `foundation` and `service` roots consume its outputs where needed but do

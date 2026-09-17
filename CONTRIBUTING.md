@@ -51,31 +51,49 @@ library-level sinks. backoff (MIT) supplies the bounded exponential schedule
 and full jitter for idempotent source reads; retry classification, `Retry-After`
 handling, and streaming rollback remain explicit in Minos code.
 
+Development-only dependencies are pre-commit (MIT) for reproducible repository
+checks, Bandit (Apache-2.0) for Python static security analysis, pip-audit
+(Apache-2.0) for advisory checks, pip-licenses (MIT) for licence policy, and
+PyYAML (MIT) for workflow policy tests. Zizmor (MIT) audits GitHub Actions for
+unsafe triggers, permissions, and expression use; types-PyYAML (Apache-2.0)
+supplies static-analysis metadata. Hatchling (MIT) is the pinned build backend.
+These tools do not enter production artifacts. CI uses checkout (MIT), setup-uv
+(MIT), setup-terraform (MPL-2.0), and Trivy (Apache-2.0); every action reference
+is pinned to a full commit SHA.
+
 ### Local And Cloud Parity
 
-Docker Compose is the supported full local runtime. It must execute the same
-application artifacts and commands used by cloud workflows, with persistent
-ignored local storage instead of ephemeral `/tmp` for watcher archives. Tests
-may use temporary directories for isolated operations.
+Docker Compose is the target full local runtime, but it is not implemented yet.
+The current issue #6 code provides the RSK transport as a tested library; there
+is no executable watcher, archive adapter, Dockerfile, or `compose.yaml`.
+Development currently uses `uv sync --all-groups` and the checks below. Do not
+expect `docker compose up` to work until the archive contract and watcher entry
+point are implemented.
+
+When added, Compose must execute the same application artifacts and commands
+used by cloud workflows, with persistent ignored local storage instead of
+ephemeral `/tmp` for watcher archives. Tests may use temporary directories for
+isolated operations.
 
 The local filesystem and production S3 archive adapters must pass the same
 contract tests. A local AWS emulator may accelerate development, but it does
 not replace a disposable real-AWS integration test for versioning, conditional
 writes, IAM, and state compare-and-swap behavior.
 
-Copy `.env.example` to an ignored `.env` for local configuration. Local secrets
-for the application belong only in `.env`; local cloud credentials stay in an
-external profile or keychain. Production workload secrets belong in AWS Secrets
-Manager, while operator and recovery credentials stay in the password manager.
-GitHub uses AWS OIDC and must not store long-lived AWS access keys. A narrowly
-scoped third-party deployment token that cannot use workload identity may use a
-protected GitHub secret after review.
+`.env.example` currently documents active RSK transport settings and comments
+out reserved archive, logging, and S3 settings. Copy it to an ignored `.env`
+only for direct Python development. Local application secrets belong only in
+`.env`; local cloud credentials stay in an external profile or keychain.
+Production workload secrets belong in AWS Secrets Manager, while operator and
+recovery credentials stay in the password manager. GitHub uses AWS OIDC and
+must not store long-lived AWS access keys. A narrowly scoped third-party
+deployment token that cannot use workload identity may use a protected GitHub
+secret after review.
 
 Install and enable the repository hooks:
 
 ```sh
-pipx install pre-commit
-pre-commit install
+uv run pre-commit install
 ```
 
 ## Before submitting a change
@@ -89,7 +107,7 @@ manual mutation or fault-injection cases are the required evidence.
 Run the complete pre-commit suite and the explicit Python checks:
 
 ```sh
-pre-commit run --all-files
+uv run pre-commit run --all-files
 uv run ruff format --check .
 uv run ruff check .
 uv run basedpyright

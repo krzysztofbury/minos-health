@@ -1,20 +1,33 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b # frozen: v5.0.0
     hooks:
       - id: check-added-large-files
+        args: [--maxkb=500]
+      - id: check-case-conflict
+      - id: check-json
       - id: check-merge-conflict
       - id: check-toml
       - id: check-yaml
+      - id: check-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
+      - id: forbid-submodules
       - id: mixed-line-ending
+      - id: no-commit-to-branch
+        args: [--branch, main]
       - id: trailing-whitespace
 
   - repo: https://github.com/gitleaks/gitleaks
     rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # v8.30.1
     hooks:
       - id: gitleaks
+        alias: gitleaks-staged
+      - id: gitleaks
+        alias: gitleaks-history
+        name: Detect secrets in Git history
+        entry: gitleaks git --redact --verbose
+        stages: [manual]
 
   - repo: local
     hooks:
@@ -32,13 +45,52 @@ repos:
         files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
       - id: mypy
         name: mypy
-        entry: uv run mypy src
+        entry: uv run mypy src tests
         language: system
         pass_filenames: false
         files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+      - id: basedpyright
+        name: basedpyright
+        entry: uv run basedpyright
+        language: system
+        pass_filenames: false
+        files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+      - id: bandit
+        name: bandit
+        entry: uv run bandit -q -r src
+        language: system
+        pass_filenames: false
+        files: ^(?:src/|pyproject\.toml$|uv\.lock$)
       - id: pytest
         name: pytest
         entry: uv run pytest
         language: system
         pass_filenames: false
         files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+      - id: uv-lock
+        name: uv lock is current
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+        files: ^(?:pyproject\.toml$|uv\.lock$)
+      - id: license-policy
+        name: dependency license policy
+        entry: >-
+          uv run pip-licenses
+          --allow-only
+          'Apache-2.0;Apache Software License;Apache-2.0 OR BSD-2-Clause;BSD License;BSD-2-Clause;BSD-3-Clause;MIT;MIT License;MIT OR Apache-2.0;Mozilla Public License 2.0 (MPL 2.0);PSF-2.0;Python Software Foundation License'
+        language: system
+        pass_filenames: false
+        files: ^(?:pyproject\.toml$|uv\.lock$)
+      - id: terraform-fmt
+        name: terraform fmt
+        entry: terraform fmt -check -recursive infra
+        language: system
+        pass_filenames: false
+        files: ^infra/.*\.(?:tf|tfvars)$
+      - id: zizmor
+        name: zizmor
+        entry: uv run zizmor --pedantic .github/workflows
+        language: system
+        pass_filenames: false
+        files: ^\.github/workflows/.*\.ya?ml$

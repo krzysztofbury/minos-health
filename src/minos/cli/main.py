@@ -7,7 +7,7 @@ def build_parser() -> ArgumentParser:
         prog="minos",
         description="Explainable settlement intelligence for Polish hospital care.",
     )
-    parser.add_argument(
+    _ = parser.add_argument(
         "--version",
         action="version",
         version=f"%(prog)s {version('minos-health')}",
@@ -17,5 +17,5 @@ def build_parser() -> ArgumentParser:
 
 def main() -> None:
     parser = build_parser()
-    parser.parse_args()
+    _ = parser.parse_args()
     parser.print_help()
