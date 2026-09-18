@@ -37,6 +37,9 @@ release.
   port.
 - Direct cookie-free Plausible pageviews and aggregate engagement measurements,
   plus Polish privacy-policy and terms pages for the maintenance-stage site.
+- Raw-SQL watcher control schema with a canonical current-state DDL, numbered
+  transactional up/down migrations, exact-byte checksums, forward-reader
+  compatibility, packaged SQL resources, and migration fault-injection tests.
 
 ### Changed
 

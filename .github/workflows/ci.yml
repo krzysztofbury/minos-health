@@ -85,3 +85,13 @@ jobs:
           uv venv "$smoke_dir" --python 3.14.7
           uv pip install --python "$smoke_dir/bin/python" --no-deps dist/*.whl
           "$smoke_dir/bin/minos" --version
+          "$smoke_dir/bin/python" - <<'PY'
+          import sqlite3
+
+          from minos.ingest.watchers.control import apply_control_migrations
+
+          connection = sqlite3.connect(":memory:", isolation_level=None)
+          result = apply_control_migrations(connection)
+          assert result.schema_version == 1
+          assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+          PY

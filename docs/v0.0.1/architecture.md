@@ -191,6 +191,15 @@ data. The watcher is its only writer. Consistent recovery images are created
 with the SQLite backup API and uploaded to S3; the live database, WAL, and
 shared-memory files are never copied as a backup set.
 
+`database/control/sqlite/schema.sql` is the canonical readable definition of
+the current complete schema. Runtime initialization still applies every
+numbered `up` migration; tests require the migration chain and canonical DDL to
+produce equivalent schemas. Every schema change updates both. Exact migration
+bytes are checksum-locked after application. Down migrations are exercised only
+in local and automated tests; production rollback restores the verified
+pre-deploy recovery image. A retained older watcher may read an explicitly
+compatible newer additive schema after validating every migration it knows.
+
 `database/application` is a reserved future boundary, not part of `v0.0.1`.
 If accounts and billing are introduced, its PostgreSQL migrations and backups
 remain independent from replaceable reference artifacts and local browser

@@ -39,6 +39,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/minos"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"database/control/sqlite" = "minos/database/control/sqlite"
+
 [tool.basedpyright]
 include = ["src", "tests"]
 pythonVersion = "3.14"

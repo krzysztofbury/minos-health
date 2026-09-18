@@ -150,9 +150,13 @@ day-to-day order.
       scoped Mikr.us watcher identity, GitHub OIDC read role, and budget in
       remote Terraform state before the first production run. Enforce
       conditional creates and deny watcher overwrite and deletion.
-- [ ] Implement the watcher control SQLite schema for sources, durable due
-      cursors, fenced claims, runs, observations, blobs, source cursors,
-      monotonic state revisions, changes, incidents, and audit events.
+- [x] Define the raw-SQL watcher control schema for sources, schedules, runs,
+      observations, blobs, source cursors, monotonic state revisions, changes,
+      incidents, and audit events. Keep the canonical `schema.sql` synchronized
+      with numbered checksum-verified migrations and tested down scripts.
+- [ ] Implement the single-writer control transactions for configuration and
+      schedule changes, fenced claims, legal run transitions, atomic observation
+      commits, state revision increments, incidents, and audit events.
 - [ ] Run APScheduler `3.11.x` as one UTC `BlockingScheduler` worker with
       bounded misfire handling. Reconcile committed and heartbeat-pending runs
       before dispatch and use durable due cursors plus token-and-epoch fenced
