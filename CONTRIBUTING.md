@@ -71,24 +71,23 @@ expect `docker compose up` to work until the archive contract and watcher entry
 point are implemented.
 
 When added, Compose must execute the same application artifacts and commands
-used by cloud workflows, with persistent ignored local storage instead of
-ephemeral `/tmp` for watcher archives. Tests may use temporary directories for
-isolated operations.
+used on Mikr.us, with persistent ignored local storage for watcher control state.
+Tests may use temporary directories for isolated operations.
 
 The local filesystem and production S3 archive adapters must pass the same
 contract tests. A local AWS emulator may accelerate development, but it does
 not replace a disposable real-AWS integration test for versioning, conditional
-writes, IAM, and state compare-and-swap behavior.
+writes, and IAM behavior. Mutable watcher state belongs in SQLite, not S3.
 
 `.env.example` currently documents active RSK transport settings and comments
 out reserved archive, logging, and S3 settings. Copy it to an ignored `.env`
 only for direct Python development. Local application secrets belong only in
 `.env`; local cloud credentials stay in an external profile or keychain.
-Production workload secrets belong in AWS Secrets Manager, while operator and
-recovery credentials stay in the password manager. GitHub uses AWS OIDC and
-must not store long-lived AWS access keys. A narrowly scoped third-party
-deployment token that cannot use workload identity may use a protected GitHub
-secret after review.
+Production secrets are host-managed files restricted to root and the required
+service UID or GID; recovery copies stay in the password manager. GitHub uses
+AWS OIDC and must not store long-lived AWS access keys. The narrow S3 key
+required by the external watcher host never enters GitHub, `.env`, Terraform
+state, Compose YAML, or an image.
 
 Install and enable the repository hooks:
 

@@ -216,21 +216,30 @@ Raw and generated data are absent from Git.
 | Material | Canonical storage | Notes |
 | --- | --- | --- |
 | Source manifest | Git | No source bytes or credentials |
-| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Content-addressed, conditional creates, no watcher overwrite/delete permission |
-| Independent raw backup | Encrypted QNAP archive | Separate credentials and restore drill |
+| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Content-addressed, conditional creates, no watcher overwrite/delete permission; accepted sole raw-snapshot provider |
+| Watcher control recovery images | Private versioned S3 | Immutable revisioned SQLite images with bounded deletion-eligibility rules and restore drills |
 | Generated database | Private artifact storage and runtime image | Immutable by checksum |
 | Runtime image | Private GHCR | Canonical digest used for releases |
-| AWS deploy copy | Private ECR | Same manifest copied by digest |
 | Small fixtures | Git | Synthetic or separately redistributable |
 
-The watcher role can create content-addressed objects and immutable provenance
-sidecars under archive prefixes but cannot overwrite or delete them. A separate
-state prefix permits conditional compare-and-swap updates. S3 versioning
-provides recovery from privileged operational mistakes; an independently
-credentialed QNAP copy provides a separate failure domain. Lifecycle rules may
-move old raw snapshots to cheaper storage, but must retain every snapshot
-needed to reproduce a supported release. A current upstream URL is not a
-backup; upstream may remove its own history.
+The watcher identity can conditionally create content-addressed objects but
+cannot overwrite or delete them. Provenance, observations, schedules, and source
+cursors live in the control SQLite database rather than S3 sidecars or mutable
+state objects. S3 versioning provides recovery from ordinary operational
+mistakes. The accepted design has no independent second storage provider, so
+complete AWS account compromise remains a documented residual risk.
+
+Raw snapshot objects do not expire. Immutable control recovery images use
+class-specific `run`, `daily`, `weekly`, and `monthly` prefixes. Current versions
+become expiration-eligible after 30, 31, 91, and 400 days respectively;
+noncurrent versions become deletion-eligible one day after current expiration,
+and expired delete markers are removed. Lifecycle processing is asynchronous.
+Independently signed operator inventory objects never expire, preserving their
+digest chain from sequence one. Their trusted recovery-image copies become
+expiration-eligible after 400 days under a separate operator-only prefix. S3
+provides no guaranteed physical deletion deadline. A seven-day incomplete-
+multipart abort is defense in depth because watcher uploads are single-part. A
+current upstream URL is not a backup; upstream may remove its own history.
 
 ## Repository License
 

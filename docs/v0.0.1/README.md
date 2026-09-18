@@ -17,8 +17,8 @@ model.
   cadence, and the watcher/archive rules.
 - [data-and-licensing.md](data-and-licensing.md): provenance requirements and
   the code/data licensing boundary, including the Art. 4 position.
-- [deployment.md](deployment.md): image lifecycle, CI/CD, watchers, AWS,
-  Cloudflare, and the Mikr.us fallback.
+- [deployment.md](deployment.md): image lifecycle, CI/CD, the Mikr.us Compose
+  runtime, S3 archive, and Cloudflare Tunnel.
 - [operations.md](operations.md): logging, monitoring, backups, rollback,
   recovery, and verification.
 
@@ -37,14 +37,14 @@ model.
 4. The anonymous webpage works on desktop and mobile and presents terminology
    search, the JGP knowledge base, version diffs, and source and safety
    information clearly.
-5. The same tested API image and static web bundle run through Docker Compose
-   locally and through private S3/CloudFront plus AWS Lambda in production.
+5. The same tested API, edge, and watcher images run through Docker Compose
+   locally and on the dedicated Mikr.us `3.0` production host.
 6. A signed version tag promotes a commit-bound, attested image digest,
-   checksummed static web bundle, and prebuilt CLI/data artifacts, deploys
-   without rebuilding, exercises desktop and mobile searches through the public
-   hostname, and can roll back the Lambda alias and web bundle.
-7. Representative load, cold-start, memory, image-size, and cost measurements
-   meet explicitly recorded launch thresholds.
+   checksummed static web bundle, and prebuilt CLI/data artifacts without
+   rebuilding, exercises desktop and mobile searches through Cloudflare Tunnel,
+   and can roll back the complete compatible digest set.
+7. Representative load, restart, memory, disk, image-size, recovery, and cost
+   measurements on Mikr.us meet explicitly recorded launch thresholds.
 8. Code and data notices are present in source, generated artifacts, and the
    public application.
 9. Minos naming has passed trademark counsel review and the intended domains

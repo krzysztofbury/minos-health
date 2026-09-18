@@ -2,271 +2,401 @@
 
 ## Operating Model
 
-Production is disposable compute serving an immutable, read-only artifact. The
-system of record is the combination of Git, reviewed manifests, versioned source
-snapshots, image digests, and Terraform state. A Lambda execution environment or
-fallback VPS disk is never the only copy of anything required for recovery.
+One dedicated Mikr.us `3.0` host runs the public edge, API, watchers, scheduler,
+and Cloudflare Tunnel through Docker Compose. The host is replaceable, but it is
+not stateless: the watcher control SQLite database is mutable and therefore
+receives consistent, tested S3 recovery images.
+
+The complete system of record is Git, reviewed manifests, pinned image digests,
+versioned S3 source snapshots, revision-numbered control-database recovery
+images, signed release and deployment records, and Terraform state. A run is
+not acknowledged as successful while the Mikr.us disk is the only copy of its
+control metadata.
 
 ## Asset Inventory
 
 | Asset | Primary location | Recovery protection |
 | --- | --- | --- |
 | Source and manifests | Private GitHub repository | Git history and remote |
-| Raw source snapshots (RSK, NFZ, AOTMiT) | Private S3 data bucket | Versioning and lifecycle policy |
-| Independent raw backup | Encrypted QNAP archive | Separate credentials and restore test |
-| Generated database | Private GHCR image/artifacts | Digest and release retention |
-| Prebuilt static web archive | Private build-artifact S3 bucket | Versioning, checksum, independent encrypted backup |
-| Static web bundle | Private frontend S3 bucket | Versioning, checksum, release retention |
-| AWS deploy image | Private ECR | Digest copy; reproducible from GHCR |
-| Terraform state | Private S3 state bucket | Versioning, encryption, locking |
+| Raw source snapshots | Private versioned S3 bucket | Content addressing, conditional writes, no watcher delete permission |
+| Watcher control database | Mikr.us persistent volume | Immutable revisioned S3 recovery images and restore drills |
+| Generated reference database | Private API image and data artifact | GHCR digest, checksum, reproducible build |
+| Static web artifact | Private edge image and build artifact | GHCR digest, checksum, reproducible build |
+| Watcher runtime | Private watcher image | GHCR digest and bounded release retention |
+| Terraform state | Private S3 state bucket | Versioning, encryption, locking, recovery copy |
 | Domain | Registrar | Lock, 2FA, auto-renewal, recovery codes |
-| DNS | Cloudflare | Terraform and remote state |
-| CI identity | GitHub OIDC and AWS IAM | No static AWS access key |
-| Emergency credentials | Password manager | Off-host recovery access |
+| DNS and ingress | Cloudflare | Configuration record and recovery credentials |
+| Host configuration | Git and Ansible | Reprovisioning test |
+| Operator credentials | Password manager | Off-host recovery access |
+| Release manifests | Private GitHub Releases and operator-only S3 prefix | Independent signature and immutable digest |
+| Deployment receipts | Operator-only S3 prefix | Signed append-only chain with prior receipt |
+| Trusted recovery inventories | Operator-only S3 prefix and off-host recovery kit | Non-expiring signed chain and verification key |
+| Trusted recovery copies | Operator-only S3 prefix | Independently selected; 400-day expiration eligibility |
 
-S3 data and Terraform state use separate buckets and policies. A compromise of
-the application deployment role must not grant the ability to erase all source
-and state versions.
+S3 source data and Terraform state use separate buckets and policies. The
+Mikr.us watcher identity cannot read or modify Terraform state and cannot delete
+snapshot objects or versions.
 
 ## Deployment
 
-The release workflow deploys an exact digest and records the previous Lambda
-version. It then verifies:
+A deployment selects one signed compatible release manifest containing exact
+API, edge, watcher, `cloudflared`, and dataset identities. It first quiesces
+watcher dispatch, reconciles `committed` and `heartbeat_pending` runs, verifies a
+pre-deploy recovery image, and runs the candidate watcher with scheduling
+disabled against a disposable database copy. It then verifies:
 
-1. `/readyz` through the public hostname.
-2. A known exact-code search and expected dataset release.
-3. A known normalized-text search.
-4. Error, throttle, and duration metrics under representative launch traffic.
-5. Static application loading from a clean browser session.
-6. Responsive search and comparison flows in representative mobile and desktop
-   viewports.
+1. Every image digest and architecture matches the release manifest.
+2. `/readyz` succeeds through the public Cloudflare hostname.
+3. A known exact-code search returns the expected dataset release.
+4. A known normalized-text search returns the expected stable result.
+5. Static assets match the recorded checksums.
+6. Mobile and desktop browser flows render and perform a real search.
+7. The pinned watcher UID/GID can access its volume and mounted secret files.
+8. Migration compatibility, an S3 native-checksum probe, a recovery-image
+   round trip, and a dedicated Healthchecks.io preflight check succeed while
+   dispatch remains paused.
+9. The previous watcher stops; the exact candidate starts paused against the live
+   volume, applies the tested migration, and verifies the live revision,
+   migration checksums, WAL, secrets, and post-migration recovery image. The two
+   watcher processes never own the volume concurrently.
+10. Container health, memory, disk, and error signals remain within recorded
+   launch thresholds under representative traffic and one bounded watcher
+   canary run.
 
-The workflow reports success only after these checks. A low-traffic quiet window
-is not sufficient evidence.
+The first production deployments are explicit operator actions. Automation may
+later execute the same bounded procedure over restricted SSH, but it must not
+change the release selection rule or deploy mutable tags.
 
 ## Rollback
 
-Rollback first restores and verifies the previous versioned frontend entry HTML
-that references its immutable hashed assets, then moves the `live` alias to the
-previously recorded compatible Lambda version. It does not rebuild, retag,
-mutate a database, or edit the function by hand.
+Rollback restores the previous complete compatible API, edge, watcher,
+`cloudflared`, and dataset digest set, not individual containers selected
+independently. It does not rebuild, retag, mutate the reference database, or
+follow `latest`.
 
-The release workflow owns this alias target. Terraform intentionally ignores
-only the dynamic code/version and alias-pointer fields while continuing to own
-the alias, alias-qualified Function URL, permissions, and all stable settings.
+After rollback, repeat readiness, static-integrity, browser, and known-search
+tests through the public hostname. Preserve failed-version logs and release
+metadata until the incident is understood. Do not let image cleanup remove the
+current or prior compatible release.
 
-After rollback, repeat readiness, static integrity, mobile rendering, and
-known-search tests through the public host. Preserve failed-version logs and
-release metadata for investigation. A rollback does not delete the failed image
-or web assets until the incident is understood and retention policy permits
-deletion.
+The scheduler remains quiesced until the serving and watcher preflights pass.
+Every `v0.0.1` control migration and candidate write must remain readable by the
+retained previous watcher throughout the rollback window; test this on a copy
+before touching the live database. An incompatible control migration blocks the
+release and requires a separately designed maintenance cutover.
+
+Before the candidate canary commits, rollback may restore the verified
+pre-deploy recovery image with the pinned ownership and modes. Once a candidate
+run reaches `committed`, `heartbeat_pending`, or `successful`, never restore an
+older database image. Roll back the containers against the current
+backward-readable database, reconcile the run, and preserve its acknowledged
+state. If writing the success receipt fails after the canary, keep dispatch
+quiesced and retry that idempotent receipt; do not erase the canary.
+
+## Control Database Recovery Images
+
+The watcher creates recovery images with `sqlite3.Connection.backup()` rather
+than copying the live database, WAL, or shared-memory files. Every restorable
+transaction increments an embedded monotonic `state_revision`; a transaction
+that advances source state creates a `run` recovery image before reporting
+success. Scheduled `daily`, `weekly`, and `monthly` images provide longer
+retention and do not require a currently committed run. Each image:
+
+1. Runs `PRAGMA quick_check` on the live database.
+2. Creates a consistent temporary SQLite copy through the backup API.
+3. Runs `PRAGMA integrity_check` on the copy.
+4. Verifies its embedded state revision, schema version, complete migration
+   checksum set, and, for a `run` image, the expected committed run.
+5. Computes its byte count and SHA-256.
+6. Uploads it through single-part `PutObject` with exact `ContentLength`,
+   Base64-encoded whole-object SHA-256 in `ChecksumSHA256`, and
+   `If-None-Match: *` under one of these immutable grammars:
+   `control-recovery/run/<20-digit-revision>/<sha256>.sqlite3`,
+   `control-recovery/daily/<YYYY-MM-DD>/<revision>/<sha256>.sqlite3`,
+   `control-recovery/weekly/<YYYY-Www>/<revision>/<sha256>.sqlite3`, or
+   `control-recovery/monthly/<YYYY-MM>/<revision>/<sha256>.sqlite3`.
+7. Performs `HeadObject` with checksum mode enabled against the derived requested
+   key and compares byte count and native checksum after either create or `412`;
+   a `409` retries the bounded conditional operation. Multipart upload is
+   prohibited for watcher-created recovery images.
+8. For a run image, records `heartbeat_pending`, sends the external success
+   heartbeat, and marks the run successful only after the response succeeds.
+9. Removes the temporary local copy.
+
+Current recovery images become expiration-eligible after 30 days for `run`, 31
+days for `daily`, 91 days for `weekly`, and 400 days for `monthly`. After current
+expiration creates a delete marker, noncurrent versions become deletion-eligible
+after one additional day; expired delete markers are removed. S3 lifecycle is
+asynchronous and provides no guaranteed physical deletion deadline, so these are
+deletion-eligibility thresholds rather than hard maximum retention bounds. A
+seven-day incomplete-multipart abort remains defense in depth for operator
+tooling. Raw source blobs never expire. Recovery images contain no credentials,
+signed URLs, medical queries, encounter payloads, or patient data.
+
+Recovery paginates the class prefixes within configured maximum object counts
+derived from schedule frequency and retention; exceeding a bound stops automatic
+selection for operator investigation rather than truncating candidates. It sorts
+valid candidates by embedded `(state_revision, created_at, class_rank, sha256)`,
+where `run > daily > weekly > monthly`, then
+verifies key grammar, native S3 checksum, byte count, embedded metadata, complete
+migration checksums, and SQLite integrity in descending order. A successfully
+uploaded object is the completion record; partial PUTs never become visible.
+
+These checks prove integrity, not that an authorized but compromised watcher
+wrote honest state. At least weekly, and also at deployment, key rotation, and
+recovery drills, an operator command selects one verified recovery image, copies
+it conditionally with the operator identity to
+`trusted-recovery/<20-digit-sequence>/<sha256>.sqlite3`, and verifies the copy.
+It then signs an inventory containing that key, S3 version ID, checksum,
+revision, S3 `LastModified`, sequence, and prior-inventory digest, and writes it
+conditionally to `recovery-inventories/<20-digit-sequence>.json`. The command
+derives the next sequence from the fully verified unique inventory head, creates
+the sequence-only key with `If-None-Match: *`, accepts `412` only for an exact
+idempotent byte match, then relists and rejects gaps, duplicate sequences, bad
+links, or multiple heads. An unused concurrent trusted copy is an orphan and is
+never selected. Trusted database copies become expiration-eligible after 400
+days, with noncurrent versions eligible one day later. The small signed inventory
+objects never expire, so their chain remains verifiable from sequence one. The
+public verification key and latest trusted inventory also belong in the off-host
+recovery kit; the signing key never enters Mikr.us. Missing the weekly cadence
+triggers an external alert.
+
+Ordinary host-loss recovery may use the newest valid watcher-created recovery
+image. If host or watcher-key compromise is suspected, automatic newest-image
+selection is forbidden: rotate the key, establish a cutoff from external
+evidence, verify the signed inventory chain, and restore only its operator-
+copied pre-cutoff image.
+This deliberately accepts the older compromise-recovery point rather than
+treating attacker-created high revisions as trusted.
+
+## Release And Deployment Records
+
+Signed release envelopes use the sequence-free conditional key
+`release-manifests/<tag>.json`. Successful deployment receipts use
+`deployment-receipts/<20-digit-sequence>.json` and contain their
+sequence, prior receipt digest, release-manifest digest, pre-deploy recovery
+image, operator, host, time, rollback compatibility, and verification evidence.
+The operator creates both conditionally; the watcher cannot access these
+prefixes. Repository immutable releases must be enabled and verified, but the
+signed S3 manifest is the recovery authority.
+
+Each receipt writer derives the next sequence from the verified unique head and
+uses `If-None-Match: *` on that sequence-only key. A `412` is an idempotent retry
+only when the stored bytes match exactly. After every write, relist within the
+asserted bound, verify every signature and digest link from sequence one, and
+require exactly one highest chain head. Missing links, bad prior digests, or any
+conflicting sequence fail closed immediately. Receipt objects do not expire.
 
 ## Recovery
 
-### AWS Stack Loss
+### Mikr.us Host Loss
 
-1. Authenticate through the documented emergency identity.
-2. Confirm the correct account, region, state bucket, and Cloudflare zone.
-3. Restore a prior Terraform state version only if the current state is corrupt;
-   do not replace valid state merely because resources are missing.
-4. Apply the reviewed foundation plan to recreate Terraform-owned registries
-   and artifact buckets before writing objects to them.
-5. Ensure the required release digest exists in GHCR and copy that manifest to
-   the recreated same-region ECR repository.
-6. Recover the exact static web archive from the build-artifact bucket or its
-   independent encrypted backup by recorded key and checksum.
-7. Apply the reviewed service plan to recreate the frontend bucket, Lambda,
-   Function URL, CloudFront distribution, and stable permissions.
-8. Restore the immutable web assets, publish or select the expected Lambda
-   version, verify it directly, and set `live`.
-9. Restore the recorded frontend entry-object version, then invalidate and
-   verify it at CloudFront.
-10. Verify DNS, TLS, readiness, mobile rendering, known searches, and
-    representative load.
+1. Obtain a replacement dedicated Mikr.us `3.0` host.
+2. Verify SSH host identity and apply the reviewed Ansible configuration.
+3. Install fresh service-restricted Cloudflare, Healthchecks.io, and AWS secret
+   files plus the root-owned GHCR Docker credential.
+4. Verify the unique signed deployment-receipt chain head and its signed release
+   manifest, then pull the exact current API, edge, watcher, and `cloudflared`
+   digests.
+5. Select the newest valid control-database recovery image under the ordinary or
+   suspected-compromise rules above with the operator identity, not the watcher
+   key.
+6. Verify its signature coverage when required, S3 version, checksum, embedded
+   revision and migration set, and integrity before placing it on the persistent
+   volume with the pinned watcher ownership and modes.
+7. Start Compose without public ingress and verify internal readiness, source
+   schedules, and known searches.
+8. Start `cloudflared`, then verify TLS, readiness, mobile and desktop rendering,
+   known searches, and watcher heartbeat through external services.
 
-### Raw Dataset Loss
+### Control Database Corruption
 
-Recover the exact versioned S3 object by manifest key and checksum. If no valid
-copy exists, restore the encrypted copy held on the independently administered
-QNAP. That copy uses credentials outside the AWS deployment role and is included
-in recovery drills. A current upstream version is not an equivalent backup.
+Stop the watcher before recovery. Preserve the corrupt database and WAL files
+for investigation, then restore the newest trusted revision under the selection
+and compromise rules above. Runs whose recovery images were not durably verified
+were never acknowledged as successful and must be retried or investigated. An
+orphaned raw blob alone cannot reconstruct its lost source relationship or
+observation time. Never create missing history by substituting a current
+upstream response for an earlier observation.
 
-### Registry Loss
+### Raw Snapshot Loss
+
+Recover a prior S3 object version by key and checksum. The accepted design uses
+S3 as the only raw-snapshot provider, so complete AWS account compromise remains
+a documented residual risk. The watcher has no delete permission, and ordinary
+host compromise must not grant access to Terraform state or bucket policy.
+
+### GHCR Loss
 
 Rebuild only from the exact source snapshot, source commit, toolchain, and
-manifest recorded for the release. Compare the resulting logical data and image
-digest. If byte-for-byte reproducibility is not achieved, treat it as a new
-artifact requiring full verification rather than silently substituting it.
+manifest recorded for the release. If the output does not match the expected
+logical data and checksums, treat it as a new candidate requiring full review
+rather than silently substituting it.
 
-### Domain Or DNS Loss
+### Domain Or Tunnel Loss
 
-Recover the registrar through stored recovery material, confirm delegation, and
-apply Cloudflare Terraform. Verify DNSSEC chain state before enabling or changing
-signing. Do not change nameservers during an unrelated application incident
-unless DNS is proven to be the fault domain.
-
-### Fallback Host
-
-If AWS is unavailable for an unacceptable period, provision the documented
-QNAP or Mikr.us Compose profile, pull the exact GHCR digest, and verify it through
-a separate fallback hostname. Apply the Cloudflare Terraform fallback mode,
-which changes the canonical `.com` record from DNS-only CloudFront to a proxied
-Tunnel target. Verify TLS, readiness, known searches, and representative load.
-Revert the same Terraform variable to return to AWS. The fallback is a
-redeployment, not a restore of an old host filesystem.
+Recover the registrar and Cloudflare accounts through stored recovery material.
+Restore the tunnel route and DNS from the recorded configuration, verify DNSSEC,
+and then repeat public TLS, browser, and known-search checks. Do not change
+nameservers during an unrelated application incident unless DNS is proven to be
+the failing boundary.
 
 ## Recovery Drills
 
 Before `v0.0.1`, perform and time at least:
 
-- restoration of a previous Terraform state object in an isolated test stack;
-- reconstruction of a generated database from the pinned raw snapshot;
-- restoration of the raw snapshot from the independent encrypted backup;
-- ECR recreation and digest copy from GHCR;
-- Lambda alias rollback;
-- complete deployment to an empty environment;
-- recovery of registrar and Cloudflare access without relying on an active
-  developer laptop.
+- restoration of a prior Terraform state version in an isolated test;
+- restoration and integrity verification of a control-database S3 recovery
+  image, including the suspected-compromise signed-inventory path;
+- reconstruction of a generated database from pinned raw snapshots;
+- complete Compose deployment to an empty `linux/amd64` host;
+- rollback to the prior compatible API, edge, watcher, `cloudflared`, and
+  dataset digest set;
+- recovery of registrar, Cloudflare, GHCR, AWS, and SSH access without relying
+  on an active developer laptop.
 
-Record the observed recovery time and unresolved manual steps. Documentation
-alone is not a tested backup.
+Documentation alone is not a tested backup. Record observed recovery time and
+every unresolved manual step.
 
 ## Logging
 
-Loguru is configured once at process entry and emits allowlisted structured JSON
-to stdout in cloud environments. Local development may use a human-readable
-console format with the same fields. Libraries and domain code must not install
-independent sinks or serialize arbitrary request and exception objects.
+Loguru is configured once at each Python process entry and emits allowlisted
+structured JSON to stdout in production. Local development may use a
+human-readable console format with the same fields. Libraries and domain code
+must not install independent sinks or serialize arbitrary request, response, or
+exception objects.
 
-Application logs are structured and contain:
+Application logs may contain:
 
 - timestamp and severity;
-- request or trace ID;
-- route template and method;
-- status class;
-- bounded duration;
-- result count or error category;
-- dataset release and application version;
-- cold/warm runtime context where safely available.
+- request, run, or trace ID;
+- route template, watcher source ID, and run mode;
+- status class or bounded error category;
+- bounded duration and result count;
+- dataset, application, and watcher release identities.
 
-Application logs do not contain:
+Application logs must not contain:
 
-- raw query strings or medical terms;
-- encounter payloads or any grouping request content (`v0.0.2`);
-- request headers, cookies, authorization values, or URL query text;
-- patient data, prescriptions, or user-supplied free text;
-- credentials, signed URLs, source data, stack traces, or local paths in public
-  responses.
+- raw URL query values or medical terms;
+- encounter payloads or grouping content;
+- request headers, cookies, authorization values, or signed URLs;
+- patient data, prescriptions, source bytes, credentials, or local paths;
+- arbitrary upstream response objects or public stack traces.
 
-CloudFront and platform access logs require a separate retention and privacy
-review before enablement because IP addresses and complete URLs can become
-personal or medical data. Query parameters should be excluded or transformed at
-the source rather than scrubbed after broad collection.
+Docker uses the bounded `local` log driver. The initial limit is three 10 MB
+files per service and must be verified after representative watcher and API
+traffic. Cloudflare access logging and analytics remain disabled until a privacy
+review addresses client identifiers and medical terms in URLs.
 
-Loguru is not an external error-reporting service. GitHub Actions failures and
-CloudWatch metrics and alarms provide the initial operational signal. Any future
-service such as Sentry requires a separate privacy review, explicit event
-allowlisting, bounded retention, and proof that medical terms and encounter
-content cannot leave the application.
+CloudWatch is not used for the Mikr.us runtime. A future external error service
+requires explicit event allowlisting, bounded retention, and a privacy review.
 
 ## Secrets And Configuration
 
-Local development uses ignored `.env` files created from `.env.example` for
-application secrets. Local cloud credentials stay in external profiles or
-keychains. Production workload secrets live in AWS Secrets Manager and are
-injected only into the component that needs them. Operator and recovery
-credentials stay in the password manager. Non-secret endpoints, timeouts,
-bucket names, regions, and release identifiers remain normal configuration and
-must not be hidden in Secrets Manager.
+Local development uses ignored `.env` files based on `.env.example`. Local
+cloud credentials stay in external profiles or keychains.
 
-GitHub Actions uses OIDC for AWS access and stores no long-lived AWS access
-keys. Local AWS integration uses the developer's authenticated profile outside
-the repository; credentials are never copied into `.env` or a container image.
-The anonymous RSK source requires no application credential.
+Production uses host-managed secret files readable only by root and the numeric
+UID or GID of the required service. Ansible creates service-specific directories
+and Compose mounts each file read-only into only that container:
+
+- Cloudflare Tunnel credential for `cloudflared`;
+- narrowly scoped AWS access key for the watcher.
+- Healthchecks.io ping target for the watcher.
+
+The GHCR package-read token belongs in the root-owned host Docker credential
+store for image pulls and is not mounted into a container.
+
+The recovery copies, SSH material, registrar credentials, and emergency access
+stay in the password manager. Secret values never enter `.env`, GitHub Actions,
+Terraform input or state, Compose YAML, images, or logs. Non-secret endpoints,
+regions, bucket names, timeouts, and release digests remain normal configuration.
+
+GitHub Actions uses OIDC for AWS reads and stores no long-lived AWS key. The
+Mikr.us key is an explicit external-host exception: it is limited to the data
+bucket, cannot delete, is installed outside the repository, and is rotated
+immediately after any suspected exposure.
 
 ## Metrics And Alerts
 
-Initial service metrics:
+Initial operational signals are:
 
-- request count by route and status class;
-- Lambda errors and throttles;
-- warm and cold duration distributions;
-- maximum memory used;
-- readiness and known-search synthetic failures;
-- CloudFront 4xx/5xx rates;
-- image and database sizes;
-- AWS spend and forecast;
-- per-source dataset age relative to observed upstream state (the watchers
-  know what upstream currently publishes; serving a stale ruleset must be a
-  visible, deliberate condition);
-- watcher run failures and upstream schema-drift detections.
+- API request count by route template and status class;
+- warm latency and bounded timeout rate;
+- container restart count and health;
+- host memory, disk space, and inode headroom;
+- external readiness and known-search failures;
+- deployed image digests and dataset release;
+- per-source observation age;
+- watcher due, running, failed, stale, and disabled status;
+- backup age and last restore-test date;
+- S3 spend and forecast.
 
-Alerts must identify the deployed image digest and dataset release. Empty log
-results obtained through a filter are not evidence of no errors until the filter
-is confirmed against actual running resources.
+Healthchecks.io receives only opaque schedule IDs and start, success, or failure
+pings. It receives no URLs, source content, stack traces, or medical data. A
+missing heartbeat detects complete host or scheduler failure from outside the
+Mikr.us fault domain.
+
+Empty log output is not evidence of health until the service, container, and log
+filter are confirmed against actually running resources.
 
 ## Representative Verification
 
-Before selecting Lambda memory and concurrency, measure:
+Before launch, measure on the actual Mikr.us `3.0` host:
 
-- container startup and readiness on `linux/amd64`;
-- process RSS and Lambda maximum memory;
-- database open and sentinel-query time;
-- exact code, common prefix, no-result, and worst-case bounded text searches;
+- image pull, container startup, and readiness duration;
+- total and per-container RSS under concurrent API and watcher work;
+- disk use for images, volumes, temporary downloads, and bounded logs;
+- reference database open and sentinel-query time;
+- exact code, common prefix, no-result, and worst-case bounded search latency;
 - JGP group lookup with service-date resolution;
-- warm p50/p95/p99 latency;
-- cold-start p50/p95 latency;
-- error and throttle rate at expected launch concurrency and a documented burst;
-- estimated monthly cost at measured duration and traffic.
-- mobile and desktop static startup, interaction readiness, and end-to-end
-  search and comparison latency through CloudFront.
+- warm p50, p95, and p99 API latency through Cloudflare Tunnel;
+- error rate at expected launch concurrency and a documented burst;
+- watcher memory and disk use while streaming a representative large file;
+- backup and full empty-host restore duration;
+- mobile and desktop startup and end-to-end search latency.
 
-The launch SLO and budget are recorded before the final benchmark so results are
-not judged against thresholds invented afterward. If Lambda fails, use the same
-image on Mikr.us `3.0` and compare under the same request profile.
+Record launch SLOs and resource budgets before judging results. A low-traffic
+quiet window is not representative verification.
 
 ## Security Operations
 
-- Rotate any credential exposed in source, logs, terminal output, or another
-  project's setup file before considering it reusable.
-- Prefer OIDC and workload identity over stored cloud keys.
-- Restrict package tokens to read-only access and the necessary package.
-- Keep production registries and source-data buckets private.
-- Review Terraform plans for resource replacement, public exposure, IAM scope,
-  and retention changes.
-- Scan dependencies and images, then exercise the actual runtime path after any
-  formatter or autofix pass.
+- Patch the Mikr.us host and Docker on a documented cadence and after relevant
+  security advisories.
+- Rotate credentials exposed in source, logs, terminal output, or another
+  project's setup before reuse.
+- Restrict the GHCR token to package read access and the required package.
+- Do not mount the Docker socket into Watchtower or application containers.
+- Keep the registry, source bucket, recovery images, and control database
+  private.
+- Review Terraform plans for replacement, public exposure, IAM, and retention.
+- Scan images and exercise the actual runtime after formatter or autofix passes.
 - Report vulnerabilities through GitHub private vulnerability reporting.
 
 ## Data Refresh Operations
 
-An upstream refresh is not an automatic production update. The flow is:
+An upstream refresh is not an automatic production update:
 
-1. A scheduled watcher detects the upstream change (new zarządzenie,
-   komunikat, ICD-9 version, changed source file set, or changed bytes behind a
-   reused URL) and immediately archives the raw files by identity and
-   archive-time checksum.
-2. The source collector emits an immutable change record. The automation in
-   issue #21 opens a data pull request updating the manifest, including the
-   ruleset pairing for the affected reporting periods and a human-readable
-   diff.
-3. The operator reviews source metadata, terms, effective dates (which may be
-   retroactive), and the diff: added, removed, changed, and reparented
-   concepts; group, condition, and point-value changes.
-4. CI runs full ingestion, integrity, diff, and search regression tests, plus
-   grouper golden cases once `v0.0.2` ships.
-5. Merge builds a new application image and dataset release.
-6. Deployment goes through the normal signed-tag promotion path.
+1. The watcher detects a source change and archives exact raw bytes to S3.
+2. It commits the observation, artifact references, source cursor, and bounded
+   change or incident record to the control database.
+3. An operator dispatches the issue #21 workflow with a selected recovery-image
+   key, version ID, and checksum. The protected default-branch workflow uses the
+   read-only GitHub OIDC archive role, verifies the image, extracts only the
+   selected bounded change record, and opens a manifest pull request with
+   provenance and a human-readable diff. The watcher receives no GitHub token.
+4. The operator reviews source terms, dates, ruleset pairing, and unexplained
+   changes.
+5. CI builds and verifies a new immutable reference database and images.
+6. A signed release promotes the already tested digest set to Mikr.us.
 
-Large or unexplained source diffs block release. A new base act (observed
-every ~2 years) restructures załączniki and always requires manual review
-beyond the automated diff.
+Large or unexplained source diffs block release. A new base act requires manual
+review beyond automated comparison.
 
-## Mutable Data Gate
+## Mutable Product Data Gate
 
-There is no runtime database backup because `v0.0.1` has no mutable production
-data. If accounts, favourites, annotations, analytics, or other writes are added,
-work stops until the design includes data classification, retention, access
-control, encrypted off-site backups, point-in-time recovery where appropriate,
-and a tested restore procedure. The immutable-artifact recovery model does not
-cover user data.
+The watcher control database is operational metadata, not product or user data.
+If accounts, favourites, annotations, analytics, subscriptions, or other user
+writes are added, work stops until their separate design includes data
+classification, retention, access control, encrypted off-site backups, and a
+tested recovery procedure. Encounter payloads remain prohibited from storage.

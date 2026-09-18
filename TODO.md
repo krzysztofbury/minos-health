@@ -24,10 +24,12 @@ day-to-day order.
 - [x] Provide both an offline CLI and an anonymous read-only web application.
 - [x] License repository software, infrastructure, tests, and documentation as
       `MIT OR Apache-2.0` and license data separately.
-- [x] Build one immutable `linux/amd64` API container and one checksummed static
-      web bundle; run both through Compose locally and private S3/CloudFront plus
-      Lambda in production.
-- [x] Use AWS Lambda as the primary target and Mikr.us as a measured fallback.
+- [x] Build immutable `linux/amd64` API, edge, and watcher images and run the
+      complete stack through Compose locally and on a dedicated Mikr.us `3.0`.
+- [x] Use Cloudflare Tunnel as the only public ingress; keep GitHub Actions as
+      build and test infrastructure rather than a production runtime.
+- [x] Use mutable SQLite for watcher control state and private versioned S3 for
+      immutable raw bytes and revisioned control-database recovery images.
 - [x] Deploy tested image digests from signed version tags without rebuilding.
 - [x] Use Python 3.14 as the sole application language through 2027-08-21;
       keep synchronous domain rules independent of FastAPI and persistence.
@@ -37,15 +39,15 @@ day-to-day order.
 
 ## Domains
 
-- [ ] Register `minoshealth.com` (checked free 2026-08-06, ~70 PLN/yr).
-- [ ] Register `minoshealth.pl` (checked free 2026-08-06).
+- [x] Register `minoshealth.com` and delegate it to Cloudflare.
+- [x] Register canonical `minoshealth.pl` and delegate it to Cloudflare.
 - [ ] Decide on premium `minos.health` (checked free 2026-08-06, ~450 PLN/yr):
       verify the renewal price is not first-year promo pricing and buy only
       after trademark counsel clears the name.
 - [ ] Configure registrar lock, 2FA, auto-renewal, recovery codes off-host,
       and DNSSEC when the delegation chain supports it.
-- [ ] Set up `.pl` as a proxied Cloudflare Redirect Rule to `.com` (DNS alone
-      cannot redirect).
+- [ ] Route canonical `.pl` through Cloudflare Tunnel and set up `.com` as a
+      proxied permanent redirect to `.pl` while preserving safe paths.
 
 ## Trademark And Legal
 
@@ -91,28 +93,41 @@ day-to-day order.
       not HTML only.
 - [ ] BAW anonymous-API fetcher: archive source, amendment, and consolidated
       document graphs, root ZIPX packages, selected attachments, all relevant
-      dates, and checksums. Use local/QNAP execution if a runner is blocked;
-      browser automation requires a separate task and captured evidence that it
-      succeeds from the affected environment.
-- [ ] Bootstrap the dedicated versioned Terraform state bucket locally, back up
-      bootstrap state independently, and initialize an empty `phase0` root
-      directly against its own remote-state key.
-- [ ] Provision the phase-0 private versioned S3 snapshot bucket, monitoring,
-      and watcher OIDC role in remote Terraform state before the first
-      production run. Create or reference/import an existing account-level OIDC
-      provider explicitly. Archive objects under content-addressed prefixes with
-      conditional creates; deny overwrite and delete there. Allow conditional
-      compare-and-swap updates only under a separate state prefix.
-- [ ] Run issue #6 through one Docker/Compose watcher command locally and in
-      scheduled CI; use a persistent filesystem archive locally and the S3
-      archive in AWS, with shared contract tests and a disposable AWS test.
-- [ ] Archive every selected raw file immediately, keyed by source identity and
-      SHA-256 computed at archive time (upstream publishes no checksums).
-- [ ] Independent encrypted QNAP copy with credentials outside the AWS
-      deployment account; restore drill.
+      dates, and checksums. Browser automation requires a separate task and
+      captured evidence that it succeeds from the Mikr.us environment.
+- [x] Bootstrap the dedicated versioned Terraform state bucket locally and back
+      up bootstrap state independently.
+- [ ] Initialize the `phase0` root directly against its own remote-state key.
+- [ ] Provision the phase-0 private versioned S3 snapshot bucket, narrowly
+      scoped Mikr.us watcher identity, GitHub OIDC read role, and budget in
+      remote Terraform state before the first production run. Enforce
+      conditional creates and deny watcher overwrite and deletion.
+- [ ] Implement the watcher control SQLite schema for sources, durable due
+      cursors, fenced claims, runs, observations, blobs, source cursors,
+      monotonic state revisions, changes, incidents, and audit events.
+- [ ] Run APScheduler `3.11.x` as one UTC `BlockingScheduler` worker with
+      bounded misfire handling. Reconcile committed and heartbeat-pending runs
+      before dispatch and use durable due cursors plus token-and-epoch fenced
+      claims for catch-up, manual, expiry, and stale-worker rejection.
+- [ ] Run issue #6 through one Docker/Compose watcher command locally and on
+      Mikr.us; use local filesystem blobs in development and S3 in production,
+      with shared contract tests and a disposable AWS test.
+- [ ] Stage at most one download in a disk-backed `noexec,nosuid,nodev`
+      directory with a `600 MiB` application quota, `512 MiB` per-file ceiling,
+      startup cleanup, and pre-run free-space assertion.
+- [ ] Archive every selected raw file immediately under a digest-only
+      `blobs/sha256/<digest>` key. Use bounded single-part `PutObject`; send and
+      verify S3 native SHA-256 plus byte count after conditional create or reuse.
+      Source identity stays in SQLite.
+- [ ] Create revisioned control SQLite recovery images through
+      `sqlite3.Connection.backup()`, enforce class-specific lifecycle rules,
+      copy one verified image weekly to operator-only trusted storage, sign the
+      non-expiring chained inventory off-host, and complete ordinary-loss and
+      suspected-compromise empty-host restore drills.
 - [ ] Issues #6-#8 emit immutable observations and bounded change or incident
-      records. Issue #21 turns reviewed change records into data PRs with
-      manifest updates and human-readable diffs; never auto-merge.
+      records. An operator-dispatched protected issue #21 workflow reads one
+      selected verified recovery image through OIDC and turns only the selected
+      change into a data PR; never give the watcher a GitHub token or auto-merge.
 - [ ] Alert on watcher failure and on upstream schema drift (new załącznik
       names, changed file formats).
 
@@ -128,7 +143,7 @@ day-to-day order.
       runtime must only validate and open the reference artifact read-only.
 - [ ] Reduced engine spike: pin Python and SQLite versions with FTS5; verify
       read-only operation, deterministic Polish search, standalone CLI
-      packaging, and Lambda compatibility.
+      packaging, and deterministic `linux/amd64` container operation.
 - [ ] Add Ruff, BasedPyright, mypy, pytest, dependency policy, and package
       metadata; select an automated mutation runner only after proving Python
       3.14 compatibility and bounded runtime.
@@ -209,8 +224,8 @@ day-to-day order.
       detail endpoints with explicit service-date parameters.
 - [ ] Add versioned response schemas and consistent error mapping.
 - [ ] Build the responsive interface under `apps/web`: terminology search, JGP
-      group browser, and version diff views; publish its immutable output to
-      private S3/CloudFront and route API paths to `minos.http`.
+      group browser, and version diff views; embed its immutable output in the
+      edge image and route API paths to `minos.http` under the same origin.
 - [ ] Display code hierarchy, grouping conditions, point values, source
       release, and the safety/compliance disclaimer.
 - [ ] Exclude raw query text and encounter payloads from logs and analytics.
@@ -220,14 +235,12 @@ day-to-day order.
 
 - [ ] Add a multi-stage non-root `linux/amd64` Dockerfile.
 - [ ] Add a separate immutable watcher image or Dockerfile target used by both
-      local Compose and scheduled GitHub Actions; keep watchers out of the API
-      runtime image.
+      local and Mikr.us Compose; keep watchers out of the API runtime image.
 - [ ] Embed provenance and the read-only generated database in the API image;
       build static assets as a separate checksummed artifact.
 - [ ] Run with a read-only filesystem and no unnecessary Linux capabilities.
-- [ ] Add `compose.yaml` for the API, static web artifact, watcher profiles, and
-      QNAP-compatible smoke testing; its local edge serves static assets and
-      proxies API paths under the same origin.
+- [ ] Add `compose.yaml` for Cloudflare Tunnel, edge, API, and watcher services;
+      the edge serves static assets and proxies API paths under the same origin.
 - [ ] Exercise one real search in the container smoke test.
 
 ## CI And Release
@@ -243,57 +256,69 @@ day-to-day order.
 - [ ] Bind image digest, source commit, and build workflow in a verifiable
       attestation; reject a moved `sha-<commit>` tag.
 - [ ] Require a signed `v*` tag workflow that promotes the attested digest.
-- [ ] Reject OCI indexes and attestations as the Lambda runtime image; copy
-      one verified `linux/amd64` image manifest to ECR.
+- [ ] Verify deployable GHCR references resolve to the intended runnable
+      `linux/amd64` manifests rather than indexes or attestations.
+- [ ] Enable and verify GitHub immutable releases. Publish OIDC provenance, then
+      independently sign and conditionally copy each release manifest to its
+      operator-only S3 key. Write signed, sequenced, append-only deployment
+      receipts under sequence-only conditional keys and verify a unique chain
+      head after every write.
+- [ ] Create a dedicated Ed25519 operator signing key, commit only its public
+      verification key, keep the private key off-host, and use domain-separated
+      OpenSSH namespaces for release, deployment, and recovery records.
 - [ ] Retain enough GHCR releases for rollback within GitHub Free storage
       limits.
 
-## AWS And Cloudflare
+## Mikr.us, AWS, And Cloudflare
 
 - [ ] Reuse and recovery-test the phase-0 private versioned S3 Terraform state
       bucket with native locking.
-- [ ] Create separate `foundation` and `service` Terraform roots with distinct
-      remote-state keys. Consume phase-0 outputs without extending or co-owning
-      its state; provision ECR and artifact storage in `foundation`, then
-      Lambda, Function URL, private frontend S3, separate S3/Lambda CloudFront
-      OACs, path routing, ACM, logs, alarms, and budgets in `service`.
-- [ ] Restrict the deploy role to the repository and release-tag OIDC subject;
-      watcher jobs get write access to the snapshot bucket only.
+- [x] Purchase the dedicated Mikr.us `3.0` host; pin its SSH host key, rotate the
+      console password, install a dedicated 1Password-backed operator key, and
+      apply an idempotent Ansible baseline for key-only SSH, exact UFW rules,
+      current packages, unattended upgrades, and bounded persistent logs.
+- [ ] Extend the reviewed Ansible baseline with Docker, Compose, service UIDs and
+      GIDs, persistent and staging volumes, and service-restricted secret files.
+- [ ] Create the `phase0` Terraform root for the snapshot bucket, conditional
+      write policy, watcher IAM identity, GitHub OIDC read role, and budget.
+- [ ] Create the watcher access key manually outside Terraform; store the
+      recovery copy in the password manager and install it as a service-
+      restricted host file for the pinned watcher UID/GID.
 - [ ] Authenticate to GHCR with a GitHub token scoped to `read:packages`; use
-      the AWS OIDC role only for AWS actions.
-- [ ] Copy the verified GHCR image manifest by digest into same-region ECR.
-- [ ] Publish a Lambda version and update a `live` alias atomically.
-- [ ] Attach the Function URL to the `live` alias qualifier and grant
-      CloudFront both required Lambda invocation actions, scoped to the
-      distribution ARN.
-- [ ] Disable caching for API/health behaviours, forward only the required
-      query parameters, and keep CloudFront access logging off pending privacy
-      review.
-- [ ] Plan the `v0.0.2` POST path: signed POST to a Lambda Function URL
-      through CloudFront requires correct `x-amz-content-sha256` handling;
-      design before implementation, not during.
-- [ ] Manage Cloudflare DNS with Terraform and keep the CloudFront record
-      DNS-only.
-- [ ] Verify rollback by restoring the previous Lambda alias, frontend entry
-      object version, and compatible API/web release manifest.
+      AWS OIDC only for GitHub archive reads.
+- [ ] Create the Cloudflare Tunnel and store its supported credentials file as a
+      service-restricted host secret for the pinned `cloudflared` UID/GID;
+      publish no application port directly from Mikr.us.
+- [ ] Manage Cloudflare DNS and tunnel routing with Terraform where supported;
+      keep access logs and query analytics disabled pending privacy review.
+- [ ] Deploy exact API, edge, watcher, and `cloudflared` digests from one
+      compatible release manifest; do not deploy mutable tags or use Watchtower.
+- [ ] Quiesce watcher dispatch, verify a pre-deploy recovery image, test
+      migrations on a disposable copy, and run scheduler-paused volume, secret,
+      S3, recovery-image, and Healthchecks.io preflights before activation.
+- [ ] Stop the prior watcher, start the exact candidate digest paused on the live
+      volume, apply the tested migration, verify live revision/WAL/secrets and a
+      post-migration recovery image, then activate one bounded canary.
+- [ ] Verify rollback by restoring the prior complete digest set and rerunning
+      public readiness, static-integrity, browser, and known-search checks. Keep
+      migrations backward-readable and never restore a database older than an
+      acknowledged candidate run.
 
 ## Verification And Operations
 
 - [ ] Define launch latency, availability, concurrency, and monthly cost
       budgets.
 - [ ] Measure container size, startup, RSS, and complete-dataset search
-      latency.
-- [ ] Load-test warm and cold Lambda paths at representative launch
-      concurrency.
+      latency on the actual Mikr.us `3.0` host.
+- [ ] Load-test warm API paths, process restart, concurrent watcher work, and a
+      documented launch burst through Cloudflare Tunnel.
 - [ ] Verify production through the public domain with a real search request.
-- [ ] Add privacy-safe structured logging and CloudWatch alarms, including
-      per-source dataset age and watcher failure alerts.
-- [ ] Test recovery from Git, versioned S3 artifacts, GHCR digest, and
-      Terraform state without relying on a runtime disk backup.
-- [ ] Maintain and restore-test the encrypted QNAP archive of raw snapshots
-      and critical state metadata using credentials outside the AWS
-      deployment account.
-- [ ] Document benchmark conditions that trigger a move to Mikr.us `3.0`.
+- [ ] Add bounded Docker logs, external readiness and known-search checks, and
+      privacy-safe Healthchecks.io pings for watcher, recovery-image, and trusted-
+      inventory schedules.
+- [ ] Test recovery from Git, signed release and deployment records, versioned
+      S3 snapshots and control recovery images, GHCR digests, and Terraform
+      state onto an empty host.
 
 ## Later
 

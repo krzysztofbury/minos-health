@@ -2,411 +2,374 @@
 
 Status: target architecture. The current repository has the CI verification
 baseline and Terraform state bootstrap, but not the API image, watcher entry
-point, archive adapters, Compose stack, scheduled watchers, or release workflow.
+point, archive adapter, Compose stack, scheduler, or release workflow.
 
 ## Goals
 
 The delivery system must:
 
-- build one portable API image;
-- build one immutable static web bundle for mobile and desktop browsers;
-- build checksummed standalone CLI and data-bundle artifacts for supported
-  platforms;
-- promote an already tested digest rather than rebuild for release;
-- avoid long-lived cloud credentials in GitHub;
-- keep data-bearing images and raw datasets private;
-- make production reproducible from Git, immutable artifacts, and remote state;
-- support fast rollback without mutating or restoring a server disk;
-- remain inexpensive at low launch traffic.
+- run the complete Minos production stack on one dedicated Mikr.us `3.0` host;
+- build one immutable API image containing the generated reference database;
+- build one immutable edge image containing the static web artifact;
+- build one immutable watcher image with the scheduler and source adapters;
+- build checksummed standalone CLI and data-bundle artifacts;
+- promote already tested digests rather than rebuild for release;
+- keep CI separate from the production host and its secrets;
+- make the host replaceable from Git, GHCR digests, S3 recovery images, and a
+  runbook;
+- support bounded rollback without following mutable image tags;
+- remain inexpensive and understandable for one operator.
 
-## Artifact Lifecycle
-
-Private GHCR is the canonical image registry. The image tag helps discovery, but
-the digest is the deployment identity:
-
-```text
-ghcr.io/krzysztofbury/minos-health@sha256:<digest>
-```
-
-`latest` is not a deployable reference.
-
-The target lifecycle, after the corresponding artifacts and workflows are
-implemented, is:
-
-1. A pull request builds a fixture API image and static web bundle, runs them
-   through Docker Compose, and performs an actual browser-to-API search.
-2. `main` builds the pinned full dataset, supported standalone CLI bundles and
-   data bundle, the static web bundle, and the `linux/amd64` API image.
-3. `main` pushes `sha-<commit>`, stores CLI/data artifacts immutably by commit and
-   checksum, stores the web bundle archive immutably by commit and checksum in
-   private artifact storage, and creates build provenance binding the image
-   digest and web bundle checksum to the source commit and workflow identity.
-4. The main workflow verifies that the deployable digest is one runnable
-   single-architecture image manifest, not an OCI index or attestation manifest.
-5. A mandatory signed `v*` tag points to a commit with successful prebuilt
-   artifacts.
-6. The release workflow verifies the Git tag, resolves `sha-<commit>` to a digest,
-   and verifies the digest's commit-bound attestation. A moved mutable tag fails
-   this check.
-7. GitHub authenticates to GHCR with `GITHUB_TOKEN` package permission and copies
-   the verified image manifest into same-region private ECR using short-lived AWS
-   OIDC credentials.
-8. A narrowly scoped release step retrieves the exact prebuilt web archive,
-   uploads immutable hashed assets under the commit release prefix, publishes
-   and directly verifies the new Lambda version, then moves `live`.
-9. The release updates the short-cached entry HTML only after every referenced
-   object exists and the new API is active, invalidates that entry object, and
-   waits until CloudFront returns its expected checksum. The API remains
-   compatible with the previous frontend for at least the maximum HTML cache
-   and rollback window.
-10. Public readiness and known-search smoke tests run through the canonical host
-    in desktop and mobile browser viewports.
-11. Failed verification restores the prior entry-object version, invalidates and
-    verifies it at CloudFront, then restores the prior compatible alias version;
-    immutable assets remain available for rollback until retention permits
-    deletion.
-12. The release promotes the existing CLI/data artifacts without rebuilding.
-
-The release workflow never rebuilds application code or data.
-
-## GitHub Actions
-
-### Pull Requests
-
-The current baseline workflow checks:
-
-- repository hygiene and document formatting;
-- Ruff formatting and linting with warnings denied;
-- BasedPyright and mypy type checking;
-- pytest unit tests;
-- Bandit static security analysis and full-history secret scanning;
-- dependency licence and advisory policy;
-- Terraform formatting, validation, and configuration scanning;
-- Python package build and installed-wheel smoke test.
-
-Planned checks are added with the components they exercise:
-
-- integration tests;
-- documented mutation or fault-injection cases for safety-critical decisions,
-  automated after a Python 3.14-compatible runner is selected;
-- fixture ingestion and deterministic artifact checks;
-- Compose build and real browser-to-API search smoke test.
-
-PRs use committed fixtures and do not receive production secrets or raw source
-access.
-
-### Main
-
-The planned main workflow will obtain short-lived AWS credentials through
-GitHub OIDC only when it needs the private raw snapshot or immutable
-build-artifact storage. It will build the pinned complete artifact, run
-integrity tests, build and scan the image, execute the runtime path, push to
-private GHCR, sign the digest, and store commit-bound checksums for the CLI/data
-artifacts.
-
-### Scheduled Watchers
-
-Planned separate scheduled workflows will implement phase 0 (see
-[data-sources.md](data-sources.md)). They will poll RSK and NFZ endpoints daily,
-archive every exact metadata observation and selected in-scope source file to
-the private versioned S3 snapshot bucket with checksums computed at archive
-time, and retrieve BAW document graphs and files through anonymous HTTP APIs.
-The watcher role will conditionally create content-addressed objects under
-archive prefixes but will not overwrite or delete them; conditional
-compare-and-swap updates will be allowed only under a separate state prefix.
-Issues #6-#8 will emit immutable change records or incidents; issue #21 will
-later open data pull requests carrying manifest changes and human-readable
-diffs. A blocked GitHub runner will fall back to local/QNAP execution. Browser
-automation requires a separate task backed by evidence that it works from the
-affected environment. Watcher jobs will have no deployment, ECR, or Lambda
-permissions. Watcher failures and upstream schema drift will raise alerts
-rather than failing silently.
-
-### Release Tags
-
-The planned AWS trust policy will restrict audience and repository/ref claims
-to the expected repository and release tags. The release role can write the
-deployment ECR repository, update only the specific Lambda function and alias,
-read only the selected immutable web archive, create versioned objects in the
-frontend bucket, read only the recorded current and prior frontend object
-versions, never delete object versions, and invalidate only the project
-CloudFront distribution. It has no Terraform-state permission and no GitHub
-package permission. GHCR access comes from `GITHUB_TOKEN` with explicit
-`packages: read` workflow permission.
-
-A separate infrastructure workflow and OIDC role will run reviewed Terraform
-plans and applies. That role will be able to lock and update remote state but
-will not publish application releases unless an infrastructure change requires
-it.
-
-GitHub Free private repository planning limits observed during design were
-2,000 Actions minutes per month, 500 MB shared package/artifact storage, and
-10 GB Actions cache. Private deployment environments were unavailable. These
-limits can change and must be rechecked before implementation. The design avoids
-tag rebuilds and retains only a bounded number of rollback images.
-
-## Container
-
-The planned multi-stage API image will target `linux/amd64` for portability
-across GitHub-hosted builders, QNAP, Mikr.us, and Lambda. It will include the
-pinned Python environment, ordinary FastAPI/ASGI service, read-only database,
-provenance, and Lambda Web Adapter. Static frontend assets will remain a
-separate checksummed artifact.
-
-Before promotion, CI will inspect the registry media type and architecture and
-run the exact ECR digest with Lambda-compatible settings. Build provenance and
-signatures will be attached as supply-chain metadata, not substituted for the
-runnable image manifest.
-
-Runtime requirements:
-
-- non-root user and unprivileged port;
-- read-only filesystem;
-- no shell or package manager unless required for a demonstrated runtime need;
-- no watcher sources, test fixtures, compilers, credentials, or raw snapshots;
-- deterministic database path and dataset release configuration;
-- liveness and readiness endpoints;
-- graceful termination;
-- OCI labels for source commit, build, dataset release, and licenses.
-
-Compose will run the same API image locally without Lambda-specific
-orchestration. A small unprivileged local edge container will serve the exact
-static web bundle and proxy `/api/*`, `/healthz`, and `/readyz` to the API image,
-preserving the same origin and relative URLs used in production. A real
-browser-to-API request will test that route.
-
-Issue #6 owns a separate immutable watcher image or Dockerfile target. Compose
-and scheduled GitHub Actions will execute the same watcher digest, entry point,
-and arguments, with a persistent filesystem archive mounted at
-`/var/lib/minos/archive` locally and S3 selected in the cloud. The API image
-contains no watcher source. Temporary directories are reserved for tests and
-incomplete downloads, not durable local state.
-
-## AWS Architecture
-
-### Request Path
+## Production Topology
 
 ```text
 Browser
-  -> Cloudflare DNS-only record
-  -> CloudFront distribution
-     -> default/static paths -> S3 OAC -> private frontend S3 bucket
-     -> /api/* and probes -> Lambda OAC -> AWS_IAM Function URL qualified by live
-        -> Lambda Web Adapter
-        -> minos.http FastAPI service
+  -> Cloudflare
+  -> outbound Cloudflare Tunnel
+  -> edge container
+     -> static web artifact
+     -> /api/*, /healthz, /readyz -> API container
+
+Watcher container
+  -> APScheduler
+  -> mutable control SQLite on a persistent volume
+  -> private versioned S3 snapshot bucket
+
+GitHub-hosted Actions
+  -> test, build, scan, attest, publish to private GHCR
+  -> no production runtime or Docker socket access
 ```
 
-The frontend executes in mobile and desktop browsers. CloudFront edge delivery
-keeps static startup independent of Lambda cold starts. Search, filtering,
-version comparison, and later grouping use bounded API calls. An undefined
-future conversational `ask` capability is not assumed to fit this runtime; its
-streaming, model, privacy, and latency requirements need a separate decision.
+The host exposes no application port to the public internet. `cloudflared`
+opens an outbound tunnel to the edge container. The edge serves static files
+and proxies API routes under the same origin. The API and watcher networks are
+private Compose networks; only the edge is reachable through the tunnel.
 
-The Function URL is created for the `live` alias qualifier, not `$LATEST`, so an
-alias update changes public traffic without changing the URL. It is not public
-anonymous origin access. CloudFront signs origin requests with OAC. Terraform
-uses separate S3 and Lambda origin access controls. The S3 REST-origin bucket
-policy and both `lambda:InvokeFunctionUrl` and `lambda:InvokeFunction`
-resource-policy permissions are restricted to the exact CloudFront distribution
-ARN and, for Lambda, the alias-qualified function.
+Mikr.us `3.0` is the selected production plan: 2 GB RAM, 25 GB disk, Docker
+support, and a fixed 130 PLN annual price observed during planning. It provides
+no SLA, so Minos depends on tested recovery rather than host durability.
 
-Initial search uses GET requests; signed POST requests to a Lambda Function URL
-require correct `x-amz-content-sha256` handling and are not needed for `v0.0.1`.
-The `v0.0.2` stateless grouping endpoint is a POST and requires that handling
-to be designed and tested before implementation. Its encrypted payload
-necessarily traverses CloudFront, but it must never appear in CloudFront,
-Lambda platform, or application logs.
+## Runtime Components
 
-CloudFront uses separate behaviours:
+The production Compose project contains:
 
-- hashed static assets use a long-lived cache policy;
-- HTML uses a short revalidation policy;
-- `/api/*`, `/healthz`, and `/readyz` use caching disabled;
-- the API origin request policy forwards only `system`, `q`, `date`, and
-  `limit`, with no cookies or viewer authorization header;
-- CloudFront access logging remains disabled until a privacy review addresses
-  medical terms in URLs and client identifiers.
+- `cloudflared`: outbound ingress only, with no Docker socket;
+- `edge`: unprivileged static server and reverse proxy;
+- `api`: FastAPI/ASGI service with the generated reference SQLite database
+  embedded in the immutable image;
+- `watcher`: APScheduler, source adapters, and the mutable control SQLite
+  database mounted from a dedicated persistent volume.
 
-### Terraform Resources
+The generated reference database and watcher control database are deliberately
+different systems:
 
-The AWS stack owns:
+- the reference database is immutable, release-scoped, and opened read-only by
+  the API and CLI;
+- the control database is mutable operational state for source configuration,
+  schedules, runs, observations, artifact references, changes, and incidents.
 
-- private frontend S3 bucket with versioning, encryption, and CloudFront OAC;
-- private versioned build-artifact S3 bucket for commit-addressed web archives;
-- private ECR repository and lifecycle policy;
-- GitHub OIDC provider or references to an account-level provider;
-- narrowly scoped build and release roles;
-- Lambda function using the exact ECR image digest;
-- Lambda versions and a `live` alias whose target is release-managed;
-- reserved concurrency as a cost and overload guard;
-- alias-qualified Function URL with `AWS_IAM` authorization;
-- both CloudFront invocation policy statements scoped to the distribution ARN;
-- separate S3 and Lambda CloudFront Origin Access Controls and one distribution;
-- explicit cache and origin-request policies per behaviour;
-- ACM certificate in `us-east-1` for CloudFront;
-- CloudWatch log group with finite retention;
-- alarms for errors, throttles, duration, and readiness failures;
-- account or project budget notifications;
-- private versioned, content-addressed S3 storage for source snapshots and
-  artifacts, with write-once archive prefixes and a separate conditional state
-  prefix for the watcher role.
+The watcher is not included in the API image. The edge image contains no Python
+runtime, source snapshots, credentials, or generated medical database.
 
-Terraform owns stable resource configuration. The release workflow owns Lambda
-image updates, published versions, and the `live` alias target through narrowly
-scoped AWS APIs. Terraform declares lifecycle ignores for only those dynamic
-release fields; all other drift remains visible. This avoids both Terraform
-state writes during a release and unacknowledged ownership conflicts.
+## Artifact Lifecycle
 
-Provisioned concurrency starts at zero. Memory, timeout, and reserved concurrency
-are selected from measured data rather than copied from a generic template.
+Private GHCR is the canonical image registry. Tags aid discovery, but digests
+are deployment identities:
 
-CloudFront pay-as-you-go is the declarative baseline. Support for the newer
-flat-rate PricingPlanManager product was incomplete in the Terraform AWS provider
-during research and must not force a console-managed production exception.
+```text
+ghcr.io/krzysztofbury/minos-health-api@sha256:<digest>
+ghcr.io/krzysztofbury/minos-health-web@sha256:<digest>
+ghcr.io/krzysztofbury/minos-health-watcher@sha256:<digest>
+cloudflare/cloudflared@sha256:<digest>
+```
 
-### Remote State
+`latest`, `main`, and other mutable tags are not deployable references.
 
-`infra/bootstrap` creates a dedicated private S3 state bucket through a small
-one-time local state. Bootstrap state remains separate and receives an encrypted
-independent backup. Each Terraform root initializes directly against a distinct
-remote-state key; there is no empty phase-0 state to migrate. The state bucket
-uses:
+The target lifecycle is:
 
-- versioning;
-- encryption;
-- public access blocks;
-- least-privilege access;
-- native S3 state locking;
-- a recovery procedure for prior state versions.
+1. A pull request builds fixture images and runs the Compose stack through a
+   real browser-to-API search without production secrets.
+2. `main` builds the pinned complete dataset, API image, edge image, watcher
+   image, standalone CLI bundles, and data bundle.
+3. CI scans and exercises each runnable image, then publishes commit-addressed
+   images and provenance to private GHCR.
+4. CI verifies each deployable digest is the intended runnable `linux/amd64`
+   manifest and records compatible API, web, watcher, and dataset versions in a
+   release manifest, including the pinned `cloudflared` digest.
+5. A mandatory signed `v*` tag identifies a commit whose artifacts already
+   passed CI. Release verification does not rebuild them.
+6. CI publishes the candidate release manifest and GitHub OIDC provenance as a
+   private GitHub Release asset after repository immutable releases are enabled
+   and verified. The operator verifies them and the signed tag, signs the
+   manifest with an independent off-host key, and conditionally copies the
+   manifest and signature to an operator-only S3 release prefix. The signed S3
+   copy remains the recovery authority and binds the tag, source commit,
+   artifact digests, compatibility, and manifest digest.
+7. The operator quiesces watcher dispatch, reconciles any `committed` or
+   `heartbeat_pending` run, creates and verifies a pre-deploy recovery image,
+   and records the current and candidate release manifests.
+8. A scheduler-paused candidate watcher validates a disposable database copy,
+   migration compatibility, numeric identity, volume and secret access, an S3
+   checksum round trip, recovery-image creation, and Healthchecks.io access.
+9. The operator stops the previous watcher, starts the exact candidate watcher
+   digest with dispatch still paused against the live volume, applies the tested
+   migration, and verifies its live state revision, migration checksums, WAL,
+   mounted secrets, and post-migration recovery image. The previous and candidate
+   watcher never own the volume concurrently.
+10. The operator starts the candidate edge and API, runs readiness, known-search,
+    static-integrity, mobile, and desktop checks through the public hostname, and
+    only then activates the live candidate watcher for one bounded canary run.
+11. Success writes a signed append-only deployment receipt to an operator-only
+    S3 prefix. Before the canary commits, failure restores the complete previous
+    release and may restore the pre-deploy recovery image. After any candidate
+    run commits, rollback must preserve that state and use the prior watcher
+    against the backward-readable schema; an older database image must not be
+    restored.
 
-The bootstrap bucket uses SSE-S3 so state recovery does not depend on a
-separately managed KMS key and policy. This is a scoped bootstrap tradeoff, not
-a default encryption decision for snapshot or application buckets.
+Initial production deployment is an explicit operator action. A later SSH
+workflow may automate the same exact-digest procedure, but it must not broaden
+CI access to production data or the Docker socket.
 
-The `phase0` root owns the snapshot bucket, watcher identity, and monitoring.
-Later `foundation` and `service` roots consume its outputs where needed but do
-not import or co-own those resources. Production state is never stored as a
-GitHub artifact or committed to Git. Bootstrap state and recovery metadata are
-backed up securely, including an encrypted independent copy outside the AWS
-deployment account.
+Watchtower is not a deployment mechanism. It requires root-equivalent Docker
+socket access and follows mutable tags; images pinned by digest cannot be
+updated by Watchtower. It also cannot prove that API, web, watcher, and dataset
+artifacts form one reviewed compatible release.
+
+## GitHub Actions
+
+GitHub-hosted Actions own verification and artifact production. They are not
+the production scheduler and no self-hosted Actions runner runs on Mikr.us.
+
+Pull requests use committed fixtures and receive neither production secrets nor
+raw-source access. The current baseline checks repository hygiene, Ruff,
+BasedPyright, mypy, pytest, Bandit, Gitleaks, dependency policy, Terraform, and
+the built wheel. Planned checks add fixture ingestion, deterministic artifact
+builds, container scans, Compose integration, and real browser smoke tests.
+
+The `main` workflow may use short-lived AWS OIDC credentials when it needs
+read-only access to reviewed source snapshots for a full artifact build. It
+publishes only to private GHCR and GitHub release storage. It does not connect
+to the production host during ordinary builds.
+
+The issue #21 PR handoff is a separate operator-dispatched workflow from the
+protected default branch. It receives one allowlisted recovery-image identity
+and bounded change-record identity, uses the read-only OIDC role, verifies both,
+and exports only the selected normalized proposal. Pull-request jobs receive no
+archive role, and the production watcher receives no GitHub credential.
+
+GitHub service limits change and must be rechecked before enabling full-data
+builds. Image retention remains bounded while preserving the current and prior
+compatible release sets.
+
+## Container Requirements
+
+Every production image must:
+
+- target `linux/amd64` and run on the same architecture in CI and production;
+- run as a non-root user with a read-only root filesystem;
+- drop unnecessary Linux capabilities and use an explicit process limit;
+- have bounded memory and temporary storage;
+- contain no build tools, test fixtures, shell, or package manager unless a
+  demonstrated runtime need requires one;
+- expose liveness and readiness where applicable;
+- terminate cleanly and fail rather than serve incomplete data;
+- carry source commit, build, dataset, and licence labels.
+
+Only the watcher receives persistent writable storage. Ansible initializes its
+persistent control directory as the pinned watcher UID and GID with mode `0700`;
+SQLite, its WAL, recovery-image staging files, and their parent directory remain
+writable by that identity. Restore reapplies the same ownership and modes before
+startup. Downloads use a separate disk-backed `noexec,nosuid,nodev` staging
+directory with one temporary file, a `600 MiB` application-enforced quota, and a
+`512 MiB` per-file ceiling matching the RSK transport default. The sole worker
+removes interrupted staging files at startup and after each attempt. Before a
+run or recovery image, the watcher requires at least the larger of `1 GiB` or
+three control-database sizes plus the maximum download size to remain free.
+Crossing the configured `2 GiB` control database ceiling blocks new runs and
+raises an incident rather than filling the host. API and edge services receive
+only bounded tmpfs mounts when a demonstrated runtime path needs temporary
+writes. Exact raw bytes are uploaded to S3 and are not retained as the only copy
+on the host. Logs use Docker's bounded `local` driver rather than an unbounded
+JSON log file.
+
+## Watcher Scheduling And State
+
+Stable APScheduler `3.11.x` runs as a `BlockingScheduler` in UTC with
+`coalesce=True`, `max_instances=1`, one executor worker, and an explicit bounded
+`misfire_grace_time`. Its job store is in memory. The control SQLite database is
+the durable source of truth for enabled sources, UTC cron expressions,
+`next_due_at`, run modes, configuration revisions, run claims, source cursors,
+observations, incidents, and audit events. APScheduler does not serialize jobs
+to another database and does not require SQLAlchemy.
+
+Startup reconciles every `committed` and `heartbeat_pending` run before dispatch,
+then expires stale `running` claims, atomically claims at most one overdue
+schedule, records its missed scheduled time, and advances `next_due_at` to the
+first cron fire strictly after the same transaction-captured `now`. This
+application-level cursor, not the in-memory job store, coalesces downtime into
+one bounded catch-up run. A manual invocation uses the same claim path. A source
+with a `running`, `committed`, or `heartbeat_pending` run cannot be claimed.
+
+Each claim carries an unpredictable token and a monotonically increasing source
+fencing epoch. Collector mutations compare the source ID, token, epoch,
+`running` status, and `deadline > now`. Expiry instead compares the same identity
+with `running` and `deadline <= now`, then atomically records the incident and
+`expired` state before a later claim can increment the epoch. Reconciliation
+compares the run ID, exact expected `committed` or `heartbeat_pending` state, and
+state revision; it does not require a live claim. A stale worker may finish
+network I/O, but its collector transaction is rejected and cannot advance a
+source cursor after ownership changes.
+
+For each raw object, the watcher derives the requested key from its local
+SHA-256 and uses single-part `PutObject` with exact `ContentLength`, the
+Base64-encoded whole-object SHA-256 in `ChecksumSHA256`, and
+`If-None-Match: *`. Multipart upload is prohibited for watcher objects; source
+and control-database limits remain below the S3 single-part limit. It then uses
+`HeadObject` with checksum mode enabled against that same requested key. Both a
+successful create and `412 Precondition Failed` must return the expected byte
+count and native checksum; mismatch is a hard incident. `409 Conflict` receives
+a bounded retry of the conditional operation. The watcher then commits the
+related observation, blob reference, and source cursor in one local SQLite
+transaction. A post-upload crash can leave an unreferenced immutable object; a
+retry reuses it only after the same verification.
+
+Every restorable control-database transaction increments a monotonic
+`state_revision`; a transaction that advances source state also leaves its run
+in `committed`. No later claim for that source may start while a committed run
+awaits reconciliation. The reconciler uses the SQLite backup API to create an
+integrity-checked recovery image for that exact revision, uploads and verifies
+it under an immutable revision-and-digest key, then records `heartbeat_pending`.
+It sends the success heartbeat only from that state and marks the run
+`successful` after a successful response. Every transition is idempotent. On
+restart or restore, reconciliation resumes upload, verification, or heartbeat;
+a duplicate heartbeat is acceptable, but a newer run never overtakes it.
+
+The legal run transitions are `running -> committed -> heartbeat_pending ->
+successful`, `running -> failed`, and `running -> expired`. Acquisition creates
+`running`; only the matching live fenced claim can leave it. `committed` never
+expires, terminal states never reopen, and no transition may be skipped.
+
+There is no atomic transaction across local SQLite and S3. A complete host loss
+after local commit but before recovery-image upload can lose that unacknowledged
+observation relationship even when its raw blob survived. This narrow window is
+an accepted residual risk; the run was never reported successful and must be
+retried or investigated.
+
+## AWS Scope
+
+AWS is not an application runtime. It owns only:
+
+- the existing private versioned Terraform state bucket;
+- one private versioned S3 snapshot bucket for content-addressed raw bytes,
+  immutable control-database recovery images, signed release manifests, and
+  deployment receipts under separately authorized prefixes;
+- narrowly scoped IAM identities for the Mikr.us watcher and GitHub OIDC reads;
+- project budget notifications.
+
+The snapshot bucket uses SSE-S3, public-access blocks, versioning, and enforced
+conditional writes under immutable prefixes. The watcher can write only raw
+blobs, recovery images, and checksum probes. Probe objects use a dedicated
+`probes/<UTC-date>/<random>/<sha256>` prefix, become current-expiration eligible
+after seven days, and have noncurrent versions removed after one additional day.
+Release manifests, trusted recovery copies and inventories, and deployment
+receipts require the operator identity and an independent signing key kept
+off-host. Raw objects have no automatic expiry. Multipart upload is prohibited
+for watcher writes; a seven-day incomplete-upload abort remains defense in depth
+for operator tooling.
+
+The Mikr.us watcher uses one narrowly scoped IAM access key because AWS workload
+identity is unavailable on that host. Terraform creates the identity and policy
+but never creates or stores the access-key secret. The operator creates and
+rotates the key manually, stores the recovery copy in the password manager, and
+installs it as a service-restricted host file mounted read-only into the watcher.
+The identity cannot delete objects, alter bucket policy, read Terraform state,
+or access unrelated AWS resources.
+
+There is no ECR, Lambda, Function URL, CloudFront, frontend S3 bucket, ACM
+certificate, or CloudWatch application-log stack in the accepted architecture.
+
+## Terraform State
+
+`infra/bootstrap` owns the existing dedicated S3 state bucket through its
+separate one-time bootstrap state. The future `phase0` root initializes against
+its own remote-state key and owns the snapshot bucket, IAM policy, GitHub OIDC
+read role, budget notification, and Mikr.us watcher identity.
+
+The state bucket and snapshot bucket remain separate. Production state is never
+stored in a GitHub artifact or committed to Git. Any apply requires review of
+the exact plan, including public exposure, IAM scope, replacement, and retention
+changes.
 
 ## Cloudflare And Domains
 
-After clearance and registration:
+After legal clearance and registration:
 
-- `minoshealth.com` is canonical;
-- `minoshealth.pl` is proxied by Cloudflare and uses a Terraform-managed
-  Redirect Rule to redirect permanently to `.com` while preserving a safe path
-  and query string;
-- `minos.health`, if purchased after counsel review, redirects the same way;
-- Cloudflare manages DNS with Terraform;
-- the primary CloudFront record is DNS-only to avoid an unnecessary double CDN;
-- the apex uses Cloudflare CNAME flattening where required;
-- DNSSEC is enabled after registrar and Cloudflare delegation are verified;
-- domain registration, account recovery, and renewals remain outside Terraform.
+- `minoshealth.pl` is canonical and routes to Cloudflare Tunnel;
+- `minoshealth.com` redirects permanently to `.pl` while preserving safe paths;
+- `minos.health`, if purchased, redirects the same way;
+- Cloudflare manages DNS and tunnel routing;
+- DNSSEC is enabled after the registrar and delegation chain are verified;
+- domain purchase, account recovery, and renewal remain manual.
 
-Cloudflare Tunnel is not part of the AWS profile. It is reserved for local/QNAP
-or Mikr.us fallback ingress.
-
-Terraform models public origin selection explicitly. Normal mode creates the
-DNS-only `.com` record to CloudFront. Fallback mode replaces it with the proxied
-Cloudflare Tunnel target after the exact image digest passes tests on a separate
-fallback hostname. Reverting the variable and applying the reviewed plan returns
-traffic to CloudFront. The runbook records DNS/TLS validation and propagation;
-operators do not improvise a console-only route change.
+The tunnel terminates public ingress without exposing Mikr.us application ports.
+Cloudflare logging and analytics that could retain URLs, IP addresses, or
+medical search terms remain disabled until a separate privacy review.
 
 ## Secrets
 
-GitHub stores only secrets that cannot be replaced by OIDC. AWS credentials are
-short-lived. The runtime should not require application secrets for a bundled
-read-only database.
+Production images pin numeric service UIDs and GIDs in the release contract.
+Ansible creates each secret directory as `root:<service-gid>` mode `0750` and
+each file as `root:<service-gid>` mode `0440`; Compose adds only that group and
+mounts only the required file read-only. The watcher reads AWS credentials from
+`AWS_SHARED_CREDENTIALS_FILE` and the Healthchecks.io target through a dedicated
+`_FILE` setting. `cloudflared` receives its supported credentials file and
+configuration, not an environment token. A preflight tests traversal and reads
+using every exact image digest. Secret files include:
 
-Local development reads ignored `.env` files based on committed `.env.example`
-for application secrets. Local cloud credentials stay in an external profile or
-keychain. Production workload secrets live in AWS Secrets Manager and are
-injected into the relevant runtime or workflow. Operator, registrar, SSH, and
-recovery credentials stay in the password manager. Ordinary endpoints,
-timeouts, regions, bucket names, and feature flags are configuration, not
-secrets, and remain Terraform inputs or environment variables. The phase-0 RSK
-watcher uses anonymous source endpoints and should require no application
-secret.
+- the Cloudflare Tunnel credential;
+- the narrowly scoped S3 access key;
+- the Healthchecks.io ping target used by the watcher.
 
-Registrar credentials, recovery codes, SSH material for fallback hosts, and
-emergency credentials live in the password manager. They must not be copied
-from another project's deployment files.
+The private GHCR package-read token is separate host-side deployment material.
+It belongs in the root-owned Docker credential store and is never mounted into
+an application container.
 
-## Why AWS Lambda
+A dedicated Ed25519 operator signing key is separate from SSH login and all
+runtime credentials. Git uses its SSH-signature namespace for signed tags;
+operator tooling uses OpenSSH signatures with domain-separated
+`minos-release`, `minos-deployment`, and `minos-recovery` namespaces. The public
+verification key is committed and included in the recovery kit. The private key
+stays in the password manager or supported hardware and never enters Mikr.us,
+GitHub Actions, AWS credentials, Terraform state, or container storage.
 
-AWS Lambda best matches the chosen priorities:
+Secrets never enter Git, `.env`, Compose YAML, Terraform variables or state,
+container images, logs, or GitHub Actions. Operator, SSH, registrar, and recovery
+credentials stay in the password manager. Ordinary endpoints, regions, bucket
+names, timeouts, and release digests are configuration rather than secrets.
 
-- Terraform covers stable production resources and route selection;
-- GitHub OIDC removes static AWS keys;
-- immutable Lambda versions and aliases provide atomic rollback;
-- Lambda Web Adapter preserves the standard HTTP image;
-- no host patching or runtime disk backup is required;
-- low traffic can remain inexpensive.
+## Promotion Evidence
 
-Private S3 plus CloudFront serves the responsive frontend independently, so
-mobile startup does not wait for Lambda. Lambda is evaluated on API latency,
-including cold starts. Provisioned concurrency is enabled only if representative
-measurements justify its fixed cost.
-
-These benefits are hypotheses until representative benchmarks confirm startup,
-memory, throughput, and cost.
-
-## Mikr.us Fallback
-
-Point-in-time service facts observed during planning:
-
-| Plan | Memory | Disk | Price | Docker |
-| --- | ---: | ---: | ---: | --- |
-| 1.0 | 384 MB | 5 GB | 35 PLN/year | No |
-| 2.1 | 1 GB | 10 GB | 75 PLN/year | Yes |
-| 3.0 | 2 GB | 25 GB | 130 PLN/year | Yes |
-
-Mikr.us uses LXC containers on shared infrastructure in Finland. It supplies
-IPv6 and forwarded IPv4 ports, including defaults based on server ID and a
-limited number of additional ports. Terms allow commercial services but offer
-no SLA or downtime compensation. The user is responsible for backups. The
-optional shared "Strych" storage observed during research was only 200 MB and is
-not an adequate recovery strategy.
-
-If selected, use `3.0`. Purchase and initial credentials are manual. Ansible
-bootstraps Docker and Compose over pinned SSH. The host pulls a private GHCR
-digest with a read-only package token. Minos and `cloudflared` run without
-publishing the application port. Deployment waits for readiness and a real
-search, then restores the previous digest on failure.
-
-Watchtower does not promote production releases.
-
-## Other Evaluated Targets
-
-- **QNAP**: useful as a local or emergency profile, not the primary public
-  service. It uses Compose and Cloudflare Tunnel and must not reuse credentials
-  from another project.
-- **Cloudflare Containers**: potentially inexpensive and able to sleep, but adds
-  Worker/Durable Object orchestration and platform-specific startup behaviour
-  without improving the current Terraform and artifact story.
-- **Kubernetes**: rejected. The service does not need a cluster, Helm, or its
-  operational overhead.
-
-## Promotion And Rollback Evidence
-
-A successful release record contains:
+After repository immutable releases are enabled and verified, a signed release
+manifest is stored as a private GitHub Release asset and as the conditional
+single-object envelope `release-manifests/<tag>.json` in operator-only S3. A
+signed append-only receipt under
+`deployment-receipts/<20-digit-sequence>.json` identifies its prior receipt
+digest, release-manifest digest, operator, host, timestamp, pre-deploy recovery
+image, rollback compatibility, and verification evidence. Each writer derives
+the next sequence from the verified unique head, creates the sequence-only key
+with `If-None-Match: *`, and accepts `412` only when the bytes match its
+idempotent retry. It then relists and verifies exactly one fully linked head;
+gaps or forks fail closed immediately. The watcher credential cannot access
+either prefix. A successful record contains:
 
 - source commit and signed tag;
-- verified commit-to-digest build attestation;
-- single-architecture runnable image media type;
-- GHCR and ECR digest equality;
-- web bundle checksum, immutable artifact key, frontend entry-object VersionId
-  and ETag, and their previous release values;
-- dataset release and checksums;
-- CLI/data artifact checksums;
-- infrastructure revision, plus Terraform plan/apply evidence if infrastructure
-  or route selection changed;
-- prior and new Lambda version and alias weights;
-- API/web compatibility range and CloudFront entry invalidation result;
-- readiness and known-search results through the public hostname;
-- representative post-deploy latency/error sample.
+- verified commit-to-digest attestations;
+- API, edge, and watcher image digests;
+- the `cloudflared` image digest;
+- dataset and static-asset checksums;
+- compatible release-manifest versions;
+- prior and new complete digest sets;
+- public readiness, known-search, static-integrity, mobile, and desktop results;
+- representative post-deploy memory, disk, latency, and error evidence.
 
-A quiet period alone is not release verification.
+A quiet period alone is not deployment verification.

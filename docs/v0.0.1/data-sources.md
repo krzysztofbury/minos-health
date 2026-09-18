@@ -316,9 +316,10 @@ systems.
 Issue #7 dispatches discovered BAW IDs to #8. It does not duplicate BAW file
 retrieval. Issue #8 does not discover unrelated NFZ news or own CZS.
 
-Implementation order is #6, then #8, then #7. Issue #6 establishes the local
-and S3 archive contract. Issue #8 supplies the working BAW dispatch target that
-issue #7 subsequently calls.
+Implementation order is #49, then completion of #6, then #8, then #7. Issue #49
+establishes the SQLite control plane, local and S3 blob contracts, recovery
+images, and Mikr.us scheduler. Issue #8 supplies the working BAW dispatch target
+that issue #7 subsequently calls.
 
 Issues #6-#8 stop at exact raw observations, selected source bytes, provenance,
 change records, and incidents. They do not parse terminology or JGP facts into
@@ -333,16 +334,22 @@ change records into manifest PRs.
    state. Empty or sharply reduced results are schema-drift alerts.
 3. Stream allowlisted bytes while hashing. Validate declared and received byte
    counts, magic, extension, archive safety, and parser bounds.
-4. Address blobs by SHA-256 and store immutable provenance sidecars by source
-   IDs under archive prefixes. Use conditional creates and deny overwrite and
-   deletion under those prefixes. S3 versioning provides recovery; content
-   addressing and IAM enforce the application-level write-once rule. Filenames
-   and mutable URLs are metadata, not identity.
+4. Address exact response bodies and downloaded files by SHA-256. Use
+   single-part conditional `PutObject` with exact `ContentLength` and the
+   Base64-encoded whole-object SHA-256 in `ChecksumSHA256`; deny watcher
+   overwrite and deletion under blob prefixes. Derive the requested key from the
+   local digest; after create or `412`, verify checksum and byte count with
+   checksum-enabled `HeadObject`. Retry `409` conflicts within the bounded
+   operation. S3 versioning, content addressing, and IAM enforce the
+   application-level write-once rule. Filenames and mutable URLs are metadata,
+   not identity.
 5. Fetch metadata before and after a download batch. A changed source view
    invalidates that attempt rather than publishing a mixed observation.
-6. Advance state only after all blobs and sidecars exist in primary storage.
-   Keep mutable state under a separate prefix that permits conditional
-   compare-and-swap updates, and use idempotent notification keys.
+6. Advance SQLite state only after every referenced S3 blob passes that
+   verification. Commit the observation, artifact references, change or incident
+   record, source cursor, incremented state revision, claim fencing token, and
+   `committed` run state in one local transaction. A post-upload crash may leave
+   a harmless unreferenced blob; retry reuses it only after re-verification.
 7. Preserve publication, entry-into-force, service-applicability, first-seen,
    fetch, and ingestion times separately. Never invent one from another.
 8. Source collectors emit a bounded change record or incident. Issue #21 may
@@ -358,10 +365,9 @@ change records into manifest PRs.
 - Capture dated raw fixtures for every endpoint before implementing parsers.
 - Ask CeZ whether RSK file UUIDs and bytes are contractually immutable and for
   automation/rate-limit guidance.
-- Verify BAW plain-HTTP behavior from a GitHub-hosted runner. On runner-IP
-  blocking, use local/QNAP execution; consider browser automation only in a
-  separate task after captured evidence shows it succeeds from the affected
-  environment.
+- Verify BAW plain-HTTP behavior from the Mikr.us host. Consider browser
+  automation only in a separate task after captured evidence shows it succeeds
+  from that environment.
 - Confirm per-resource redistribution rights separately; stale `dane.gov.pl`
   dataset-level license metadata does not license current RSK resources.
 - Revisit `dane.gov.pl` datasets `2581`, `3009`, and `4896` only when the

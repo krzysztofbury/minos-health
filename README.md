@@ -52,16 +52,18 @@ Minos is one Python 3.14 distribution with strict internal package boundaries:
 - `minos.grouper` (planned, `v0.0.2`): versioned grouping engine evaluating
   encounter facts against rules-as-data.
 
-The target deployment uses one immutable `linux/amd64` API container locally,
-on a conventional Docker host, or on AWS Lambda through Lambda Web Adapter. One
-immutable static web bundle will run in the mobile or desktop browser and be
-served by CloudFront from a private S3 bucket. Docker Compose will run the same
-API image and web bundle locally. Offline CLI distributions will bundle the
-Python runtime and use the same generated database. AWS Lambda is the primary
-API target; Mikr.us remains a benchmark-triggered fallback.
-Source watchers will run as scheduled jobs. The collectors in issues #6-#8 will
-emit archived change records and issue #21 proposes reviewed manifest PRs. They
-are not part of the product runtime.
+The target deployment uses immutable `linux/amd64` API, edge, and watcher
+images. Docker Compose runs the complete stack locally and on a dedicated
+Mikr.us `3.0` host; Cloudflare Tunnel is its only public ingress. The API image
+contains the generated read-only SQLite database, while the edge image contains
+the static web artifact. Offline CLI distributions bundle the Python runtime
+and use the same generated database.
+
+The watcher container runs APScheduler and a separate mutable control SQLite
+database. It stores exact raw bytes and revisioned control-database recovery
+images in private versioned S3. GitHub-hosted Actions build and test the images
+but do not run production schedules. Collectors in issues #6-#8 emit change
+records and issue #21 proposes reviewed manifest PRs.
 
 The initial service remains anonymous. The accepted later client direction is
 one installable responsive PWA that can synchronize a verified immutable
@@ -91,9 +93,9 @@ behavior, with targeted mutation and integration testing for critical paths.
 Docker Compose is not available yet. The current issue #6 implementation is a
 tested RSK transport library without an executable watcher, archive adapter, or
 container image. `.env.example` identifies which RSK settings are active and
-comments out settings reserved for the archive and container work. Compose will
-be added only after the archive contract and local persistence behavior are
-accepted.
+comments out settings reserved for the control database, S3 archive, and
+container work. Compose will be added only after those contracts are
+implemented.
 
 ## Data
 

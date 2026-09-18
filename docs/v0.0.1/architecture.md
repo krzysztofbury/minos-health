@@ -61,7 +61,8 @@ With vector search out of scope, the default engine candidate is plain SQLite
 with FTS5 through the pinned Python runtime and database driver. A short spike
 pins the Python and SQLite versions and verifies read-only operation,
 deterministic Polish search, FTS5 availability, standalone CLI packaging, and
-Lambda compatibility before the physical schema is accepted.
+deterministic `linux/amd64` container operation before the physical schema is
+accepted.
 
 ### minos.grouper (planned, v0.0.2)
 
@@ -103,25 +104,28 @@ Responsibilities:
 - privacy-safe request telemetry;
 - API cache and security headers.
 
-It runs as an ordinary FastAPI/ASGI process. Lambda Web Adapter translates
-Lambda events to HTTP without adding Lambda-specific code to the application.
+It runs as an ordinary FastAPI/ASGI process behind the private Compose edge
+network. It has no cloud-provider adapter or remote database dependency.
 
-### Watchers (CI, not runtime)
+### Watchers
 
-Scheduled GitHub Actions jobs poll upstream sources and archive raw files (see
-[data-sources.md](data-sources.md)). The source collectors in issues #6-#8 emit
-immutable observations and bounded change or incident records; the automation
-in issue #21 translates reviewed changes into the checked-in source manifest
-consumed by `minos data build`. Observation/change schemas and the build
-manifest are separate contracts. The collectors are otherwise scripts plus
-BAW/CZS source adapters; they hold no deployment permissions and are not part
-of the runtime image. BAW uses anonymous JSON and binary endpoints by default;
-browser automation requires a separate evidence-backed task and is not a
-baseline dependency.
+The dedicated watcher container runs on the Mikr.us Compose host and polls
+upstream sources through APScheduler (see [data-sources.md](data-sources.md)).
+The source collectors in issues #6-#8 emit immutable observations and bounded
+change or incident records; issue #21 translates reviewed changes into the
+checked-in source manifest consumed by `minos data build`. Observation/change
+schemas and the build manifest are separate contracts. BAW uses anonymous JSON
+and binary endpoints by default; browser automation requires a separate
+evidence-backed task and is not a baseline dependency.
 
-Collectors run in a dedicated immutable watcher image or Dockerfile target,
-separate from the production API image. Local Compose and scheduled GitHub
-Actions execute the same watcher digest, entry point, and arguments.
+The watcher control SQLite database owns source configuration, UTC schedules and
+durable due cursors, fenced run claims, source cursors, state revisions,
+observations, artifact references, changes, incidents, and audit events. Exact
+source bytes live in private versioned S3. On startup the watcher reconciles
+`committed` and `heartbeat_pending` runs before reconstructing in-memory jobs;
+application-level due cursors coalesce downtime into one bounded catch-up run.
+GitHub Actions builds and tests the watcher image but does not schedule
+production collection.
 
 ## Target Repository Layout
 
@@ -141,6 +145,9 @@ minos-health/
 |   |   `-- sqlite/
 |   |       |-- migrations/        # raw numbered build-time SQL
 |   |       `-- queries/
+|   |-- control/
+|   |   `-- sqlite/
+|   |       `-- migrations/        # mutable watcher control plane
 |   `-- application/               # future accounts, billing, and usage
 |       `-- postgresql/migrations/
 |-- tests/
@@ -155,10 +162,8 @@ minos-health/
 |-- infra/
 |   |-- bootstrap/
 |   |-- terraform/
-|   |   |-- phase0/                 # watcher archive, OIDC, monitoring
-|   |   |-- foundation/             # registries and artifact storage
-|   |   `-- service/                # API, frontend, CDN, alarms
-|   `-- ansible/
+|   |   `-- phase0/                 # S3 archive, IAM, OIDC reads, budget
+|   `-- ansible/                     # Mikr.us host and Compose deployment
 |-- scripts/
 |-- docs/v0.0.1/
 |-- .github/workflows/
@@ -179,6 +184,12 @@ creates a fresh database, applies every numbered migration transactionally,
 records migration checksums, imports data, and publishes the verified result.
 The CLI, HTTP runtime, and future PWA open that artifact read-only and never run
 reference migrations at startup.
+
+`database/control` is the mutable watcher contract. It also uses raw numbered
+SQLite migrations, but it is never bundled into the public API image or client
+data. The watcher is its only writer. Consistent recovery images are created
+with the SQLite backup API and uploaded to S3; the live database, WAL, and
+shared-memory files are never copied as a backup set.
 
 `database/application` is a reserved future boundary, not part of `v0.0.1`.
 If accounts and billing are introduced, its PostgreSQL migrations and backups
@@ -299,13 +310,11 @@ stateless, and is excluded from any body logging. POST is mandatory because
 encounter facts must never appear in URLs, caches, or access logs.
 
 The static interface and API share an origin. Hashed static assets receive
-long cache lifetimes from a private S3 origin protected by CloudFront OAC.
-CloudFront routes `/api/*`, `/healthz`, and `/readyz` to the alias-qualified
-Lambda Function URL and disables caching for those paths; the API origin request
-policy forwards only documented query parameters such as `system`, `q`, `date`,
-and `limit`, with no cookies or viewer authorization header. CloudFront access
-logging remains disabled until a privacy review addresses medical terms in
-URLs. Mobile and desktop browsers receive the same responsive static artifact.
+long cache lifetimes from the edge container. The edge routes `/api/*`,
+`/healthz`, and `/readyz` to the API container and disables caching for those
+paths. It does not emit access logs containing complete URLs, client addresses,
+or query values. Cloudflare Tunnel is the only public ingress. Mobile and
+desktop browsers receive the same responsive static artifact.
 
 ## Runtime
 
@@ -313,13 +322,11 @@ The runtime image contains:
 
 - the Minos Python environment and ASGI entry point;
 - the generated read-only database;
-- dataset and build provenance;
-- Lambda Web Adapter files needed by the Lambda profile.
+- dataset and build provenance.
 
-The separate static web artifact contains only reviewed HTML, CSS, JavaScript,
-icons, and build metadata. Docker Compose serves the exact artifact locally;
-production synchronizes it to a private S3 bucket and exposes it only through
-CloudFront.
+The separate edge image contains only an unprivileged static server, reviewed
+HTML, CSS, JavaScript, icons, and build metadata. Docker Compose serves the same
+API and edge digests locally and in production.
 
 The standalone CLI bundle and data bundle are promoted alongside the image but
 are not installed in the HTTP runtime image unless a measured operational need
@@ -330,13 +337,21 @@ uses a read-only filesystem, writes only to an explicitly allowed temporary
 path, and handles termination cleanly. No runtime migration or upstream data
 download is allowed.
 
+The watcher is a separate immutable image. Its read-only root filesystem has one
+persistent volume owned by its pinned numeric identity for control SQLite and
+recovery-image staging. Downloads use a separate disk-backed staging directory
+with one temporary file, a `600 MiB` application quota, and a `512 MiB` per-file
+ceiling. Raw bytes are uploaded and checksum-verified in S3 before the related
+observation and source cursor are committed. The edge, API, and watcher images
+are promoted as one compatible digest set.
+
 ## Future PWA And Commercial Boundary
 
 The web client can evolve in phases without a desktop application:
 
-1. `v0.0.1` serves an anonymous responsive web interface from private S3 through
-   CloudFront and sends bounded API requests to the Lambda origin under the same
-   public hostname.
+1. `v0.0.1` serves an anonymous responsive web interface from the edge container
+   and sends bounded API requests to the API container under the same public
+   Cloudflare Tunnel hostname.
 2. A later installable PWA stores a versioned reference SQLite snapshot through
    SQLite WASM and supported browser storage. On startup or restored
    connectivity it checks a release manifest, downloads a complete compatible
@@ -366,13 +381,11 @@ successful update check visible to the user.
 ## Concurrency And Limits
 
 The HTTP process bounds request body size, query length, result count,
-database work, and request duration. Lambda reserved concurrency is the
-initial global cost and load guard. Per-process limiters may protect a warm
-instance but are not treated as a distributed rate limit.
-
-AWS WAF is not mandatory for the low-volume first release because it adds
-fixed cost and complexity. It can be introduced if observed abuse justifies
-it.
+database work, request duration, worker count, and concurrent requests. Compose
+resource limits and the edge request policy provide the initial host and
+overload guards. These are single-host limits, not a distributed rate limit.
+Cloudflare controls may be introduced only when observed abuse justifies their
+privacy and operational cost.
 
 ## Failure Behaviour
 

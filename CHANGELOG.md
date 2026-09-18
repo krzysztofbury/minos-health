@@ -27,12 +27,22 @@ release.
   datasets and data-bearing artifacts.
 - Explicit provenance, privacy, safety, compliance, and data-license
   requirements.
+- Reproducible Mikr.us Ansible baseline with pinned host identity, dedicated
+  1Password-backed SSH access, an exact IPv4/IPv6 firewall, unattended upgrades,
+  and bounded persistent host logs.
 
 ### Changed
 
-- Split the initial web delivery into a private S3/CloudFront static frontend
-  and a Lambda-hosted API, with the same artifacts exercised through local
-  Docker Compose.
+- Replaced the planned Lambda, ECR, CloudFront, frontend-S3, and QNAP topology
+  with one dedicated Mikr.us `3.0` Docker Compose host behind Cloudflare Tunnel;
+  AWS now provides only versioned source storage, narrow IAM, budgets, and
+  Terraform state.
+- Replaced S3 sidecar and S3-hosted compare-and-swap watcher state with a mutable
+  SQLite control plane on Mikr.us, revisioned S3 database recovery images, and
+  APScheduler;
+  GitHub Actions remains build and test infrastructure only.
+- Superseded an earlier plan that split web delivery between a private
+  S3/CloudFront frontend and a Lambda-hosted API.
 - Made security and correctness the first engineering priority, followed by
   measured performance, and adopted unit, targeted mutation, integration, and
   pair-programmer review gates for incremental work.
