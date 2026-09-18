@@ -47,8 +47,15 @@ day-to-day order.
 - [ ] Configure registrar lock, 2FA, auto-renewal, recovery codes off-host,
       and DNSSEC when the delegation chain supports it.
 - [x] Route canonical `.pl` through Cloudflare Tunnel and set up `.com` as a
-      proxied permanent redirect to `.pl` while preserving safe paths; serve an
-      honest maintenance page until the application exists.
+      proxied permanent redirect to `.pl` for allowlisted public paths without
+      forwarding query values; serve an honest maintenance page until the
+      application exists.
+- [ ] Enable Cloudflare Email Routing for `minoshealth.pl`, verify
+      `krzysztof@datacraze.io` as the destination, and route
+      `kontakt@minoshealth.pl` to it. Test delivery from an unrelated mailbox.
+- [ ] Decide whether inbound-only forwarding is sufficient. If replies must use
+      `kontakt@minoshealth.pl` as the sender, configure a separate SMTP mailbox
+      or verified send-as provider; Cloudflare Email Routing does not send mail.
 
 ## Trademark And Legal
 
@@ -84,6 +91,46 @@ day-to-day order.
 - [ ] Resolve WHO licensing before adding international ICD-10 or ICD-9 data.
 
 ## Phase 0: Watchers And Archive
+
+### Immediate Delivery Sequence
+
+- [ ] Complete issue #49 before continuing source-specific issue #6 work. Keep
+      the accepted order `#49 -> #6 -> #8 -> #7`.
+- [ ] Deliver #49 control state first: numbered SQLite migrations, complete
+      migration checksums, one writer, fenced claims, legal run transitions,
+      durable due cursors, observations, blob references, incidents, audit
+      events, and monotonic state revisions.
+- [ ] Deliver #49 archive storage next: equivalent local and S3 content-addressed
+      blob stores, bounded single-part conditional writes, native checksum and
+      byte-count verification, and disposable-AWS acceptance evidence. Present
+      the exact phase-0 Terraform plan for approval before applying it.
+- [ ] Deliver #49 recovery and scheduling next: verified SQLite recovery images,
+      bounded paginated restore selection, operator-trusted images and signed
+      inventories, APScheduler reconstruction, one bounded catch-up, stale-run
+      expiry, and heartbeat reconciliation.
+- [ ] Finish #49 production integration: add the pinned watcher service to the
+      Mikr.us Compose topology, service-restricted secrets and volumes,
+      Healthchecks.io, scheduler-paused preflight, ordinary-loss restore, and
+      suspected-compromise restore evidence.
+- [ ] Resume issue #6 by capturing dated raw live RSK fixtures before changing
+      parsers, then finish bounded HTTPX retrieval and Pydantic validation for
+      the catalog and every returned `basic-info` resource.
+- [ ] Store exact catalog and metadata response bytes and complete observations
+      for every HCD. Compare full structures; use `uuid + creationDate +
+      sizeBytes` only as a cheap change trigger.
+- [ ] Archive only the allowlisted `00CD10` XML initially. Stream from byte zero,
+      compute SHA-256, verify declared and received lengths, reject HTML or wrong
+      magic, re-fetch metadata after the batch, and quarantine rotated or
+      ambiguous transfers.
+- [ ] Add issue #6 daily, weekly forced re-download/re-hash, and manual modes;
+      prove interruption, retry, metadata rotation, same-metadata changed bytes,
+      stale-worker, transaction failure, and duplicate-notification behavior.
+- [ ] Complete issue #6 with the atomic #49 observation transaction, exact
+      revisioned recovery image, external heartbeat, documented local and
+      production Compose commands, and the first forced Mikr.us observation of
+      all HCD metadata plus the current `00CD10` XML.
+- [ ] Planning estimates remain 30-50 hours for #49 and 8-14 hours for #6 after
+      #49, excluding the RSK transport hardening already implemented.
 
 - [ ] Scheduled watcher: archive the RSK catalog and metadata for every returned
       HCD; alert on set/schema drift; download only allowlisted product files
@@ -292,8 +339,12 @@ day-to-day order.
 - [x] Create the Cloudflare Tunnel, back up its scoped credential in 1Password,
       install it as a service-restricted host secret for the pinned
       `cloudflared` GID, and publish no application port directly from Mikr.us.
+- [x] Deploy the exact-digest maintenance edge and tunnel stack with non-root,
+      read-only containers, candidate validation before promotion, runtime
+      boundary assertions, legal pages, public browser checks, and an idempotent
+      Ansible apply.
 - [ ] Manage Cloudflare DNS and tunnel routing with Terraform where supported;
-      keep access logs and query analytics disabled pending privacy review.
+      keep Cloudflare access logs and medical-query analytics disabled.
 - [x] Add direct Plausible pageview and aggregate engagement analytics without
       cookies, custom properties, medical query values, Tag Manager, or a
       consent banner.
