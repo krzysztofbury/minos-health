@@ -63,12 +63,14 @@ is pinned to a full commit SHA.
 
 ### Local And Cloud Parity
 
-Docker Compose is the target full local runtime, but it is not implemented yet.
-The current issue #6 code provides the RSK transport as a tested library; there
-is no executable watcher, archive adapter, Dockerfile, or `compose.yaml`.
-Development currently uses `uv sync --all-groups` and the checks below. Do not
-expect `docker compose up` to work until the archive contract and watcher entry
-point are implemented.
+Docker Compose is the target full local application runtime, but it is not
+implemented yet. The production host has a separate maintenance-only edge and
+Cloudflare Tunnel definition under `infra/ansible/files/`; it is not a local
+Minos application stack. The current issue #6 code provides the RSK transport as
+a tested library; there is no executable watcher, archive adapter, Dockerfile,
+or root `compose.yaml`. Development currently uses `uv sync --all-groups` and
+the checks below. Do not expect `docker compose up` to work until the archive
+contract and watcher entry point are implemented.
 
 When added, Compose must execute the same application artifacts and commands
 used on Mikr.us, with persistent ignored local storage for watcher control state.

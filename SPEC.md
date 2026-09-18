@@ -326,6 +326,10 @@ queries, or encounter payloads in production logs.
 - Raw medical search queries and encounter payloads are prohibited in logs and
   analytics. Changing this boundary requires a separate privacy design and
   explicit accepted decision.
+- Plausible Analytics is allowed for sanitized pageviews and its related
+  aggregate engagement duration and scroll-depth measurements, without cookies
+  or custom event properties. Public URLs must not contain medical queries or
+  patient data; custom events require an explicit allowlist and privacy review.
 - Grouping is stateless: encounter inputs are evaluated in memory and
   discarded.
 - Logs use request IDs, route templates, bounded durations, status classes,
@@ -383,9 +387,7 @@ private versioned S3, narrow IAM, budgets, and Terraform state. See
 - Trademark counsel review of the Minos name (registry pre-screen 2026-08-06:
   EUTM 009772146 covers class 9 software without field limitation; assess
   narrowed-specification filing and non-use exposure).
-- Route canonical `minoshealth.pl` through Cloudflare Tunnel and redirect the
-  registered `.com` domain to `.pl`; decide on premium `minos.health` after
-  counsel review.
+- Decide on premium `minos.health` after counsel review.
 - Define launch service-level objectives and budget thresholds before load
   tests.
 - Pin the embedded database engine after the reduced-scope spike.

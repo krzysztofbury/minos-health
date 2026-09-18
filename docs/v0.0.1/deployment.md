@@ -1,8 +1,9 @@
 # Deployment
 
-Status: target architecture. The current repository has the CI verification
-baseline and Terraform state bootstrap, but not the API image, watcher entry
-point, archive adapter, Compose stack, scheduler, or release workflow.
+Status: target application architecture. The host baseline currently runs an
+exact-digest maintenance edge and Cloudflare Tunnel, but the repository does not
+yet have the API image, watcher entry point, archive adapter, complete application
+Compose stack, scheduler, or release workflow.
 
 ## Goals
 
@@ -312,8 +313,11 @@ After legal clearance and registration:
 - domain purchase, account recovery, and renewal remain manual.
 
 The tunnel terminates public ingress without exposing Mikr.us application ports.
-Cloudflare logging and analytics that could retain URLs, IP addresses, or
-medical search terms remain disabled until a separate privacy review.
+Cloudflare access logging and analytics that could retain URLs, IP addresses, or
+medical search terms remain disabled. The site uses the reviewed direct
+Plausible script for sanitized pageviews and aggregate engagement duration and
+scroll depth, without cookies or custom properties; public URLs must never
+contain medical queries.
 
 ## Secrets
 

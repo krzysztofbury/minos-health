@@ -1,0 +1,18 @@
+[Unit]
+Description=Minos maintenance edge and Cloudflare Tunnel
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/minos
+ExecStart=/usr/bin/docker compose --project-name minos --file /opt/minos/compose.yaml up --detach --remove-orphans --wait --wait-timeout 120
+ExecReload=/usr/bin/docker compose --project-name minos --file /opt/minos/compose.yaml up --detach --remove-orphans --force-recreate --wait --wait-timeout 120
+ExecStop=/usr/bin/docker compose --project-name minos --file /opt/minos/compose.yaml down --timeout 30
+TimeoutStartSec=180
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

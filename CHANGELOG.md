@@ -29,7 +29,14 @@ release.
   requirements.
 - Reproducible Mikr.us Ansible baseline with pinned host identity, dedicated
   1Password-backed SSH access, an exact IPv4/IPv6 firewall, unattended upgrades,
-  and bounded persistent host logs.
+  bounded persistent host logs, and exact Docker Engine and Compose packages
+  with a constrained daemon boundary.
+- Exact-digest maintenance edge and Cloudflare Tunnel for canonical
+  `minoshealth.pl`, with an allowlisted-path `.com` redirect, truthful
+  readiness, restricted tunnel credentials, and no published host application
+  port.
+- Direct cookie-free Plausible pageviews and aggregate engagement measurements,
+  plus Polish privacy-policy and terms pages for the maintenance-stage site.
 
 ### Changed
 

@@ -5,6 +5,25 @@
   serial: 1
   any_errors_fatal: true
 
+  vars:
+    docker_engine_version: 5:29.8.1-1~ubuntu.24.04~noble
+    docker_containerd_version: 2.3.5-1~ubuntu.24.04~noble
+    docker_compose_version: 5.5.1-1~ubuntu.24.04~noble
+    docker_conflicting_packages:
+      - containerd
+      - docker-buildx
+      - docker-compose
+      - docker-compose-v2
+      - docker-doc
+      - docker.io
+      - podman-docker
+      - runc
+    docker_packages:
+      - "containerd.io={{ docker_containerd_version }}"
+      - "docker-ce={{ docker_engine_version }}"
+      - "docker-ce-cli={{ docker_engine_version }}"
+      - "docker-compose-plugin={{ docker_compose_version }}"
+
   pre_tasks:
     - name: Require the reviewed production host
       ansible.builtin.assert:
@@ -16,6 +35,103 @@
           - ansible_facts.user_id == "root"
           - ansible_facts.hostname == "andrzej159"
         fail_msg: Refusing to apply the Mikr.us baseline to an unexpected host.
+
+    - name: Inspect the existing tunnel credential before mutating the host
+      ansible.builtin.stat:
+        path: /etc/minos/cloudflared/529fc801-22fb-4577-b60e-517f0330cb8a.json
+      register: cloudflared_credential_preflight
+      when: not ansible_check_mode
+
+    - name: Inspect the supplied tunnel credential before mutating the host
+      ansible.builtin.stat:
+        path: "{{ cloudflared_credentials_source }}"
+      delegate_to: localhost
+      register: cloudflared_credential_source_preflight
+      when:
+        - not ansible_check_mode
+        - cloudflared_credentials_source is defined
+
+    - name: Require a recoverable tunnel credential before mutating the host
+      ansible.builtin.assert:
+        that:
+          - >-
+            (cloudflared_credential_preflight.stat.exists and
+             cloudflared_credential_preflight.stat.isreg and
+             cloudflared_credential_preflight.stat.pw_name == 'root' and
+             cloudflared_credential_preflight.stat.gr_name == 'minos-cloudflared' and
+             cloudflared_credential_preflight.stat.mode == '0440') or
+            (cloudflared_credentials_source is defined and
+             cloudflared_credential_source_preflight.stat.exists and
+             cloudflared_credential_source_preflight.stat.isreg and
+             cloudflared_credential_source_preflight.stat.mode in ['0400', '0600'])
+        fail_msg: Supply a regular mode-0400/0600 tunnel credential for the first apply.
+      when: not ansible_check_mode
+
+    - name: Read the existing tunnel credential before mutating the host
+      ansible.builtin.slurp:
+        src: /etc/minos/cloudflared/529fc801-22fb-4577-b60e-517f0330cb8a.json
+      register: cloudflared_credential_remote_payload
+      when:
+        - not ansible_check_mode
+        - cloudflared_credentials_source is not defined
+      no_log: true
+
+    - name: Read the supplied tunnel credential before mutating the host
+      ansible.builtin.slurp:
+        src: "{{ cloudflared_credentials_source }}"
+      delegate_to: localhost
+      register: cloudflared_credential_source_payload
+      when:
+        - not ansible_check_mode
+        - cloudflared_credentials_source is defined
+      no_log: true
+
+    - name: Parse the recoverable tunnel credential before mutating the host
+      ansible.builtin.set_fact:
+        cloudflared_credential_preflight_payload: >-
+          {{
+            ((cloudflared_credential_source_payload.content
+              if cloudflared_credentials_source is defined
+              else cloudflared_credential_remote_payload.content)
+            | b64decode | from_json)
+          }}
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Require the reviewed tunnel credential before mutating the host
+      ansible.builtin.assert:
+        that:
+          - cloudflared_credential_preflight_payload is mapping
+          - >-
+            ['AccountTag', 'TunnelID', 'TunnelSecret'] |
+            difference(cloudflared_credential_preflight_payload.keys() | list) | length == 0
+          - >-
+            cloudflared_credential_preflight_payload.keys() | list |
+            difference(['AccountTag', 'Endpoint', 'TunnelID', 'TunnelSecret']) | length == 0
+          - cloudflared_credential_preflight_payload.TunnelID == '529fc801-22fb-4577-b60e-517f0330cb8a'
+          - cloudflared_credential_preflight_payload.AccountTag is string
+          - cloudflared_credential_preflight_payload.AccountTag is match('^[A-Fa-f0-9]+$')
+          - cloudflared_credential_preflight_payload.AccountTag | length > 0
+          - cloudflared_credential_preflight_payload.TunnelSecret is string
+          - cloudflared_credential_preflight_payload.TunnelSecret is match('^[A-Za-z0-9+/]+={0,2}$')
+          - cloudflared_credential_preflight_payload.TunnelSecret | length > 0
+          - >-
+            'Endpoint' not in cloudflared_credential_preflight_payload or
+            cloudflared_credential_preflight_payload.Endpoint is string
+        fail_msg: The tunnel credential is malformed or belongs to another tunnel.
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Record the validated tunnel credential checksum
+      ansible.builtin.set_fact:
+        cloudflared_credential_preflight_checksum: >-
+          {{
+            (cloudflared_credential_source_preflight.stat.checksum
+             if cloudflared_credentials_source is defined
+             else cloudflared_credential_preflight.stat.checksum)
+          }}
+      when: not ansible_check_mode
+      no_log: true
 
     - name: Verify IPv4 and IPv6 netfilter access in the LXC guest
       ansible.builtin.command:
@@ -48,6 +164,60 @@
         group: root
         mode: "0600"
 
+    - name: Inventory installed packages before adding Docker
+      ansible.builtin.package_facts:
+        manager: apt
+
+    - name: Reject packages that conflict with the official Docker distribution
+      ansible.builtin.assert:
+        that:
+          - docker_conflicting_packages | intersect(ansible_facts.packages.keys()) | length == 0
+        fail_msg: Refusing to replace an unreviewed container runtime.
+
+    - name: Create the APT keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the pinned Docker repository signing key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        checksum: sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure the official Docker repository
+      ansible.builtin.copy:
+        src: files/docker.sources
+        dest: /etc/apt/sources.list.d/docker.sources
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Pin the reviewed Docker package set
+      ansible.builtin.copy:
+        dest: /etc/apt/preferences.d/minos-docker
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          Package: docker-ce docker-ce-cli
+          Pin: version {{ docker_engine_version }}
+          Pin-Priority: 1001
+
+          Package: containerd.io
+          Pin: version {{ docker_containerd_version }}
+          Pin-Priority: 1001
+
+          Package: docker-compose-plugin
+          Pin: version {{ docker_compose_version }}
+          Pin-Priority: 1001
+
     - name: Refresh the APT package index
       ansible.builtin.apt:
         update_cache: true
@@ -64,6 +234,492 @@
           - unattended-upgrades
           - ufw
         state: present
+
+    - name: Create the Docker configuration directory
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure the Docker daemon security and log boundary
+      ansible.builtin.copy:
+        src: files/docker-daemon.json
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Docker
+
+    - name: Install the exact Docker Engine and Compose package set
+      ansible.builtin.apt:
+        name: "{{ docker_packages }}"
+        state: present
+        install_recommends: false
+      when: not ansible_check_mode
+
+    - name: Enable Docker Engine and containerd
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - containerd.service
+        - docker.service
+      when: not ansible_check_mode
+
+    - name: Apply Docker configuration before verification
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read the effective Docker Engine settings
+      ansible.builtin.command:
+        argv:
+          - docker
+          - info
+          - --format
+          - "{{ '{{.Driver}}|{{.LoggingDriver}}|{{.LiveRestoreEnabled}}|{{.DockerRootDir}}' }}"
+      register: docker_effective
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Read the Docker and Compose versions
+      ansible.builtin.command:
+        argv: "{{ item }}"
+      loop:
+        - [docker, version, --format, "{{ '{{.Server.Version}}' }}"]
+        - [docker, compose, version, --short]
+      register: docker_versions
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Read the installed Docker package versions
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - --show
+          - "--showformat=${Package}=${Version}\n"
+          - containerd.io
+          - docker-ce
+          - docker-ce-cli
+          - docker-compose-plugin
+      register: docker_package_versions
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Inspect the Docker socket and operator group
+      ansible.builtin.stat:
+        path: /var/run/docker.sock
+      register: docker_socket
+      when: not ansible_check_mode
+
+    - name: Read the Docker operator group
+      ansible.builtin.getent:
+        database: group
+        key: docker
+      when: not ansible_check_mode
+
+    - name: Read the local account database
+      ansible.builtin.getent:
+        database: passwd
+      when: not ansible_check_mode
+
+    - name: Classify primary Docker group members
+      ansible.builtin.set_fact:
+        docker_primary_group_members: >-
+          {{ ansible_facts.getent_passwd | dict2items
+             | selectattr('value.2', 'equalto', ansible_facts.getent_group.docker[1])
+             | map(attribute='key') | list }}
+      when: not ansible_check_mode
+
+    - name: Inspect TCP listeners after starting Docker
+      ansible.builtin.command:
+        argv: [ss, -H, -lntp]
+      register: tcp_listeners_after_docker
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require the reviewed Docker runtime boundary
+      ansible.builtin.assert:
+        that:
+          - docker_effective.stdout.split('|')[0] in ['overlay2', 'overlayfs']
+          - docker_effective.stdout.split('|')[1:] == ['local', 'true', '/var/lib/docker']
+          - docker_versions.results[0].stdout == "29.8.1"
+          - docker_versions.results[1].stdout == "5.5.1"
+          - docker_package_versions.stdout_lines | sort == [
+              'containerd.io=' + docker_containerd_version,
+              'docker-ce=' + docker_engine_version,
+              'docker-ce-cli=' + docker_engine_version,
+              'docker-compose-plugin=' + docker_compose_version
+            ] | sort
+          - docker_socket.stat.exists
+          - docker_socket.stat.pw_name == "root"
+          - docker_socket.stat.gr_name == "docker"
+          - docker_socket.stat.mode == "0660"
+          - ansible_facts.getent_group.docker[2] | length == 0
+          - docker_primary_group_members | length == 0
+          - "'dockerd' not in tcp_listeners_after_docker.stdout"
+        fail_msg: The effective Docker runtime differs from the reviewed boundary.
+      when: not ansible_check_mode
+
+    - name: Exercise the container runtime without network or host publication
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --network
+          - none
+          - docker.io/library/hello-world@sha256:5e23090353324d887c48ad5e5c56d294eab81588df9605b07d1afe895f9cc8f8
+      register: docker_smoke_test
+      changed_when: false
+      failed_when: docker_smoke_test.rc != 0 or 'Hello from Docker!' not in docker_smoke_test.stdout
+      when: not ansible_check_mode
+
+    - name: Create the cloudflared credential group
+      ansible.builtin.group:
+        name: minos-cloudflared
+        gid: 65532
+        system: true
+        state: present
+
+    - name: Read the cloudflared credential group
+      ansible.builtin.getent:
+        database: group
+        key: minos-cloudflared
+      when: not ansible_check_mode
+
+    - name: Classify primary cloudflared group members
+      ansible.builtin.set_fact:
+        cloudflared_primary_group_members: >-
+          {{ ansible_facts.getent_passwd | dict2items
+             | selectattr('value.2', 'equalto', ansible_facts.getent_group['minos-cloudflared'][1])
+             | map(attribute='key') | list }}
+      when: not ansible_check_mode
+
+    - name: Require an exclusive cloudflared credential group
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.getent_group['minos-cloudflared'][1] == "65532"
+          - ansible_facts.getent_group['minos-cloudflared'][2] | length == 0
+          - cloudflared_primary_group_members | length == 0
+        fail_msg: The cloudflared credential group has an unreviewed host member.
+      when: not ansible_check_mode
+
+    - name: Create the Minos runtime directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: root
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - {path: /opt/minos, group: root, mode: "0755"}
+        - {path: /opt/minos/edge, group: root, mode: "0755"}
+        - {path: /opt/minos/candidate, group: root, mode: "0755"}
+        - {path: /opt/minos/candidate/edge, group: root, mode: "0755"}
+        - {path: /etc/minos, group: root, mode: "0750"}
+        - {path: /etc/minos/cloudflared, group: minos-cloudflared, mode: "0750"}
+
+    - name: Stage the non-secret Minos runtime files
+      ansible.builtin.copy:
+        src: "files/{{ item.src }}"
+        dest: "/opt/minos/candidate/{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - src: minos-compose.yml
+          dest: compose.yaml
+        - src: edge-nginx.conf
+          dest: edge/nginx.conf
+        - src: maintenance-index.html
+          dest: edge/index.html
+        - src: legal.css
+          dest: edge/legal.css
+        - src: plausible-init.js
+          dest: edge/plausible-init.js
+        - src: privacy-policy.html
+          dest: edge/privacy-policy.html
+        - src: terms.html
+          dest: edge/terms.html
+        - src: cloudflared-config.yml
+          dest: cloudflared-config.yml
+
+    - name: Install the operator-supplied cloudflared credential
+      ansible.builtin.copy:
+        content: "{{ cloudflared_credential_source_payload.content | b64decode }}"
+        dest: /etc/minos/cloudflared/529fc801-22fb-4577-b60e-517f0330cb8a.json
+        owner: root
+        group: minos-cloudflared
+        mode: "0440"
+      when: cloudflared_credentials_source is defined
+      no_log: true
+      notify: Reconcile Minos Compose
+
+    - name: Inspect the installed cloudflared credential
+      ansible.builtin.stat:
+        path: /etc/minos/cloudflared/529fc801-22fb-4577-b60e-517f0330cb8a.json
+      register: cloudflared_credential
+      when: not ansible_check_mode
+
+    - name: Require the cloudflared credential security boundary
+      ansible.builtin.assert:
+        that:
+          - cloudflared_credential.stat.exists
+          - cloudflared_credential.stat.isreg
+          - cloudflared_credential.stat.pw_name == "root"
+          - cloudflared_credential.stat.gr_name == "minos-cloudflared"
+          - cloudflared_credential.stat.mode == "0440"
+          - cloudflared_credential.stat.checksum == cloudflared_credential_preflight_checksum
+        fail_msg: Install the tunnel credential through cloudflared_credentials_source.
+      when: not ansible_check_mode
+
+    - name: Validate the candidate Nginx configuration with the pinned image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --network
+          - none
+          - --read-only
+          - --tmpfs
+          - /tmp:rw,noexec,nosuid,nodev,size=8m,uid=101,gid=101,mode=0700
+          - --entrypoint
+          - nginx
+          - --volume
+          - /opt/minos/candidate/edge/nginx.conf:/etc/nginx/nginx.conf:ro
+          - --volume
+          - /opt/minos/candidate/edge/index.html:/usr/share/nginx/html/index.html:ro
+          - --volume
+          - /opt/minos/candidate/edge/legal.css:/usr/share/nginx/html/legal.css:ro
+          - --volume
+          - /opt/minos/candidate/edge/plausible-init.js:/usr/share/nginx/html/plausible-init.js:ro
+          - --volume
+          - /opt/minos/candidate/edge/privacy-policy.html:/usr/share/nginx/html/privacy-policy.html:ro
+          - --volume
+          - /opt/minos/candidate/edge/terms.html:/usr/share/nginx/html/terms.html:ro
+          - docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972
+          - -t
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Validate the candidate cloudflared ingress with the pinned image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --network
+          - none
+          - --volume
+          - /opt/minos/candidate/cloudflared-config.yml:/etc/cloudflared/config.yml:ro
+          - docker.io/cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4
+          - tunnel
+          - --config
+          - /etc/cloudflared/config.yml
+          - ingress
+          - validate
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Validate the candidate Minos Compose model
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --file
+          - /opt/minos/candidate/compose.yaml
+          - config
+          - --quiet
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Promote the validated non-secret Minos runtime files
+      ansible.builtin.copy:
+        src: "/opt/minos/candidate/{{ item.src }}"
+        dest: "{{ item.dest }}"
+        remote_src: true
+        owner: root
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - src: compose.yaml
+          dest: /opt/minos/compose.yaml
+          group: root
+          mode: "0644"
+        - src: edge/nginx.conf
+          dest: /opt/minos/edge/nginx.conf
+          group: root
+          mode: "0644"
+        - src: edge/index.html
+          dest: /opt/minos/edge/index.html
+          group: root
+          mode: "0644"
+        - src: edge/legal.css
+          dest: /opt/minos/edge/legal.css
+          group: root
+          mode: "0644"
+        - src: edge/plausible-init.js
+          dest: /opt/minos/edge/plausible-init.js
+          group: root
+          mode: "0644"
+        - src: edge/privacy-policy.html
+          dest: /opt/minos/edge/privacy-policy.html
+          group: root
+          mode: "0644"
+        - src: edge/terms.html
+          dest: /opt/minos/edge/terms.html
+          group: root
+          mode: "0644"
+        - src: cloudflared-config.yml
+          dest: /etc/minos/cloudflared/config.yml
+          group: minos-cloudflared
+          mode: "0440"
+      when: not ansible_check_mode
+      notify: Reconcile Minos Compose
+
+    - name: Install the Minos Compose systemd unit
+      ansible.builtin.copy:
+        src: files/minos-compose.service
+        dest: /etc/systemd/system/minos-compose.service
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Reconcile Minos Compose
+
+    - name: Enable and start the Minos maintenance stack
+      ansible.builtin.systemd_service:
+        name: minos-compose.service
+        daemon_reload: true
+        enabled: true
+        state: started
+      when: not ansible_check_mode
+
+    - name: Apply runtime changes before verification
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read running Minos Compose services
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - minos
+          - --file
+          - /opt/minos/compose.yaml
+          - ps
+          - --services
+          - --status
+          - running
+      register: minos_running_services
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Read Minos container identities
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - minos
+          - --file
+          - /opt/minos/compose.yaml
+          - ps
+          - --quiet
+          - "{{ item }}"
+      loop:
+        - edge
+        - cloudflared
+      register: minos_container_ids
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Inspect the Minos container runtime boundaries
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - --format
+          - "{{ '{{.State.Health.Status}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}' }}"
+          - "{{ item.stdout }}"
+      loop: "{{ minos_container_ids.results }}"
+      register: minos_container_boundaries
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Classify the Minos container runtime boundaries
+      ansible.builtin.set_fact:
+        minos_edge_boundary: "{{ minos_container_boundaries.results[0].stdout.split('|') }}"
+        minos_cloudflared_boundary: "{{ minos_container_boundaries.results[1].stdout.split('|') }}"
+      when: not ansible_check_mode
+
+    - name: Require the reviewed maintenance runtime boundary
+      ansible.builtin.assert:
+        that:
+          - minos_running_services.stdout_lines | sort == ['cloudflared', 'edge']
+          - minos_edge_boundary[0] == "healthy"
+          - minos_edge_boundary[1] == "{}"
+          - minos_edge_boundary[2] == "docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972"
+          - minos_edge_boundary[3] == "minos_edge"
+          - minos_edge_boundary[4] == "101:101"
+          - minos_edge_boundary[5] == "true"
+          - minos_edge_boundary[6] | from_json == ['ALL']
+          - minos_edge_boundary[7] | from_json == ['no-new-privileges:true']
+          - minos_edge_boundary[8] == "unless-stopped"
+          - minos_edge_boundary[9] == "67108864"
+          - minos_edge_boundary[10] == "500000000"
+          - minos_edge_boundary[11] == "64"
+          - >-
+            minos_edge_boundary[12] | from_json ==
+            {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
+          - (minos_edge_boundary[13] | from_json).keys() | list == ['minos_edge']
+          - minos_edge_boundary[14] | from_json | selectattr('RW', 'equalto', true) | list | length == 0
+          - minos_edge_boundary[14] | from_json | selectattr('Type', 'equalto', 'bind') | list | length == 6
+          - >-
+            minos_edge_boundary[14] | from_json | map(attribute='Destination') | sort ==
+            ['/etc/nginx/nginx.conf', '/usr/share/nginx/html/index.html',
+             '/usr/share/nginx/html/legal.css', '/usr/share/nginx/html/plausible-init.js',
+             '/usr/share/nginx/html/privacy-policy.html', '/usr/share/nginx/html/terms.html']
+          - >-
+            minos_edge_boundary[14] | from_json | map(attribute='Source') | sort ==
+            ['/opt/minos/edge/index.html', '/opt/minos/edge/legal.css',
+             '/opt/minos/edge/nginx.conf', '/opt/minos/edge/plausible-init.js',
+             '/opt/minos/edge/privacy-policy.html', '/opt/minos/edge/terms.html']
+          - >-
+            minos_edge_boundary[15] | from_json ==
+            {'/tmp': 'rw,noexec,nosuid,nodev,size=8m,uid=101,gid=101,mode=0700'}
+          - minos_cloudflared_boundary[0] == "healthy"
+          - minos_cloudflared_boundary[1] == "{}"
+          - minos_cloudflared_boundary[2] == "docker.io/cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4"
+          - minos_cloudflared_boundary[3] == "minos_edge"
+          - minos_cloudflared_boundary[4] == "65532:65532"
+          - minos_cloudflared_boundary[5] == "true"
+          - minos_cloudflared_boundary[6] | from_json == ['ALL']
+          - minos_cloudflared_boundary[7] | from_json == ['no-new-privileges:true']
+          - minos_cloudflared_boundary[8] == "unless-stopped"
+          - minos_cloudflared_boundary[9] == "100663296"
+          - minos_cloudflared_boundary[10] == "500000000"
+          - minos_cloudflared_boundary[11] == "64"
+          - >-
+            minos_cloudflared_boundary[12] | from_json ==
+            {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
+          - (minos_cloudflared_boundary[13] | from_json).keys() | list | sort == ['minos_edge', 'minos_tunnel-egress']
+          - minos_cloudflared_boundary[14] | from_json | selectattr('RW', 'equalto', true) | list | length == 0
+          - minos_cloudflared_boundary[14] | from_json | selectattr('Type', 'equalto', 'bind') | list | length == 2
+          - >-
+            minos_cloudflared_boundary[14] | from_json | map(attribute='Destination') | sort ==
+            ['/etc/cloudflared/config.yml', '/run/secrets/cloudflared-credentials.json']
+          - >-
+            minos_cloudflared_boundary[14] | from_json | map(attribute='Source') | sort ==
+            ['/etc/minos/cloudflared/529fc801-22fb-4577-b60e-517f0330cb8a.json',
+             '/etc/minos/cloudflared/config.yml']
+          - >-
+            minos_cloudflared_boundary[15] | from_json ==
+            {'/tmp': 'rw,noexec,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0700'}
+        fail_msg: The maintenance stack differs from the reviewed runtime boundary.
+      when: not ansible_check_mode
 
     - name: Enable periodic package maintenance
       ansible.builtin.copy:
@@ -364,3 +1020,15 @@
       ansible.builtin.systemd_service:
         name: systemd-journald.service
         state: restarted
+
+    - name: Restart Docker
+      ansible.builtin.systemd_service:
+        name: docker.service
+        state: restarted
+      when: not ansible_check_mode
+
+    - name: Reconcile Minos Compose
+      ansible.builtin.systemd_service:
+        name: minos-compose.service
+        state: reloaded
+      when: not ansible_check_mode

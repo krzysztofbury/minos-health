@@ -90,12 +90,12 @@ Neovim integration is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 Security and correctness come first; performance is measured as product
 behavior, with targeted mutation and integration testing for critical paths.
 
-Docker Compose is not available yet. The current issue #6 implementation is a
-tested RSK transport library without an executable watcher, archive adapter, or
-container image. `.env.example` identifies which RSK settings are active and
-comments out settings reserved for the control database, S3 archive, and
-container work. Compose will be added only after those contracts are
-implemented.
+A production-only maintenance Compose stack now serves an explicit holding page
+through Cloudflare Tunnel, but the Minos application stack is not available yet.
+The current issue #6 implementation is a tested RSK transport library without an
+executable watcher, archive adapter, or application image. `.env.example`
+identifies which RSK settings are active and comments out settings reserved for
+the control database, S3 archive, and application-container work.
 
 ## Data
 

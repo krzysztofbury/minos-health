@@ -286,7 +286,10 @@ Application logs must not contain:
 Docker uses the bounded `local` log driver. The initial limit is three 10 MB
 files per service and must be verified after representative watcher and API
 traffic. Cloudflare access logging and analytics remain disabled until a privacy
-review addresses client identifiers and medical terms in URLs.
+review addresses client identifiers and medical terms in URLs. Direct Plausible
+pageviews and their aggregate engagement duration and scroll depth are the only
+active public analytics. They use no cookies or custom properties; custom events
+require an explicit event and property allowlist.
 
 CloudWatch is not used for the Mikr.us runtime. A future external error service
 requires explicit event allowlisting, bounded retention, and a privacy review.

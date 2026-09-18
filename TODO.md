@@ -46,8 +46,9 @@ day-to-day order.
       after trademark counsel clears the name.
 - [ ] Configure registrar lock, 2FA, auto-renewal, recovery codes off-host,
       and DNSSEC when the delegation chain supports it.
-- [ ] Route canonical `.pl` through Cloudflare Tunnel and set up `.com` as a
-      proxied permanent redirect to `.pl` while preserving safe paths.
+- [x] Route canonical `.pl` through Cloudflare Tunnel and set up `.com` as a
+      proxied permanent redirect to `.pl` while preserving safe paths; serve an
+      honest maintenance page until the application exists.
 
 ## Trademark And Legal
 
@@ -277,8 +278,10 @@ day-to-day order.
       console password, install a dedicated 1Password-backed operator key, and
       apply an idempotent Ansible baseline for key-only SSH, exact UFW rules,
       current packages, unattended upgrades, and bounded persistent logs.
-- [ ] Extend the reviewed Ansible baseline with Docker, Compose, service UIDs and
-      GIDs, persistent and staging volumes, and service-restricted secret files.
+- [x] Extend the reviewed Ansible baseline with exact Docker Engine and Compose
+      packages, bounded logs, no unprivileged operators, and no TCP daemon socket.
+- [ ] Add service UIDs and GIDs, persistent and staging volumes, and service-
+      restricted secret files with the first deployable Compose stack.
 - [ ] Create the `phase0` Terraform root for the snapshot bucket, conditional
       write policy, watcher IAM identity, GitHub OIDC read role, and budget.
 - [ ] Create the watcher access key manually outside Terraform; store the
@@ -286,11 +289,16 @@ day-to-day order.
       restricted host file for the pinned watcher UID/GID.
 - [ ] Authenticate to GHCR with a GitHub token scoped to `read:packages`; use
       AWS OIDC only for GitHub archive reads.
-- [ ] Create the Cloudflare Tunnel and store its supported credentials file as a
-      service-restricted host secret for the pinned `cloudflared` UID/GID;
-      publish no application port directly from Mikr.us.
+- [x] Create the Cloudflare Tunnel, back up its scoped credential in 1Password,
+      install it as a service-restricted host secret for the pinned
+      `cloudflared` GID, and publish no application port directly from Mikr.us.
 - [ ] Manage Cloudflare DNS and tunnel routing with Terraform where supported;
       keep access logs and query analytics disabled pending privacy review.
+- [x] Add direct Plausible pageview and aggregate engagement analytics without
+      cookies, custom properties, medical query values, Tag Manager, or a
+      consent banner.
+- [x] Publish maintenance-stage privacy policy and terms with the operator and
+      privacy boundaries; obtain legal review before product or paid launch.
 - [ ] Deploy exact API, edge, watcher, and `cloudflared` digests from one
       compatible release manifest; do not deploy mutable tags or use Watchtower.
 - [ ] Quiesce watcher dispatch, verify a pre-deploy recovery image, test

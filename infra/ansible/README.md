@@ -5,10 +5,14 @@ Mikr.us `3.0` production host. Run commands from the repository root so the
 pinned SSH host-key file resolves correctly.
 
 The playbook pins key-only root SSH, a default-deny inbound firewall, unattended
-security upgrades, and bounded persistent journald storage. The root password is
-console recovery material stored only in 1Password; it cannot authenticate over
-SSH. Application containers, Docker, secrets, and data recovery are added by
-later reviewed changes.
+security upgrades, bounded persistent journald storage, and exact Docker Engine
+and Compose packages from Docker's official repository. Docker exposes only its
+root-owned Unix socket, has no unprivileged operators, defaults containers to
+`no-new-privileges`, and uses bounded local logs. The root password is console
+recovery material stored only in 1Password; it cannot authenticate over SSH.
+Application containers, their service identities and secrets, and data recovery
+are added by later reviewed changes. The tunnel credential is the only current
+runtime secret.
 
 The dedicated private key is the `minos-mikrus-production-ssh` SSH Key item in
 the `MinosHealth` 1Password vault. Restore it locally as
@@ -41,21 +45,33 @@ ssh -p 10159 -o ControlMaster=no -o ControlPath=none \
   root@andrzej159.mikrus.xyz true
 ```
 
-Apply only after the check targets `andrzej159` and key authentication works in
-a second SSH session:
+Before the first apply, retrieve the tunnel-specific credential recovery copy to
+a mode-`0600` temporary file outside the repository. Apply only after the check
+targets `andrzej159` and key authentication works in a second SSH session:
 
 ```sh
+umask 077
+op document get minos-production-cloudflared-credentials \
+  --vault MinosHealth --out /tmp/minos-cloudflared-credentials.json
 ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
   uvx --from ansible-core==2.21.4 ansible-playbook \
-  infra/ansible/site.yml --diff
+  infra/ansible/site.yml --diff \
+  -e cloudflared_credentials_source=/tmp/minos-cloudflared-credentials.json
+rm /tmp/minos-cloudflared-credentials.json
 ```
 
 Run it again afterward; an unchanged host must report no changes.
+Later applies omit the extra variable and preserve the installed credential.
+The temporary edge serves an explicit maintenance page, reports edge liveness at
+`/healthz`, reports product unavailability at `/readyz`, redirects `.com` to the
+matching `.pl` path, and publishes no host port. It is not the Minos application.
 
 Acceptance also runs `unattended-upgrade --dry-run --debug`, verifies the APT
 timers and reboot marker, tests a fresh key-only SSH connection, proves that
-keyboard-interactive login fails, checks both UFW address families, and runs
-`journalctl --verify`.
+keyboard-interactive login fails, checks both UFW address families, runs
+`journalctl --verify`, and exercises an immutable `hello-world` image without
+network access or host port publication. It also requires healthy exact-digest
+edge and `cloudflared` containers with no Docker port bindings.
 
 ## Recovery Boundary
 

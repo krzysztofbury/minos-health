@@ -343,6 +343,14 @@ discarded. Structured events use route templates, request IDs, status classes,
 timings, result counts, and dataset versions. Any future query analytics
 require a separate privacy design and accepted decision.
 
+The public site loads Plausible directly, not through a tag manager, for
+sanitized pageviews and the tracker's related aggregate engagement duration and
+scroll-depth measurements. The accepted configuration uses no cookies, local
+storage, persistent identifiers, advertising, user IDs, medical values, or
+custom event properties. Public URLs must not carry medical queries. Automatic
+form, download, and outbound-link tracking remain disabled; any custom event
+requires a documented property allowlist and privacy review.
+
 Loguru emits allowlisted structured events to stdout for collection by the
 active platform. It is not the incident model or an external error tracker.
 Watcher and recovery-image failures surface through SQLite incidents and
@@ -363,8 +371,7 @@ Terraform state, or an image.
 ## Open Gates
 
 - Trademark counsel review of Minos; fallback decision if negative.
-- Cloudflare Tunnel routing for canonical `.pl`, `.com` redirect, DNSSEC, and
-  the optional `minos.health` decision.
+- DNSSEC and the optional `minos.health` decision.
 - Formal Art. 4 legal opinion for commercial use of NFZ-published data.
 - `CC BY-NC-SA 3.0 IGO` scope resolution for the RSK ICD-10 dictionary.
 - Inspection and fixturing of complete RSK XML, NFZ XLSX, and komunikat DOCX
