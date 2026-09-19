@@ -92,10 +92,11 @@ behavior, with targeted mutation and integration testing for critical paths.
 
 A production-only maintenance Compose stack now serves an explicit holding page
 through Cloudflare Tunnel, but the Minos application stack is not available yet.
-The current issue #6 implementation is a tested RSK transport library without an
-executable watcher, archive adapter, or application image. `.env.example`
-identifies which RSK settings are active and comments out settings reserved for
-the control database, S3 archive, and application-container work.
+The current watcher foundation includes the tested RSK transport, SQLite control
+transactions, bounded staging, and local and S3 blob archive adapters, but no
+executable watcher or application image. `.env.example` identifies which RSK
+settings are active and comments out settings reserved for process wiring and
+application-container work.
 
 ## Data
 

@@ -44,6 +44,9 @@ release.
   validated UTC schedules, fenced claims, legal run transitions, and atomic
   revisioned observation, cursor, change, incident, and audit commits, including
   recovery-revision fencing before heartbeat reconciliation.
+- Shared bounded raw-blob staging with atomic local content-addressed storage and
+  direct single-part S3 conditional writes, checksum-enabled verification,
+  bounded conflict handling, and verified reuse receipts.
 
 ### Changed
 

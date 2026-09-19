@@ -47,6 +47,7 @@ _MAX_OBSERVATION_BLOBS_PER_COMMIT = 1024
 _MAX_CHANGES_PER_COMMIT = 256
 _MAX_INCIDENTS_PER_COMMIT = 256
 _MAX_RECONCILABLE_RUNS = 1000
+_MAX_BLOB_SIZE_BYTES = 512 * 1024 * 1024
 _SENSITIVE_CONFIGURATION_SUFFIXES = (
     "_access_key",
     "_authorization",
@@ -1561,7 +1562,13 @@ def _validate_blob_receipt(receipt: BlobReceipt) -> None:
     _validate_sha256(receipt.verified_sha256, "verified blob SHA-256")
     if receipt.verified_sha256 != receipt.sha256:
         raise BlobVerificationError("blob receipt checksum verification does not match")
-    if receipt.size_bytes < 0 or receipt.verified_size_bytes != receipt.size_bytes:
+    if (
+        not _is_strict_integer(receipt.size_bytes)
+        or receipt.size_bytes < 0
+        or receipt.size_bytes > _MAX_BLOB_SIZE_BYTES
+        or not _is_strict_integer(receipt.verified_size_bytes)
+        or receipt.verified_size_bytes != receipt.size_bytes
+    ):
         raise BlobVerificationError("blob receipt byte verification does not match")
     if receipt.archive_key != f"blobs/sha256/{receipt.sha256}":
         raise BlobVerificationError("blob receipt archive key is not digest-derived")

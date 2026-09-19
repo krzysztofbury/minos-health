@@ -157,6 +157,14 @@ day-to-day order.
 - [x] Implement the single-writer control transactions for configuration and
       schedule changes, fenced claims, legal run transitions, atomic observation
       commits, state revision increments, incidents, and audit events.
+- [x] Implement bounded mode-0600 blob staging plus equivalent local and S3
+      content-addressed adapters with conditional-create, verified-reuse, native
+      SHA-256, byte-count, conflict, timeout, and corruption unit coverage.
+- [ ] Prove S3 versioning, native checksum, conditional-create, IAM denial,
+      lifecycle, and bounded listing semantics against a disposable AWS stack.
+- [ ] At the watcher orchestration boundary, turn archive verification failures
+      into hard incidents and failed claims, and prove observations and source
+      cursors remain unchanged.
 - [ ] Run APScheduler `3.11.x` as one UTC `BlockingScheduler` worker with
       bounded misfire handling. Reconcile committed and heartbeat-pending runs
       before dispatch and use durable due cursors plus token-and-epoch fenced

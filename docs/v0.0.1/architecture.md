@@ -214,6 +214,15 @@ adapter owns native checksum and byte verification. A recovery receipt must
 identify an immutable image of the current database revision before the control
 adapter records `heartbeat_pending`.
 
+The shared archive boundary stages at most one mode-`0600` file per configured
+directory while incrementally computing its byte count and SHA-256. The local
+adapter copies into an archive-owned mode-`0600` inode, atomically installs the
+digest path without replacement, and re-verifies it for development.
+The production adapter uses direct single-part S3 `PutObject` with conditional
+creation and native SHA-256, then checksum-enabled `HeadObject`; it never uses a
+transfer manager or multipart upload. Both return the same control-plane receipt
+and reject existing bytes that do not match the requested digest and size.
+
 `database/application` is a reserved future boundary, not part of `v0.0.1`.
 If accounts and billing are introduced, its PostgreSQL migrations and backups
 remain independent from replaceable reference artifacts and local browser

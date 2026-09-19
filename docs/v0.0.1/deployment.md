@@ -2,8 +2,9 @@
 
 Status: target application architecture. The host baseline currently runs an
 exact-digest maintenance edge and Cloudflare Tunnel, but the repository does not
-yet have the API image, watcher entry point, archive adapter, complete application
-Compose stack, scheduler, or release workflow.
+yet have the API image, watcher entry point, complete application Compose stack,
+scheduler, or release workflow. Local and S3 archive adapters exist as libraries
+but are not wired into a running service.
 
 ## Goals
 

@@ -52,6 +52,10 @@ and full jitter for idempotent source reads; retry classification, `Retry-After`
 handling, and streaming rollback remain explicit in Minos code. APScheduler
 (MIT) parses five-field cron expressions and calculates UTC fire times; Minos
 retains ownership of durable schedule cursors, claims, and transaction fencing.
+Boto3 and Botocore (Apache-2.0) provide direct S3 API calls and modeled AWS error
+classification. Minos owns content addressing, single-part conditional-write
+policy, bounded conflict handling, and native checksum verification; transfer
+manager helpers are not used.
 
 Development-only dependencies are pre-commit (MIT) for reproducible repository
 checks, Bandit (Apache-2.0) for Python static security analysis, pip-audit
@@ -68,11 +72,11 @@ is pinned to a full commit SHA.
 Docker Compose is the target full local application runtime, but it is not
 implemented yet. The production host has a separate maintenance-only edge and
 Cloudflare Tunnel definition under `infra/ansible/files/`; it is not a local
-Minos application stack. The current issue #6 code provides the RSK transport as
-a tested library; there is no executable watcher, archive adapter, Dockerfile,
-or root `compose.yaml`. Development currently uses `uv sync --all-groups` and
-the checks below. Do not expect `docker compose up` to work until the archive
-contract and watcher entry point are implemented.
+Minos application stack. The current watcher foundation provides the RSK
+transport, control transactions, and local and S3 archive adapters as tested
+libraries; there is no executable watcher, Dockerfile, or root `compose.yaml`.
+Development currently uses `uv sync --all-groups` and the checks below. Do not
+expect `docker compose up` to work until the watcher entry point is implemented.
 
 When added, Compose must execute the same application artifacts and commands
 used on Mikr.us, with persistent ignored local storage for watcher control state.
