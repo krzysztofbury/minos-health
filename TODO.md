@@ -154,7 +154,7 @@ day-to-day order.
       observations, blobs, source cursors, monotonic state revisions, changes,
       incidents, and audit events. Keep the canonical `schema.sql` synchronized
       with numbered checksum-verified migrations and tested down scripts.
-- [ ] Implement the single-writer control transactions for configuration and
+- [x] Implement the single-writer control transactions for configuration and
       schedule changes, fenced claims, legal run transitions, atomic observation
       commits, state revision increments, incidents, and audit events.
 - [ ] Run APScheduler `3.11.x` as one UTC `BlockingScheduler` worker with

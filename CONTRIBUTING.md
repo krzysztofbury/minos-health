@@ -49,7 +49,9 @@ code, a clear ownership boundary, and a licence review.
 Loguru (MIT) emits allowlisted structured process events without installing
 library-level sinks. backoff (MIT) supplies the bounded exponential schedule
 and full jitter for idempotent source reads; retry classification, `Retry-After`
-handling, and streaming rollback remain explicit in Minos code.
+handling, and streaming rollback remain explicit in Minos code. APScheduler
+(MIT) parses five-field cron expressions and calculates UTC fire times; Minos
+retains ownership of durable schedule cursors, claims, and transaction fencing.
 
 Development-only dependencies are pre-commit (MIT) for reproducible repository
 checks, Bandit (Apache-2.0) for Python static security analysis, pip-audit

@@ -40,6 +40,10 @@ release.
 - Raw-SQL watcher control schema with a canonical current-state DDL, numbered
   transactional up/down migrations, exact-byte checksums, forward-reader
   compatibility, packaged SQL resources, and migration fault-injection tests.
+- Single-writer raw-SQL control transactions for canonical source configuration,
+  validated UTC schedules, fenced claims, legal run transitions, and atomic
+  revisioned observation, cursor, change, incident, and audit commits, including
+  recovery-revision fencing before heartbeat reconciliation.
 
 ### Changed
 

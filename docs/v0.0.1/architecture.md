@@ -200,6 +200,20 @@ in local and automated tests; production rollback restores the verified
 pre-deploy recovery image. A retained older watcher may read an explicitly
 compatible newer additive schema after validating every migration it knows.
 
+The Python control adapter owns one dedicated raw-`sqlite3` writer connection.
+It opens explicit `BEGIN IMMEDIATE` transactions in WAL mode with full
+synchronous durability and SQLite defensive mode. Configuration and schedule
+changes, fenced claims, expiry incidents, failures, observation commits, and
+reconciliation transitions each allocate at most one monotonic state revision
+and audit record. Configuration JSON is canonical and excludes secret-like
+keys; cron expressions are parsed in UTC before persistence. Source advancement
+accepts only structurally valid digest-derived receipts from the archive
+boundary and commits observations, blob references, the source cursor, bounded
+changes or incidents, and the `committed` run transition atomically. The archive
+adapter owns native checksum and byte verification. A recovery receipt must
+identify an immutable image of the current database revision before the control
+adapter records `heartbeat_pending`.
+
 `database/application` is a reserved future boundary, not part of `v0.0.1`.
 If accounts and billing are introduced, its PostgreSQL migrations and backups
 remain independent from replaceable reference artifacts and local browser

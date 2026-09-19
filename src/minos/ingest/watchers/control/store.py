@@ -1,0 +1,1817 @@
+import json
+import math
+import re
+import secrets
+import sqlite3
+import time
+from collections.abc import Generator
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta, tzinfo
+from hashlib import sha256
+from pathlib import Path
+from typing import Protocol, TypeIs, cast
+from uuid import uuid4
+
+from pydantic import ValidationError
+
+from minos.ingest.watchers.config import RskConfiguration
+from minos.ingest.watchers.control.migrations import (
+    CONTROL_SCHEMA_VERSION,
+    MigrationError,
+    apply_control_migrations,
+)
+from minos.ingest.watchers.control.models import (
+    BlobReceipt,
+    ChangeDraft,
+    ClaimIdentity,
+    ClaimRequest,
+    CommittedRun,
+    ConfiguredSource,
+    IncidentDraft,
+    JsonValue,
+    ObservationCommit,
+    ObservationDraft,
+    RecoveryReceipt,
+    RunClaim,
+    RunTransition,
+    ScheduleResult,
+    SourceConfiguration,
+    SourceSchedule,
+)
+
+_MAX_TIMESTAMP_MS = 253_402_300_799_999
+_MAX_BLOBS_PER_COMMIT = 256
+_MAX_OBSERVATIONS_PER_COMMIT = 256
+_MAX_OBSERVATION_BLOBS_PER_COMMIT = 1024
+_MAX_CHANGES_PER_COMMIT = 256
+_MAX_INCIDENTS_PER_COMMIT = 256
+_MAX_RECONCILABLE_RUNS = 1000
+_SENSITIVE_CONFIGURATION_SUFFIXES = (
+    "_access_key",
+    "_authorization",
+    "_cookie",
+    "_credential",
+    "_credentials",
+    "_password",
+    "_private_key",
+    "_secret",
+    "_secret_key",
+    "_token",
+)
+_SENSITIVE_CONFIGURATION_KEYS = frozenset(
+    item[1:] for item in _SENSITIVE_CONFIGURATION_SUFFIXES
+)
+_CONTROL_STORE_OWNER = object()
+
+
+class _CronSchedule(Protocol):
+    def get_next_fire_time(
+        self,
+        previous_fire_time: datetime | None,
+        now: datetime,
+    ) -> datetime | None: ...
+
+
+class _CronTriggerFactory(Protocol):
+    @staticmethod
+    def from_crontab(expression: str, timezone: tzinfo) -> _CronSchedule: ...
+
+
+class ControlStoreError(RuntimeError):
+    """The watcher control state could not be changed safely."""
+
+
+class ControlValidationError(ControlStoreError):
+    """A control transaction command violates the persistence contract."""
+
+
+class BlobVerificationError(ControlValidationError):
+    """An archive receipt does not match the requested immutable blob."""
+
+
+class SourceNotFoundError(ControlStoreError):
+    """The requested watcher source does not exist."""
+
+
+class ClaimBlockedError(ControlStoreError):
+    """A source cannot be claimed in its current state."""
+
+
+class StaleClaimError(ControlStoreError):
+    """The collector no longer owns the claimed source run."""
+
+
+class IllegalRunTransitionError(ControlStoreError):
+    """A watcher run cannot make the requested state transition."""
+
+
+class ControlStorageError(ControlStoreError):
+    """SQLite rejected or could not complete a control transaction."""
+
+
+class ControlStore:
+    def __init__(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        busy_timeout_ms: int = 5000,
+        _owner: object | None = None,
+    ) -> None:
+        if _owner is not _CONTROL_STORE_OWNER:
+            raise ControlStorageError(
+                "control store connections must be owned by open()"
+            )
+        if busy_timeout_ms < 1 or busy_timeout_ms > 60_000:
+            raise ControlValidationError("busy timeout must be between 1 and 60000 ms")
+        _initialize_writer_connection(connection, busy_timeout_ms)
+        self._connection: sqlite3.Connection = connection
+        self._closed: bool = False
+
+    @classmethod
+    def open(
+        cls, database_path: str | Path, *, busy_timeout_ms: int = 5000
+    ) -> ControlStore:
+        connection = sqlite3.connect(
+            database_path,
+            timeout=busy_timeout_ms / 1000,
+            isolation_level=None,
+        )
+        try:
+            return cls(
+                connection,
+                busy_timeout_ms=busy_timeout_ms,
+                _owner=_CONTROL_STORE_OWNER,
+            )
+        except BaseException:
+            connection.close()
+            raise
+
+    def __enter__(self) -> ControlStore:
+        self._require_open()
+        return self
+
+    def __exit__(self, *_error: object) -> None:
+        self.close()
+
+    def close(self) -> None:
+        if not self._closed:
+            self._connection.close()
+            self._closed = True
+
+    def configure_source(
+        self,
+        command: SourceConfiguration,
+    ) -> ConfiguredSource:
+        self._require_open()
+        _validate_identifier(command.source_id, "source ID", 64)
+        _validate_identifier(command.watcher_type, "watcher type", 64)
+        _validate_boolean(command.enabled, "source enabled state")
+        _reject_sensitive_configuration(command.configuration)
+        validated_configuration = _validate_source_configuration(command)
+        configuration_json = _encode_json(
+            validated_configuration, 65_536, "configuration"
+        )
+        configuration_sha256 = sha256(configuration_json.encode("utf-8")).hexdigest()
+
+        with self._write_transaction() as now_ms:
+            current = self._read_source_configuration(command.source_id)
+            if current is not None:
+                watcher_type, revision, current_sha256, enabled = current
+                if watcher_type != command.watcher_type:
+                    raise ControlValidationError("a source watcher type is immutable")
+                if (
+                    current_sha256 == configuration_sha256
+                    and enabled == command.enabled
+                ):
+                    return ConfiguredSource(
+                        command.source_id,
+                        revision,
+                        configuration_sha256,
+                        self._read_state_revision(),
+                        False,
+                    )
+                configuration_changed = current_sha256 != configuration_sha256
+                next_configuration_revision = revision + int(configuration_changed)
+            else:
+                configuration_changed = True
+                next_configuration_revision = 1
+                self._insert_disabled_source(command, now_ms)
+
+            if configuration_changed:
+                self._insert_configuration_revision(
+                    command.source_id,
+                    next_configuration_revision,
+                    configuration_sha256,
+                    configuration_json,
+                    now_ms,
+                )
+            _ = self._connection.execute(
+                """
+                UPDATE sources
+                SET enabled = ?, current_configuration_revision = ?, updated_at_ms = ?
+                WHERE source_id = ?
+                """,
+                (
+                    command.enabled,
+                    next_configuration_revision,
+                    now_ms,
+                    command.source_id,
+                ),
+            )
+            state_revision = self._advance_state_revision(now_ms)
+            self._insert_audit(
+                source_id=command.source_id,
+                run_id=None,
+                event_type="source_configured",
+                details={
+                    "configuration_revision": next_configuration_revision,
+                    "enabled": command.enabled,
+                },
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return ConfiguredSource(
+                command.source_id,
+                next_configuration_revision,
+                configuration_sha256,
+                state_revision,
+                True,
+            )
+
+    def set_schedule(self, schedule: SourceSchedule) -> ScheduleResult:
+        self._require_open()
+        _validate_schedule(schedule)
+        values = (
+            schedule.cron_expression,
+            schedule.misfire_grace_seconds,
+            schedule.retry_max_attempts,
+            schedule.retry_base_seconds,
+            schedule.retry_max_seconds,
+        )
+        with self._write_transaction() as now_ms:
+            self._require_source(schedule.source_id)
+            existing = cast(
+                tuple[str, int, int, int, float, float] | None,
+                self._connection.execute(
+                    """
+                    SELECT cron_expression, next_due_at_ms, misfire_grace_seconds,
+                           retry_max_attempts, retry_base_seconds, retry_max_seconds
+                    FROM source_schedules
+                    WHERE source_id = ?
+                    """,
+                    (schedule.source_id,),
+                ).fetchone(),
+            )
+            if existing is not None and (existing[0], *existing[2:]) == values:
+                return ScheduleResult(
+                    schedule.source_id,
+                    existing[1],
+                    self._read_state_revision(),
+                    False,
+                )
+            if existing is not None and (
+                existing[0] == schedule.cron_expression or existing[1] <= now_ms
+            ):
+                next_due_at_ms = existing[1]
+            else:
+                next_due_at_ms = _next_cron_fire_ms(schedule.cron_expression, now_ms)
+            _ = self._connection.execute(
+                """
+                INSERT INTO source_schedules (
+                    source_id, cron_expression, next_due_at_ms,
+                    misfire_grace_seconds, retry_max_attempts,
+                    retry_base_seconds, retry_max_seconds, updated_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (source_id) DO UPDATE SET
+                    cron_expression = excluded.cron_expression,
+                    next_due_at_ms = excluded.next_due_at_ms,
+                    misfire_grace_seconds = excluded.misfire_grace_seconds,
+                    retry_max_attempts = excluded.retry_max_attempts,
+                    retry_base_seconds = excluded.retry_base_seconds,
+                    retry_max_seconds = excluded.retry_max_seconds,
+                    updated_at_ms = excluded.updated_at_ms
+                """,
+                (
+                    schedule.source_id,
+                    schedule.cron_expression,
+                    next_due_at_ms,
+                    schedule.misfire_grace_seconds,
+                    schedule.retry_max_attempts,
+                    schedule.retry_base_seconds,
+                    schedule.retry_max_seconds,
+                    now_ms,
+                ),
+            )
+            state_revision = self._advance_state_revision(now_ms)
+            self._insert_audit(
+                source_id=schedule.source_id,
+                run_id=None,
+                event_type="schedule_configured",
+                details={"next_due_at_ms": next_due_at_ms},
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return ScheduleResult(
+                schedule.source_id,
+                next_due_at_ms,
+                state_revision,
+                True,
+            )
+
+    def acquire_claim(self, request: ClaimRequest) -> RunClaim:
+        self._require_open()
+        _validate_claim_request(request)
+        run_id = uuid4().hex
+        claim_token = secrets.token_hex(32)
+        with self._write_transaction() as now_ms:
+            _validate_claim_timing(request, now_ms)
+            source = cast(
+                tuple[int, int | None, int, str | None] | None,
+                self._connection.execute(
+                    """
+                    SELECT s.enabled, s.current_configuration_revision,
+                           s.fencing_epoch, c.configuration_json
+                    FROM sources AS s
+                    LEFT JOIN source_configuration_revisions AS c
+                      ON c.source_id = s.source_id
+                     AND c.configuration_revision = s.current_configuration_revision
+                    WHERE s.source_id = ?
+                    """,
+                    (request.source_id,),
+                ).fetchone(),
+            )
+            if source is None:
+                raise SourceNotFoundError("watcher source does not exist")
+            enabled, configuration_revision, fencing_epoch, configuration_json = source
+            if (
+                enabled != 1
+                or configuration_revision is None
+                or configuration_json is None
+            ):
+                raise ClaimBlockedError("watcher source is disabled or unconfigured")
+            operation_deadline_ms = _read_operation_deadline_ms(configuration_json)
+            if request.deadline_after_ms > operation_deadline_ms:
+                raise ControlValidationError(
+                    "claim deadline exceeds the configured operation deadline"
+                )
+            deadline_at_ms = now_ms + request.deadline_after_ms
+            _validate_timestamp(deadline_at_ms, "claim deadline")
+            self._reject_blocking_run(request.source_id)
+            self._advance_due_cursor(request, now_ms)
+            next_fencing_epoch = fencing_epoch + 1
+            _ = self._connection.execute(
+                "UPDATE sources SET fencing_epoch = ?, updated_at_ms = ? WHERE source_id = ?",
+                (next_fencing_epoch, now_ms, request.source_id),
+            )
+            _ = self._connection.execute(
+                """
+                INSERT INTO watcher_runs (
+                    run_id, source_id, run_mode, status, claim_token, fencing_epoch,
+                    configuration_revision, scheduled_at_ms, started_at_ms, deadline_at_ms
+                ) VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    run_id,
+                    request.source_id,
+                    request.run_mode,
+                    claim_token,
+                    next_fencing_epoch,
+                    configuration_revision,
+                    request.scheduled_at_ms,
+                    now_ms,
+                    deadline_at_ms,
+                ),
+            )
+            state_revision = self._advance_state_revision(now_ms)
+            self._insert_audit(
+                source_id=request.source_id,
+                run_id=run_id,
+                event_type="run_claimed",
+                details={
+                    "fencing_epoch": next_fencing_epoch,
+                    "run_mode": request.run_mode,
+                    "scheduled_at_ms": request.scheduled_at_ms,
+                },
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            identity = ClaimIdentity(
+                source_id=request.source_id,
+                run_id=run_id,
+                claim_token=claim_token,
+                fencing_epoch=next_fencing_epoch,
+                configuration_revision=configuration_revision,
+                deadline_at_ms=deadline_at_ms,
+            )
+            return RunClaim(
+                identity,
+                request.run_mode,
+                request.scheduled_at_ms,
+                now_ms,
+                state_revision,
+            )
+
+    def fail_claim(
+        self,
+        claim: ClaimIdentity,
+        *,
+        error_category: str,
+        incident: IncidentDraft | None = None,
+    ) -> RunTransition:
+        self._require_open()
+        _validate_identifier(error_category, "error category", 64)
+        if incident is not None:
+            _validate_incident(incident)
+        with self._write_transaction() as now_ms:
+            self._require_live_claim(claim, now_ms)
+            state_revision = self._advance_state_revision(now_ms)
+            updated = self._connection.execute(
+                """
+                UPDATE watcher_runs
+                SET status = 'failed', finished_at_ms = ?, error_category = ?
+                WHERE run_id = ? AND source_id = ? AND claim_token = ?
+                  AND fencing_epoch = ? AND status = 'running' AND deadline_at_ms > ?
+                """,
+                (
+                    now_ms,
+                    error_category,
+                    claim.run_id,
+                    claim.source_id,
+                    claim.claim_token,
+                    claim.fencing_epoch,
+                    now_ms,
+                ),
+            )
+            _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+            if incident is not None:
+                self._insert_incident(
+                    incident,
+                    source_id=claim.source_id,
+                    run_id=claim.run_id,
+                    state_revision=state_revision,
+                    now_ms=now_ms,
+                )
+            self._insert_audit(
+                source_id=claim.source_id,
+                run_id=claim.run_id,
+                event_type="run_failed",
+                details={
+                    "error_category": error_category,
+                    "incident_id": incident.incident_id
+                    if incident is not None
+                    else None,
+                },
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return RunTransition(
+                claim.source_id,
+                claim.run_id,
+                "failed",
+                None,
+                state_revision,
+                True,
+            )
+
+    def expire_claim(
+        self,
+        claim: ClaimIdentity,
+        incident: IncidentDraft,
+    ) -> RunTransition:
+        self._require_open()
+        _validate_incident(incident)
+        with self._write_transaction() as now_ms:
+            self._require_expired_claim(claim, now_ms)
+            state_revision = self._advance_state_revision(now_ms)
+            updated = self._connection.execute(
+                """
+                UPDATE watcher_runs
+                SET status = 'expired', finished_at_ms = ?, error_category = ?
+                WHERE run_id = ? AND source_id = ? AND claim_token = ?
+                  AND fencing_epoch = ? AND status = 'running' AND deadline_at_ms <= ?
+                """,
+                (
+                    now_ms,
+                    incident.incident_category,
+                    claim.run_id,
+                    claim.source_id,
+                    claim.claim_token,
+                    claim.fencing_epoch,
+                    now_ms,
+                ),
+            )
+            _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+            self._insert_incident(
+                incident,
+                source_id=claim.source_id,
+                run_id=claim.run_id,
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            self._insert_audit(
+                source_id=claim.source_id,
+                run_id=claim.run_id,
+                event_type="run_expired",
+                details={"incident_id": incident.incident_id},
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return RunTransition(
+                claim.source_id,
+                claim.run_id,
+                "expired",
+                None,
+                state_revision,
+                True,
+            )
+
+    def commit_observations(
+        self,
+        claim: ClaimIdentity,
+        commit: ObservationCommit,
+    ) -> CommittedRun:
+        self._require_open()
+        try:
+            prepared = _prepare_observation_commit(commit)
+            return self._commit_prepared_observations(claim, commit, prepared)
+        except BlobVerificationError as error:
+            self._record_blob_verification_failure(claim, reason=str(error))
+            raise
+
+    def _commit_prepared_observations(
+        self,
+        claim: ClaimIdentity,
+        commit: ObservationCommit,
+        prepared: _PreparedCommit,
+    ) -> CommittedRun:
+        with self._write_transaction() as now_ms:
+            _validate_observation_times(commit, now_ms)
+            self._require_live_claim(claim, now_ms)
+            state_revision = self._advance_state_revision(now_ms)
+            for receipt in commit.blobs:
+                self._insert_or_validate_blob(receipt, now_ms)
+            for observation, metadata_json in prepared.observations:
+                self._insert_observation(
+                    claim, observation, metadata_json, state_revision
+                )
+            for observation in commit.observations:
+                for blob in observation.blobs:
+                    _ = self._connection.execute(
+                        """
+                        INSERT INTO observation_blobs (
+                            observation_id, blob_role, ordinal, sha256
+                        ) VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            observation.observation_id,
+                            blob.blob_role,
+                            blob.ordinal,
+                            blob.sha256,
+                        ),
+                    )
+            _ = self._connection.execute(
+                """
+                INSERT INTO source_cursors (
+                    source_id, cursor_json, state_revision, updated_at_ms
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT (source_id) DO UPDATE SET
+                    cursor_json = excluded.cursor_json,
+                    state_revision = excluded.state_revision,
+                    updated_at_ms = excluded.updated_at_ms
+                """,
+                (claim.source_id, prepared.cursor_json, state_revision, now_ms),
+            )
+            self._insert_changes(
+                claim, commit, prepared.change_json, state_revision, now_ms
+            )
+            for incident, details_json in zip(
+                commit.incidents,
+                prepared.incident_json,
+                strict=True,
+            ):
+                self._insert_incident_json(
+                    incident,
+                    details_json,
+                    source_id=claim.source_id,
+                    run_id=claim.run_id,
+                    state_revision=state_revision,
+                    now_ms=now_ms,
+                )
+            updated = self._connection.execute(
+                """
+                UPDATE watcher_runs
+                SET status = 'committed', committed_at_ms = ?, committed_state_revision = ?
+                WHERE run_id = ? AND source_id = ? AND claim_token = ?
+                  AND fencing_epoch = ? AND status = 'running' AND deadline_at_ms > ?
+                """,
+                (
+                    now_ms,
+                    state_revision,
+                    claim.run_id,
+                    claim.source_id,
+                    claim.claim_token,
+                    claim.fencing_epoch,
+                    now_ms,
+                ),
+            )
+            _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+            self._insert_audit(
+                source_id=claim.source_id,
+                run_id=claim.run_id,
+                event_type="observations_committed",
+                details={
+                    "change_count": len(commit.changes),
+                    "incident_count": len(commit.incidents),
+                    "observation_count": len(commit.observations),
+                },
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return CommittedRun(claim.source_id, claim.run_id, state_revision, now_ms)
+
+    def _record_blob_verification_failure(
+        self,
+        claim: ClaimIdentity,
+        *,
+        reason: str,
+    ) -> None:
+        incident = IncidentDraft(
+            uuid4().hex,
+            "blob_verification_mismatch",
+            {"reason": reason},
+        )
+        with self._write_transaction() as now_ms:
+            deadline_at_ms = self._require_running_claim(claim)
+            status = "failed" if deadline_at_ms > now_ms else "expired"
+            state_revision = self._advance_state_revision(now_ms)
+            updated = self._connection.execute(
+                """
+                UPDATE watcher_runs
+                SET status = ?, finished_at_ms = ?, error_category = ?
+                WHERE run_id = ? AND source_id = ? AND claim_token = ?
+                  AND fencing_epoch = ? AND status = 'running'
+                """,
+                (
+                    status,
+                    now_ms,
+                    incident.incident_category,
+                    claim.run_id,
+                    claim.source_id,
+                    claim.claim_token,
+                    claim.fencing_epoch,
+                ),
+            )
+            _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+            self._insert_incident(
+                incident,
+                source_id=claim.source_id,
+                run_id=claim.run_id,
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            self._insert_audit(
+                source_id=claim.source_id,
+                run_id=claim.run_id,
+                event_type="blob_verification_failed",
+                details={"incident_id": incident.incident_id, "status": status},
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+
+    def mark_heartbeat_pending(
+        self,
+        run_id: str,
+        *,
+        committed_state_revision: int,
+        recovery_receipt: RecoveryReceipt,
+    ) -> RunTransition:
+        _validate_recovery_receipt(
+            recovery_receipt,
+            run_id=run_id,
+            committed_state_revision=committed_state_revision,
+        )
+        return self._reconcile_transition(
+            run_id,
+            expected_status="committed",
+            target_status="heartbeat_pending",
+            committed_state_revision=committed_state_revision,
+            recovery_receipt=recovery_receipt,
+        )
+
+    def mark_successful(
+        self,
+        run_id: str,
+        *,
+        committed_state_revision: int,
+    ) -> RunTransition:
+        return self._reconcile_transition(
+            run_id,
+            expected_status="heartbeat_pending",
+            target_status="successful",
+            committed_state_revision=committed_state_revision,
+            recovery_receipt=None,
+        )
+
+    def list_reconcilable_runs(self, *, limit: int = 100) -> tuple[CommittedRun, ...]:
+        self._require_open()
+        if limit < 1 or limit > _MAX_RECONCILABLE_RUNS:
+            raise ControlValidationError(
+                "reconciliation limit is outside the supported range"
+            )
+        rows = cast(
+            list[tuple[str, str, int, int]],
+            self._connection.execute(
+                """
+                SELECT source_id, run_id, committed_state_revision, committed_at_ms
+                FROM watcher_runs
+                WHERE status IN ('committed', 'heartbeat_pending')
+                ORDER BY committed_state_revision, run_id
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall(),
+        )
+        return tuple(CommittedRun(*row) for row in rows)
+
+    def _reconcile_transition(
+        self,
+        run_id: str,
+        *,
+        expected_status: str,
+        target_status: str,
+        committed_state_revision: int,
+        recovery_receipt: RecoveryReceipt | None,
+    ) -> RunTransition:
+        self._require_open()
+        _validate_identifier(run_id, "run ID", 128, minimum=16)
+        _validate_positive(committed_state_revision, "committed state revision")
+        with self._write_transaction() as now_ms:
+            row = cast(
+                tuple[str, str, int, int | None] | None,
+                self._connection.execute(
+                    """
+                    SELECT source_id, status, committed_state_revision, finished_at_ms
+                    FROM watcher_runs
+                    WHERE run_id = ?
+                    """,
+                    (run_id,),
+                ).fetchone(),
+            )
+            if row is None:
+                raise IllegalRunTransitionError("watcher run does not exist")
+            source_id, status, stored_revision, finished_at_ms = row
+            if stored_revision != committed_state_revision:
+                raise IllegalRunTransitionError(
+                    "committed state revision does not match"
+                )
+            if status == target_status:
+                return RunTransition(
+                    source_id,
+                    run_id,
+                    status,
+                    stored_revision,
+                    self._read_state_revision(),
+                    False,
+                )
+            if status != expected_status:
+                raise IllegalRunTransitionError(
+                    "watcher run transition would skip a state"
+                )
+            if target_status == "successful" and finished_at_ms is not None:
+                raise IllegalRunTransitionError(
+                    "successful watcher run is already finished"
+                )
+            if recovery_receipt is not None:
+                current_state_revision = self._read_state_revision()
+                if recovery_receipt.state_revision != current_state_revision:
+                    raise IllegalRunTransitionError(
+                        "recovery image does not match the current state revision"
+                    )
+            state_revision = self._advance_state_revision(now_ms)
+            if target_status == "successful":
+                updated = self._connection.execute(
+                    """
+                    UPDATE watcher_runs
+                    SET status = 'successful', finished_at_ms = ?
+                    WHERE run_id = ? AND status = 'heartbeat_pending'
+                      AND committed_state_revision = ?
+                    """,
+                    (now_ms, run_id, committed_state_revision),
+                )
+            else:
+                updated = self._connection.execute(
+                    """
+                    UPDATE watcher_runs
+                    SET status = 'heartbeat_pending'
+                    WHERE run_id = ? AND status = 'committed'
+                      AND committed_state_revision = ?
+                    """,
+                    (run_id, committed_state_revision),
+                )
+            _require_one_updated(
+                updated,
+                IllegalRunTransitionError("watcher run transition lost its guard"),
+            )
+            self._insert_audit(
+                source_id=source_id,
+                run_id=run_id,
+                event_type=f"run_{target_status}",
+                details={
+                    "committed_state_revision": committed_state_revision,
+                    "recovery_archive_key": recovery_receipt.archive_key
+                    if recovery_receipt is not None
+                    else None,
+                    "recovery_sha256": recovery_receipt.sha256
+                    if recovery_receipt is not None
+                    else None,
+                    "recovery_state_revision": recovery_receipt.state_revision
+                    if recovery_receipt is not None
+                    else None,
+                },
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return RunTransition(
+                source_id,
+                run_id,
+                target_status,
+                committed_state_revision,
+                state_revision,
+                True,
+            )
+
+    @contextmanager
+    def _write_transaction(self) -> Generator[int]:
+        if self._connection.in_transaction:
+            raise ControlStorageError(
+                "control writer connection is already in a transaction"
+            )
+        try:
+            _ = self._connection.execute("BEGIN IMMEDIATE")
+        except sqlite3.Error as error:
+            raise ControlStorageError(
+                "control transaction could not acquire the writer lock"
+            ) from error
+        try:
+            now_ms = _utc_now_ms()
+            _validate_timestamp(now_ms, "transaction time")
+            yield now_ms
+        except BaseException as error:
+            self._rollback_or_poison(error)
+            if isinstance(error, sqlite3.Error):
+                raise ControlStorageError(
+                    "control transaction failed and was rolled back"
+                ) from error
+            raise
+        try:
+            self._connection.commit()
+        except BaseException as error:
+            self._rollback_or_poison(error)
+            raise ControlStorageError(
+                "control transaction commit failed and was rolled back"
+            ) from error
+
+    def _rollback_or_poison(self, cause: BaseException) -> None:
+        if not self._connection.in_transaction:
+            self.close()
+            raise ControlStorageError(
+                "control transaction outcome is uncertain; writer was closed"
+            ) from cause
+        try:
+            self._connection.rollback()
+        except BaseException as rollback_error:
+            self.close()
+            raise ControlStorageError(
+                "control transaction rollback failed; writer was closed"
+            ) from rollback_error
+
+    def _read_source_configuration(
+        self,
+        source_id: str,
+    ) -> tuple[str, int, str, bool] | None:
+        row = cast(
+            tuple[str, int, str, int] | None,
+            self._connection.execute(
+                """
+                SELECT s.watcher_type, s.current_configuration_revision,
+                       c.configuration_sha256, s.enabled
+                FROM sources AS s
+                JOIN source_configuration_revisions AS c
+                  ON c.source_id = s.source_id
+                 AND c.configuration_revision = s.current_configuration_revision
+                WHERE s.source_id = ?
+                """,
+                (source_id,),
+            ).fetchone(),
+        )
+        if row is None:
+            return None
+        watcher_type, revision, configuration_sha256, enabled = row
+        return watcher_type, revision, configuration_sha256, bool(enabled)
+
+    def _insert_disabled_source(
+        self,
+        command: SourceConfiguration,
+        now_ms: int,
+    ) -> None:
+        _ = self._connection.execute(
+            """
+            INSERT INTO sources (
+                source_id, watcher_type, enabled, current_configuration_revision,
+                fencing_epoch, created_at_ms, updated_at_ms
+            ) VALUES (?, ?, 0, NULL, 0, ?, ?)
+            """,
+            (command.source_id, command.watcher_type, now_ms, now_ms),
+        )
+
+    def _insert_configuration_revision(
+        self,
+        source_id: str,
+        configuration_revision: int,
+        configuration_sha256: str,
+        configuration_json: str,
+        now_ms: int,
+    ) -> None:
+        _ = self._connection.execute(
+            """
+            INSERT INTO source_configuration_revisions (
+                source_id, configuration_revision, configuration_sha256,
+                configuration_json, created_at_ms
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                source_id,
+                configuration_revision,
+                configuration_sha256,
+                configuration_json,
+                now_ms,
+            ),
+        )
+
+    def _require_source(self, source_id: str) -> None:
+        exists = cast(
+            tuple[int] | None,
+            self._connection.execute(
+                "SELECT 1 FROM sources WHERE source_id = ?",
+                (source_id,),
+            ).fetchone(),
+        )
+        if exists is None:
+            raise SourceNotFoundError("watcher source does not exist")
+
+    def _reject_blocking_run(self, source_id: str) -> None:
+        blocking = cast(
+            tuple[int] | None,
+            self._connection.execute(
+                """
+                SELECT 1 FROM watcher_runs
+                WHERE source_id = ?
+                  AND status IN ('running', 'committed', 'heartbeat_pending')
+                """,
+                (source_id,),
+            ).fetchone(),
+        )
+        if blocking is not None:
+            raise ClaimBlockedError("watcher source already has a blocking run")
+
+    def _advance_due_cursor(self, request: ClaimRequest, now_ms: int) -> None:
+        if request.expected_due_at_ms is None:
+            return
+        schedule = cast(
+            tuple[str, int] | None,
+            self._connection.execute(
+                """
+                SELECT cron_expression, next_due_at_ms
+                FROM source_schedules
+                WHERE source_id = ?
+                """,
+                (request.source_id,),
+            ).fetchone(),
+        )
+        if schedule is None or schedule[1] != request.expected_due_at_ms:
+            raise ClaimBlockedError(
+                "durable schedule cursor changed before claim acquisition"
+            )
+        next_due_at_ms = _next_cron_fire_ms(schedule[0], now_ms)
+        updated = self._connection.execute(
+            """
+            UPDATE source_schedules
+            SET next_due_at_ms = ?, updated_at_ms = ?
+            WHERE source_id = ? AND next_due_at_ms = ?
+            """,
+            (
+                next_due_at_ms,
+                now_ms,
+                request.source_id,
+                request.expected_due_at_ms,
+            ),
+        )
+        _require_one_updated(
+            updated,
+            ClaimBlockedError(
+                "durable schedule cursor changed before claim acquisition"
+            ),
+        )
+
+    def _require_live_claim(self, claim: ClaimIdentity, now_ms: int) -> None:
+        _validate_claim_identity(claim)
+        row = cast(
+            tuple[int] | None,
+            self._connection.execute(
+                """
+                SELECT 1
+                FROM watcher_runs AS r
+                JOIN sources AS s ON s.source_id = r.source_id
+                WHERE r.run_id = ? AND r.source_id = ? AND r.claim_token = ?
+                  AND r.fencing_epoch = ? AND r.configuration_revision = ?
+                  AND r.deadline_at_ms = ? AND r.status = 'running'
+                  AND r.deadline_at_ms > ? AND s.fencing_epoch = r.fencing_epoch
+                """,
+                (
+                    claim.run_id,
+                    claim.source_id,
+                    claim.claim_token,
+                    claim.fencing_epoch,
+                    claim.configuration_revision,
+                    claim.deadline_at_ms,
+                    now_ms,
+                ),
+            ).fetchone(),
+        )
+        if row is None:
+            raise StaleClaimError("watcher claim is stale, expired, or not running")
+
+    def _require_running_claim(self, claim: ClaimIdentity) -> int:
+        _validate_claim_identity(claim)
+        row = cast(
+            tuple[int] | None,
+            self._connection.execute(
+                """
+                SELECT r.deadline_at_ms
+                FROM watcher_runs AS r
+                JOIN sources AS s ON s.source_id = r.source_id
+                WHERE r.run_id = ? AND r.source_id = ? AND r.claim_token = ?
+                  AND r.fencing_epoch = ? AND r.configuration_revision = ?
+                  AND r.deadline_at_ms = ? AND r.status = 'running'
+                  AND s.fencing_epoch = r.fencing_epoch
+                """,
+                (
+                    claim.run_id,
+                    claim.source_id,
+                    claim.claim_token,
+                    claim.fencing_epoch,
+                    claim.configuration_revision,
+                    claim.deadline_at_ms,
+                ),
+            ).fetchone(),
+        )
+        if row is None:
+            raise StaleClaimError("watcher claim is stale or not running")
+        return row[0]
+
+    def _require_expired_claim(self, claim: ClaimIdentity, now_ms: int) -> None:
+        _validate_claim_identity(claim)
+        row = cast(
+            tuple[int] | None,
+            self._connection.execute(
+                """
+                SELECT 1
+                FROM watcher_runs AS r
+                JOIN sources AS s ON s.source_id = r.source_id
+                WHERE r.run_id = ? AND r.source_id = ? AND r.claim_token = ?
+                  AND r.fencing_epoch = ? AND r.configuration_revision = ?
+                  AND r.deadline_at_ms = ? AND r.status = 'running'
+                  AND r.deadline_at_ms <= ? AND s.fencing_epoch = r.fencing_epoch
+                """,
+                (
+                    claim.run_id,
+                    claim.source_id,
+                    claim.claim_token,
+                    claim.fencing_epoch,
+                    claim.configuration_revision,
+                    claim.deadline_at_ms,
+                    now_ms,
+                ),
+            ).fetchone(),
+        )
+        if row is None:
+            raise StaleClaimError("watcher claim is not eligible for expiry")
+
+    def _advance_state_revision(self, now_ms: int) -> int:
+        row = cast(
+            tuple[int] | None,
+            self._connection.execute(
+                """
+                UPDATE control_state
+                SET state_revision = state_revision + 1, updated_at_ms = ?
+                WHERE singleton_id = 1 AND updated_at_ms <= ?
+                RETURNING state_revision
+                """,
+                (now_ms, now_ms),
+            ).fetchone(),
+        )
+        if row is None or row[0] < 1:
+            raise ControlStorageError(
+                "control state revision could not advance with a monotonic timestamp"
+            )
+        return row[0]
+
+    def _read_state_revision(self) -> int:
+        row = cast(
+            tuple[int] | None,
+            self._connection.execute(
+                "SELECT state_revision FROM control_state WHERE singleton_id = 1"
+            ).fetchone(),
+        )
+        if row is None:
+            raise ControlStorageError("control state singleton is missing")
+        return row[0]
+
+    def _insert_audit(
+        self,
+        *,
+        source_id: str,
+        run_id: str | None,
+        event_type: str,
+        details: dict[str, JsonValue],
+        state_revision: int,
+        now_ms: int,
+    ) -> None:
+        details_json = _encode_json(details, 65_536, "audit details")
+        _ = self._connection.execute(
+            """
+            INSERT INTO audit_events (
+                audit_event_id, source_id, run_id, event_type,
+                details_json, state_revision, created_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                uuid4().hex,
+                source_id,
+                run_id,
+                event_type,
+                details_json,
+                state_revision,
+                now_ms,
+            ),
+        )
+
+    def _insert_or_validate_blob(self, receipt: BlobReceipt, now_ms: int) -> None:
+        _ = self._connection.execute(
+            """
+            INSERT INTO blobs (sha256, size_bytes, media_type, created_at_ms)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT (sha256) DO NOTHING
+            """,
+            (receipt.sha256, receipt.size_bytes, receipt.media_type, now_ms),
+        )
+        stored = cast(
+            tuple[int, str | None] | None,
+            self._connection.execute(
+                "SELECT size_bytes, media_type FROM blobs WHERE sha256 = ?",
+                (receipt.sha256,),
+            ).fetchone(),
+        )
+        if stored is None or stored[0] != receipt.size_bytes:
+            raise BlobVerificationError("stored blob byte count conflicts with receipt")
+
+    def _insert_observation(
+        self,
+        claim: ClaimIdentity,
+        observation: ObservationDraft,
+        metadata_json: str,
+        state_revision: int,
+    ) -> None:
+        _ = self._connection.execute(
+            """
+            INSERT INTO observations (
+                observation_id, run_id, source_id, observation_kind,
+                source_identity, response_sha256, observed_at_ms,
+                metadata_json, state_revision
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                observation.observation_id,
+                claim.run_id,
+                claim.source_id,
+                observation.observation_kind,
+                observation.source_identity,
+                observation.response_sha256,
+                observation.observed_at_ms,
+                metadata_json,
+                state_revision,
+            ),
+        )
+
+    def _insert_changes(
+        self,
+        claim: ClaimIdentity,
+        commit: ObservationCommit,
+        encoded_changes: tuple[str, ...],
+        state_revision: int,
+        now_ms: int,
+    ) -> None:
+        for change, summary_json in zip(commit.changes, encoded_changes, strict=True):
+            _ = self._connection.execute(
+                """
+                INSERT INTO source_changes (
+                    change_id, run_id, source_id, observation_id,
+                    change_category, summary_json, state_revision, created_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    change.change_id,
+                    claim.run_id,
+                    claim.source_id,
+                    change.observation_id,
+                    change.change_category,
+                    summary_json,
+                    state_revision,
+                    now_ms,
+                ),
+            )
+
+    def _insert_incident(
+        self,
+        incident: IncidentDraft,
+        *,
+        source_id: str,
+        run_id: str,
+        state_revision: int,
+        now_ms: int,
+    ) -> None:
+        details_json = _encode_json(incident.details, 65_536, "incident details")
+        self._insert_incident_json(
+            incident,
+            details_json,
+            source_id=source_id,
+            run_id=run_id,
+            state_revision=state_revision,
+            now_ms=now_ms,
+        )
+
+    def _insert_incident_json(
+        self,
+        incident: IncidentDraft,
+        details_json: str,
+        *,
+        source_id: str,
+        run_id: str,
+        state_revision: int,
+        now_ms: int,
+    ) -> None:
+        _ = self._connection.execute(
+            """
+            INSERT INTO incidents (
+                incident_id, source_id, run_id, incident_category,
+                details_json, state_revision, created_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                incident.incident_id,
+                source_id,
+                run_id,
+                incident.incident_category,
+                details_json,
+                state_revision,
+                now_ms,
+            ),
+        )
+
+    def _require_open(self) -> None:
+        if self._closed:
+            raise ControlStorageError("control store is closed")
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedCommit:
+    cursor_json: str
+    observations: tuple[tuple[ObservationDraft, str], ...]
+    change_json: tuple[str, ...]
+    incident_json: tuple[str, ...]
+
+
+def _initialize_writer_connection(
+    connection: sqlite3.Connection,
+    busy_timeout_ms: int,
+) -> None:
+    try:
+        if connection.isolation_level is not None:
+            raise ControlStorageError("control writer requires explicit transactions")
+        if connection.row_factory is not None:
+            raise ControlStorageError("control writer requires the default row factory")
+        migration_result = apply_control_migrations(connection)
+        if migration_result.forward_compatible:
+            raise ControlStorageError(
+                "a forward-compatible reader cannot become the writer"
+            )
+        _ = connection.execute(f"PRAGMA busy_timeout = {busy_timeout_ms}")
+        _ = connection.execute("PRAGMA journal_mode = WAL")
+        _ = connection.execute("PRAGMA synchronous = FULL")
+        _ = connection.execute("PRAGMA trusted_schema = OFF")
+        _ = connection.execute("PRAGMA ignore_check_constraints = OFF")
+        _ = connection.execute("PRAGMA read_uncommitted = OFF")
+        _ = connection.execute("PRAGMA locking_mode = NORMAL")
+        _ = connection.setconfig(sqlite3.SQLITE_DBCONFIG_DEFENSIVE, True)
+        _validate_writer_connection(connection, busy_timeout_ms)
+    except MigrationError as error:
+        raise ControlStorageError(
+            "control database migration validation failed"
+        ) from error
+    except sqlite3.Error as error:
+        raise ControlStorageError(
+            "control writer connection initialization failed"
+        ) from error
+
+
+def _validate_writer_connection(
+    connection: sqlite3.Connection,
+    busy_timeout_ms: int,
+) -> None:
+    checks = (
+        ("foreign_keys", 1),
+        ("query_only", 0),
+        ("synchronous", 2),
+        ("trusted_schema", 0),
+        ("ignore_check_constraints", 0),
+        ("read_uncommitted", 0),
+        ("busy_timeout", busy_timeout_ms),
+        ("user_version", CONTROL_SCHEMA_VERSION),
+    )
+    for pragma, expected in checks:
+        row = cast(
+            tuple[int] | None,
+            connection.execute(f"PRAGMA {pragma}").fetchone(),
+        )
+        if row is None or row[0] != expected:
+            raise ControlStorageError(f"control writer requires PRAGMA {pragma}")
+    journal_mode = cast(
+        tuple[str] | None,
+        connection.execute("PRAGMA journal_mode").fetchone(),
+    )
+    if journal_mode is None or journal_mode[0].lower() != "wal":
+        raise ControlStorageError("control writer requires WAL journal mode")
+    locking_mode = cast(
+        tuple[str] | None,
+        connection.execute("PRAGMA locking_mode").fetchone(),
+    )
+    if locking_mode is None or locking_mode[0].lower() != "normal":
+        raise ControlStorageError("control writer requires normal locking mode")
+    if not connection.getconfig(sqlite3.SQLITE_DBCONFIG_DEFENSIVE):
+        raise ControlStorageError("control writer requires SQLite defensive mode")
+    if connection.in_transaction:
+        raise ControlStorageError("control writer initialized inside a transaction")
+
+
+def _validate_schedule(schedule: SourceSchedule) -> None:
+    _validate_identifier(schedule.source_id, "source ID", 64)
+    _validate_identifier(
+        schedule.cron_expression,
+        "cron expression",
+        256,
+        minimum=9,
+    )
+    if " ".join(schedule.cron_expression.split()) != schedule.cron_expression:
+        raise ControlValidationError("cron expression must use canonical spacing")
+    _validate_cron_expression(schedule.cron_expression)
+    if not _is_strict_integer(schedule.misfire_grace_seconds):
+        raise ControlValidationError("misfire grace must be an integer")
+    if schedule.misfire_grace_seconds < 1 or schedule.misfire_grace_seconds > 86_400:
+        raise ControlValidationError("misfire grace is outside the supported range")
+    if not _is_strict_integer(schedule.retry_max_attempts):
+        raise ControlValidationError("retry attempts must be an integer")
+    if schedule.retry_max_attempts < 1 or schedule.retry_max_attempts > 10:
+        raise ControlValidationError("retry attempts are outside the supported range")
+    if not _is_real_number(schedule.retry_base_seconds):
+        raise ControlValidationError("retry base must be numeric")
+    if schedule.retry_base_seconds <= 0 or schedule.retry_base_seconds > 300:
+        raise ControlValidationError("retry base is outside the supported range")
+    if not math.isfinite(schedule.retry_base_seconds):
+        raise ControlValidationError("retry base must be finite")
+    if not _is_real_number(schedule.retry_max_seconds):
+        raise ControlValidationError("retry maximum must be numeric")
+    if schedule.retry_max_seconds <= 0 or schedule.retry_max_seconds > 3600:
+        raise ControlValidationError("retry maximum is outside the supported range")
+    if not math.isfinite(schedule.retry_max_seconds):
+        raise ControlValidationError("retry maximum must be finite")
+    if schedule.retry_max_seconds < schedule.retry_base_seconds:
+        raise ControlValidationError("retry maximum is lower than retry base")
+
+
+def _validate_claim_request(request: ClaimRequest) -> None:
+    _validate_identifier(request.source_id, "source ID", 64)
+    if request.run_mode not in (
+        "scheduled",
+        "weekly_verification",
+        "manual",
+        "catch_up",
+    ):
+        raise ControlValidationError("run mode is unsupported")
+    _validate_timestamp(request.scheduled_at_ms, "scheduled time")
+    if not _is_strict_integer(request.deadline_after_ms):
+        raise ControlValidationError("claim deadline duration must be an integer")
+    if request.deadline_after_ms < 1 or request.deadline_after_ms > 3_600_000:
+        raise ControlValidationError(
+            "claim deadline duration is outside the supported range"
+        )
+    if (
+        request.run_mode in ("scheduled", "catch_up")
+        and request.expected_due_at_ms is None
+    ):
+        raise ControlValidationError("scheduled claims require a durable due cursor")
+    if (
+        request.run_mode in ("manual", "weekly_verification")
+        and request.expected_due_at_ms is not None
+    ):
+        raise ControlValidationError(
+            "manual claims must not advance the durable due cursor"
+        )
+    if request.expected_due_at_ms is not None:
+        _validate_timestamp(request.expected_due_at_ms, "expected due time")
+        if request.scheduled_at_ms != request.expected_due_at_ms:
+            raise ControlValidationError(
+                "scheduled time must equal the durable due cursor"
+            )
+
+
+def _validate_claim_timing(request: ClaimRequest, now_ms: int) -> None:
+    if request.scheduled_at_ms > now_ms:
+        raise ControlValidationError(
+            "a watcher claim cannot start before its scheduled time"
+        )
+    if request.expected_due_at_ms is not None:
+        if request.expected_due_at_ms > now_ms:
+            raise ControlValidationError("durable due cursor is not due")
+
+
+def _validate_cron_expression(expression: str) -> None:
+    _ = _parse_cron_expression(expression)
+
+
+def _parse_cron_expression(expression: str) -> _CronSchedule:
+    from apscheduler.triggers.cron import (  # type: ignore[import-untyped] # pyright: ignore[reportMissingTypeStubs]
+        CronTrigger,
+    )
+
+    cron_trigger = cast(_CronTriggerFactory, cast(object, CronTrigger))
+    try:
+        return cron_trigger.from_crontab(expression, timezone=UTC)
+    except ValueError as error:
+        raise ControlValidationError("cron expression is invalid") from error
+
+
+def _next_cron_fire_ms(expression: str, now_ms: int) -> int:
+    trigger = _parse_cron_expression(expression)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
+    try:
+        after_now = epoch + timedelta(milliseconds=now_ms + 1)
+    except OverflowError as error:
+        raise ControlValidationError(
+            "cron schedule has no representable next fire"
+        ) from error
+    next_fire = trigger.get_next_fire_time(None, after_now)
+    if next_fire is None:
+        raise ControlValidationError("cron schedule has no next fire")
+    normalized = next_fire.astimezone(UTC)
+    elapsed = normalized - epoch
+    next_fire_ms = (
+        elapsed.days * 86_400_000
+        + elapsed.seconds * 1000
+        + elapsed.microseconds // 1000
+    )
+    _validate_timestamp(next_fire_ms, "next due time")
+    if next_fire_ms <= now_ms:
+        raise ControlValidationError(
+            "cron next fire is not strictly after transaction time"
+        )
+    return next_fire_ms
+
+
+def _validate_claim_identity(claim: ClaimIdentity) -> None:
+    _validate_identifier(claim.source_id, "source ID", 64)
+    _validate_identifier(claim.run_id, "run ID", 128, minimum=16)
+    _validate_identifier(claim.claim_token, "claim token", 128, minimum=32)
+    _validate_positive(claim.fencing_epoch, "fencing epoch")
+    _validate_positive(claim.configuration_revision, "configuration revision")
+    _validate_timestamp(claim.deadline_at_ms, "claim deadline")
+
+
+def _prepare_observation_commit(
+    commit: ObservationCommit,
+) -> _PreparedCommit:
+    _validate_bounded_count(commit.blobs, 1, _MAX_BLOBS_PER_COMMIT, "blobs")
+    _validate_bounded_count(
+        commit.observations,
+        1,
+        _MAX_OBSERVATIONS_PER_COMMIT,
+        "observations",
+    )
+    _validate_bounded_count(commit.changes, 0, _MAX_CHANGES_PER_COMMIT, "changes")
+    _validate_bounded_count(commit.incidents, 0, _MAX_INCIDENTS_PER_COMMIT, "incidents")
+    blob_digests: set[str] = set()
+    for receipt in commit.blobs:
+        _validate_blob_receipt(receipt)
+        if receipt.sha256 in blob_digests:
+            raise ControlValidationError(
+                "observation commit contains duplicate blob receipts"
+            )
+        blob_digests.add(receipt.sha256)
+    observation_ids: set[str] = set()
+    observation_blob_count = 0
+    prepared_observations: list[tuple[ObservationDraft, str]] = []
+    for observation in commit.observations:
+        _validate_observation(observation, blob_digests)
+        if observation.observation_id in observation_ids:
+            raise ControlValidationError(
+                "observation commit contains duplicate observations"
+            )
+        observation_ids.add(observation.observation_id)
+        observation_blob_count += len(observation.blobs)
+        prepared_observations.append(
+            (
+                observation,
+                _encode_json(observation.metadata, 262_144, "observation metadata"),
+            )
+        )
+    if observation_blob_count > _MAX_OBSERVATION_BLOBS_PER_COMMIT:
+        raise ControlValidationError(
+            "observation blob reference count exceeds its bound"
+        )
+    prepared_changes = tuple(
+        _prepare_change(change, observation_ids) for change in commit.changes
+    )
+    prepared_incidents = tuple(_prepare_incident(item) for item in commit.incidents)
+    return _PreparedCommit(
+        cursor_json=_encode_json(commit.cursor, 262_144, "source cursor"),
+        observations=tuple(prepared_observations),
+        change_json=prepared_changes,
+        incident_json=prepared_incidents,
+    )
+
+
+def _validate_observation_times(commit: ObservationCommit, now_ms: int) -> None:
+    for observation in commit.observations:
+        if observation.observed_at_ms > now_ms:
+            raise ControlValidationError("observation time cannot be in the future")
+
+
+def _validate_blob_receipt(receipt: BlobReceipt) -> None:
+    _validate_sha256(receipt.sha256, "blob SHA-256")
+    _validate_sha256(receipt.verified_sha256, "verified blob SHA-256")
+    if receipt.verified_sha256 != receipt.sha256:
+        raise BlobVerificationError("blob receipt checksum verification does not match")
+    if receipt.size_bytes < 0 or receipt.verified_size_bytes != receipt.size_bytes:
+        raise BlobVerificationError("blob receipt byte verification does not match")
+    if receipt.archive_key != f"blobs/sha256/{receipt.sha256}":
+        raise BlobVerificationError("blob receipt archive key is not digest-derived")
+    if receipt.media_type is not None:
+        _validate_identifier(receipt.media_type, "blob media type", 255)
+
+
+def _validate_recovery_receipt(
+    receipt: RecoveryReceipt,
+    *,
+    run_id: str,
+    committed_state_revision: int,
+) -> None:
+    _validate_identifier(receipt.run_id, "recovery run ID", 128, minimum=16)
+    _validate_positive(receipt.committed_state_revision, "recovery committed revision")
+    _validate_positive(receipt.state_revision, "recovery state revision")
+    _validate_sha256(receipt.sha256, "recovery image SHA-256")
+    _validate_sha256(receipt.verified_sha256, "verified recovery image SHA-256")
+    if receipt.run_id != run_id:
+        raise ControlValidationError("recovery receipt belongs to another run")
+    if receipt.committed_state_revision != committed_state_revision:
+        raise ControlValidationError("recovery receipt has another committed revision")
+    if receipt.state_revision < committed_state_revision:
+        raise ControlValidationError("recovery image predates the committed run")
+    if receipt.verified_sha256 != receipt.sha256:
+        raise ControlValidationError(
+            "recovery image checksum verification does not match"
+        )
+    if receipt.size_bytes < 1 or receipt.verified_size_bytes != receipt.size_bytes:
+        raise ControlValidationError("recovery image byte verification does not match")
+    expected_key = (
+        f"control-recovery/run/{receipt.state_revision:020d}/{receipt.sha256}.sqlite3"
+    )
+    if receipt.archive_key != expected_key:
+        raise ControlValidationError(
+            "recovery image archive key is not revision-derived"
+        )
+
+
+def _validate_observation(
+    observation: ObservationDraft,
+    blob_digests: set[str],
+) -> None:
+    _validate_identifier(observation.observation_id, "observation ID", 128, minimum=16)
+    _validate_identifier(observation.observation_kind, "observation kind", 64)
+    _validate_identifier(observation.source_identity, "source identity", 512)
+    _validate_sha256(observation.response_sha256, "response SHA-256")
+    _validate_timestamp(observation.observed_at_ms, "observation time")
+    if observation.response_sha256 not in blob_digests:
+        raise ControlValidationError(
+            "observation response blob has no verified receipt"
+        )
+    references: set[tuple[str, int]] = set()
+    for blob in observation.blobs:
+        _validate_identifier(blob.blob_role, "blob role", 64)
+        if blob.ordinal < 0:
+            raise ControlValidationError("blob ordinal must not be negative")
+        _validate_sha256(blob.sha256, "observation blob SHA-256")
+        if blob.sha256 not in blob_digests:
+            raise ControlValidationError("observation blob has no verified receipt")
+        identity = (blob.blob_role, blob.ordinal)
+        if identity in references:
+            raise ControlValidationError(
+                "observation contains a duplicate blob role and ordinal"
+            )
+        references.add(identity)
+
+
+def _prepare_change(change: ChangeDraft, observation_ids: set[str]) -> str:
+    _validate_identifier(change.change_id, "change ID", 128, minimum=16)
+    _validate_identifier(change.observation_id, "observation ID", 128, minimum=16)
+    _validate_identifier(change.change_category, "change category", 64)
+    if change.observation_id not in observation_ids:
+        raise ControlValidationError(
+            "change refers to an observation outside its commit"
+        )
+    return _encode_json(change.summary, 65_536, "change summary")
+
+
+def _validate_incident(incident: IncidentDraft) -> None:
+    _ = _prepare_incident(incident)
+
+
+def _prepare_incident(incident: IncidentDraft) -> str:
+    _validate_identifier(incident.incident_id, "incident ID", 128, minimum=16)
+    _validate_identifier(incident.incident_category, "incident category", 64)
+    return _encode_json(incident.details, 65_536, "incident details")
+
+
+def _reject_sensitive_configuration(configuration: dict[str, JsonValue]) -> None:
+    pending: list[JsonValue] = [configuration]
+    visited = 0
+    while pending:
+        value = pending.pop()
+        visited += 1
+        if visited > 100_000:
+            raise ControlValidationError(
+                "configuration structure exceeds its node bound"
+            )
+        if isinstance(value, dict):
+            for key, nested in value.items():
+                snake_case = re.sub(r"(?<!^)(?=[A-Z])", "_", key)
+                normalized = snake_case.lower().replace("-", "_")
+                if normalized in _SENSITIVE_CONFIGURATION_KEYS or normalized.endswith(
+                    _SENSITIVE_CONFIGURATION_SUFFIXES
+                ):
+                    raise ControlValidationError(
+                        "configuration contains a secret-like key"
+                    )
+                pending.append(nested)
+        elif isinstance(value, list):
+            pending.extend(value)
+
+
+def _validate_source_configuration(
+    command: SourceConfiguration,
+) -> dict[str, JsonValue]:
+    if command.watcher_type != "rsk":
+        raise ControlValidationError(
+            "watcher type has no registered configuration model"
+        )
+    allowed_fields = frozenset(RskConfiguration.model_fields)
+    unexpected_fields = set(command.configuration).difference(allowed_fields)
+    if unexpected_fields:
+        raise ControlValidationError("source configuration contains unsupported keys")
+    try:
+        validated = RskConfiguration.model_validate(command.configuration)
+    except ValidationError as error:
+        raise ControlValidationError("source configuration is invalid") from error
+    return cast(dict[str, JsonValue], validated.model_dump(mode="json"))
+
+
+def _read_operation_deadline_ms(configuration_json: str) -> int:
+    try:
+        configuration = RskConfiguration.model_validate_json(configuration_json)
+    except ValidationError as error:
+        raise ControlStorageError("stored source configuration is invalid") from error
+    deadline_ms = int(configuration.operation_deadline_seconds * 1000)
+    if deadline_ms < 1 or deadline_ms > 3_600_000:
+        raise ControlStorageError(
+            "stored operation deadline is outside the supported range"
+        )
+    return deadline_ms
+
+
+def _encode_json(value: dict[str, JsonValue], maximum_bytes: int, label: str) -> str:
+    _validate_json_shape(value, label)
+    try:
+        encoded = json.dumps(
+            value,
+            ensure_ascii=True,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    except (RecursionError, TypeError, ValueError) as error:
+        raise ControlValidationError(f"{label} is not canonical JSON") from error
+    encoded_size = len(encoded.encode())
+    if encoded_size < 2 or encoded_size > maximum_bytes:
+        raise ControlValidationError(f"{label} size is outside the supported range")
+    return encoded
+
+
+def _validate_identifier(
+    value: object,
+    label: str,
+    maximum: int,
+    *,
+    minimum: int = 1,
+) -> None:
+    if not isinstance(value, str):
+        raise ControlValidationError(f"{label} must be text")
+    if len(value) < minimum or len(value) > maximum:
+        raise ControlValidationError(f"{label} length is outside the supported range")
+
+
+def _validate_timestamp(value: object, label: str) -> None:
+    if not _is_strict_integer(value):
+        raise ControlValidationError(f"{label} must be an integer")
+    if value < 1 or value > _MAX_TIMESTAMP_MS:
+        raise ControlValidationError(f"{label} is outside the supported range")
+
+
+def _validate_positive(value: object, label: str) -> None:
+    if not _is_strict_integer(value):
+        raise ControlValidationError(f"{label} must be an integer")
+    if value < 1:
+        raise ControlValidationError(f"{label} must be positive")
+
+
+def _validate_boolean(value: object, label: str) -> None:
+    if not isinstance(value, bool):
+        raise ControlValidationError(f"{label} must be boolean")
+
+
+def _is_strict_integer(value: object) -> TypeIs[int]:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_real_number(value: object) -> TypeIs[int | float]:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _validate_sha256(value: object, label: str) -> None:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ControlValidationError(f"{label} must be lowercase hexadecimal")
+
+
+def _validate_bounded_count(
+    values: tuple[object, ...],
+    minimum: int,
+    maximum: int,
+    label: str,
+) -> None:
+    if len(values) < minimum or len(values) > maximum:
+        raise ControlValidationError(f"{label} count is outside the supported range")
+
+
+def _require_one_updated(cursor: sqlite3.Cursor, error: ControlStoreError) -> None:
+    if cursor.rowcount != 1:
+        raise error
+
+
+def _utc_now_ms() -> int:
+    return time.time_ns() // 1_000_000
+
+
+def _validate_json_shape(value: dict[str, JsonValue], label: str) -> None:
+    pending: list[tuple[JsonValue, int]] = [(value, 1)]
+    visited = 0
+    seen_containers: set[int] = set()
+    while pending:
+        current, depth = pending.pop()
+        visited += 1
+        if visited > 100_000 or depth > 64:
+            raise ControlValidationError(f"{label} structure exceeds its bound")
+        if isinstance(current, dict):
+            identity = id(current)
+            if identity in seen_containers:
+                raise ControlValidationError(f"{label} contains a repeated container")
+            seen_containers.add(identity)
+            for _key, nested in current.items():
+                pending.append((nested, depth + 1))
+        elif isinstance(current, list):
+            identity = id(current)
+            if identity in seen_containers:
+                raise ControlValidationError(f"{label} contains a repeated container")
+            seen_containers.add(identity)
+            pending.extend((nested, depth + 1) for nested in current)

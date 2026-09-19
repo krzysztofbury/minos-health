@@ -20,6 +20,25 @@ SQLite authorizer. The migration runner installs a temporary restrictive
 authorizer and clears it after each script; Python does not expose the previous
 callback for restoration.
 
+## Runtime Writer
+
+`ControlStore.open()` owns the sole runtime writer connection. It validates the
+complete migration history, explicit transaction mode, foreign keys, WAL,
+`synchronous=FULL`, a bounded busy timeout, untrusted schema handling, and
+SQLite defensive mode before exposing transaction methods.
+
+Configuration documents use canonical JSON and reject secret-like keys. Every
+restorable mutation advances one monotonic state revision and appends an audit
+event in the same `BEGIN IMMEDIATE` transaction. Scheduled claims compare and
+advance the durable due cursor; manual claims leave it untouched. Collector
+commits require a live token-and-epoch fenced claim and structurally validated,
+digest-derived receipts emitted by the archive boundary, then atomically write
+observations, cursor, changes, incidents, audit, and the committed run state.
+The archive implementation remains responsible for native checksum and byte
+verification. Reconciliation accepts a recovery receipt only when its image
+revision equals the current database revision and records its immutable key and
+digest before moving a run to `heartbeat_pending`.
+
 ## Changing The Schema
 
 Every schema change must:
