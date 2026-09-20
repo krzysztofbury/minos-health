@@ -43,7 +43,7 @@ def test_fresh_apply_and_reopen_validate_exact_migration_history(
         "SELECT state_revision, schema_version FROM control_state"
     ).fetchall() == [(0, 1)]
 
-    expected = load_control_migrations(_SQL_ROOT)[0]
+    expected = load_control_migrations(_SQL_ROOT)
     assert connection.execute(
         """
         SELECT version, name, up_sha256, down_sha256, minimum_reader_version
@@ -51,12 +51,13 @@ def test_fresh_apply_and_reopen_validate_exact_migration_history(
         """
     ).fetchall() == [
         (
-            expected.version,
-            expected.name,
-            expected.up_sha256,
-            expected.down_sha256,
-            expected.minimum_reader_version,
+            migration.version,
+            migration.name,
+            migration.up_sha256,
+            migration.down_sha256,
+            migration.minimum_reader_version,
         )
+        for migration in expected
     ]
     assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
     assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)

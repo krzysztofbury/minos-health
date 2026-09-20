@@ -5,6 +5,7 @@ type JsonValue = (
     None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 )
 type RunMode = Literal["scheduled", "weekly_verification", "manual", "catch_up"]
+type ReconcilableStatus = Literal["committed", "heartbeat_pending"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,33 @@ class SourceSchedule:
     retry_max_attempts: int
     retry_base_seconds: float
     retry_max_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class RetryPolicy:
+    max_attempts: int
+    base_seconds: float
+    max_seconds: float
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduledSource:
+    source_id: str
+    watcher_type: str
+    cron_expression: str
+    next_due_at_ms: int
+    misfire_grace_seconds: int
+    retry_policy: RetryPolicy
+
+
+@dataclass(frozen=True, slots=True)
+class PersistedSourceState:
+    source_id: str
+    watcher_type: str
+    configuration_revision: int
+    configuration: dict[str, JsonValue]
+    cursor: dict[str, JsonValue]
+    cursor_state_revision: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +96,15 @@ class RunClaim:
     scheduled_at_ms: int
     started_at_ms: int
     state_revision: int
+    retry_policy: RetryPolicy
+
+
+@dataclass(frozen=True, slots=True)
+class StaleRunClaim:
+    identity: ClaimIdentity
+    run_mode: RunMode
+    scheduled_at_ms: int
+    started_at_ms: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,6 +125,7 @@ class RecoveryReceipt:
     sha256: str
     size_bytes: int
     archive_key: str
+    version_id: str
     verified_sha256: str
     verified_size_bytes: int
 
@@ -140,6 +178,7 @@ class CommittedRun:
     run_id: str
     committed_state_revision: int
     committed_at_ms: int
+    status: ReconcilableStatus = "committed"
 
 
 @dataclass(frozen=True, slots=True)

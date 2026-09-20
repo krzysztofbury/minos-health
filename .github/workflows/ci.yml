@@ -44,6 +44,35 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-groups --python 3.14.7
 
+      - name: Syntax-check the production Ansible playbook
+        run: |
+          uvx --from ansible-core==2.21.4 ansible-playbook \
+            infra/ansible/site.yml --syntax-check \
+            -e watcher_archive_backend=s3 \
+            -e watcher_s3_bucket=minos-ci-fixture \
+            -e watcher_s3_expected_bucket_owner=123456789012 \
+            -e watcher_expected_image_digest=sha256:${DIGEST_HEX} \
+            -e watcher_source_revision=${GITHUB_SHA}
+        env:
+          DIGEST_HEX: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+      - name: Render and validate the production Compose model
+        run: |
+          uvx --from ansible-core==2.21.4 ansible localhost \
+            --inventory localhost, --connection local \
+            --module-name ansible.builtin.template \
+            --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/minos-compose.yml.j2 dest=${RUNNER_TEMP}/minos-compose.yaml" \
+            --extra-vars '{"watcher_archive_backend":"s3","watcher_aws_region":"eu-central-1","watcher_expected_image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_expected_bucket_owner":"123456789012","watcher_secrets_gid":10002,"watcher_uid":10001}'
+          docker compose --file "$RUNNER_TEMP/minos-compose.yaml" config --quiet
+
+      - name: Verify the production systemd unit
+        run: systemd-analyze verify infra/ansible/files/minos-compose.service
+
+      - name: Simulate deployment schema incompatibility
+        run: >-
+          uv run pytest tests/unit/test_watcher_runtime.py
+          -k deployment_copy_rejects_schema_mismatch
+
       - name: Install Terraform
         uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
         with:
@@ -52,6 +81,21 @@ jobs:
 
       - name: Initialize Terraform providers
         run: terraform -chdir=infra/bootstrap init -backend=false -lockfile=readonly
+
+      - name: Initialize, validate, and test production phase-0 Terraform
+        run: |
+          export TF_DATA_DIR="$RUNNER_TEMP/terraform-phase0"
+          terraform -chdir=infra/terraform/phase0 init \
+            -backend=false -lockfile=readonly
+          terraform -chdir=infra/terraform/phase0 validate
+          terraform -chdir=infra/terraform/phase0 test
+
+      - name: Initialize and validate disposable phase-0 Terraform
+        run: |
+          export TF_DATA_DIR="$RUNNER_TEMP/terraform-test-phase0"
+          terraform -chdir=infra/terraform/test-phase0 init \
+            -backend=false -lockfile=readonly
+          terraform -chdir=infra/terraform/test-phase0 validate
 
       - name: Run pre-commit checks
         run: uv run pre-commit run --all-files --show-diff-on-failure
@@ -97,6 +141,7 @@ jobs:
           from tempfile import TemporaryDirectory
 
           from minos.ingest.watchers.control import (
+              CONTROL_SCHEMA_VERSION,
               ControlStore,
               SourceConfiguration,
               SourceSchedule,
@@ -105,7 +150,7 @@ jobs:
 
           connection = sqlite3.connect(":memory:", isolation_level=None)
           result = apply_control_migrations(connection)
-          assert result.schema_version == 1
+          assert result.schema_version == CONTROL_SCHEMA_VERSION
           assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
 
           with TemporaryDirectory() as directory:
@@ -120,3 +165,81 @@ jobs:
               assert scheduled.next_due_at_ms > 0
               store.close()
           PY
+
+      - name: Build and exercise the watcher container and Compose runtime
+        run: |
+          set -euo pipefail
+          cleanup() {
+            docker compose --file compose.yaml down --volumes --remove-orphans
+          }
+          trap cleanup EXIT
+
+          docker compose --file compose.yaml config --quiet
+          docker build --platform linux/amd64 --target watcher \
+            --provenance=false \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag minos-health-watcher:local .
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' minos-health-watcher:local)" = "linux/amd64"
+          docker run --rm --platform linux/amd64 --network none --read-only \
+            --user 10001:10001 --cap-drop ALL \
+            --security-opt no-new-privileges \
+            minos-health-watcher:local --version
+          docker compose --file compose.yaml run --rm --no-deps \
+            --entrypoint /app/.venv/bin/python watcher -c \
+            "from pathlib import Path; p=Path('/var/lib/minos/staging/.minos-blob-ci-stale'); p.write_bytes(b'partial'); p.chmod(0o600)"
+          docker compose --file compose.yaml up --detach --no-build \
+            --wait --wait-timeout 60 watcher
+          sleep 15
+
+          container_id="$(docker compose --file compose.yaml ps --quiet watcher)"
+          test -n "$container_id"
+          docker inspect "$container_id" > "$RUNNER_TEMP/watcher-inspect.json"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          inspected = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "watcher-inspect.json").read_text()
+          )[0]
+          host = inspected["HostConfig"]
+          config = inspected["Config"]
+          state = inspected["State"]
+          assert state["Status"] == "running"
+          assert state["Health"]["Status"] == "healthy"
+          assert inspected["RestartCount"] == 0
+          assert inspected["Platform"] == "linux"
+          assert config["Labels"]["org.opencontainers.image.revision"] == os.environ[
+              "GITHUB_SHA"
+          ]
+          assert config["User"] == "10001:10001"
+          assert config["Entrypoint"] == ["/app/.venv/bin/minos"]
+          assert config["Cmd"] == ["watcher", "run"]
+          assert not config.get("ExposedPorts")
+          assert not host.get("PortBindings")
+          assert host["ReadonlyRootfs"] is True
+          assert host["CapDrop"] == ["ALL"]
+          assert host["SecurityOpt"] == ["no-new-privileges:true"]
+          assert host["PidsLimit"] == 64
+          assert host["Memory"] == 805306368
+          assert host["NanoCpus"] == 750000000
+          destinations = {mount["Destination"] for mount in inspected["Mounts"]}
+          assert destinations == {
+              "/var/lib/minos/archive",
+              "/var/lib/minos/control",
+              "/var/lib/minos/staging",
+          }
+          PY
+          docker compose --file compose.yaml exec --no-TTY watcher \
+            /app/.venv/bin/python -c \
+            "from pathlib import Path; assert not Path('/var/lib/minos/staging/.minos-blob-ci-stale').exists()"
+
+      - name: Scan the final watcher image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: minos-health-watcher:local
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          hide-progress: true

@@ -23,9 +23,11 @@ from minos.ingest.watchers.control import (
     ObservationCommit,
     ObservationDraft,
     RecoveryReceipt,
+    RetryPolicy,
     SourceConfiguration,
     SourceSchedule,
     StaleClaimError,
+    UncertainControlOutcomeError,
 )
 
 _NOW_MS = 1_800_000_000_000
@@ -254,6 +256,16 @@ def test_schedule_update_is_revisioned_and_idempotent(
         database_path,
         "SELECT next_due_at_ms, retry_max_attempts FROM source_schedules",
     ) == [(_NEXT_DAILY_FIRE_MS, 3)]
+    assert store.list_scheduled_sources()[0].retry_policy == RetryPolicy(
+        max_attempts=3,
+        base_seconds=0.5,
+        max_seconds=30.0,
+    )
+    assert store.claim_manual(_SOURCE_ID).retry_policy == RetryPolicy(
+        max_attempts=3,
+        base_seconds=0.5,
+        max_seconds=30.0,
+    )
 
 
 def test_schedule_rejects_invalid_cron_before_write(
@@ -478,6 +490,31 @@ def test_expiry_requires_deadline_and_atomically_records_incident(
     assert _query(database_path, "SELECT state_revision FROM control_state") == [(3,)]
 
 
+def test_new_claim_atomically_expires_its_stale_predecessor(
+    store: ControlStore,
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    _configure_source(store)
+    first = store.acquire_claim(
+        _manual_claim_request(_NOW_MS, deadline_after_ms=10),
+    )
+    clock.set(_NOW_MS + 10)
+
+    second = store.claim_manual(_SOURCE_ID)
+
+    assert second.identity.fencing_epoch == first.identity.fencing_epoch + 1
+    assert second.state_revision == 4
+    assert _query(
+        database_path,
+        "SELECT status, error_category FROM watcher_runs ORDER BY started_at_ms, run_id",
+    ) == [("expired", "claim_deadline"), ("running", None)]
+    assert _query(
+        database_path,
+        "SELECT incident_category FROM incidents",
+    ) == [("claim_deadline",)]
+
+
 def test_observation_commit_advances_all_state_atomically(
     store: ControlStore,
     database_path: Path,
@@ -682,6 +719,9 @@ def test_reconciliation_enforces_each_state_and_is_idempotent(
         committed_state_revision=committed.committed_state_revision,
         recovery_receipt=_recovery_receipt(committed),
     )
+    assert store.list_reconcilable_runs() == (
+        replace(committed, status="heartbeat_pending"),
+    )
     successful = store.mark_successful(
         committed.run_id,
         committed_state_revision=committed.committed_state_revision,
@@ -828,7 +868,10 @@ def test_rollback_failure_closes_writer(
     connection.fail_commit = True
     connection.fail_rollback = True
 
-    with pytest.raises(ControlStorageError, match="rollback failed; writer was closed"):
+    with pytest.raises(
+        UncertainControlOutcomeError,
+        match="rollback failed; writer was closed",
+    ):
         _configure_source(store)
     with pytest.raises(ControlStorageError, match="closed"):
         _configure_source(store)
@@ -841,7 +884,7 @@ def test_post_commit_failure_closes_writer_with_uncertain_outcome(
     store, connection = _open_faulting_store(database_path, monkeypatch)
     connection.fail_after_commit = True
 
-    with pytest.raises(ControlStorageError, match="outcome is uncertain"):
+    with pytest.raises(UncertainControlOutcomeError, match="outcome is uncertain"):
         _configure_source(store)
     with pytest.raises(ControlStorageError, match="closed"):
         _configure_source(store)
@@ -865,6 +908,145 @@ def test_closed_store_and_reconciliation_limit_fail_explicitly(
     store.close()
     with pytest.raises(ControlStorageError, match="closed"):
         _ = store.list_reconcilable_runs()
+
+
+def test_public_listings_fail_closed_instead_of_truncating(
+    store: ControlStore,
+    clock: _TestClock,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    for source_id in ("rsk-a", "rsk-b"):
+        _ = store.configure_source(SourceConfiguration(source_id, "rsk", {}, True))
+        _ = store.set_schedule(replace(_schedule(), source_id=source_id))
+
+    with pytest.raises(ControlStorageError, match="listing exceeds"):
+        _ = store.list_scheduled_sources(limit=1)
+    with pytest.raises(ControlValidationError, match="limit"):
+        _ = store.list_scheduled_sources(limit=True)
+
+
+def test_stale_and_reconcilable_listings_fail_closed(
+    store: ControlStore,
+    clock: _TestClock,
+) -> None:
+    for index, source_id in enumerate(("rsk-a", "rsk-b"), start=1):
+        _ = store.configure_source(SourceConfiguration(source_id, "rsk", {}, True))
+        claim = store.acquire_claim(
+            ClaimRequest(source_id, "manual", _NOW_MS, deadline_after_ms=10)
+        )
+        commit = _observation_commit()
+        observation_id = f"observation-source-{index:04d}"
+        observation = replace(
+            commit.observations[0],
+            observation_id=observation_id,
+        )
+        change = replace(
+            commit.changes[0],
+            change_id=f"change-source-{index:08d}",
+            observation_id=observation_id,
+        )
+        incident = replace(
+            commit.incidents[0],
+            incident_id=f"incident-source-{index:08d}",
+        )
+        _ = store.commit_observations(
+            claim.identity,
+            replace(
+                commit,
+                observations=(observation,),
+                changes=(change,),
+                incidents=(incident,),
+            ),
+        )
+
+    with pytest.raises(ControlStorageError, match="listing exceeds"):
+        _ = store.list_reconcilable_runs(limit=1)
+
+    for source_id in ("rsk-c", "rsk-d"):
+        _ = store.configure_source(SourceConfiguration(source_id, "rsk", {}, True))
+        _ = store.acquire_claim(
+            ClaimRequest(source_id, "manual", _NOW_MS, deadline_after_ms=10)
+        )
+    clock.set(_NOW_MS + 10)
+
+    with pytest.raises(ControlStorageError, match="listing exceeds"):
+        _ = store.list_stale_claims(limit=1)
+
+
+def test_claim_loading_uses_pinned_configuration_and_exact_cursor(
+    store: ControlStore,
+) -> None:
+    _configure_source(store)
+    first = store.acquire_claim(_manual_claim_request(_NOW_MS))
+    committed = store.commit_observations(first.identity, _observation_commit())
+    _ = store.mark_heartbeat_pending(
+        committed.run_id,
+        committed_state_revision=committed.committed_state_revision,
+        recovery_receipt=_recovery_receipt(committed),
+    )
+    _ = store.mark_successful(
+        committed.run_id,
+        committed_state_revision=committed.committed_state_revision,
+    )
+    second = store.acquire_claim(_manual_claim_request(_NOW_MS))
+    _ = store.configure_source(
+        SourceConfiguration(_SOURCE_ID, "rsk", {"timeout_seconds": 30.0}, True)
+    )
+
+    state = store.load_claim_state(second.identity)
+
+    assert state.configuration_revision == 1
+    assert state.configuration["timeout_seconds"] == 20.0
+    assert state.cursor == {"etag": "v1"}
+    assert state.cursor_state_revision == committed.committed_state_revision
+
+
+def test_stale_claim_listing_and_generic_abort_are_atomic(
+    store: ControlStore,
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    _configure_source(store)
+    claim = store.acquire_claim(_manual_claim_request(_NOW_MS, deadline_after_ms=10))
+    clock.set(_NOW_MS + 10)
+
+    assert store.list_stale_claims(limit=1)[0].identity == claim.identity
+    transition = store.abort_claim(
+        claim.identity,
+        error_category="archive_failure",
+        incident=IncidentDraft(
+            "incident-archive-failure",
+            "archive_failure",
+            {"phase": "archive"},
+        ),
+    )
+
+    assert transition.status == "expired"
+    assert _query(database_path, "SELECT cursor_json FROM source_cursors") == []
+    assert _query(database_path, "SELECT incident_category FROM incidents") == [
+        ("archive_failure",)
+    ]
+
+
+def test_atomic_overdue_and_named_due_claims(
+    store: ControlStore,
+    clock: _TestClock,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    for source_id in ("rsk-a", "rsk-b"):
+        _ = store.configure_source(SourceConfiguration(source_id, "rsk", {}, True))
+        _ = store.set_schedule(replace(_schedule(), source_id=source_id))
+    clock.set(_NOW_MS)
+
+    catch_up = store.claim_one_overdue()
+
+    assert catch_up is not None
+    assert catch_up.identity.source_id == "rsk-a"
+    assert catch_up.run_mode == "catch_up"
+    assert store.claim_named_due("rsk-a") is None
+    named = store.claim_named_due("rsk-b")
+    assert named is not None
+    assert named.run_mode == "scheduled"
 
 
 def test_store_rejects_caller_owned_connections(tmp_path: Path) -> None:
@@ -932,6 +1114,7 @@ def _recovery_receipt(
         archive_key=(
             f"control-recovery/run/{image_state_revision:020d}/{digest}.sqlite3"
         ),
+        version_id="recovery-version-1",
         verified_sha256=digest,
         verified_size_bytes=4096,
     )

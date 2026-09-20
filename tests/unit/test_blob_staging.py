@@ -185,6 +185,20 @@ def test_staging_removes_safe_stale_file_before_create(tmp_path: Path) -> None:
     assert list(directory.iterdir()) == []
 
 
+def test_staging_removes_safe_stale_file_without_creating_a_download(
+    tmp_path: Path,
+) -> None:
+    directory = tmp_path / "staging"
+    staging = BlobStagingArea(directory)
+    stale = directory / ".minos-blob-stale"
+    _ = stale.write_bytes(b"partial")
+    os.chmod(stale, 0o600)
+
+    staging.cleanup_stale()
+
+    assert list(directory.iterdir()) == []
+
+
 def test_staging_rejects_replaced_directory_identity(tmp_path: Path) -> None:
     directory = tmp_path / "staging"
     staging = BlobStagingArea(directory)

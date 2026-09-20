@@ -66,6 +66,16 @@ class MigrationResult:
     forward_compatible: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ControlDatabaseIdentity:
+    schema_version: int
+    state_revision: int
+    migrations: tuple[AppliedMigration, ...]
+
+
+type ControlSchemaObject = tuple[str, str, str, str | None]
+
+
 def default_control_sql_root() -> Traversable:
     packaged_root = resources.files("minos").joinpath("database/control/sqlite")
     if packaged_root.is_dir():
@@ -130,6 +140,82 @@ def apply_control_migrations(
         applied_versions=tuple(item.version for item in pending),
         forward_compatible=False,
     )
+
+
+def validate_control_database(
+    connection: sqlite3.Connection,
+    *,
+    expected_state_revision: int | None = None,
+    sql_root: Traversable | None = None,
+) -> ControlDatabaseIdentity:
+    """Validate an exact current control schema without changing its contents."""
+    return _validate_control_database(
+        connection,
+        expected_state_revision=expected_state_revision,
+        sql_root=sql_root,
+        extension_objects=(),
+    )
+
+
+def validate_control_database_with_schema_extension(
+    connection: sqlite3.Connection,
+    extension_objects: tuple[ControlSchemaObject, ...],
+    *,
+    expected_state_revision: int | None = None,
+    sql_root: Traversable | None = None,
+) -> ControlDatabaseIdentity:
+    """Validate the current schema plus an exact, explicitly allowed extension."""
+    if not extension_objects:
+        raise MigrationError("control schema extension must not be empty")
+    return _validate_control_database(
+        connection,
+        expected_state_revision=expected_state_revision,
+        sql_root=sql_root,
+        extension_objects=extension_objects,
+    )
+
+
+def _validate_control_database(
+    connection: sqlite3.Connection,
+    *,
+    expected_state_revision: int | None,
+    sql_root: Traversable | None,
+    extension_objects: tuple[ControlSchemaObject, ...],
+) -> ControlDatabaseIdentity:
+    migrations = load_control_migrations(sql_root)
+    _prepare_connection(connection)
+    applied = _read_applied_migrations(connection)
+    expected = tuple(_as_applied(item) for item in migrations)
+    if applied != expected:
+        raise MigrationError("database does not contain the exact bundled migrations")
+    _validate_database_version(connection, CONTROL_SCHEMA_VERSION)
+    state_revision = _read_state_revision(connection)
+    if (
+        expected_state_revision is not None
+        and state_revision != expected_state_revision
+    ):
+        raise MigrationError(
+            "control state revision differs from the expected snapshot"
+        )
+    _validate_exact_schema(connection, sql_root, extension_objects)
+    return ControlDatabaseIdentity(CONTROL_SCHEMA_VERSION, state_revision, applied)
+
+
+def migration_set_sha256(migrations: tuple[AppliedMigration, ...]) -> str:
+    digest = sha256()
+    for migration in migrations:
+        fields = (
+            str(migration.version),
+            migration.name,
+            str(migration.minimum_reader_version),
+            migration.up_sha256,
+            migration.down_sha256,
+        )
+        for field in fields:
+            encoded = field.encode("utf-8")
+            digest.update(len(encoded).to_bytes(4, "big"))
+            digest.update(encoded)
+    return digest.hexdigest()
 
 
 def rollback_control_migrations_for_testing(
@@ -499,6 +585,56 @@ def _validate_database_version(
         raise MigrationError(
             "control_state schema version differs from migration history"
         )
+
+
+def _read_state_revision(connection: sqlite3.Connection) -> int:
+    rows = cast(
+        list[tuple[int]],
+        connection.execute(
+            "SELECT state_revision FROM control_state WHERE singleton_id = 1"
+        ).fetchall(),
+    )
+    if len(rows) != 1 or rows[0][0] < 0:
+        raise MigrationError("control state revision is invalid")
+    return rows[0][0]
+
+
+def _validate_exact_schema(
+    connection: sqlite3.Connection,
+    sql_root: Traversable | None,
+    extension_objects: tuple[ControlSchemaObject, ...],
+) -> None:
+    expected = sqlite3.Connection(":memory:", isolation_level=None)
+    try:
+        _ = apply_control_migrations(expected, sql_root)
+        expected_objects = _read_schema_objects(expected)
+    finally:
+        expected.close()
+    extension_names = tuple(item[1] for item in extension_objects)
+    if len(extension_names) != len(set(extension_names)):
+        raise MigrationError("control schema extension contains duplicate names")
+    expected_objects.extend(extension_objects)
+    expected_objects.sort(key=lambda item: (item[0], item[1]))
+    if _read_schema_objects(connection) != expected_objects:
+        raise MigrationError(
+            "control database schema differs from the bundled migrations"
+        )
+
+
+def _read_schema_objects(
+    connection: sqlite3.Connection,
+) -> list[tuple[str, str, str, str | None]]:
+    return cast(
+        list[tuple[str, str, str, str | None]],
+        connection.execute(
+            """
+            SELECT type, name, tbl_name, sql
+            FROM sqlite_schema
+            WHERE name NOT LIKE 'sqlite_%'
+            ORDER BY type, name
+            """
+        ).fetchall(),
+    )
 
 
 def _validate_empty_database(connection: sqlite3.Connection) -> None:

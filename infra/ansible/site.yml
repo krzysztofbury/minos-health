@@ -23,8 +23,46 @@
       - "docker-ce={{ docker_engine_version }}"
       - "docker-ce-cli={{ docker_engine_version }}"
       - "docker-compose-plugin={{ docker_compose_version }}"
+    watcher_uid: 10001
+    watcher_gid: 10001
+    watcher_secrets_gid: 10002
+    watcher_image_repository: ghcr.io/krzysztofbury/minos-health-watcher
+    watcher_aws_region: eu-central-1
 
   pre_tasks:
+    - name: Require exact watcher deployment inputs
+      ansible.builtin.assert:
+        that:
+          - watcher_uid == 10001
+          - watcher_gid == 10001
+          - watcher_secrets_gid == 10002
+          - watcher_archive_backend is defined
+          - watcher_s3_bucket is defined
+          - watcher_s3_expected_bucket_owner is defined
+          - watcher_expected_image_digest is defined
+          - watcher_source_revision is defined
+          - >-
+            watcher_image_repository ==
+            'ghcr.io/krzysztofbury/minos-health-watcher'
+          - >-
+            watcher_expected_image_digest | default('') is
+            match('^sha256:[a-f0-9]{64}$')
+          - >-
+            watcher_source_revision | default('') is match('^[a-f0-9]{40}$')
+          - watcher_archive_backend | default('') == 's3'
+          - >-
+            watcher_s3_bucket | default('') is
+            match('^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
+          - >-
+            watcher_s3_expected_bucket_owner | default('') is
+            match('^[0-9]{12}$')
+          - >-
+            watcher_aws_region is
+            match('^[a-z]{2}(-[a-z]+)+-[0-9]+$')
+        fail_msg: >-
+          Supply the reviewed S3 watcher settings, expected image digest,
+          source revision, and AWS region.
+
     - name: Require the reviewed production host
       ansible.builtin.assert:
         that:
@@ -35,6 +73,11 @@
           - ansible_facts.user_id == "root"
           - ansible_facts.hostname == "andrzej159"
         fail_msg: Refusing to apply the Mikr.us baseline to an unexpected host.
+
+    - name: Use the reviewed digest while rendering in check mode
+      ansible.builtin.set_fact:
+        watcher_runtime_image_digest: "{{ watcher_expected_image_digest }}"
+      when: ansible_check_mode
 
     - name: Inspect the existing tunnel credential before mutating the host
       ansible.builtin.stat:
@@ -119,6 +162,59 @@
             'Endpoint' not in cloudflared_credential_preflight_payload or
             cloudflared_credential_preflight_payload.Endpoint is string
         fail_msg: The tunnel credential is malformed or belongs to another tunnel.
+      when: not ansible_check_mode
+
+    - name: Inspect installed watcher secret files before mutating the host
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/minos/watcher/aws/credentials
+        - /etc/minos/watcher/healthchecks/targets.json
+      register: watcher_secret_preflight
+      when: not ansible_check_mode
+
+    - name: Inspect supplied AWS watcher credentials before mutating the host
+      ansible.builtin.stat:
+        path: "{{ watcher_aws_credentials_source }}"
+      delegate_to: localhost
+      register: watcher_aws_credentials_source_preflight
+      when:
+        - not ansible_check_mode
+        - watcher_aws_credentials_source is defined
+
+    - name: Inspect supplied Healthchecks targets before mutating the host
+      ansible.builtin.stat:
+        path: "{{ watcher_healthchecks_targets_source }}"
+      delegate_to: localhost
+      register: watcher_healthchecks_targets_source_preflight
+      when:
+        - not ansible_check_mode
+        - watcher_healthchecks_targets_source is defined
+
+    - name: Require recoverable watcher secrets before mutating the host
+      ansible.builtin.assert:
+        that:
+          - >-
+            (watcher_secret_preflight.results[0].stat.exists and
+             watcher_secret_preflight.results[0].stat.isreg and
+             watcher_secret_preflight.results[0].stat.uid == 0 and
+             watcher_secret_preflight.results[0].stat.gid == watcher_secrets_gid and
+             watcher_secret_preflight.results[0].stat.mode == '0440') or
+            (watcher_aws_credentials_source is defined and
+             watcher_aws_credentials_source_preflight.stat.exists and
+             watcher_aws_credentials_source_preflight.stat.isreg and
+             watcher_aws_credentials_source_preflight.stat.mode in ['0400', '0600'])
+          - >-
+            (watcher_secret_preflight.results[1].stat.exists and
+             watcher_secret_preflight.results[1].stat.isreg and
+             watcher_secret_preflight.results[1].stat.uid == 0 and
+             watcher_secret_preflight.results[1].stat.gid == watcher_secrets_gid and
+             watcher_secret_preflight.results[1].stat.mode == '0440') or
+            (watcher_healthchecks_targets_source is defined and
+             watcher_healthchecks_targets_source_preflight.stat.exists and
+             watcher_healthchecks_targets_source_preflight.stat.isreg and
+             watcher_healthchecks_targets_source_preflight.stat.mode in ['0400', '0600'])
+        fail_msg: Supply regular mode-0400/0600 watcher secret files for the first apply.
       when: not ansible_check_mode
       no_log: true
 
@@ -383,6 +479,29 @@
         system: true
         state: present
 
+    - name: Create the pinned watcher groups
+      ansible.builtin.group:
+        name: "{{ item.name }}"
+        gid: "{{ item.gid }}"
+        system: true
+        state: present
+      loop:
+        - {name: minos-watcher, gid: "{{ watcher_gid }}"}
+        - {name: minos-watcher-secrets, gid: "{{ watcher_secrets_gid }}"}
+
+    - name: Create the pinned watcher host identity
+      ansible.builtin.user:
+        name: minos-watcher
+        uid: "{{ watcher_uid }}"
+        group: minos-watcher
+        groups: ""
+        append: false
+        create_home: false
+        home: /nonexistent
+        shell: /usr/sbin/nologin
+        system: true
+        state: present
+
     - name: Read the cloudflared credential group
       ansible.builtin.getent:
         database: group
@@ -420,6 +539,144 @@
         - {path: /opt/minos/candidate/edge, group: root, mode: "0755"}
         - {path: /etc/minos, group: root, mode: "0750"}
         - {path: /etc/minos/cloudflared, group: minos-cloudflared, mode: "0750"}
+        - {path: /etc/minos/watcher, group: minos-watcher-secrets, mode: "0750"}
+        - {path: /etc/minos/watcher/aws, group: minos-watcher-secrets, mode: "0750"}
+        - {path: /etc/minos/watcher/healthchecks, group: minos-watcher-secrets, mode: "0750"}
+
+    - name: Create secure watcher data directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: minos-watcher
+        group: minos-watcher
+        mode: "0700"
+      loop:
+        - /var/lib/minos/watcher/control
+        - /var/lib/minos/watcher/archive
+        - /var/lib/minos/watcher/staging
+
+    - name: Inspect restorable watcher control files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /var/lib/minos/watcher/control/control.sqlite3
+        - /var/lib/minos/watcher/control/control.sqlite3-wal
+        - /var/lib/minos/watcher/control/control.sqlite3-shm
+        - /var/lib/minos/watcher/control/watcher.lock
+      register: watcher_control_files
+
+    - name: Reapply ownership to known control files after a restore
+      ansible.builtin.file:
+        path: "{{ item.item }}"
+        state: file
+        owner: minos-watcher
+        group: minos-watcher
+        mode: "0600"
+      loop: "{{ watcher_control_files.results }}"
+      when: item.stat.exists and (item.stat.isreg | default(false))
+
+    - name: Persist the disk-backed watcher staging mount boundary
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: >-
+          ^/var/lib/minos/watcher/staging\s+/var/lib/minos/watcher/staging\s+
+        line: >-
+          /var/lib/minos/watcher/staging /var/lib/minos/watcher/staging none bind,rw,noexec,nosuid,nodev 0 0
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Detect the watcher staging mountpoint
+      ansible.builtin.command:
+        argv: [mountpoint, --quiet, /var/lib/minos/watcher/staging]
+      register: watcher_staging_mountpoint
+      changed_when: false
+      failed_when: watcher_staging_mountpoint.rc not in [0, 1]
+      when: not ansible_check_mode
+
+    - name: Create the disk-backed watcher staging bind mount
+      ansible.builtin.command:
+        argv:
+          - mount
+          - --bind
+          - /var/lib/minos/watcher/staging
+          - /var/lib/minos/watcher/staging
+      when:
+        - not ansible_check_mode
+        - watcher_staging_mountpoint.rc == 1
+      changed_when: true
+
+    - name: Enforce watcher staging mount restrictions
+      ansible.builtin.command:
+        argv:
+          - mount
+          - --options
+          - remount,bind,rw,noexec,nosuid,nodev
+          - /var/lib/minos/watcher/staging
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Read watcher staging mount restrictions
+      ansible.builtin.command:
+        argv:
+          - findmnt
+          - --noheadings
+          - --output
+          - OPTIONS
+          - --target
+          - /var/lib/minos/watcher/staging
+      register: watcher_staging_mount_options
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require the watcher staging mount boundary
+      ansible.builtin.assert:
+        that:
+          - "'rw' in watcher_staging_mount_options.stdout.split(',')"
+          - "'noexec' in watcher_staging_mount_options.stdout.split(',')"
+          - "'nosuid' in watcher_staging_mount_options.stdout.split(',')"
+          - "'nodev' in watcher_staging_mount_options.stdout.split(',')"
+        fail_msg: The watcher staging path is not a hardened disk-backed mount.
+      when: not ansible_check_mode
+
+    - name: Install operator-supplied watcher secret files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: minos-watcher-secrets
+        mode: "0440"
+      loop:
+        - src: "{{ watcher_aws_credentials_source | default('') }}"
+          dest: /etc/minos/watcher/aws/credentials
+          supplied: "{{ watcher_aws_credentials_source is defined }}"
+        - src: "{{ watcher_healthchecks_targets_source | default('') }}"
+          dest: /etc/minos/watcher/healthchecks/targets.json
+          supplied: "{{ watcher_healthchecks_targets_source is defined }}"
+      when: item.supplied | bool
+      register: watcher_secret_install
+      no_log: true
+
+    - name: Inspect installed watcher secret files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/minos/watcher/aws/credentials
+        - /etc/minos/watcher/healthchecks/targets.json
+      register: watcher_secrets
+      when: not ansible_check_mode
+
+    - name: Require the watcher secret security boundary
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.isreg
+          - item.stat.uid == 0
+          - item.stat.gid == watcher_secrets_gid
+          - item.stat.mode == '0440'
+        fail_msg: A watcher secret file is outside the reviewed security boundary.
+      loop: "{{ watcher_secrets.results }}"
+      when: not ansible_check_mode
 
     - name: Stage the non-secret Minos runtime files
       ansible.builtin.copy:
@@ -429,8 +686,6 @@
         group: root
         mode: "0644"
       loop:
-        - src: minos-compose.yml
-          dest: compose.yaml
         - src: edge-nginx.conf
           dest: edge/nginx.conf
         - src: maintenance-index.html
@@ -445,6 +700,8 @@
           dest: edge/terms.html
         - src: cloudflared-config.yml
           dest: cloudflared-config.yml
+        - src: minos-compose.service
+          dest: minos-compose.service
 
     - name: Install the operator-supplied cloudflared credential
       ansible.builtin.copy:
@@ -454,8 +711,8 @@
         group: minos-cloudflared
         mode: "0440"
       when: cloudflared_credentials_source is defined
+      register: cloudflared_credential_install
       no_log: true
-      notify: Reconcile Minos Compose
 
     - name: Inspect the installed cloudflared credential
       ansible.builtin.stat:
@@ -474,6 +731,97 @@
           - cloudflared_credential.stat.checksum == cloudflared_credential_preflight_checksum
         fail_msg: Install the tunnel credential through cloudflared_credentials_source.
       when: not ansible_check_mode
+
+    - name: Read the exact candidate watcher registry manifest
+      ansible.builtin.command:
+        argv:
+          - docker
+          - buildx
+          - imagetools
+          - inspect
+          - --raw
+          - "{{ watcher_image_repository }}@{{ watcher_expected_image_digest }}"
+      register: watcher_candidate_registry_manifest
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require one runnable candidate watcher manifest
+      ansible.builtin.assert:
+        that:
+          - >-
+            (watcher_candidate_registry_manifest.stdout | from_json).mediaType in
+            ['application/vnd.oci.image.manifest.v1+json',
+             'application/vnd.docker.distribution.manifest.v2+json']
+          - (watcher_candidate_registry_manifest.stdout | from_json).config is mapping
+          - >-
+            (watcher_candidate_registry_manifest.stdout | from_json).layers |
+            length in range(1, 129)
+          - >-
+            'manifests' not in
+            (watcher_candidate_registry_manifest.stdout | from_json)
+        fail_msg: The reviewed watcher digest is not one runnable image manifest.
+      when: not ansible_check_mode
+
+    - name: Pull the exact candidate watcher image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - pull
+          - "{{ watcher_image_repository }}@{{ watcher_expected_image_digest }}"
+      register: watcher_candidate_pull
+      changed_when: "'Downloaded newer image' in watcher_candidate_pull.stdout"
+      when: not ansible_check_mode
+
+    - name: Inspect the host-observed candidate watcher identity
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - inspect
+          - --format
+          - >-
+            {{ '{{.Os}}/{{.Architecture}}|{{json .RepoDigests}}|{{index
+            .Config.Labels "org.opencontainers.image.revision"}}' }}
+          - "{{ watcher_image_repository }}@{{ watcher_expected_image_digest }}"
+      register: watcher_candidate_image
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require the exact candidate watcher image
+      ansible.builtin.assert:
+        that:
+          - watcher_candidate_image.stdout.split('|')[0] == 'linux/amd64'
+          - >-
+            watcher_image_repository + '@' + watcher_expected_image_digest in
+            (watcher_candidate_image.stdout.split('|')[1] | from_json)
+          - watcher_candidate_image.stdout.split('|')[2] == watcher_source_revision
+        fail_msg: The candidate watcher image identity or architecture is invalid.
+      when: not ansible_check_mode
+
+    - name: Record the host-observed candidate watcher digest
+      ansible.builtin.set_fact:
+        watcher_runtime_image_reference: >-
+          {{
+            watcher_candidate_image.stdout.split('|')[1] | from_json |
+            select('equalto', watcher_image_repository + '@' +
+                   watcher_expected_image_digest) | list | first
+          }}
+      when: not ansible_check_mode
+
+    - name: Derive the runtime digest from the host-observed identity
+      ansible.builtin.set_fact:
+        watcher_runtime_image_digest: >-
+          {{ watcher_runtime_image_reference.split('@')[1] }}
+      when: not ansible_check_mode
+
+    - name: Stage the candidate Minos Compose model
+      ansible.builtin.template:
+        src: minos-compose.yml.j2
+        dest: /opt/minos/candidate/compose.yaml
+        owner: root
+        group: root
+        mode: "0644"
 
     - name: Validate the candidate Nginx configuration with the pinned image
       ansible.builtin.command:
@@ -536,69 +884,499 @@
       changed_when: false
       when: not ansible_check_mode
 
-    - name: Promote the validated non-secret Minos runtime files
-      ansible.builtin.copy:
-        src: "/opt/minos/candidate/{{ item.src }}"
-        dest: "{{ item.dest }}"
-        remote_src: true
-        owner: root
-        group: "{{ item.group }}"
-        mode: "{{ item.mode }}"
+    - name: Inspect the candidate Minos runtime files
+      ansible.builtin.stat:
+        path: "{{ item }}"
       loop:
-        - src: compose.yaml
-          dest: /opt/minos/compose.yaml
-          group: root
-          mode: "0644"
-        - src: edge/nginx.conf
-          dest: /opt/minos/edge/nginx.conf
-          group: root
-          mode: "0644"
-        - src: edge/index.html
-          dest: /opt/minos/edge/index.html
-          group: root
-          mode: "0644"
-        - src: edge/legal.css
-          dest: /opt/minos/edge/legal.css
-          group: root
-          mode: "0644"
-        - src: edge/plausible-init.js
-          dest: /opt/minos/edge/plausible-init.js
-          group: root
-          mode: "0644"
-        - src: edge/privacy-policy.html
-          dest: /opt/minos/edge/privacy-policy.html
-          group: root
-          mode: "0644"
-        - src: edge/terms.html
-          dest: /opt/minos/edge/terms.html
-          group: root
-          mode: "0644"
-        - src: cloudflared-config.yml
-          dest: /etc/minos/cloudflared/config.yml
-          group: minos-cloudflared
-          mode: "0440"
+        - /opt/minos/candidate/compose.yaml
+        - /opt/minos/candidate/edge/nginx.conf
+        - /opt/minos/candidate/edge/index.html
+        - /opt/minos/candidate/edge/legal.css
+        - /opt/minos/candidate/edge/plausible-init.js
+        - /opt/minos/candidate/edge/privacy-policy.html
+        - /opt/minos/candidate/edge/terms.html
+        - /opt/minos/candidate/cloudflared-config.yml
+        - /opt/minos/candidate/minos-compose.service
+      register: watcher_candidate_runtime_files
       when: not ansible_check_mode
-      notify: Reconcile Minos Compose
 
-    - name: Install the Minos Compose systemd unit
-      ansible.builtin.copy:
-        src: files/minos-compose.service
-        dest: /etc/systemd/system/minos-compose.service
+    - name: Require a complete candidate Minos runtime
+      ansible.builtin.assert:
+        that:
+          - >-
+            watcher_candidate_runtime_files.results |
+            selectattr('stat.isreg') | list | length == 9
+        fail_msg: The candidate Minos runtime is incomplete.
+      when: not ansible_check_mode
+
+    - name: Inspect the active Minos runtime files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /opt/minos/compose.yaml
+        - /opt/minos/edge/nginx.conf
+        - /opt/minos/edge/index.html
+        - /opt/minos/edge/legal.css
+        - /opt/minos/edge/plausible-init.js
+        - /opt/minos/edge/privacy-policy.html
+        - /opt/minos/edge/terms.html
+        - /etc/minos/cloudflared/config.yml
+        - /etc/systemd/system/minos-compose.service
+      register: watcher_active_runtime_files
+      when: not ansible_check_mode
+
+    - name: Reject a partial active Minos runtime
+      ansible.builtin.assert:
+        that:
+          - >-
+            watcher_active_runtime_files.results |
+            selectattr('stat.exists') | list | length in [0, 9]
+          - >-
+            watcher_active_runtime_files.results |
+            selectattr('stat.isreg', 'defined') |
+            selectattr('stat.isreg') | list | length ==
+            watcher_active_runtime_files.results |
+            selectattr('stat.exists') | list | length
+        fail_msg: The active Minos runtime is partial and cannot be safely rolled back.
+      when: not ansible_check_mode
+
+    - name: Record whether a prior Minos runtime exists
+      ansible.builtin.set_fact:
+        watcher_prior_runtime_exists: >-
+          {{
+            watcher_active_runtime_files.results |
+            selectattr('stat.exists') | list | length == 9
+          }}
+      when: not ansible_check_mode
+
+    - name: Read active Minos Compose services
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - minos
+          - --file
+          - /opt/minos/compose.yaml
+          - config
+          - --services
+      register: watcher_active_services
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - watcher_prior_runtime_exists
+
+    - name: Read the active watcher container identity
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - minos
+          - --file
+          - /opt/minos/compose.yaml
+          - ps
+          - --quiet
+          - watcher
+      register: watcher_active_container
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - watcher_prior_runtime_exists
+        - "'watcher' in watcher_active_services.stdout_lines"
+
+    - name: Read the active watcher image reference
+      ansible.builtin.command:
+        argv:
+          - docker
+          - inspect
+          - --format
+          - "{{ '{{.Config.Image}}' }}"
+          - "{{ watcher_active_container.stdout }}"
+      register: watcher_active_image
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - watcher_prior_runtime_exists
+        - "'watcher' in watcher_active_services.stdout_lines"
+        - watcher_active_container.stdout | length > 0
+
+    - name: Calculate whether Minos activation is required
+      ansible.builtin.set_fact:
+        watcher_activation_required: >-
+          {{
+            (not watcher_prior_runtime_exists) or
+            (watcher_candidate_runtime_files.results |
+             map(attribute='stat.checksum') | list !=
+             watcher_active_runtime_files.results |
+             map(attribute='stat.checksum') | list) or
+            (watcher_secret_install.changed | default(false)) or
+            (cloudflared_credential_install.changed | default(false)) or
+            (watcher_active_image.stdout | default('', true) !=
+             watcher_image_repository + '@' + watcher_runtime_image_digest)
+          }}
+      when: not ansible_check_mode
+
+    - name: Reset isolated candidate preflight data for a changed deployment
+      ansible.builtin.file:
+        path: /var/lib/minos/watcher/candidate-preflight
+        state: absent
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+
+    - name: Create isolated candidate preflight directories
+      ansible.builtin.file:
+        path: "/var/lib/minos/watcher/candidate-preflight/{{ item }}"
+        state: directory
+        owner: minos-watcher
+        group: minos-watcher
+        mode: "0700"
+      loop:
+        - control
+        - archive
+        - staging
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+
+    - name: Inspect the live watcher control database
+      ansible.builtin.stat:
+        path: /var/lib/minos/watcher/control/control.sqlite3
+      register: watcher_live_control_database
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+
+    - name: Create consistent isolated candidate database evidence
+      ansible.builtin.command:
+        argv:
+          - timeout
+          - --signal=TERM
+          - --kill-after=5s
+          - 300s
+          - docker
+          - run
+          - --rm
+          - --network
+          - none
+          - --read-only
+          - --user
+          - "{{ watcher_uid }}:{{ watcher_gid }}"
+          - --cap-drop
+          - ALL
+          - --security-opt
+          - no-new-privileges:true
+          - --volume
+          - /var/lib/minos/watcher/control:/source:ro
+          - --volume
+          - /var/lib/minos/watcher/candidate-preflight/control:/destination:rw
+          - "{{ watcher_image_repository }}@{{ watcher_runtime_image_digest }}"
+          - watcher
+          - copy-control-database
+          - --source-database
+          - /source/control.sqlite3
+          - --destination-database
+          - /destination/control.sqlite3
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+        - watcher_live_control_database.stat.exists
+        - watcher_live_control_database.stat.isreg | default(false)
+
+    - name: Run the isolated scheduler-paused candidate preflight
+      ansible.builtin.command:
+        argv:
+          - docker
+          - compose
+          - --project-name
+          - minos-candidate
+          - --file
+          - /opt/minos/candidate/compose.yaml
+          - --profile
+          - candidate-preflight
+          - run
+          - --rm
+          - watcher-candidate-preflight
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+
+    - name: Reset the Minos activation evidence directory
+      ansible.builtin.file:
+        path: /opt/minos/rollback
+        state: absent
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+
+    - name: Create the Minos runtime rollback directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
         owner: root
         group: root
-        mode: "0644"
-      notify: Reconcile Minos Compose
+        mode: "0700"
+      loop:
+        - /opt/minos/rollback
+        - /opt/minos/rollback/edge
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
 
-    - name: Enable and start the Minos maintenance stack
-      ansible.builtin.systemd_service:
-        name: minos-compose.service
-        daemon_reload: true
-        enabled: true
-        state: started
-      when: not ansible_check_mode
+    - name: Create the Minos preactivation database evidence directory
+      ansible.builtin.file:
+        path: /opt/minos/rollback/control
+        state: directory
+        owner: minos-watcher
+        group: minos-watcher
+        mode: "0700"
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
 
-    - name: Apply runtime changes before verification
-      ansible.builtin.meta: flush_handlers
+    - name: Snapshot the active Minos runtime files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/opt/minos/rollback/{{ item.dest }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      loop:
+        - {src: /opt/minos/compose.yaml, dest: compose.yaml}
+        - {src: /opt/minos/edge/nginx.conf, dest: edge/nginx.conf}
+        - {src: /opt/minos/edge/index.html, dest: edge/index.html}
+        - {src: /opt/minos/edge/legal.css, dest: edge/legal.css}
+        - {src: /opt/minos/edge/plausible-init.js, dest: edge/plausible-init.js}
+        - {src: /opt/minos/edge/privacy-policy.html, dest: edge/privacy-policy.html}
+        - {src: /opt/minos/edge/terms.html, dest: edge/terms.html}
+        - {src: /etc/minos/cloudflared/config.yml, dest: cloudflared-config.yml}
+        - {src: /etc/systemd/system/minos-compose.service, dest: minos-compose.service}
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+        - watcher_prior_runtime_exists
+
+    - name: Activate the validated Minos candidate with runtime rollback
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+      block:
+        - name: Stop the active Minos stack after candidate validation
+          ansible.builtin.systemd_service:
+            name: minos-compose.service
+            state: stopped
+          when: watcher_prior_runtime_exists
+
+        - name: Capture stopped preactivation database evidence
+          ansible.builtin.command:
+            argv:
+              - timeout
+              - --signal=TERM
+              - --kill-after=5s
+              - 300s
+              - docker
+              - run
+              - --rm
+              - --network
+              - none
+              - --read-only
+              - --user
+              - "{{ watcher_uid }}:{{ watcher_gid }}"
+              - --cap-drop
+              - ALL
+              - --security-opt
+              - no-new-privileges:true
+              - --volume
+              - /var/lib/minos/watcher/control:/source:ro
+              - --volume
+              - /opt/minos/rollback/control:/destination:rw
+              - "{{ watcher_image_repository }}@{{ watcher_runtime_image_digest }}"
+              - watcher
+              - copy-control-database
+              - --source-database
+              - /source/control.sqlite3
+              - --destination-database
+              - /destination/preactivation.sqlite3
+          changed_when: false
+          when:
+            - watcher_live_control_database.stat.exists
+            - watcher_live_control_database.stat.isreg | default(false)
+
+        - name: Promote validated Minos runtime files while stopped
+          ansible.builtin.copy:
+            src: "/opt/minos/candidate/{{ item.src }}"
+            dest: "{{ item.dest }}"
+            remote_src: true
+            owner: root
+            group: "{{ item.group }}"
+            mode: "{{ item.mode }}"
+            unsafe_writes: false
+          loop:
+            - src: compose.yaml
+              dest: /opt/minos/compose.yaml
+              group: root
+              mode: "0644"
+            - src: edge/nginx.conf
+              dest: /opt/minos/edge/nginx.conf
+              group: root
+              mode: "0644"
+            - src: edge/index.html
+              dest: /opt/minos/edge/index.html
+              group: root
+              mode: "0644"
+            - src: edge/legal.css
+              dest: /opt/minos/edge/legal.css
+              group: root
+              mode: "0644"
+            - src: edge/plausible-init.js
+              dest: /opt/minos/edge/plausible-init.js
+              group: root
+              mode: "0644"
+            - src: edge/privacy-policy.html
+              dest: /opt/minos/edge/privacy-policy.html
+              group: root
+              mode: "0644"
+            - src: edge/terms.html
+              dest: /opt/minos/edge/terms.html
+              group: root
+              mode: "0644"
+            - src: cloudflared-config.yml
+              dest: /etc/minos/cloudflared/config.yml
+              group: minos-cloudflared
+              mode: "0440"
+            - src: minos-compose.service
+              dest: /etc/systemd/system/minos-compose.service
+              group: root
+              mode: "0644"
+
+        - name: Start the validated Minos candidate
+          ansible.builtin.systemd_service:
+            name: minos-compose.service
+            daemon_reload: true
+            enabled: true
+            state: started
+
+        - name: Observe candidate stability after readiness
+          ansible.builtin.pause:
+            seconds: 30
+
+        - name: Read candidate Minos Compose services
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - ps
+              - --services
+              - --status
+              - running
+          register: minos_candidate_running_services
+          changed_when: false
+
+        - name: Require all candidate Minos services to remain running
+          ansible.builtin.assert:
+            that:
+              - >-
+                minos_candidate_running_services.stdout_lines | sort ==
+                ['cloudflared', 'edge', 'watcher']
+            fail_msg: Candidate services did not remain running after activation.
+
+      rescue:
+        - name: Stop the rejected Minos candidate
+          ansible.builtin.systemd_service:
+            name: minos-compose.service
+            state: stopped
+          failed_when: false
+
+        - name: Restore prior Minos runtime files and image reference
+          ansible.builtin.copy:
+            src: "/opt/minos/rollback/{{ item.src }}"
+            dest: "{{ item.dest }}"
+            remote_src: true
+            owner: root
+            group: "{{ item.group }}"
+            mode: "{{ item.mode }}"
+            unsafe_writes: false
+          loop:
+            - src: compose.yaml
+              dest: /opt/minos/compose.yaml
+              group: root
+              mode: "0644"
+            - src: edge/nginx.conf
+              dest: /opt/minos/edge/nginx.conf
+              group: root
+              mode: "0644"
+            - src: edge/index.html
+              dest: /opt/minos/edge/index.html
+              group: root
+              mode: "0644"
+            - src: edge/legal.css
+              dest: /opt/minos/edge/legal.css
+              group: root
+              mode: "0644"
+            - src: edge/plausible-init.js
+              dest: /opt/minos/edge/plausible-init.js
+              group: root
+              mode: "0644"
+            - src: edge/privacy-policy.html
+              dest: /opt/minos/edge/privacy-policy.html
+              group: root
+              mode: "0644"
+            - src: edge/terms.html
+              dest: /opt/minos/edge/terms.html
+              group: root
+              mode: "0644"
+            - src: cloudflared-config.yml
+              dest: /etc/minos/cloudflared/config.yml
+              group: minos-cloudflared
+              mode: "0440"
+            - src: minos-compose.service
+              dest: /etc/systemd/system/minos-compose.service
+              group: root
+              mode: "0644"
+          when: watcher_prior_runtime_exists
+
+        - name: Remove a rejected initial Minos runtime
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /opt/minos/compose.yaml
+            - /opt/minos/edge/nginx.conf
+            - /opt/minos/edge/index.html
+            - /opt/minos/edge/legal.css
+            - /opt/minos/edge/plausible-init.js
+            - /opt/minos/edge/privacy-policy.html
+            - /opt/minos/edge/terms.html
+            - /etc/minos/cloudflared/config.yml
+            - /etc/systemd/system/minos-compose.service
+          when: not watcher_prior_runtime_exists
+
+        - name: Reload systemd after rejecting an initial Minos runtime
+          ansible.builtin.systemd_service:
+            daemon_reload: true
+          when: not watcher_prior_runtime_exists
+
+        - name: Restart the prior Minos stack against the current database
+          ansible.builtin.systemd_service:
+            name: minos-compose.service
+            daemon_reload: true
+            enabled: true
+            state: started
+          when: watcher_prior_runtime_exists
+
+        - name: Reject the candidate while preserving database evidence
+          ansible.builtin.fail:
+            msg: >-
+              Candidate activation failed; prior runtime files and image were
+              restored against the current database, and database evidence was preserved.
 
     - name: Read running Minos Compose services
       ansible.builtin.command:
@@ -632,6 +1410,7 @@
       loop:
         - edge
         - cloudflared
+        - watcher
       register: minos_container_ids
       changed_when: false
       when: not ansible_check_mode
@@ -642,7 +1421,7 @@
           - docker
           - inspect
           - --format
-          - "{{ '{{.State.Health.Status}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}' }}"
+          - "{{ '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.GroupAdd}}|{{.RestartCount}}' }}"
           - "{{ item.stdout }}"
       loop: "{{ minos_container_ids.results }}"
       register: minos_container_boundaries
@@ -653,12 +1432,13 @@
       ansible.builtin.set_fact:
         minos_edge_boundary: "{{ minos_container_boundaries.results[0].stdout.split('|') }}"
         minos_cloudflared_boundary: "{{ minos_container_boundaries.results[1].stdout.split('|') }}"
+        minos_watcher_boundary: "{{ minos_container_boundaries.results[2].stdout.split('|') }}"
       when: not ansible_check_mode
 
-    - name: Require the reviewed maintenance runtime boundary
+    - name: Require the reviewed Minos runtime boundary
       ansible.builtin.assert:
         that:
-          - minos_running_services.stdout_lines | sort == ['cloudflared', 'edge']
+          - minos_running_services.stdout_lines | sort == ['cloudflared', 'edge', 'watcher']
           - minos_edge_boundary[0] == "healthy"
           - minos_edge_boundary[1] == "{}"
           - minos_edge_boundary[2] == "docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972"
@@ -718,7 +1498,51 @@
           - >-
             minos_cloudflared_boundary[15] | from_json ==
             {'/tmp': 'rw,noexec,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0700'}
-        fail_msg: The maintenance stack differs from the reviewed runtime boundary.
+          - minos_watcher_boundary[0] == "healthy"
+          - minos_watcher_boundary[1] == "{}"
+          - >-
+            minos_watcher_boundary[2] ==
+            watcher_image_repository + '@' + watcher_runtime_image_digest
+          - minos_watcher_boundary[3] == "minos_watcher-egress"
+          - minos_watcher_boundary[4] == "10001:10001"
+          - minos_watcher_boundary[5] == "true"
+          - minos_watcher_boundary[6] | from_json == ['ALL']
+          - minos_watcher_boundary[7] | from_json == ['no-new-privileges:true']
+          - minos_watcher_boundary[8] == "unless-stopped"
+          - minos_watcher_boundary[9] == "536870912"
+          - minos_watcher_boundary[10] == "750000000"
+          - minos_watcher_boundary[11] == "64"
+          - >-
+            minos_watcher_boundary[12] | from_json ==
+            {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
+          - >-
+            (minos_watcher_boundary[13] | from_json).keys() | list ==
+            ['minos_watcher-egress']
+          - >-
+            minos_watcher_boundary[14] | from_json |
+            selectattr('RW', 'equalto', true) | list | length == 3
+          - >-
+            minos_watcher_boundary[14] | from_json |
+            selectattr('RW', 'equalto', false) | list | length == 2
+          - >-
+            minos_watcher_boundary[14] | from_json |
+            selectattr('Type', 'equalto', 'bind') | list | length == 5
+          - >-
+            minos_watcher_boundary[14] | from_json | map(attribute='Destination') | sort ==
+            ['/run/secrets/aws-credentials', '/run/secrets/healthchecks-targets.json',
+             '/var/lib/minos/archive', '/var/lib/minos/control', '/var/lib/minos/staging']
+          - >-
+            minos_watcher_boundary[14] | from_json | map(attribute='Source') | sort ==
+            ['/etc/minos/watcher/aws/credentials',
+             '/etc/minos/watcher/healthchecks/targets.json',
+             '/var/lib/minos/watcher/archive', '/var/lib/minos/watcher/control',
+             '/var/lib/minos/watcher/staging']
+          - >-
+            minos_watcher_boundary[15] | from_json ==
+            {'/tmp': 'rw,noexec,nosuid,nodev,size=16m,uid=10001,gid=10001,mode=0700'}
+          - minos_watcher_boundary[16] | from_json == ['10002']
+          - minos_watcher_boundary[17] == "0"
+        fail_msg: The Minos stack differs from the reviewed runtime boundary.
       when: not ansible_check_mode
 
     - name: Enable periodic package maintenance
@@ -1025,10 +1849,4 @@
       ansible.builtin.systemd_service:
         name: docker.service
         state: restarted
-      when: not ansible_check_mode
-
-    - name: Reconcile Minos Compose
-      ansible.builtin.systemd_service:
-        name: minos-compose.service
-        state: reloaded
       when: not ansible_check_mode

@@ -1,6 +1,9 @@
 .git
 .github
 .venv
+docs
+infra
+tests
 __pycache__
 *.py[cod]
 .mypy_cache
@@ -20,6 +23,8 @@ htmlcov
 *.tfplan
 crash.log
 crash.*.log
+SPEC.md
+TODO.md
 *.tfvars
 *.tfvars.json
 *.auto.tfvars

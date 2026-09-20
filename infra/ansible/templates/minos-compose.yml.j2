@@ -1,0 +1,178 @@
+name: minos
+
+x-watcher-environment: &watcher-environment
+  AWS_DEFAULT_REGION: "{{ watcher_aws_region }}"
+  AWS_REGION: "{{ watcher_aws_region }}"
+  AWS_SHARED_CREDENTIALS_FILE: /run/secrets/aws-credentials
+  MINOS_WATCHER_ARCHIVE_BACKEND: "{{ watcher_archive_backend }}"
+  MINOS_WATCHER_ARCHIVE_DIRECTORY: /var/lib/minos/archive
+  MINOS_WATCHER_DATABASE: /var/lib/minos/control/control.sqlite3
+  MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE: /run/secrets/healthchecks-targets.json
+  MINOS_WATCHER_IMAGE_DIGEST: "{{ watcher_expected_image_digest }}"
+  MINOS_WATCHER_PROCESS_LOCK: /var/lib/minos/control/watcher.lock
+  MINOS_WATCHER_READINESS_FILE: /tmp/minos-watcher-ready.json
+  MINOS_WATCHER_RUNTIME_IMAGE_DIGEST: "{{ watcher_runtime_image_digest }}"
+  MINOS_WATCHER_S3_BUCKET: "{{ watcher_s3_bucket }}"
+  MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER: "{{ watcher_s3_expected_bucket_owner }}"
+  MINOS_WATCHER_SCHEDULER_PAUSED: "true"
+  MINOS_WATCHER_STAGING_DIRECTORY: /var/lib/minos/staging
+
+x-watcher-active-environment: &watcher-active-environment
+  <<: *watcher-environment
+  MINOS_WATCHER_SCHEDULER_PAUSED: "false"
+
+x-watcher-runtime: &watcher-runtime
+  image: "{{ watcher_image_repository }}@{{ watcher_runtime_image_digest }}"
+  pull_policy: missing
+  platform: linux/amd64
+  user: "{{ watcher_uid }}:{{ watcher_gid }}"
+  group_add:
+    - "{{ watcher_secrets_gid }}"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  environment: *watcher-environment
+  volumes:
+    - /var/lib/minos/watcher/control:/var/lib/minos/control:rw
+    - /var/lib/minos/watcher/archive:/var/lib/minos/archive:rw
+    - /var/lib/minos/watcher/staging:/var/lib/minos/staging:rw
+    - /etc/minos/watcher/aws/credentials:/run/secrets/aws-credentials:ro
+    - /etc/minos/watcher/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=16m,uid={{ watcher_uid }},gid={{ watcher_gid }},mode=0700
+  networks:
+    - watcher-egress
+  init: true
+  cpus: "0.75"
+  mem_limit: 512m
+  pids_limit: 64
+  stop_grace_period: 30s
+  logging:
+    driver: local
+    options:
+      max-file: "3"
+      max-size: 10m
+  healthcheck:
+    test: [CMD, /app/.venv/bin/minos, watcher, health]
+    interval: 5s
+    timeout: 5s
+    retries: 3
+    start_period: 6400s
+
+services:
+  edge:
+    image: docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972
+    pull_policy: missing
+    restart: unless-stopped
+    read_only: true
+    user: "101:101"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /opt/minos/edge/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /opt/minos/edge/index.html:/usr/share/nginx/html/index.html:ro
+      - /opt/minos/edge/legal.css:/usr/share/nginx/html/legal.css:ro
+      - /opt/minos/edge/plausible-init.js:/usr/share/nginx/html/plausible-init.js:ro
+      - /opt/minos/edge/privacy-policy.html:/usr/share/nginx/html/privacy-policy.html:ro
+      - /opt/minos/edge/terms.html:/usr/share/nginx/html/terms.html:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,uid=101,gid=101,mode=0700
+    networks:
+      - edge
+    expose:
+      - "8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "wget -q -O /dev/null --header 'Host: minoshealth.pl' http://127.0.0.1:8080/healthz"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    init: true
+    cpus: "0.50"
+    mem_limit: 64m
+    pids_limit: 64
+    stop_grace_period: 10s
+    logging:
+      driver: local
+      options:
+        max-file: "3"
+        max-size: 10m
+
+  cloudflared:
+    image: docker.io/cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4
+    pull_policy: missing
+    restart: unless-stopped
+    user: "65532:65532"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command: [tunnel, --config, /etc/cloudflared/config.yml, run]
+    depends_on:
+      edge:
+        condition: service_healthy
+    volumes:
+      - /etc/minos/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      - /etc/minos/cloudflared/529fc801-22fb-4577-b60e-517f0330cb8a.json:/run/secrets/cloudflared-credentials.json:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0700
+    networks:
+      - edge
+      - tunnel-egress
+    healthcheck:
+      test: [CMD, cloudflared, tunnel, --config, /etc/cloudflared/config.yml, ready]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    init: true
+    cpus: "0.50"
+    mem_limit: 96m
+    pids_limit: 64
+    stop_grace_period: 20s
+    logging:
+      driver: local
+      options:
+        max-file: "3"
+        max-size: 10m
+
+  watcher-preflight:
+    <<: *watcher-runtime
+    profiles: [preflight]
+    command: [watcher, preflight]
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  watcher-candidate-preflight:
+    <<: *watcher-runtime
+    profiles: [candidate-preflight]
+    command: [watcher, preflight]
+    restart: "no"
+    healthcheck:
+      disable: true
+    volumes:
+      - /var/lib/minos/watcher/candidate-preflight/control:/var/lib/minos/control:rw
+      - /var/lib/minos/watcher/candidate-preflight/archive:/var/lib/minos/archive:rw
+      - /var/lib/minos/watcher/candidate-preflight/staging:/var/lib/minos/staging:rw
+      - /etc/minos/watcher/aws/credentials:/run/secrets/aws-credentials:ro
+      - /etc/minos/watcher/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro
+
+  watcher:
+    <<: *watcher-runtime
+    command: [watcher, run]
+    environment: *watcher-active-environment
+    restart: unless-stopped
+
+networks:
+  edge:
+    internal: true
+  tunnel-egress: {}
+  watcher-egress: {}

@@ -56,6 +56,9 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "aws: opt-in tests against disposable resources in a dedicated non-production AWS account",
+]
 
 [tool.ruff]
 target-version = "py314"

@@ -222,6 +222,24 @@ class BlobStagingArea:
         self._maximum_size_bytes = maximum_size_bytes
         self._directory_identity = self._prepare_directory()
 
+    def cleanup_stale(self) -> None:
+        lock_descriptor = self._acquire_lock()
+        primary_error: BaseException | None = None
+        try:
+            self._cleanup_stale_files(lock_descriptor)
+        except BaseException as error:
+            primary_error = error
+            raise
+        finally:
+            try:
+                os.close(lock_descriptor)
+            except BaseException as cleanup_error:
+                if primary_error is None:
+                    raise
+                primary_error.add_note(
+                    f"staging lock cleanup also failed: {cleanup_error!r}"
+                )
+
     @contextmanager
     def stage(self) -> Generator[StagedBlobWriter]:
         lock_descriptor = self._acquire_lock()
