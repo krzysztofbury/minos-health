@@ -5,8 +5,16 @@ from dataclasses import dataclass
 from typing import Protocol, final
 from uuid import uuid4
 
-from minos.ingest.watchers.archive import BlobArchive, BlobArchiveError
+from minos.ingest.watchers.archive import (
+    MAX_BLOB_SIZE_BYTES,
+    BlobArchive,
+    BlobArchiveError,
+    BlobArchiveVerificationError,
+    StagedBlob,
+    blob_key,
+)
 from minos.ingest.watchers.control import (
+    BlobReceipt,
     CommittedRun,
     ControlStore,
     IncidentDraft,
@@ -62,6 +70,42 @@ class CompletedRun:
     source_id: str
     run_id: str
     committed_state_revision: int
+
+
+@final
+class _CollectionArchive:
+    def __init__(
+        self,
+        archive: BlobArchive,
+        set_phase: Callable[[str], None],
+    ) -> None:
+        self._archive = archive
+        self._set_phase = set_phase
+        self._receipts: list[BlobReceipt] = []
+        self._digests: set[str] = set()
+        self._sealed = False
+
+    def put(self, blob: StagedBlob) -> BlobReceipt:
+        if self._sealed:
+            raise WatcherRuntimeError("collection archive is sealed")
+        if len(self._receipts) >= _MAX_BLOBS:
+            raise WatcherRuntimeError("collected blob count exceeds its bound")
+        if blob.sha256 in self._digests:
+            raise WatcherRuntimeError("collector archived a duplicate blob")
+
+        self._set_phase("archive")
+        receipt = self._archive.put(blob)
+        _validate_archive_receipt(blob, receipt)
+        self._receipts.append(receipt)
+        self._digests.add(receipt.sha256)
+        self._set_phase("collect")
+        return receipt
+
+    def seal(self) -> tuple[BlobReceipt, ...]:
+        if self._sealed:
+            raise WatcherRuntimeError("collection archive is already sealed")
+        self._sealed = True
+        return tuple(self._receipts)
 
 
 @final
@@ -178,40 +222,44 @@ class WatcherOrchestrator:
     ) -> CompletedRun:
         phase = "load_state"
         committed: CommittedRun | None = None
+
+        def set_phase(value: str) -> None:
+            nonlocal phase
+            phase = value
+
         try:
             source = self._store.load_claim_state(claim.identity)
             phase = "collector_dispatch"
             collector = self._collectors.resolve(source.watcher_type)
             phase = "heartbeat_start"
             self._heartbeat.start(source.source_id)
-            context = CollectionContext(
-                source.source_id,
-                source.configuration,
-                source.cursor,
-                claim,
-            )
             for attempt in range(1, retry_policy.max_attempts + 1):
                 phase = "retry_deadline"
                 self._require_retry_budget(claim)
                 phase = "collect"
                 try:
+                    collection_archive = _CollectionArchive(self._archive, set_phase)
+                    context = CollectionContext(
+                        source.source_id,
+                        source.configuration,
+                        source.cursor,
+                        claim,
+                        collection_archive,
+                    )
                     with collector.collect(context) as collected:
-                        _validate_collected_run(collected)
-                        phase = "archive"
-                        receipts = tuple(
-                            self._archive.put(blob) for blob in collected.blobs
-                        )
-                        phase = "commit"
-                        committed = self._store.commit_observations(
-                            claim.identity,
-                            ObservationCommit(
-                                receipts,
-                                collected.observations,
-                                collected.cursor,
-                                collected.changes,
-                                collected.incidents,
-                            ),
-                        )
+                        receipts = collection_archive.seal()
+                        _validate_collected_run(collected, receipts)
+                    phase = "commit"
+                    committed = self._store.commit_observations(
+                        claim.identity,
+                        ObservationCommit(
+                            receipts,
+                            collected.observations,
+                            collected.cursor,
+                            collected.changes,
+                            collected.incidents,
+                        ),
+                    )
                     break
                 except RetryableWatcherError:
                     if committed is not None or phase == "commit":
@@ -347,8 +395,11 @@ class WatcherOrchestrator:
             )
 
 
-def _validate_collected_run(collected: CollectedRun) -> None:
-    _validate_count(len(collected.blobs), 1, _MAX_BLOBS, "collected blobs")
+def _validate_collected_run(
+    collected: CollectedRun,
+    receipts: tuple[BlobReceipt, ...],
+) -> None:
+    _validate_count(len(receipts), 1, _MAX_BLOBS, "collected blobs")
     _validate_count(
         len(collected.observations),
         1,
@@ -357,15 +408,60 @@ def _validate_collected_run(collected: CollectedRun) -> None:
     )
     _validate_count(len(collected.changes), 0, _MAX_CHANGES, "collected changes")
     _validate_count(len(collected.incidents), 0, _MAX_INCIDENTS, "incidents")
-    digests = [blob.sha256 for blob in collected.blobs]
-    if len(digests) != len(set(digests)):
-        raise WatcherRuntimeError("collector returned duplicate staged blobs")
-    digest_set = set(digests)
+    digest_set = {receipt.sha256 for receipt in receipts}
     for observation in collected.observations:
         if observation.response_sha256 not in digest_set:
-            raise WatcherRuntimeError("observation response has no staged blob")
+            raise WatcherRuntimeError("observation response has no archived blob")
         if any(blob.sha256 not in digest_set for blob in observation.blobs):
-            raise WatcherRuntimeError("observation reference has no staged blob")
+            raise WatcherRuntimeError("observation reference has no archived blob")
+
+
+def _validate_archive_receipt(blob: StagedBlob, receipt: object) -> None:
+    if not isinstance(receipt, BlobReceipt):
+        raise BlobArchiveVerificationError("archive receipt type is incorrect")
+    if type(receipt.sha256) is not str:
+        raise BlobArchiveVerificationError("archive receipt SHA-256 type is incorrect")
+    if type(receipt.size_bytes) is not int:
+        raise BlobArchiveVerificationError(
+            "archive receipt byte count type is incorrect"
+        )
+    if receipt.size_bytes < 0 or receipt.size_bytes > MAX_BLOB_SIZE_BYTES:
+        raise BlobArchiveVerificationError(
+            "archive receipt byte count is outside bounds"
+        )
+    if type(receipt.verified_size_bytes) is not int:
+        raise BlobArchiveVerificationError(
+            "archive verification byte count type is incorrect"
+        )
+    if (
+        receipt.verified_size_bytes < 0
+        or receipt.verified_size_bytes > MAX_BLOB_SIZE_BYTES
+    ):
+        raise BlobArchiveVerificationError(
+            "archive verification byte count is outside bounds"
+        )
+    if receipt.media_type is not None and type(receipt.media_type) is not str:
+        raise BlobArchiveVerificationError("archive receipt media type is incorrect")
+    if type(receipt.archive_key) is not str:
+        raise BlobArchiveVerificationError("archive receipt key type is incorrect")
+    if type(receipt.verified_sha256) is not str:
+        raise BlobArchiveVerificationError(
+            "archive verification SHA-256 type is incorrect"
+        )
+    if receipt.sha256 != blob.sha256:
+        raise BlobArchiveVerificationError("archive receipt SHA-256 is incorrect")
+    if receipt.size_bytes != blob.size_bytes:
+        raise BlobArchiveVerificationError("archive receipt byte count is incorrect")
+    if receipt.media_type != blob.media_type:
+        raise BlobArchiveVerificationError("archive receipt media type is incorrect")
+    if receipt.archive_key != blob_key(blob.sha256):
+        raise BlobArchiveVerificationError("archive receipt key is incorrect")
+    if receipt.verified_sha256 != blob.sha256:
+        raise BlobArchiveVerificationError("archive verification SHA-256 is incorrect")
+    if receipt.verified_size_bytes != blob.size_bytes:
+        raise BlobArchiveVerificationError(
+            "archive verification byte count is incorrect"
+        )
 
 
 def _validate_count(count: int, minimum: int, maximum: int, label: str) -> None:

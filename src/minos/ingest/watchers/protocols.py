@@ -2,7 +2,7 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Protocol, final
 
-from minos.ingest.watchers.archive import StagedBlob
+from minos.ingest.watchers.archive import BlobArchive
 from minos.ingest.watchers.control import (
     ChangeDraft,
     CommittedRun,
@@ -36,11 +36,11 @@ class CollectionContext:
     configuration: dict[str, JsonValue]
     cursor: dict[str, JsonValue]
     run: RunClaim
+    archive: BlobArchive
 
 
 @dataclass(frozen=True, slots=True)
 class CollectedRun:
-    blobs: tuple[StagedBlob, ...]
     observations: tuple[ObservationDraft, ...]
     cursor: dict[str, JsonValue]
     changes: tuple[ChangeDraft, ...] = ()

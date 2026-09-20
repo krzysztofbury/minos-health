@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import Callable, Generator, Mapping
 from contextlib import AbstractContextManager, contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast, final
@@ -18,6 +19,7 @@ from minos.cli.watcher import WatcherCliAdapter, WatcherPaths
 from minos.ingest.watchers.archive import (
     BlobArchiveVerificationError,
     BlobStagingArea,
+    FilesystemBlobArchive,
     StagedBlob,
 )
 from minos.ingest.watchers.control import (
@@ -94,6 +96,7 @@ class _Collector:
         with self._staging.stage() as writer:
             assert writer.write(b"{}") == 2
             blob = writer.seal(media_type="application/json")
+            _ = context.archive.put(blob)
             observation = ObservationDraft(
                 "runtime-observation-0001",
                 "catalog",
@@ -102,7 +105,36 @@ class _Collector:
                 context.run.started_at_ms,
                 {},
             )
-            yield CollectedRun((blob,), (observation,), {"cursor": "next"})
+            yield CollectedRun((observation,), {"cursor": "next"})
+
+
+@final
+class _MultiBlobCollector:
+    def __init__(self, staging: BlobStagingArea, events: list[str]) -> None:
+        self._staging = staging
+        self._events = events
+
+    @contextmanager
+    def collect(self, context: CollectionContext) -> Generator[CollectedRun]:
+        self._events.append("collect")
+        observations: list[ObservationDraft] = []
+        for index in range(3):
+            content = f'{{"index":{index}}}'.encode()
+            with self._staging.stage() as writer:
+                assert writer.write(content) == len(content)
+                blob = writer.seal(media_type="application/json")
+                _ = context.archive.put(blob)
+            observations.append(
+                ObservationDraft(
+                    f"runtime-observation-{index:04d}",
+                    "metadata",
+                    f"opaque-source-{index}",
+                    blob.sha256,
+                    context.run.started_at_ms,
+                    {"index": index},
+                )
+            )
+        yield CollectedRun(tuple(observations), {"cursor": "multi"})
 
 
 @final
@@ -119,6 +151,44 @@ class _RetryCollector:
             raise RetryableWatcherError("retryable test failure")
         with self._delegate.collect(context) as collected:
             yield collected
+
+
+@final
+class _RetryAfterArchiveCollector:
+    def __init__(self, staging: BlobStagingArea) -> None:
+        self._staging = staging
+        self.attempts = 0
+
+    @contextmanager
+    def collect(self, context: CollectionContext) -> Generator[CollectedRun]:
+        self.attempts += 1
+        with self._staging.stage() as writer:
+            assert writer.write(b"retry") == 5
+            blob = writer.seal(media_type="application/octet-stream")
+            _ = context.archive.put(blob)
+        if self.attempts == 1:
+            raise RetryableWatcherError("retry after archive")
+        observation = ObservationDraft(
+            "runtime-retry-observation",
+            "metadata",
+            "opaque-retry-source",
+            blob.sha256,
+            context.run.started_at_ms,
+            {},
+        )
+        yield CollectedRun((observation,), {"cursor": "retried"})
+
+
+@final
+class _TeardownFailureCollector:
+    def __init__(self, delegate: _Collector) -> None:
+        self._delegate = delegate
+
+    @contextmanager
+    def collect(self, context: CollectionContext) -> Generator[CollectedRun]:
+        with self._delegate.collect(context) as collected:
+            yield collected
+        raise RuntimeError("injected collector teardown failure")
 
 
 @final
@@ -142,22 +212,60 @@ class _InterruptCollector:
 
 @final
 class _Archive:
-    def __init__(self, events: list[str], *, fail: bool = False) -> None:
+    def __init__(
+        self,
+        events: list[str],
+        *,
+        fail: bool = False,
+        fail_on_call: int | None = None,
+    ) -> None:
         self._events = events
         self._fail = fail
+        self._fail_on_call = fail_on_call
+        self._calls = 0
 
     def put(self, blob: StagedBlob) -> BlobReceipt:
+        self._calls += 1
         self._events.append("archive")
-        if self._fail:
+        if self._fail or self._calls == self._fail_on_call:
             raise BlobArchiveVerificationError("injected archive failure")
-        return BlobReceipt(
-            blob.sha256,
-            blob.size_bytes,
-            blob.media_type,
-            f"blobs/sha256/{blob.sha256}",
-            blob.sha256,
-            blob.size_bytes,
-        )
+        return _receipt(blob)
+
+
+@final
+class _MalformedReceiptArchive:
+    def __init__(self, fault: str) -> None:
+        self._fault = fault
+
+    def put(self, blob: StagedBlob) -> BlobReceipt:
+        receipt = _receipt(blob)
+        if self._fault == "sha256":
+            return replace(receipt, sha256="a" * 64)
+        if self._fault == "size_bytes":
+            return replace(receipt, size_bytes=cast(int, float(receipt.size_bytes)))
+        if self._fault == "media_type":
+            return replace(receipt, media_type=cast(str, cast(object, 42)))
+        if self._fault == "archive_key":
+            return replace(receipt, archive_key="blobs/sha256/incorrect")
+        if self._fault == "verified_sha256":
+            return replace(receipt, verified_sha256="b" * 64)
+        if self._fault == "verified_size_bytes":
+            return replace(
+                receipt,
+                verified_size_bytes=cast(int, float(receipt.verified_size_bytes)),
+            )
+        raise AssertionError("unsupported receipt fault")
+
+
+def _receipt(blob: StagedBlob) -> BlobReceipt:
+    return BlobReceipt(
+        blob.sha256,
+        blob.size_bytes,
+        blob.media_type,
+        f"blobs/sha256/{blob.sha256}",
+        blob.sha256,
+        blob.size_bytes,
+    )
 
 
 @final
@@ -333,6 +441,176 @@ def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
         store.close()
 
 
+def test_orchestrator_archives_multiple_blobs_with_one_staging_file(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    database = tmp_path / "control.sqlite3"
+    staging_path = tmp_path / "stage"
+    archive_path = tmp_path / "archive"
+    store = ControlStore.open(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            _MultiBlobCollector(BlobStagingArea(staging_path), events),
+        )
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=FilesystemBlobArchive(archive_path),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher(events),
+            heartbeat=_Heartbeat(events),
+        )
+
+        completed = orchestrator.run_claim(
+            store.claim_manual("rsk"),
+            RetryPolicy(1, 1.0, 1.0),
+        )
+
+        assert completed.committed_state_revision == 3
+        assert events[:2] == ["heartbeat_start", "collect"]
+        assert list(staging_path.iterdir()) == []
+        assert len(list((archive_path / "blobs" / "sha256").iterdir())) == 3
+        assert _query(database, "SELECT COUNT(*) FROM blobs") == [(3,)]
+        assert _query(database, "SELECT COUNT(*) FROM observations") == [(3,)]
+        assert store.load_source_state("rsk").cursor == {"cursor": "multi"}
+    finally:
+        store.close()
+
+
+def test_later_multi_blob_archive_failure_leaves_no_control_commit(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    database = tmp_path / "control.sqlite3"
+    staging_path = tmp_path / "stage"
+    store = ControlStore.open(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            _MultiBlobCollector(BlobStagingArea(staging_path), events),
+        )
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_Archive(events, fail_on_call=2),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher(events),
+            heartbeat=_Heartbeat(events),
+        )
+
+        with pytest.raises(BlobArchiveVerificationError):
+            _ = orchestrator.run_claim(
+                store.claim_manual("rsk"),
+                RetryPolicy(1, 1.0, 1.0),
+            )
+
+        assert list(staging_path.iterdir()) == []
+        assert _query(database, "SELECT COUNT(*) FROM blobs") == [(0,)]
+        assert _query(database, "SELECT COUNT(*) FROM observations") == [(0,)]
+        assert store.load_source_state("rsk").cursor == {}
+        assert _query(database, "SELECT status FROM watcher_runs") == [("failed",)]
+        assert _query(database, "SELECT incident_category FROM incidents") == [
+            ("archive_failure",)
+        ]
+        incident_details = _query(database, "SELECT details_json FROM incidents")
+        assert json.loads(cast(str, incident_details[0][0])) == {"phase": "archive"}
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        "sha256",
+        "size_bytes",
+        "media_type",
+        "archive_key",
+        "verified_sha256",
+        "verified_size_bytes",
+    ),
+)
+def test_malformed_archive_receipt_is_rejected_before_commit(
+    tmp_path: Path,
+    fault: str,
+) -> None:
+    database = tmp_path / "control.sqlite3"
+    store = ControlStore.open(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            _Collector(BlobStagingArea(tmp_path / "stage"), []),
+        )
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_MalformedReceiptArchive(fault),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher([]),
+            heartbeat=_Heartbeat([]),
+        )
+
+        with pytest.raises(BlobArchiveVerificationError):
+            _ = orchestrator.run_claim(
+                store.claim_manual("rsk"),
+                RetryPolicy(1, 1.0, 1.0),
+            )
+
+        assert _query(database, "SELECT COUNT(*) FROM blobs") == [(0,)]
+        assert _query(database, "SELECT status FROM watcher_runs") == [("failed",)]
+        assert _query(
+            database,
+            "SELECT incident_category, details_json FROM incidents",
+        ) == [("archive_failure", '{"phase":"archive"}')]
+    finally:
+        store.close()
+
+
+def test_collector_teardown_failure_prevents_control_commit(tmp_path: Path) -> None:
+    events: list[str] = []
+    database = tmp_path / "control.sqlite3"
+    staging_path = tmp_path / "stage"
+    archive_path = tmp_path / "archive"
+    store = ControlStore.open(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            _TeardownFailureCollector(
+                _Collector(BlobStagingArea(staging_path), events)
+            ),
+        )
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=FilesystemBlobArchive(archive_path),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher(events),
+            heartbeat=_Heartbeat(events),
+        )
+
+        with pytest.raises(RuntimeError, match="teardown failure"):
+            _ = orchestrator.run_claim(
+                store.claim_manual("rsk"),
+                RetryPolicy(1, 1.0, 1.0),
+            )
+
+        assert list(staging_path.iterdir()) == []
+        assert len(list((archive_path / "blobs" / "sha256").iterdir())) == 1
+        assert _query(database, "SELECT COUNT(*) FROM blobs") == [(0,)]
+        assert store.load_source_state("rsk").cursor == {}
+        assert _query(
+            database,
+            "SELECT incident_category, details_json FROM incidents",
+        ) == [("collection_failure", '{"phase":"collect"}')]
+    finally:
+        store.close()
+
+
 def test_periodic_recovery_startup_publishes_only_missing_current_period(
     tmp_path: Path,
 ) -> None:
@@ -417,6 +695,43 @@ def test_retry_policy_retries_only_explicit_precommit_failure(tmp_path: Path) ->
 
         assert collector.attempts == 3
         assert sleeps == [0.5, 0.75]
+    finally:
+        store.close()
+
+
+def test_retry_after_archive_uses_a_fresh_receipt_set(tmp_path: Path) -> None:
+    events: list[str] = []
+    sleeps: list[float] = []
+    database = tmp_path / "control.sqlite3"
+    staging_path = tmp_path / "stage"
+    archive_path = tmp_path / "archive"
+    store = ControlStore.open(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        collector = _RetryAfterArchiveCollector(BlobStagingArea(staging_path))
+        registry = CollectorRegistry()
+        registry.register("rsk", collector)
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=FilesystemBlobArchive(archive_path),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher(events),
+            heartbeat=_Heartbeat(events),
+            sleep=sleeps.append,
+        )
+
+        _ = orchestrator.run_claim(
+            store.claim_manual("rsk"),
+            RetryPolicy(2, 0.01, 0.01),
+        )
+
+        assert collector.attempts == 2
+        assert sleeps == [0.01]
+        assert list(staging_path.iterdir()) == []
+        assert len(list((archive_path / "blobs" / "sha256").iterdir())) == 1
+        assert _query(database, "SELECT COUNT(*) FROM blobs") == [(1,)]
+        assert store.load_source_state("rsk").cursor == {"cursor": "retried"}
+        assert _query(database, "SELECT status FROM watcher_runs") == [("successful",)]
     finally:
         store.close()
 
