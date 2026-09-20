@@ -96,22 +96,25 @@ day-to-day order.
 
 - [ ] Complete issue #49 before continuing source-specific issue #6 work. Keep
       the accepted order `#49 -> #6 -> #8 -> #7`.
-- [ ] Deliver #49 control state first: numbered SQLite migrations, complete
+- [x] Deliver #49 control state first: numbered SQLite migrations, complete
       migration checksums, one writer, fenced claims, legal run transitions,
       durable due cursors, observations, blob references, incidents, audit
       events, and monotonic state revisions.
-- [ ] Deliver #49 archive storage next: equivalent local and S3 content-addressed
-      blob stores, bounded single-part conditional writes, native checksum and
-      byte-count verification, and disposable-AWS acceptance evidence. Present
-      the exact phase-0 Terraform plan for approval before applying it.
-- [ ] Deliver #49 recovery and scheduling next: verified SQLite recovery images,
+- [x] Deliver #49 archive storage implementation: equivalent local and S3
+      content-addressed blob stores, bounded single-part conditional writes, and
+      native checksum and byte-count verification.
+- [x] Deliver #49 recovery and scheduling next: verified SQLite recovery images,
       bounded paginated restore selection, operator-trusted images and signed
       inventories, APScheduler reconstruction, one bounded catch-up, stale-run
       expiry, and heartbeat reconciliation.
-- [ ] Finish #49 production integration: add the pinned watcher service to the
+- [x] Finish #49 repository production integration: add the pinned watcher service to the
       Mikr.us Compose topology, service-restricted secrets and volumes,
       Healthchecks.io, scheduler-paused preflight, ordinary-loss restore, and
-      suspected-compromise restore evidence.
+      suspected-compromise restore tooling.
+- [ ] Execute #49 external acceptance: disposable real-AWS tests, exact phase-0
+      Terraform plan approval and apply, watcher secret installation,
+      scheduler-paused Mikr.us preflight, both empty-host restore drills, and
+      representative host load evidence.
 - [ ] Resume issue #6 by capturing dated raw live RSK fixtures before changing
       parsers, then finish bounded HTTPX retrieval and Pydantic validation for
       the catalog and every returned `basic-info` resource.
@@ -162,28 +165,29 @@ day-to-day order.
       SHA-256, byte-count, conflict, timeout, and corruption unit coverage.
 - [ ] Prove S3 versioning, native checksum, conditional-create, IAM denial,
       lifecycle, and bounded listing semantics against a disposable AWS stack.
-- [ ] At the watcher orchestration boundary, turn archive verification failures
+- [x] At the watcher orchestration boundary, turn archive verification failures
       into hard incidents and failed claims, and prove observations and source
       cursors remain unchanged.
-- [ ] Run APScheduler `3.11.x` as one UTC `BlockingScheduler` worker with
+- [x] Run APScheduler `3.11.x` as one UTC `BlockingScheduler` worker with
       bounded misfire handling. Reconcile committed and heartbeat-pending runs
       before dispatch and use durable due cursors plus token-and-epoch fenced
       claims for catch-up, manual, expiry, and stale-worker rejection.
 - [ ] Run issue #6 through one Docker/Compose watcher command locally and on
       Mikr.us; use local filesystem blobs in development and S3 in production,
       with shared contract tests and a disposable AWS test.
-- [ ] Stage at most one download in a disk-backed `noexec,nosuid,nodev`
+- [x] Stage at most one download in a disk-backed `noexec,nosuid,nodev`
       directory with a `600 MiB` application quota, `512 MiB` per-file ceiling,
       startup cleanup, and pre-run free-space assertion.
 - [ ] Archive every selected raw file immediately under a digest-only
       `blobs/sha256/<digest>` key. Use bounded single-part `PutObject`; send and
       verify S3 native SHA-256 plus byte count after conditional create or reuse.
       Source identity stays in SQLite.
-- [ ] Create revisioned control SQLite recovery images through
+- [x] Create revisioned control SQLite recovery images through
       `sqlite3.Connection.backup()`, enforce class-specific lifecycle rules,
       copy one verified image weekly to operator-only trusted storage, sign the
-      non-expiring chained inventory off-host, and complete ordinary-loss and
-      suspected-compromise empty-host restore drills.
+      non-expiring chained inventory off-host, with ordinary-loss and
+      suspected-compromise restore commands.
+- [ ] Execute ordinary-loss and suspected-compromise empty-host restore drills.
 - [ ] Issues #6-#8 emit immutable observations and bounded change or incident
       records. An operator-dispatched protected issue #21 workflow reads one
       selected verified recovery image through OIDC and turns only the selected
@@ -339,9 +343,9 @@ day-to-day order.
       current packages, unattended upgrades, and bounded persistent logs.
 - [x] Extend the reviewed Ansible baseline with exact Docker Engine and Compose
       packages, bounded logs, no unprivileged operators, and no TCP daemon socket.
-- [ ] Add service UIDs and GIDs, persistent and staging volumes, and service-
+- [x] Add service UIDs and GIDs, persistent and staging volumes, and service-
       restricted secret files with the first deployable Compose stack.
-- [ ] Create the `phase0` Terraform root for the snapshot bucket, conditional
+- [x] Create the `phase0` Terraform root for the snapshot bucket, conditional
       write policy, watcher IAM identity, GitHub OIDC read role, and budget.
 - [ ] Create the watcher access key manually outside Terraform; store the
       recovery copy in the password manager and install it as a service-

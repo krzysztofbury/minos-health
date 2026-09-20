@@ -223,6 +223,19 @@ creation and native SHA-256, then checksum-enabled `HeadObject`; it never uses a
 transfer manager or multipart upload. Both return the same control-plane receipt
 and reject existing bytes that do not match the requested digest and size.
 
+The recovery boundary creates consistent SQLite copies only through
+`sqlite3.Connection.backup()`. Recovery-only metadata is embedded in the copy,
+not the live schema, preserving rollback compatibility with the retained watcher.
+Images are integrity-checked, hashed, conditionally uploaded, version-pinned, and
+selected through bounded pagination. Operator-trusted copies use a separately
+signed canonical inventory chain and a restore path that acquires the same
+database-derived process lock as the watcher.
+
+One UTC in-memory APScheduler worker is only a wake-up mechanism. SQLite owns
+durable due cursors, claims, retry policy, and startup catch-up. Startup first
+reconciles committed work, then expires stale claims, reconstructs future jobs,
+and executes at most one overdue cursor before normal scheduling begins.
+
 `database/application` is a reserved future boundary, not part of `v0.0.1`.
 If accounts and billing are introduced, its PostgreSQL migrations and backups
 remain independent from replaceable reference artifacts and local browser

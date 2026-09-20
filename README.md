@@ -90,13 +90,25 @@ Neovim integration is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
 Security and correctness come first; performance is measured as product
 behavior, with targeted mutation and integration testing for critical paths.
 
-A production-only maintenance Compose stack now serves an explicit holding page
-through Cloudflare Tunnel, but the Minos application stack is not available yet.
-The current watcher foundation includes the tested RSK transport, SQLite control
-transactions, bounded staging, and local and S3 blob archive adapters, but no
-executable watcher or application image. `.env.example` identifies which RSK
-settings are active and comments out settings reserved for process wiring and
-application-container work.
+A production-only maintenance Compose stack currently serves an explicit holding
+page through Cloudflare Tunnel. The watcher foundation now includes an executable
+UTC scheduler, fenced SQLite control transactions, local and S3 archives,
+revisioned recovery images, signed trusted-recovery inventories, Healthchecks.io
+integration, preflight commands, a hardened watcher image, and local Compose.
+Source-specific collection remains disabled until issue #6 registers the RSK
+collector, so this is infrastructure rather than a production data watcher.
+
+Local runtime commands are:
+
+```sh
+docker compose build watcher
+docker compose --profile preflight run --rm watcher-preflight
+docker compose up --detach watcher
+```
+
+The real-AWS acceptance harness under `infra/terraform/test-phase0` is opt-in and
+requires a dedicated non-production account. Production Terraform apply,
+Mikr.us activation, and restore drills remain explicit operator approval gates.
 
 ## Data
 

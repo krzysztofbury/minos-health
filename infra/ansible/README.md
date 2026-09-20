@@ -10,9 +10,10 @@ and Compose packages from Docker's official repository. Docker exposes only its
 root-owned Unix socket, has no unprivileged operators, defaults containers to
 `no-new-privileges`, and uses bounded local logs. The root password is console
 recovery material stored only in 1Password; it cannot authenticate over SSH.
-Application containers, their service identities and secrets, and data recovery
-are added by later reviewed changes. The tunnel credential is the only current
-runtime secret.
+The watcher image and host identity use the release-contract UID/GID
+`10001:10001`. Watcher secrets use the separate supplementary GID `10002` and
+are mounted only into the watcher. The AWS credentials and Healthchecks.io target
+remain operator-supplied host files; no secret value is stored in this directory.
 
 The dedicated private key is the `minos-mikrus-production-ssh` SSH Key item in
 the `MinosHealth` 1Password vault. Restore it locally as
@@ -30,7 +31,12 @@ Verify first:
 ```sh
 ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
   uvx --from ansible-core==2.21.4 ansible-playbook \
-  infra/ansible/site.yml --check --diff
+  infra/ansible/site.yml --check --diff \
+  -e watcher_archive_backend=s3 \
+  -e watcher_s3_bucket=<phase0-snapshot-bucket> \
+  -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
+  -e watcher_expected_image_digest=sha256:<64-hex-digest> \
+  -e watcher_source_revision=<40-hex-source-commit>
 ```
 
 Check mode cannot prove live netfilter activation. Before the first apply, keep
@@ -45,9 +51,11 @@ ssh -p 10159 -o ControlMaster=no -o ControlPath=none \
   root@andrzej159.mikrus.xyz true
 ```
 
-Before the first apply, retrieve the tunnel-specific credential recovery copy to
-a mode-`0600` temporary file outside the repository. Apply only after the check
-targets `andrzej159` and key authentication works in a second SSH session:
+Before the first apply, retrieve the tunnel credential, watcher AWS credentials,
+and watcher Healthchecks.io targets JSON to mode-`0600` temporary files outside
+the repository. Obtain the exact watcher image digest from the reviewed release.
+Apply only after the check targets `andrzej159` and key authentication works in
+a second SSH session:
 
 ```sh
 umask 077
@@ -56,12 +64,48 @@ op document get minos-production-cloudflared-credentials \
 ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
   uvx --from ansible-core==2.21.4 ansible-playbook \
   infra/ansible/site.yml --diff \
-  -e cloudflared_credentials_source=/tmp/minos-cloudflared-credentials.json
-rm /tmp/minos-cloudflared-credentials.json
+  -e watcher_archive_backend=s3 \
+  -e watcher_s3_bucket=<phase0-snapshot-bucket> \
+  -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
+  -e watcher_expected_image_digest=sha256:<64-hex-digest> \
+  -e watcher_source_revision=<40-hex-source-commit> \
+  -e cloudflared_credentials_source=/tmp/minos-cloudflared-credentials.json \
+  -e watcher_aws_credentials_source=/tmp/minos-watcher-aws-credentials \
+  -e watcher_healthchecks_targets_source=/tmp/minos-watcher-healthchecks-targets.json
+rm /tmp/minos-cloudflared-credentials.json \
+  /tmp/minos-watcher-aws-credentials \
+  /tmp/minos-watcher-healthchecks-targets.json
 ```
 
-Run it again afterward; an unchanged host must report no changes.
-Later applies omit the extra variable and preserve the installed credential.
+The expected digest and source revision come from the reviewed release. The host
+requires that digest to resolve directly to one runnable manifest, pulls it,
+then derives the runtime digest from Docker's observed repository identity and
+checks the image revision label. The in-container preflight compares the
+reviewed digest with that host-derived value; it cannot independently query the
+root-owned Docker daemon. Run the playbook again afterward; an unchanged
+candidate must not run preflight, stop, promote, or restart the active stack.
+Later applies still supply all non-secret runtime settings, omit secret source
+variables, and preserve the installed credentials.
+
+For a changed candidate, the playbook compares all staged runtime files and the
+running watcher image reference before activation. The candidate application
+creates a consistent, 2 GiB-bounded SQLite backup with a 240-second internal
+deadline and a 300-second outer process timeout. It requires the copied live
+schema version to equal the candidate schema version before the active stack is
+stopped. An absent database on an initial empty host remains allowed. Schema
+changes therefore require a separately reviewed migration activation design;
+this playbook does not migrate the live database and cannot roll an older writer
+onto a newer schema.
+
+After stopping the active stack, the same bounded path captures a second
+preactivation image before promotion. A failed activation restores the prior
+runtime files and image reference against the unchanged, schema-identical live
+database. It never rolls back or deletes the live database. Candidate evidence
+remains under `/var/lib/minos/watcher/candidate-preflight` and stopped
+preactivation evidence remains under `/opt/minos/rollback/control`, including
+evidence from a schema rejection. A failed initial apply removes only promoted
+runtime configuration. The playbook also fails closed if the LXC cannot enforce
+the disk-backed staging bind mount with `noexec,nosuid,nodev`.
 The temporary edge serves an explicit maintenance page, reports edge liveness at
 `/healthz`, reports product unavailability at `/readyz`, redirects `.com` to the
 matching `.pl` path, and publishes no host port. It is not the Minos application.
@@ -71,7 +115,10 @@ timers and reboot marker, tests a fresh key-only SSH connection, proves that
 keyboard-interactive login fails, checks both UFW address families, runs
 `journalctl --verify`, and exercises an immutable `hello-world` image without
 network access or host port publication. It also requires healthy exact-digest
-edge and `cloudflared` containers with no Docker port bindings.
+edge, `cloudflared`, and watcher containers with no Docker port bindings. The
+watcher assertion covers its exact digest, numeric identity, supplementary secret
+group, read-only root, dropped capabilities, restart count, resource limits,
+bounded logs, mounts, and healthy state after a 30-second stability interval.
 
 ## Recovery Boundary
 

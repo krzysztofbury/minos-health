@@ -1,10 +1,10 @@
 # Deployment
 
-Status: target application architecture. The host baseline currently runs an
-exact-digest maintenance edge and Cloudflare Tunnel, but the repository does not
-yet have the API image, watcher entry point, complete application Compose stack,
-scheduler, or release workflow. Local and S3 archive adapters exist as libraries
-but are not wired into a running service.
+Status: target application architecture with the source-neutral watcher runtime
+implemented. The host currently runs the exact-digest maintenance edge and
+Cloudflare Tunnel. The repository now contains the watcher image, scheduler,
+local Compose stack, S3/recovery composition, and candidate preflight, but no API
+image, source-specific collector, applied phase-0 AWS stack, or release workflow.
 
 ## Goals
 
@@ -111,22 +111,29 @@ The target lifecycle is:
    `heartbeat_pending` run, creates and verifies a pre-deploy recovery image,
    and records the current and candidate release manifests.
 8. A scheduler-paused candidate watcher validates a disposable database copy,
-   migration compatibility, numeric identity, volume and secret access, an S3
-   checksum round trip, recovery-image creation, and Healthchecks.io access.
-9. The operator stops the previous watcher, starts the exact candidate watcher
-   digest with dispatch still paused against the live volume, applies the tested
-   migration, and verifies its live state revision, migration checksums, WAL,
-   mounted secrets, and post-migration recovery image. The previous and candidate
-   watcher never own the volume concurrently.
-10. The operator starts the candidate edge and API, runs readiness, known-search,
-    static-integrity, mobile, and desktop checks through the public hostname, and
-    only then activates the live candidate watcher for one bounded canary run.
+   exact schema-version equality, numeric identity, volume and secret access, an
+   S3 checksum round trip, recovery-image creation, and Healthchecks.io access.
+   The application copy is limited to 2 GiB and a 240-second deadline, with a
+   300-second outer process timeout. A missing database on an initial empty host
+   remains valid. Any existing schema mismatch preserves candidate evidence and
+   fails before the active stack is stopped.
+9. The operator stops the previous watcher and captures a second consistent,
+   bounded preactivation image. The current deployment path does not migrate the
+   live database. A schema-changing release needs a separate reviewed activation
+   protocol before it can ship, which prevents rollback from starting an older
+   writer against a candidate-migrated schema.
+10. The operator starts the exact candidate digest with scheduling unpaused only
+    for the active watcher. Its health contract becomes ready after startup
+    reconciliation, stale-claim expiry, job reconstruction, and bounded catch-up;
+    every probe verifies the marked scheduler process and exact control schema.
+    Compose waits for health, and Ansible then requires 30 seconds of healthy,
+    restart-free stability. Candidate and ordinary preflight services remain
+    scheduler-paused and cannot report active readiness.
 11. Success writes a signed append-only deployment receipt to an operator-only
     S3 prefix. Before the canary commits, failure restores the complete previous
-    release and may restore the pre-deploy recovery image. After any candidate
-    run commits, rollback must preserve that state and use the prior watcher
-    against the backward-readable schema; an older database image must not be
-    restored.
+    release and may restore the pre-deploy recovery image. The current activation
+    requires schema equality, so rollback restores only a schema-identical prior
+    writer and preserves live state; an older database image must not be restored.
 
 Initial production deployment is an explicit operator action. A later SSH
 workflow may automate the same exact-digest procedure, but it must not broaden
@@ -193,6 +200,15 @@ only bounded tmpfs mounts when a demonstrated runtime path needs temporary
 writes. Exact raw bytes are uploaded to S3 and are not retained as the only copy
 on the host. Logs use Docker's bounded `local` driver rather than an unbounded
 JSON log file.
+
+The watcher image remains shell-free. Compose invokes the packaged
+`minos watcher health` command directly. Its readiness marker is bound to the
+live process identity, refreshed by the sole scheduler worker, and removed on
+shutdown; the command also validates the exact bundled control schema read-only.
+Production allows a 6,400-second health start period, a 6,600-second Compose
+wait, and a 7,800-second systemd start timeout. These bounds cover the supported
+one-hour collector deadline plus bounded recovery and preflight work. After
+startup, a marker older than 75 minutes fails health as an unresponsive worker.
 
 ## Watcher Scheduling And State
 

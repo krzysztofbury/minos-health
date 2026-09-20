@@ -69,28 +69,26 @@ is pinned to a full commit SHA.
 
 ### Local And Cloud Parity
 
-Docker Compose is the target full local application runtime, but it is not
-implemented yet. The production host has a separate maintenance-only edge and
-Cloudflare Tunnel definition under `infra/ansible/files/`; it is not a local
-Minos application stack. The current watcher foundation provides the RSK
-transport, control transactions, and local and S3 archive adapters as tested
-libraries; there is no executable watcher, Dockerfile, or root `compose.yaml`.
-Development currently uses `uv sync --all-groups` and the checks below. Do not
-expect `docker compose up` to work until the watcher entry point is implemented.
+Root Docker and Compose definitions now execute the same watcher entry point used
+by the Mikr.us candidate stack. Local Compose uses persistent control, archive,
+and disk-backed staging volumes with the filesystem archive backend. Production
+uses the S3 backend and service-restricted secret files. Source-specific
+collectors remain separate and are registered by their own issues; a runtime
+without a collector fails closed before claiming a configured source.
 
-When added, Compose must execute the same application artifacts and commands
-used on Mikr.us, with persistent ignored local storage for watcher control state.
-Tests may use temporary directories for isolated operations.
+Tests may use temporary directories for isolated operations. Real AWS behavior
+is tested only through the explicitly opted-in disposable harness; ordinary CI
+must never create cloud resources.
 
 The local filesystem and production S3 archive adapters must pass the same
 contract tests. A local AWS emulator may accelerate development, but it does
 not replace a disposable real-AWS integration test for versioning, conditional
 writes, and IAM behavior. Mutable watcher state belongs in SQLite, not S3.
 
-`.env.example` currently documents active RSK transport settings and comments
-out reserved archive, logging, and S3 settings. Copy it to an ignored `.env`
-only for direct Python development. Local application secrets belong only in
-`.env`; local cloud credentials stay in an external profile or keychain.
+`.env.example` documents active RSK and local watcher settings plus commented
+production identifiers. Copy it to an ignored `.env` only for direct Python
+development. Local application secrets belong only in `.env`; local cloud
+credentials stay in an external profile or keychain.
 Production secrets are host-managed files restricted to root and the required
 service UID or GID; recovery copies stay in the password manager. GitHub uses
 AWS OIDC and must not store long-lived AWS access keys. The narrow S3 key

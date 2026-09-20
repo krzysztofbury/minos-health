@@ -47,6 +47,15 @@ release.
 - Shared bounded raw-blob staging with atomic local content-addressed storage and
   direct single-part S3 conditional writes, checksum-enabled verification,
   bounded conflict handling, and verified reuse receipts.
+- Revisioned SQLite recovery images with integrity and migration validation,
+  version-pinned S3 upload, bounded restore selection, trusted operator copies,
+  signed inventory chains, and safe restore installation.
+- Source-neutral watcher orchestration with one UTC APScheduler worker, durable
+  catch-up, stale-claim expiry, heartbeat reconciliation, capacity gates, and
+  privacy-safe failure handling.
+- Hardened watcher Docker and Compose runtime, Mikr.us candidate preflight and
+  rollback-safe activation, phase-0 AWS Terraform, and an opt-in disposable AWS
+  acceptance harness.
 
 ### Changed
 
