@@ -1,12 +1,18 @@
+import hashlib
 import json
 import sqlite3
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
-from typing import cast, override
+from typing import ClassVar, cast, final, override
 
 import pytest
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from minos.ingest.watchers.config import (
+    RSK_SOURCE_CONFIGURATION_CODECS,
+    RskSourceConfigurationCodec,
+)
 from minos.ingest.watchers.control import (
     BlobReceipt,
     BlobVerificationError,
@@ -19,12 +25,16 @@ from minos.ingest.watchers.control import (
     ControlValidationError,
     IllegalRunTransitionError,
     IncidentDraft,
+    JsonValue,
     ObservationBlob,
     ObservationCommit,
     ObservationDraft,
     RecoveryReceipt,
     RetryPolicy,
     SourceConfiguration,
+    SourceConfigurationCodec,
+    SourceConfigurationCodecError,
+    SourceConfigurationCodecRegistry,
     SourceSchedule,
     StaleClaimError,
     UncertainControlOutcomeError,
@@ -37,6 +47,111 @@ _CHANGE_ID = "change-000000001"
 _INCIDENT_ID = "incident-0000001"
 _SHA256 = "a" * 64
 _NEXT_DAILY_FIRE_MS = 1_800_068_400_000
+
+
+class _FixtureConfiguration(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+
+    batch_size: int = Field(default=10, ge=1, le=100)
+    claim_timeout_ms: int = Field(default=12_345, ge=1, le=3_600_000)
+
+
+@final
+class _FixtureConfigurationCodec:
+    def canonicalize(
+        self,
+        configuration: dict[str, JsonValue],
+    ) -> dict[str, JsonValue]:
+        try:
+            validated = _FixtureConfiguration.model_validate(configuration)
+        except ValidationError as error:
+            raise SourceConfigurationCodecError(
+                "fixture source configuration is invalid"
+            ) from error
+        return cast(dict[str, JsonValue], validated.model_dump(mode="json"))
+
+    def claim_timeout_ms(self, canonical_configuration_json: str) -> int:
+        try:
+            configuration = _FixtureConfiguration.model_validate_json(
+                canonical_configuration_json
+            )
+        except ValidationError as error:
+            raise SourceConfigurationCodecError(
+                "stored fixture source configuration is invalid"
+            ) from error
+        return configuration.claim_timeout_ms
+
+
+@final
+class _HostileConfigurationCodec:
+    def __init__(
+        self,
+        *,
+        canonicalized: dict[str, JsonValue] | None = None,
+        claim_timeout: object = 12_345,
+        canonicalize_error: Exception | None = None,
+        timeout_error: Exception | None = None,
+        mutate_input: bool = False,
+    ) -> None:
+        self._canonicalized = canonicalized
+        self._claim_timeout = claim_timeout
+        self._canonicalize_error = canonicalize_error
+        self._timeout_error = timeout_error
+        self._mutate_input = mutate_input
+
+    def canonicalize(
+        self,
+        configuration: dict[str, JsonValue],
+    ) -> dict[str, JsonValue]:
+        if self._canonicalize_error is not None:
+            raise self._canonicalize_error
+        if self._mutate_input:
+            configuration["batch_size"] = 99
+        if self._canonicalized is not None:
+            return dict(self._canonicalized)
+        return configuration
+
+    def claim_timeout_ms(self, canonical_configuration_json: str) -> int:
+        _ = canonical_configuration_json
+        if self._timeout_error is not None:
+            raise self._timeout_error
+        return cast(int, self._claim_timeout)
+
+
+@final
+class _OversizedCodecMapping(Mapping[str, SourceConfigurationCodec]):
+    @override
+    def __getitem__(self, _key: str) -> SourceConfigurationCodec:
+        raise AssertionError("oversized registry must not be copied")
+
+    @override
+    def __iter__(self) -> Iterator[str]:
+        raise AssertionError("oversized registry must not be copied")
+
+    @override
+    def __len__(self) -> int:
+        return 65
+
+
+@final
+class _RepeatedKeyCodecMapping(Mapping[str, SourceConfigurationCodec]):
+    def __init__(self) -> None:
+        self.visits = 0
+        self._codec = _FixtureConfigurationCodec()
+
+    @override
+    def __getitem__(self, key: str) -> SourceConfigurationCodec:
+        assert key == "fixture"
+        self.visits += 1
+        return self._codec
+
+    @override
+    def __iter__(self) -> Iterator[str]:
+        return iter(("fixture",) * 65)
+
+    @override
+    def __len__(self) -> int:
+        return 1
 
 
 class _TestClock:
@@ -88,7 +203,10 @@ def clock(monkeypatch: pytest.MonkeyPatch) -> _TestClock:
 @pytest.fixture
 def store(database_path: Path, clock: _TestClock) -> Iterator[ControlStore]:
     _ = clock
-    control_store = ControlStore.open(database_path)
+    control_store = ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     try:
         yield control_store
     finally:
@@ -152,6 +270,33 @@ def test_configuration_revisions_are_canonical_audited_and_idempotent(
     ]
 
 
+def test_idempotent_configuration_revalidates_corrupt_stored_payload(
+    store: ControlStore,
+    database_path: Path,
+) -> None:
+    _configure_source(store)
+    connection = sqlite3.connect(database_path)
+    try:
+        _ = connection.execute(
+            """
+            UPDATE source_configuration_revisions
+            SET configuration_json = '{}'
+            WHERE source_id = ? AND configuration_revision = 1
+            """,
+            (_SOURCE_ID,),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(ControlStorageError, match="checksum differs"):
+        _configure_source(store)
+    assert _query(database_path, "SELECT state_revision FROM control_state") == [(1,)]
+    assert _query(database_path, "SELECT event_type FROM audit_events") == [
+        ("source_configured",)
+    ]
+
+
 def test_persisted_configuration_ignores_environment_and_rejects_coercion(
     store: ControlStore,
     database_path: Path,
@@ -169,7 +314,7 @@ def test_persisted_configuration_ignores_environment_and_rejects_coercion(
     )
     assert json.loads(str(stored[0][0]))["timeout_seconds"] == 20.0
 
-    with pytest.raises(ControlValidationError, match="invalid"):
+    with pytest.raises(ControlValidationError, match="invalid") as captured:
         _ = store.configure_source(
             SourceConfiguration(
                 _SOURCE_ID,
@@ -178,6 +323,8 @@ def test_persisted_configuration_ignores_environment_and_rejects_coercion(
                 True,
             ),
         )
+    assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
     with pytest.raises(ControlValidationError, match="invalid"):
         _ = store.configure_source(
             SourceConfiguration(
@@ -187,6 +334,287 @@ def test_persisted_configuration_ignores_environment_and_rejects_coercion(
                 True,
             ),
         )
+
+
+def test_second_watcher_codec_configures_loads_and_claims_without_store_changes(
+    tmp_path: Path,
+    clock: _TestClock,
+) -> None:
+    codecs = SourceConfigurationCodecRegistry(
+        {
+            "fixture": _FixtureConfigurationCodec(),
+            "rsk": RskSourceConfigurationCodec(),
+        }
+    )
+    with ControlStore.open(
+        tmp_path / "second-watcher.sqlite3",
+        source_configuration_codecs=codecs,
+    ) as store:
+        configured = store.configure_source(
+            SourceConfiguration(
+                "fixture-source",
+                "fixture",
+                {"batch_size": 7, "claim_timeout_ms": 12_345},
+                True,
+            )
+        )
+        loaded = store.load_source_state("fixture-source")
+        claim = store.claim_manual("fixture-source")
+
+    assert configured.configuration_revision == 1
+    assert loaded.watcher_type == "fixture"
+    assert loaded.configuration == {"batch_size": 7, "claim_timeout_ms": 12_345}
+    assert claim.identity.deadline_at_ms == clock.now_ms + 12_345
+
+
+def test_codec_cannot_inject_secret_like_configuration(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "secret-codec.sqlite3"
+    secret_codec = _HostileConfigurationCodec(
+        canonicalized={
+            "batch_size": 7,
+            "claim_timeout_ms": 12_345,
+            "api_token": "private-value",
+        }
+    )
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": secret_codec}
+        ),
+    ) as store:
+        with pytest.raises(ControlValidationError, match="configuration is invalid"):
+            _ = store.configure_source(
+                SourceConfiguration("fixture-source", "fixture", {}, True)
+            )
+        assert _query(database_path, "SELECT source_id FROM sources") == []
+
+    _create_fixture_source(database_path)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": secret_codec}
+        ),
+    ) as store:
+        with pytest.raises(ControlStorageError, match="configuration is invalid"):
+            _ = store.load_source_state("fixture-source")
+
+
+def test_codec_input_mutation_is_isolated_and_noncanonical_reads_fail(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "mutating-codec.sqlite3"
+    configuration: dict[str, JsonValue] = {
+        "batch_size": 7,
+        "claim_timeout_ms": 12_345,
+    }
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": _HostileConfigurationCodec(mutate_input=True)}
+        ),
+    ) as store:
+        _ = store.configure_source(
+            SourceConfiguration("fixture-source", "fixture", configuration, True)
+        )
+    assert configuration == {"batch_size": 7, "claim_timeout_ms": 12_345}
+
+    changed_codec = _HostileConfigurationCodec(
+        canonicalized={"batch_size": 98, "claim_timeout_ms": 12_345}
+    )
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": changed_codec}
+        ),
+    ) as store:
+        with pytest.raises(ControlStorageError, match="not canonical"):
+            _ = store.load_source_state("fixture-source")
+
+
+@pytest.mark.parametrize("invalid_timeout", (0, True, 3_600_001))
+def test_codec_claim_timeout_is_validated_on_write(
+    tmp_path: Path,
+    invalid_timeout: object,
+) -> None:
+    database_path = tmp_path / f"invalid-timeout-{invalid_timeout}.sqlite3"
+    codec = _HostileConfigurationCodec(
+        canonicalized={"batch_size": 7, "claim_timeout_ms": 12_345},
+        claim_timeout=invalid_timeout,
+    )
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": codec}
+        ),
+    ) as store:
+        with pytest.raises(ControlValidationError, match="claim timeout is invalid"):
+            _ = store.configure_source(
+                SourceConfiguration("fixture-source", "fixture", {}, True)
+            )
+        assert _query(database_path, "SELECT source_id FROM sources") == []
+
+
+def test_codec_claim_timeout_is_validated_on_read(tmp_path: Path) -> None:
+    database_path = tmp_path / "invalid-read-timeout.sqlite3"
+    _create_fixture_source(database_path)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {
+                "fixture": _HostileConfigurationCodec(
+                    canonicalized={"batch_size": 7, "claim_timeout_ms": 12_345},
+                    claim_timeout=0,
+                )
+            }
+        ),
+    ) as store:
+        with pytest.raises(ControlStorageError, match="claim timeout is invalid"):
+            _ = store.load_source_state("fixture-source")
+
+
+@pytest.mark.parametrize(
+    "codec",
+    (
+        _HostileConfigurationCodec(
+            canonicalize_error=RuntimeError("private canonicalization value")
+        ),
+        _HostileConfigurationCodec(
+            canonicalized={"batch_size": 7, "claim_timeout_ms": 12_345},
+            timeout_error=ValueError("private timeout value"),
+        ),
+    ),
+)
+def test_unexpected_codec_exceptions_are_redacted_at_store_boundary(
+    tmp_path: Path,
+    codec: _HostileConfigurationCodec,
+) -> None:
+    with ControlStore.open(
+        tmp_path / f"codec-exception-{id(codec)}.sqlite3",
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": codec}
+        ),
+    ) as store:
+        with pytest.raises(ControlValidationError) as captured:
+            _ = store.configure_source(
+                SourceConfiguration("fixture-source", "fixture", {}, True)
+            )
+
+    assert "private" not in str(captured.value)
+    assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
+
+
+@pytest.mark.parametrize(
+    "codec",
+    (
+        _HostileConfigurationCodec(
+            canonicalize_error=RuntimeError("private stored value")
+        ),
+        _HostileConfigurationCodec(
+            canonicalized={"batch_size": 7, "claim_timeout_ms": 12_345},
+            timeout_error=ValueError("private stored timeout"),
+        ),
+    ),
+)
+def test_unexpected_codec_read_exceptions_are_redacted(
+    tmp_path: Path,
+    codec: _HostileConfigurationCodec,
+) -> None:
+    database_path = tmp_path / f"codec-read-exception-{id(codec)}.sqlite3"
+    _create_fixture_source(database_path)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": codec}
+        ),
+    ) as store:
+        with pytest.raises(ControlStorageError) as captured:
+            _ = store.load_source_state("fixture-source")
+
+    assert "private" not in str(captured.value)
+    assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
+
+
+def test_unknown_and_missing_configuration_codecs_fail_closed(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "missing-codec.sqlite3"
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as configured_store:
+        with pytest.raises(ControlValidationError, match="registered configuration"):
+            _ = configured_store.configure_source(
+                SourceConfiguration("unknown", "unknown", {}, True)
+            )
+        _configure_source(configured_store)
+
+    with ControlStore.open(database_path) as unconfigured_store:
+        with pytest.raises(ControlValidationError, match="registered configuration"):
+            _ = unconfigured_store.configure_source(
+                SourceConfiguration("rsk-2", "rsk", {}, True)
+            )
+        with pytest.raises(ControlStorageError, match="registered configuration"):
+            _ = unconfigured_store.load_source_state(_SOURCE_ID)
+        with pytest.raises(ControlStorageError, match="registered configuration"):
+            _ = unconfigured_store.claim_manual(_SOURCE_ID)
+
+
+def test_source_configuration_codec_registry_is_bounded() -> None:
+    with pytest.raises(ValueError, match="exceeds its bound"):
+        _ = SourceConfigurationCodecRegistry(_OversizedCodecMapping())
+
+
+def test_source_configuration_codec_registry_bounds_repeated_item_visits() -> None:
+    codecs = _RepeatedKeyCodecMapping()
+
+    with pytest.raises(ValueError, match="exceeds its bound"):
+        _ = SourceConfigurationCodecRegistry(codecs)
+
+    assert codecs.visits == 65
+
+
+def test_source_configuration_codec_registry_rejects_non_text_keys() -> None:
+    invalid = cast(
+        Mapping[str, SourceConfigurationCodec],
+        cast(object, {1: _FixtureConfigurationCodec()}),
+    )
+
+    with pytest.raises(TypeError, match="watcher type must be text"):
+        _ = SourceConfigurationCodecRegistry(invalid)
+
+
+def test_source_reads_and_claims_reject_invalid_persisted_configuration(
+    store: ControlStore,
+    database_path: Path,
+) -> None:
+    _configure_source(store)
+    invalid_json = '{"operation_deadline_seconds":"300"}'
+    invalid_sha256 = hashlib.sha256(invalid_json.encode()).hexdigest()
+    connection = sqlite3.connect(database_path)
+    try:
+        _ = connection.execute(
+            """
+            UPDATE source_configuration_revisions
+            SET configuration_json = ?, configuration_sha256 = ?
+            WHERE source_id = ? AND configuration_revision = 1
+            """,
+            (invalid_json, invalid_sha256, _SOURCE_ID),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(ControlStorageError, match="invalid"):
+        _ = store.load_source_state(_SOURCE_ID)
+    with pytest.raises(ControlStorageError, match="invalid"):
+        _ = store.claim_manual(_SOURCE_ID)
+    assert _query(database_path, "SELECT run_id FROM watcher_runs") == []
+    assert _query(database_path, "SELECT fencing_epoch FROM sources") == [(0,)]
+    assert _query(database_path, "SELECT state_revision FROM control_state") == [(1,)]
 
 
 def test_enabling_source_does_not_duplicate_unchanged_configuration(
@@ -221,7 +649,7 @@ def test_configuration_rejects_secrets_and_immutable_watcher_type(
         )
     assert _query(database_path, "SELECT source_id FROM sources") == []
 
-    with pytest.raises(ControlValidationError, match="unsupported keys"):
+    with pytest.raises(ControlValidationError, match="invalid"):
         _ = store.configure_source(
             SourceConfiguration(_SOURCE_ID, "rsk", {"unknown": True}, True),
         )
@@ -779,8 +1207,14 @@ def test_two_writers_cannot_claim_the_same_source(
     clock: _TestClock,
 ) -> None:
     _ = clock
-    first = ControlStore.open(database_path)
-    second = ControlStore.open(database_path)
+    first = ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
+    second = ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     try:
         _configure_source(first)
         claim = first.acquire_claim(_manual_claim_request(_NOW_MS))
@@ -800,7 +1234,11 @@ def test_lock_contention_times_out_without_partial_write(
     database_path: Path,
 ) -> None:
     _configure_source(store)
-    contender = ControlStore.open(database_path, busy_timeout_ms=1)
+    contender = ControlStore.open(
+        database_path,
+        busy_timeout_ms=1,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     blocker = sqlite3.connect(database_path, isolation_level=None)
     try:
         _ = blocker.execute("BEGIN IMMEDIATE")
@@ -889,7 +1327,10 @@ def test_post_commit_failure_closes_writer_with_uncertain_outcome(
     with pytest.raises(ControlStorageError, match="closed"):
         _configure_source(store)
 
-    replacement = ControlStore.open(database_path)
+    replacement = ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     try:
         repeated = replacement.configure_source(
             SourceConfiguration(_SOURCE_ID, "rsk", {}, True)
@@ -921,6 +1362,8 @@ def test_public_listings_fail_closed_instead_of_truncating(
 
     with pytest.raises(ControlStorageError, match="listing exceeds"):
         _ = store.list_scheduled_sources(limit=1)
+    with pytest.raises(ControlStorageError, match="listing exceeds"):
+        store.validate_scheduled_source_configurations(limit=1)
     with pytest.raises(ControlValidationError, match="limit"):
         _ = store.list_scheduled_sources(limit=True)
 
@@ -1072,6 +1515,23 @@ def _configure_source(store: ControlStore) -> None:
     )
 
 
+def _create_fixture_source(database_path: Path) -> None:
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=SourceConfigurationCodecRegistry(
+            {"fixture": _FixtureConfigurationCodec()}
+        ),
+    ) as store:
+        _ = store.configure_source(
+            SourceConfiguration(
+                "fixture-source",
+                "fixture",
+                {"batch_size": 7, "claim_timeout_ms": 12_345},
+                True,
+            )
+        )
+
+
 def _schedule() -> SourceSchedule:
     return SourceSchedule(
         source_id=_SOURCE_ID,
@@ -1178,7 +1638,10 @@ def _open_faulting_store(
 
     monkeypatch.setattr(sqlite3, "connect", return_faulting_connection)
     try:
-        store = ControlStore.open(database_path)
+        store = ControlStore.open(
+            database_path,
+            source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+        )
     finally:
         monkeypatch.setattr(sqlite3, "connect", original_connect)
     return store, connection

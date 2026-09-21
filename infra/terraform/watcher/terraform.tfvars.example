@@ -1,0 +1,10 @@
+expected_aws_account_id = "<twelve-digit-account-id>"
+aws_region              = "eu-central-1"
+
+github_repository = "<github-owner>/<github-repository>"
+github_ref        = "refs/heads/main"
+
+# Replace zero with the reviewed amount, no more than the USD 20 monthly ceiling.
+monthly_budget_amount   = 0
+budget_currency         = "USD"
+budget_subscriber_email = "<operator-supplied-real-email>"

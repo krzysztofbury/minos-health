@@ -16,7 +16,13 @@ from minos.ingest.watchers.archive import (
     FilesystemBlobArchive,
     S3BlobArchive,
 )
-from minos.ingest.watchers.control import CommittedRun, ControlStore, RecoveryReceipt
+from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
+from minos.ingest.watchers.control import (
+    CommittedRun,
+    ControlStore,
+    RecoveryReceipt,
+    SourceConfigurationCodecRegistry,
+)
 from minos.ingest.watchers.healthchecks import (
     HealthchecksClient,
     HealthcheckTargets,
@@ -201,6 +207,7 @@ class WatcherCliAdapter:
         capacity_limits: CapacityLimits | None = None,
         scheduling_paused: bool = False,
         readiness_file: Path | None = None,
+        source_configuration_codecs: SourceConfigurationCodecRegistry | None = None,
         close: Callable[[], None] | None = None,
     ) -> None:
         self._paths = paths
@@ -212,6 +219,9 @@ class WatcherCliAdapter:
         self._capacity_limits = capacity_limits or CapacityLimits()
         self._scheduling_paused = scheduling_paused
         self._readiness = WatcherReadiness(readiness_file or _DEFAULT_READINESS_FILE)
+        self._source_configuration_codecs = (
+            source_configuration_codecs or SourceConfigurationCodecRegistry()
+        )
         self._close = close
 
     def preflight(self) -> None:
@@ -223,13 +233,17 @@ class WatcherCliAdapter:
                         scheduling_paused=self._scheduling_paused
                     )
                     return
-                with ControlStore.open(self._paths.database) as store:
+                with ControlStore.open(
+                    self._paths.database,
+                    source_configuration_codecs=self._source_configuration_codecs,
+                ) as store:
                     gate = RuntimeCapacityGate(
                         self._paths.database,
                         self._paths.staging_directory,
                         limits=self._capacity_limits,
                     )
                     _ = gate.check()
+                    store.validate_scheduled_source_configurations()
                     _ = store.list_scheduled_sources()
                     _ = store.list_reconcilable_runs()
                     _ = store.list_stale_claims()
@@ -245,6 +259,7 @@ class WatcherCliAdapter:
                     with ControlStore.open(
                         self._paths.database,
                         allow_thread_handoff=True,
+                        source_configuration_codecs=self._source_configuration_codecs,
                     ) as store:
                         service = self._build_service(store)
                         WatcherScheduler(service).start(
@@ -257,7 +272,10 @@ class WatcherCliAdapter:
         with self._manage_resources():
             self._prepare_directories()
             with WatcherProcessLock(self._paths.process_lock):
-                with ControlStore.open(self._paths.database) as store:
+                with ControlStore.open(
+                    self._paths.database,
+                    source_configuration_codecs=self._source_configuration_codecs,
+                ) as store:
                     service = self._build_service(store)
                     _ = service.run_manual(source_id)
 
@@ -397,6 +415,7 @@ def create_watcher_command(arguments: WatcherFactoryArguments) -> WatcherCommand
             capacity_limits=limits,
             scheduling_paused=settings.scheduler_paused,
             readiness_file=settings.readiness_file,
+            source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
         )
     return _create_s3_watcher_command(arguments, settings, paths, limits)
 
@@ -473,6 +492,7 @@ def _create_s3_watcher_command(
         capacity_limits=limits,
         scheduling_paused=settings.scheduler_paused,
         readiness_file=settings.readiness_file,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
         close=heartbeat.close,
     )
 
@@ -515,6 +535,7 @@ def _create_production_preflight(
         control_database=ControlDatabaseCopyProbe(
             paths.database,
             paths.recovery_staging_directory,
+            source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
         ),
         s3_checksum=S3ChecksumProbe.create(
             bucket=bucket,

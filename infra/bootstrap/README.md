@@ -76,7 +76,7 @@ Every later root declares only invariant backend fields:
 ```hcl
 terraform {
   backend "s3" {
-    key          = "phase0/terraform.tfstate"
+    key          = "watcher/terraform.tfstate"
     encrypt      = true
     use_lockfile = true
   }
@@ -86,24 +86,24 @@ terraform {
 Initialization supplies the deployment-specific controls explicitly:
 
 ```bash
-mise exec -- terraform -chdir=infra/terraform/phase0 init \
+mise exec -- terraform -chdir=infra/terraform/watcher init \
   -backend-config="bucket=<state-bucket-name>" \
   -backend-config="region=eu-central-1" \
   -backend-config="expected_bucket_owner=<twelve-digit-account-id>" \
   -lockfile=readonly
 ```
 
-The phase-0 infrastructure identity receives bounded `s3:ListBucket` access and
+The watcher infrastructure identity receives bounded `s3:ListBucket` access and
 `s3:GetObject` plus `s3:PutObject` only for
-`phase0/terraform.tfstate`. It receives `s3:GetObject`, `s3:PutObject`, and
-`s3:DeleteObject` only for `phase0/terraform.tfstate.tflock`. It receives no
+`watcher/terraform.tfstate`. It receives `s3:GetObject`, `s3:PutObject`, and
+`s3:DeleteObject` only for `watcher/terraform.tfstate.tflock`. It receives no
 `s3:DeleteObject` or `s3:DeleteObjectVersion` permission for state objects.
 
 Each later root uses its own fixed key and equivalent key-scoped permissions.
 
-Before remote state becomes authoritative, phase 0 must provision and preflight
-a separately assumable break-glass recovery identity. For each root, that
-identity receives bounded `s3:ListBucket` and `s3:ListBucketVersions` access,
+Before remote state becomes authoritative, the watcher stack must provision and
+preflight a separately assumable break-glass recovery identity. For each root,
+that identity receives bounded `s3:ListBucket` and `s3:ListBucketVersions` access,
 `s3:GetObject`, `s3:GetObjectVersion`, and conditional `s3:PutObject` access to
 the exact state key, plus lock inspection and removal on the exact `.tflock`
 key. It receives no `s3:DeleteObject` or `s3:DeleteObjectVersion` permission for
@@ -131,11 +131,11 @@ during inspection:
 ```bash
 mise exec -- aws s3api list-object-versions \
   --bucket "<state-bucket-name>" \
-  --prefix "phase0/terraform.tfstate" \
+  --prefix "watcher/terraform.tfstate" \
   --expected-bucket-owner "<twelve-digit-account-id>"
 mise exec -- aws s3api get-object \
   --bucket "<state-bucket-name>" \
-  --key "phase0/terraform.tfstate" \
+  --key "watcher/terraform.tfstate" \
   --version-id "<version-id>" \
   --expected-bucket-owner "<twelve-digit-account-id>" \
   "$RECOVERY_DIR/candidate.tfstate"
@@ -150,13 +150,13 @@ the download and require that same ETag during the restore:
 ```bash
 CURRENT_ETAG="$(mise exec -- aws s3api head-object \
   --bucket "<state-bucket-name>" \
-  --key "phase0/terraform.tfstate" \
+  --key "watcher/terraform.tfstate" \
   --expected-bucket-owner "<twelve-digit-account-id>" \
   --query ETag \
   --output text)"
 mise exec -- aws s3api get-object \
   --bucket "<state-bucket-name>" \
-  --key "phase0/terraform.tfstate" \
+  --key "watcher/terraform.tfstate" \
   --if-match "$CURRENT_ETAG" \
   --expected-bucket-owner "<twelve-digit-account-id>" \
   "$RECOVERY_DIR/current-before-restore.tfstate"
@@ -164,7 +164,7 @@ sha256sum "$RECOVERY_DIR/candidate.tfstate" \
   "$RECOVERY_DIR/current-before-restore.tfstate"
 mise exec -- aws s3api put-object \
   --bucket "<state-bucket-name>" \
-  --key "phase0/terraform.tfstate" \
+  --key "watcher/terraform.tfstate" \
   --body "$RECOVERY_DIR/candidate.tfstate" \
   --if-match "$CURRENT_ETAG" \
   --server-side-encryption AES256 \

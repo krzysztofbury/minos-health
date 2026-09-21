@@ -44,26 +44,41 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-groups --python 3.14.7
 
+      - name: Validate host materializer safety boundary
+        run: uv run pytest tests/unit/test_materialize_ansible_host.py
+
       - name: Syntax-check the production Ansible playbook
         run: |
           uvx --from ansible-core==2.21.4 ansible-playbook \
             infra/ansible/site.yml --syntax-check \
+            -e expected_hostname=minos-ci \
+            -e cloudflared_tunnel_id=11111111-2222-3333-4444-555555555555 \
             -e watcher_archive_backend=s3 \
             -e watcher_s3_bucket=minos-ci-fixture \
             -e watcher_s3_expected_bucket_owner=123456789012 \
-            -e watcher_expected_image_digest=sha256:${DIGEST_HEX} \
+            -e watcher_expected_image_digest=sha256:${SYNTHETIC_DIGEST_HEX} \
             -e watcher_source_revision=${GITHUB_SHA}
         env:
-          DIGEST_HEX: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          ANSIBLE_CONFIG: infra/ansible/ansible.cfg
+          SYNTHETIC_DIGEST_HEX: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
-      - name: Render and validate the production Compose model
+      - name: Render and validate the production runtime configuration
         run: |
           uvx --from ansible-core==2.21.4 ansible localhost \
             --inventory localhost, --connection local \
             --module-name ansible.builtin.template \
             --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/minos-compose.yml.j2 dest=${RUNNER_TEMP}/minos-compose.yaml" \
-            --extra-vars '{"watcher_archive_backend":"s3","watcher_aws_region":"eu-central-1","watcher_expected_image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_expected_bucket_owner":"123456789012","watcher_secrets_gid":10002,"watcher_uid":10001}'
+            --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","watcher_archive_backend":"s3","watcher_aws_region":"eu-central-1","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_expected_bucket_owner":"123456789012","watcher_secrets_gid":10002,"watcher_uid":10001}'
+          uvx --from ansible-core==2.21.4 ansible localhost \
+            --inventory localhost, --connection local \
+            --module-name ansible.builtin.template \
+            --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/cloudflared-config.yml.j2 dest=${RUNNER_TEMP}/cloudflared-config.yml" \
+            --extra-vars '{"cloudflared_tunnel_id":"11111111-2222-3333-4444-555555555555"}'
           docker compose --file "$RUNNER_TEMP/minos-compose.yaml" config --quiet
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/cloudflared-config.yml:/etc/cloudflared/config.yml:ro" \
+            docker.io/cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4 \
+            tunnel --config /etc/cloudflared/config.yml ingress validate
 
       - name: Verify the production systemd unit
         run: systemd-analyze verify infra/ansible/files/minos-compose.service
@@ -82,20 +97,21 @@ jobs:
       - name: Initialize Terraform providers
         run: terraform -chdir=infra/bootstrap init -backend=false -lockfile=readonly
 
-      - name: Initialize, validate, and test production phase-0 Terraform
+      - name: Initialize, validate, and test production watcher Terraform
         run: |
-          export TF_DATA_DIR="$RUNNER_TEMP/terraform-phase0"
-          terraform -chdir=infra/terraform/phase0 init \
+          export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher"
+          terraform -chdir=infra/terraform/watcher init \
             -backend=false -lockfile=readonly
-          terraform -chdir=infra/terraform/phase0 validate
-          terraform -chdir=infra/terraform/phase0 test
+          terraform -chdir=infra/terraform/watcher validate
+          terraform -chdir=infra/terraform/watcher test
 
-      - name: Initialize and validate disposable phase-0 Terraform
+      - name: Initialize, validate, and test disposable watcher Terraform
         run: |
-          export TF_DATA_DIR="$RUNNER_TEMP/terraform-test-phase0"
-          terraform -chdir=infra/terraform/test-phase0 init \
+          export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher-acceptance"
+          terraform -chdir=infra/terraform/watcher-acceptance init \
             -backend=false -lockfile=readonly
-          terraform -chdir=infra/terraform/test-phase0 validate
+          terraform -chdir=infra/terraform/watcher-acceptance validate
+          terraform -chdir=infra/terraform/watcher-acceptance test
 
       - name: Run pre-commit checks
         run: uv run pre-commit run --all-files --show-diff-on-failure
@@ -137,14 +153,9 @@ jobs:
           "$smoke_dir/venv/bin/minos" --version
           "$smoke_dir/venv/bin/python" - <<'PY'
           import sqlite3
-          from pathlib import Path
-          from tempfile import TemporaryDirectory
 
           from minos.ingest.watchers.control import (
               CONTROL_SCHEMA_VERSION,
-              ControlStore,
-              SourceConfiguration,
-              SourceSchedule,
               apply_control_migrations,
           )
 
@@ -152,18 +163,6 @@ jobs:
           result = apply_control_migrations(connection)
           assert result.schema_version == CONTROL_SCHEMA_VERSION
           assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
-
-          with TemporaryDirectory() as directory:
-              store = ControlStore.open(Path(directory) / "control.sqlite3")
-              configured = store.configure_source(
-                  SourceConfiguration("rsk", "rsk", {}, True)
-              )
-              scheduled = store.set_schedule(
-                  SourceSchedule("rsk", "0 3 * * *", 300, 3, 0.5, 30.0)
-              )
-              assert configured.configuration_revision == 1
-              assert scheduled.next_due_at_ms > 0
-              store.close()
           PY
 
       - name: Build and exercise the watcher container and Compose runtime

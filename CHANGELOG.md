@@ -54,7 +54,7 @@ release.
   catch-up, stale-claim expiry, heartbeat reconciliation, capacity gates, and
   privacy-safe failure handling.
 - Hardened watcher Docker and Compose runtime, Mikr.us candidate preflight and
-  rollback-safe activation, phase-0 AWS Terraform, and an opt-in disposable AWS
+  rollback-safe activation, watcher AWS Terraform, and an opt-in disposable AWS
   acceptance harness.
 
 ### Changed
@@ -69,9 +69,10 @@ release.
   GitHub Actions remains build and test infrastructure only.
 - Superseded an earlier plan that split web delivery between a private
   S3/CloudFront frontend and a Lambda-hosted API.
-- Made security and correctness the first engineering priority, followed by
-  measured performance, and adopted unit, targeted mutation, integration, and
-  pair-programmer review gates for incremental work.
+- Made security, correctness, and measured performance co-equal release
+  requirements, with evidence-based tradeoffs, representative benchmarks, and
+  developer convenience following them; adopted unit, targeted mutation,
+  integration, and pair-programmer review gates for incremental work.
 - Recorded the phased client and commercial direction: one responsive PWA,
   immutable offline reference-data synchronization, centrally enforced online
   calculation allowances, and separately licensed organization/hospital

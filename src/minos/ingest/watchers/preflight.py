@@ -27,6 +27,8 @@ from minos.ingest.watchers.control import (
     CONTROL_SCHEMA_VERSION,
     ControlSnapshotError,
     ControlStore,
+    ControlStoreError,
+    SourceConfigurationCodecRegistry,
 )
 from minos.ingest.watchers.protocols import PreflightProbe
 from minos.ingest.watchers.recovery import (
@@ -198,9 +200,18 @@ class ReadableSecretsProbe:
 
 @final
 class ControlDatabaseCopyProbe:
-    def __init__(self, database_path: Path, disposable_directory: Path) -> None:
+    def __init__(
+        self,
+        database_path: Path,
+        disposable_directory: Path,
+        *,
+        source_configuration_codecs: SourceConfigurationCodecRegistry | None = None,
+    ) -> None:
         self._database_path = database_path
         self._disposable_directory = disposable_directory
+        self._source_configuration_codecs = (
+            source_configuration_codecs or SourceConfigurationCodecRegistry()
+        )
 
     def check(self) -> None:
         descriptor = -1
@@ -223,7 +234,11 @@ class ControlDatabaseCopyProbe:
                         time.monotonic() + _CONTROL_COPY_TIMEOUT_SECONDS
                     ),
                 )
-            with ControlStore.open(copy_path):
+            with ControlStore.open(
+                copy_path,
+                source_configuration_codecs=self._source_configuration_codecs,
+            ) as store:
+                store.validate_scheduled_source_configurations()
                 verification = sqlite3.connect(copy_path, isolation_level=None)
                 try:
                     journal_mode = cast(
@@ -238,7 +253,7 @@ class ControlDatabaseCopyProbe:
                     verification.close()
         except PreflightError:
             raise
-        except ControlSnapshotError, OSError, sqlite3.Error:
+        except ControlSnapshotError, ControlStoreError, OSError, sqlite3.Error:
             raise PreflightError("disposable control database check failed") from None
         finally:
             if descriptor >= 0:

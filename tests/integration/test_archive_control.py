@@ -2,6 +2,7 @@ import time
 from pathlib import Path
 
 from minos.ingest.watchers.archive import BlobStagingArea, FilesystemBlobArchive
+from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
     ClaimRequest,
     ControlStore,
@@ -13,7 +14,10 @@ from minos.ingest.watchers.control import (
 
 
 def test_verified_filesystem_receipt_commits_observation(tmp_path: Path) -> None:
-    store = ControlStore.open(tmp_path / "control.sqlite3")
+    store = ControlStore.open(
+        tmp_path / "control.sqlite3",
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         now_ms = time.time_ns() // 1_000_000

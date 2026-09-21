@@ -11,6 +11,7 @@ import minos.cli.watcher as watcher_module
 from minos.cli.main import WatcherCommandArguments, main
 from minos.cli.watcher import create_watcher_command, paths_from_environment
 from minos.ingest.watchers.archive import BlobArchive, FilesystemBlobArchive
+from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import ControlStore, SourceConfiguration
 from minos.ingest.watchers.protocols import WatcherRuntimeError
 
@@ -106,7 +107,10 @@ def test_default_run_once_fails_before_claim_without_registered_collector(
     tmp_path: Path,
 ) -> None:
     database = tmp_path / "control.sqlite3"
-    with ControlStore.open(database) as store:
+    with ControlStore.open(
+        database,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as store:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
 
     with pytest.raises(SystemExit) as captured:

@@ -4,10 +4,12 @@ Minos is at an early stage. Please discuss substantial changes in an issue
 before implementing them so that terminology, grouping-rule, licensing, and
 deployment decisions remain deliberate.
 
-Engineering priorities are security and correctness first, measured
-performance second, and developer convenience third. Fast behavior is a product
-requirement, but an optimization is accepted only with representative evidence
-and without weakening validation, provenance, privacy, or determinism.
+Security, correctness, and measured performance are co-equal release
+requirements. A release must satisfy all three, and tradeoffs require
+representative evidence, documented limits, and explicit review. Developer
+convenience follows these requirements. An optimization is accepted only with
+representative evidence and without weakening validation, provenance, privacy,
+or determinism.
 
 ## Development setup
 
@@ -40,11 +42,14 @@ existing terminal and Neovim setup rather than project-specific dotfiles.
 
 ### Dependencies
 
-Prefer the Python standard library when it is sufficient. Approved foundation
-tools include uv, Pydantic, HTTPX, pytest, and Loguru. Pydantic belongs at
-configuration and untrusted-input boundaries; domain behavior must not depend
-on transport or serialization libraries. Add a dependency only with working
-code, a clear ownership boundary, and a licence review.
+Use the Python standard library when it is the clearest adequate choice. Use a
+maintained library when it materially improves correctness, security,
+interoperability, performance, or maintainability. Approved foundation tools
+include uv, Pydantic, HTTPX, pytest, and Loguru. Pydantic belongs at
+configuration and untrusted-input boundaries; domain behavior must remain
+independent of transport, persistence, and serialization libraries. Add a
+dependency only with working code, a clear ownership boundary, and a licence
+review.
 
 Loguru (MIT) emits allowlisted structured process events without installing
 library-level sinks. backoff (MIT) supplies the bounded exponential schedule

@@ -10,6 +10,10 @@ no ORM and no library-owned migration state.
 - `migrations/NNNN_name.up.sql` upgrades an existing database by one version.
 - `migrations/NNNN_name.down.sql` exists for local and automated rollback tests.
 
+`up` and `down` are standard migration terms for applying and reversing a
+schema change. Their presence does not change the production rollback policy
+below, which restores a verified recovery image.
+
 Runtime initialization always applies numbered `up` migrations. `schema.sql` is
 not a separate runtime bootstrap path. Tests apply both paths to empty databases
 and require equivalent schemas, migration checksums, and singleton control
@@ -19,6 +23,24 @@ Run migrations on a dedicated connection before installing any long-lived
 SQLite authorizer. The migration runner installs a temporary restrictive
 authorizer and clears it after each script; Python does not expose the previous
 callback for restoration.
+
+## Table Purpose Map
+
+| Table | Purpose |
+| --- | --- |
+| `control_schema_migrations` | Records applied migration identities, exact checksums, and reader compatibility. |
+| `control_state` | Holds the singleton schema version and monotonic state revision. |
+| `sources` | Defines watcher sources, enablement, active configuration, and fencing epoch. |
+| `source_configuration_revisions` | Stores immutable, checksummed configuration revisions per source. |
+| `source_schedules` | Stores UTC cron policy, durable due cursors, and bounded retry settings. |
+| `watcher_runs` | Tracks fenced scheduled, catch-up, verification, and manual run lifecycles. |
+| `blobs` | Catalogs content-addressed archived bytes by SHA-256, size, and media type. |
+| `observations` | Records source observations committed by a run and their response blob. |
+| `observation_blobs` | Links each observation to its ordered supporting blobs by role. |
+| `source_cursors` | Stores the latest durable, source-specific comparison cursor. |
+| `source_changes` | Records bounded changes derived from committed observations. |
+| `incidents` | Records global, source, or run incidents, including failures and drift, with their resolution state. |
+| `audit_events` | Appends revisioned control-plane mutation and transition evidence. |
 
 ## Runtime Writer
 

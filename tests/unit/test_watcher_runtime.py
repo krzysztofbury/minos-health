@@ -22,10 +22,12 @@ from minos.ingest.watchers.archive import (
     FilesystemBlobArchive,
     StagedBlob,
 )
+from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
     BlobReceipt,
     ClaimIdentity,
     CommittedRun,
+    ControlStorageError,
     ControlStore,
     ObservationCommit,
     ObservationDraft,
@@ -34,6 +36,7 @@ from minos.ingest.watchers.control import (
     RunTransition,
     ScheduledSource,
     SourceConfiguration,
+    SourceSchedule,
     UncertainControlOutcomeError,
 )
 from minos.ingest.watchers.healthchecks import (
@@ -361,12 +364,30 @@ class _Heartbeat:
         self._events.append("heartbeat_failure")
 
 
+def _open_source_store(
+    database_path: Path,
+    *,
+    allow_thread_handoff: bool = False,
+) -> ControlStore:
+    return ControlStore.open(
+        database_path,
+        allow_thread_handoff=allow_thread_handoff,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
+
+
+def _configure_scheduled_source(database_path: Path) -> None:
+    with _open_source_store(database_path) as store:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        _ = store.set_schedule(SourceSchedule("rsk", "0 3 * * *", 300, 3, 0.5, 30.0))
+
+
 def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[str] = []
-    store = ControlStore.open(tmp_path / "control.sqlite3")
+    store = _open_source_store(tmp_path / "control.sqlite3")
     original_commit = ControlStore.commit_observations
     original_pending = ControlStore.mark_heartbeat_pending
     original_successful = ControlStore.mark_successful
@@ -448,7 +469,7 @@ def test_orchestrator_archives_multiple_blobs_with_one_staging_file(
     database = tmp_path / "control.sqlite3"
     staging_path = tmp_path / "stage"
     archive_path = tmp_path / "archive"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -486,7 +507,7 @@ def test_later_multi_blob_archive_failure_leaves_no_control_commit(
     events: list[str] = []
     database = tmp_path / "control.sqlite3"
     staging_path = tmp_path / "stage"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -538,7 +559,7 @@ def test_malformed_archive_receipt_is_rejected_before_commit(
     fault: str,
 ) -> None:
     database = tmp_path / "control.sqlite3"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -575,7 +596,7 @@ def test_collector_teardown_failure_prevents_control_commit(tmp_path: Path) -> N
     database = tmp_path / "control.sqlite3"
     staging_path = tmp_path / "stage"
     archive_path = tmp_path / "archive"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -636,7 +657,7 @@ def test_archive_failure_records_incident_without_advancing_cursor(
 ) -> None:
     events: list[str] = []
     database_path = tmp_path / "control.sqlite3"
-    store = ControlStore.open(database_path)
+    store = _open_source_store(database_path)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -670,7 +691,7 @@ def test_archive_failure_records_incident_without_advancing_cursor(
 def test_retry_policy_retries_only_explicit_precommit_failure(tmp_path: Path) -> None:
     events: list[str] = []
     sleeps: list[float] = []
-    store = ControlStore.open(tmp_path / "control.sqlite3")
+    store = _open_source_store(tmp_path / "control.sqlite3")
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         collector = _RetryCollector(
@@ -705,7 +726,7 @@ def test_retry_after_archive_uses_a_fresh_receipt_set(tmp_path: Path) -> None:
     database = tmp_path / "control.sqlite3"
     staging_path = tmp_path / "stage"
     archive_path = tmp_path / "archive"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         collector = _RetryAfterArchiveCollector(BlobStagingArea(staging_path))
@@ -740,7 +761,7 @@ def test_retry_policy_does_not_sleep_through_claim_deadline(tmp_path: Path) -> N
     events: list[str] = []
     sleeps: list[float] = []
     database = tmp_path / "control.sqlite3"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         collector = _RetryCollector(
@@ -779,7 +800,7 @@ def test_retry_policy_does_not_sleep_through_claim_deadline(tmp_path: Path) -> N
 def test_cancellation_aborts_claim_and_sends_failure_heartbeat(tmp_path: Path) -> None:
     events: list[str] = []
     database = tmp_path / "control.sqlite3"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -810,7 +831,7 @@ def test_uncertain_commit_is_not_followed_by_abort(
 ) -> None:
     events: list[str] = []
     database = tmp_path / "control.sqlite3"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     original_commit = ControlStore.commit_observations
 
     def uncertain_commit(
@@ -857,7 +878,7 @@ class _FailingCapacityGate:
 
 def test_capacity_failure_is_incidented_before_manual_claim(tmp_path: Path) -> None:
     database = tmp_path / "control.sqlite3"
-    store = ControlStore.open(database)
+    store = _open_source_store(database)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -885,7 +906,7 @@ def test_capacity_failure_is_incidented_before_manual_claim(tmp_path: Path) -> N
 def test_control_store_allows_explicit_single_worker_thread_handoff(
     tmp_path: Path,
 ) -> None:
-    store = ControlStore.open(
+    store = _open_source_store(
         tmp_path / "control.sqlite3",
         allow_thread_handoff=True,
     )
@@ -1045,6 +1066,47 @@ class _SchedulerBackend:
             raise RuntimeError("scheduler backend unavailable")
         if self.listener is not None:
             self.listener(object())
+
+
+@final
+class _PassingCapacityGate:
+    def require_capacity(self) -> None:
+        return
+
+
+def test_scheduler_does_not_report_ready_with_missing_source_codec(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "control.sqlite3"
+    _configure_scheduled_source(database_path)
+    store = ControlStore.open(database_path)
+    events: list[str] = []
+    collectors = CollectorRegistry()
+    collectors.register("rsk", _InterruptCollector())
+    orchestrator = WatcherOrchestrator(
+        store=store,
+        archive=_Archive(events),
+        collectors=collectors,
+        recovery_publisher=_RecoveryPublisher(events),
+        heartbeat=_Heartbeat(events),
+    )
+    service = WatcherService(
+        store=store,
+        orchestrator=orchestrator,
+        collectors=collectors,
+        capacity_gate=_PassingCapacityGate(),
+    )
+    scheduler = WatcherScheduler(service, backend=_SchedulerBackend(events))
+    try:
+        with pytest.raises(
+            ControlStorageError,
+            match="registered configuration codec",
+        ):
+            scheduler.start(on_ready=lambda: events.append("ready"))
+    finally:
+        store.close()
+
+    assert "ready" not in events
 
 
 def test_scheduler_startup_order_and_exactly_one_catch_up() -> None:
@@ -1298,6 +1360,46 @@ def test_control_copy_probe_allows_an_initial_empty_host(tmp_path: Path) -> None
     assert list(disposable.iterdir()) == []
 
 
+def test_paused_control_copy_preflight_rejects_missing_source_codec(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "control.sqlite3"
+    disposable = tmp_path / "disposable"
+    disposable.mkdir(mode=0o700)
+    _configure_scheduled_source(database)
+
+    with pytest.raises(PreflightError, match="database check failed"):
+        ControlDatabaseCopyProbe(database, disposable).check()
+
+    assert list(disposable.iterdir()) == []
+
+
+def test_paused_control_copy_preflight_rejects_corrupt_source_configuration(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "control.sqlite3"
+    disposable = tmp_path / "disposable"
+    disposable.mkdir(mode=0o700)
+    _configure_scheduled_source(database)
+    connection = sqlite3.connect(database)
+    try:
+        _ = connection.execute(
+            "UPDATE source_configuration_revisions SET configuration_json = '{}'"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+    with pytest.raises(PreflightError, match="database check failed"):
+        ControlDatabaseCopyProbe(
+            database,
+            disposable,
+            source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+        ).check()
+
+    assert list(disposable.iterdir()) == []
+
+
 def test_deployment_copy_rejects_schema_mismatch_and_preserves_evidence(
     tmp_path: Path,
 ) -> None:
@@ -1377,6 +1479,36 @@ def test_watcher_preflight_cleans_interrupted_download_staging(tmp_path: Path) -
     ).preflight()
 
     assert not stale.exists()
+
+
+def test_watcher_preflight_rejects_corrupt_scheduled_source_configuration(
+    tmp_path: Path,
+) -> None:
+    paths = WatcherPaths(
+        tmp_path / "control" / "control.sqlite3",
+        tmp_path / "staging",
+        tmp_path / "archive",
+        tmp_path / "control" / "watcher.lock",
+        tmp_path / "control" / "recovery-staging",
+    )
+    paths.database.parent.mkdir(mode=0o700)
+    _configure_scheduled_source(paths.database)
+    connection = sqlite3.connect(paths.database)
+    try:
+        _ = connection.execute(
+            "UPDATE source_configuration_revisions SET configuration_json = '{}'"
+        )
+        connection.commit()
+    finally:
+        connection.close()
+    command = WatcherCliAdapter(
+        paths,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+        capacity_limits=CapacityLimits(2 * 1024 * 1024, 1, 1, 1),
+    )
+
+    with pytest.raises(ControlStorageError, match="checksum differs"):
+        command.preflight()
 
 
 @final

@@ -120,7 +120,7 @@ services:
         condition: service_healthy
     volumes:
       - /etc/minos/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
-      - /etc/minos/cloudflared/529fc801-22fb-4577-b60e-517f0330cb8a.json:/run/secrets/cloudflared-credentials.json:ro
+      - {{ cloudflared_credential_path }}:/run/secrets/cloudflared-credentials.json:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0700
     networks:
@@ -162,8 +162,8 @@ services:
       - /var/lib/minos/watcher/candidate-preflight/control:/var/lib/minos/control:rw
       - /var/lib/minos/watcher/candidate-preflight/archive:/var/lib/minos/archive:rw
       - /var/lib/minos/watcher/candidate-preflight/staging:/var/lib/minos/staging:rw
-      - /etc/minos/watcher/aws/credentials:/run/secrets/aws-credentials:ro
-      - /etc/minos/watcher/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro
+      - /etc/minos/watcher/candidate/aws/credentials:/run/secrets/aws-credentials:ro
+      - /etc/minos/watcher/candidate/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro
 
   watcher:
     <<: *watcher-runtime

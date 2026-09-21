@@ -2,7 +2,7 @@
 
 This directory owns the reproducible, non-secret baseline for the dedicated
 Mikr.us `3.0` production host. Run commands from the repository root so the
-pinned SSH host-key file resolves correctly.
+materialized SSH host-key file resolves correctly.
 
 The playbook pins key-only root SSH, a default-deny inbound firewall, unattended
 security upgrades, bounded persistent journald storage, and exact Docker Engine
@@ -15,16 +15,59 @@ The watcher image and host identity use the release-contract UID/GID
 are mounted only into the watcher. The AWS credentials and Healthchecks.io target
 remain operator-supplied host files; no secret value is stored in this directory.
 
-The dedicated private key is the `minos-mikrus-production-ssh` SSH Key item in
-the `MinosHealth` 1Password vault. Restore it locally as
-`~/.ssh/minos_mikrus_ed25519` with mode `0600`; only its public key is committed.
+The dedicated key pair is the `minos-mikrus-production-ssh` SSH Key item in the
+`MinosHealth` 1Password vault. Restore its private key locally as
+`~/.ssh/minos_mikrus_ed25519` with mode `0600`. Its public key is materialized
+into an ignored Ansible source file.
 
 The firewall intentionally permits guest port `22/tcp` on IPv4 and on the
-globally routed guest IPv6 address. Mikr.us maps the public IPv4 port `10159` to
-that guest port; IPv6 reaches guest port `22` directly. Both paths require the
-pinned public key after hardening.
+globally routed guest IPv6 address. Mikr.us maps a provider-assigned public IPv4
+port to that guest port; IPv6 reaches guest port `22` directly. Both paths
+require the pinned public key after hardening.
+
+## Materialize Host Metadata
+
+Git tracks only the `minos-production` inventory alias, the Python interpreter,
+and the constrained materializer. The `minos-production-deployment` item in the
+`MinosHealth` vault has these fields:
+
+- `ansible_host`: provider DNS name;
+- `ansible_port`: provider-mapped SSH port;
+- `ansible_user`: exactly `root`;
+- `expected_hostname`: guest short hostname asserted by the playbook;
+- `cloudflared_tunnel_id`: Cloudflare tunnel UUID;
+- `ssh_host_ed25519_public_key`: full `ssh-ed25519` host public key.
+
+Materialize all local host inputs before any inventory, check, or apply command:
+
+```sh
+uv run python scripts/materialize_ansible_host.py
+```
+
+The helper reads fixed 1Password references, rejects unresolved or malformed
+values, serializes YAML directly, validates one-line ED25519 keys, and proves the
+operator private key matches its public key before replacing any output. Each
+file is installed from a mode-`0600` same-directory temporary file. The three
+repository-local outputs are ignored; never add them to Git.
+
+The Ansible SSH configuration keeps `StrictHostKeyChecking=yes`, accepts only an
+ED25519 host key from the materialized `known_hosts`, and disables global known
+hosts, `KnownHostsCommand`, DNS host-key verification, host-IP lookup, learned
+host-key updates, and connection multiplexing. Authentication permits only the
+dedicated identity with public-key authentication.
+
+Current-tree externalization does not remove host metadata and public keys from
+existing Git history. Removing history requires a separately coordinated rewrite
+and clone invalidation. Rotate or rebind the provider endpoint, host key, operator
+key, and tunnel identity where practical before treating the externalized values
+as private operational metadata.
 
 ## Apply
+
+A fresh-host production apply is blocked until the open GHCR task installs a
+root-owned Docker credential using a package-read-only token. This playbook does
+not create registry authentication and must not be worked around with a public
+image, mutable tag, or broader token.
 
 Verify first:
 
@@ -33,7 +76,7 @@ ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
   uvx --from ansible-core==2.21.4 ansible-playbook \
   infra/ansible/site.yml --check --diff \
   -e watcher_archive_backend=s3 \
-  -e watcher_s3_bucket=<phase0-snapshot-bucket> \
+  -e watcher_s3_bucket=<watcher-snapshot-bucket> \
   -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
   -e watcher_expected_image_digest=sha256:<64-hex-digest> \
   -e watcher_source_revision=<40-hex-source-commit>
@@ -44,38 +87,57 @@ the provider console available and prove a fresh, non-multiplexed key-only
 session:
 
 ```sh
-ssh -p 10159 -o ControlMaster=no -o ControlPath=none \
-  -o BatchMode=yes -o IdentitiesOnly=yes \
-  -o PreferredAuthentications=publickey \
-  -o KbdInteractiveAuthentication=no -o PasswordAuthentication=no \
-  root@andrzej159.mikrus.xyz true
+ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
+  uvx --from ansible-core==2.21.4 ansible minos-production \
+  --module-name ansible.builtin.raw --args true
 ```
 
 Before the first apply, retrieve the tunnel credential, watcher AWS credentials,
 and watcher Healthchecks.io targets JSON to mode-`0600` temporary files outside
 the repository. Obtain the exact watcher image digest from the reviewed release.
-Apply only after the check targets `andrzej159` and key authentication works in
-a second SSH session:
+Apply only after the playbook's hostname assertion passes and key authentication
+works in a second SSH session:
 
 ```sh
+set -euo pipefail
 umask 077
+credential_dir="$(mktemp -d)"
+cleanup() {
+  rm -rf -- "$credential_dir"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 op document get minos-production-cloudflared-credentials \
-  --vault MinosHealth --out /tmp/minos-cloudflared-credentials.json
+  --vault MinosHealth --out "$credential_dir/cloudflared-credentials.json"
+op document get minos-production-watcher-aws-credentials \
+  --vault MinosHealth --out "$credential_dir/watcher-aws-credentials"
+op document get minos-production-watcher-healthchecks-targets \
+  --vault MinosHealth --out "$credential_dir/watcher-healthchecks-targets.json"
 ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
   uvx --from ansible-core==2.21.4 ansible-playbook \
   infra/ansible/site.yml --diff \
   -e watcher_archive_backend=s3 \
-  -e watcher_s3_bucket=<phase0-snapshot-bucket> \
+  -e watcher_s3_bucket=<watcher-snapshot-bucket> \
   -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
   -e watcher_expected_image_digest=sha256:<64-hex-digest> \
   -e watcher_source_revision=<40-hex-source-commit> \
-  -e cloudflared_credentials_source=/tmp/minos-cloudflared-credentials.json \
-  -e watcher_aws_credentials_source=/tmp/minos-watcher-aws-credentials \
-  -e watcher_healthchecks_targets_source=/tmp/minos-watcher-healthchecks-targets.json
-rm /tmp/minos-cloudflared-credentials.json \
-  /tmp/minos-watcher-aws-credentials \
-  /tmp/minos-watcher-healthchecks-targets.json
+  -e "cloudflared_credentials_source=$credential_dir/cloudflared-credentials.json" \
+  -e "watcher_aws_credentials_source=$credential_dir/watcher-aws-credentials" \
+  -e "watcher_healthchecks_targets_source=$credential_dir/watcher-healthchecks-targets.json"
 ```
+
+The AWS document must contain only a `[default]` profile with one long-lived
+`aws_access_key_id` and `aws_secret_access_key`. The Healthchecks document uses
+schema version `1`, a bounded `sources` mapping, and one `preflight` HTTPS URL.
+The playbook validates all three bounded secret schemas without logging values,
+stages the watcher files under `/etc/minos/watcher/candidate` and the tunnel
+credential under `/etc/minos/cloudflared/candidate`, and validates the staged
+files before activation. It replaces active files atomically only while the
+service is stopped. Failed activation restores prior files or removes rejected
+first-install files.
 
 The expected digest and source revision come from the reviewed release. The host
 requires that digest to resolve directly to one runnable manifest, pulls it,
@@ -133,7 +195,7 @@ bounded logs, mounts, and healthy state after a 30-second stability interval.
   playbook, installs fresh secrets, restores the verified control database, and
   pulls the exact recorded image digests.
 
-The phase-0 S3 bucket, IAM policy, upload jobs, and restore drill are not active
+The watcher S3 bucket, IAM policy, upload jobs, and restore drill are not active
 yet. Until their reviewed Terraform plan is approved and applied, Git plus
 1Password can reconstruct this host baseline, but no future mutable watcher state
 is protected.
@@ -147,7 +209,15 @@ behavior.
 
 An empty replacement receives a new provider hostname, port, guest identity, and
 SSH host key. Obtain the ED25519 fingerprint through the Mikr.us panel or console,
-compare it through a second provider path, then update the inventory,
-`known_hosts`, and strict hostname assertion in one reviewed change. Retrieve the
-operator key and console password from 1Password. Never bypass strict host-key
-checking to make a replacement fit the old inventory.
+compare it through a second provider path, and update the corresponding
+`ansible_host`, `ansible_port`, `expected_hostname`, and
+`ssh_host_ed25519_public_key` fields in the 1Password deployment item. Update
+`cloudflared_tunnel_id` only when the replacement uses a new tunnel, and store its
+matching credential document in 1Password.
+
+Run the materializer again, inspect the regenerated files locally,
+and verify their modes are `0600`. Keep the provider console open, run check mode,
+then prove a fresh strict key-only session with the command above before applying.
+Retrieve the operator key and console password from 1Password. Never use
+`StrictHostKeyChecking=no`, accept a key interactively, or copy the prior host key
+to make a replacement fit the old trust record.

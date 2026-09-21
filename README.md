@@ -87,8 +87,10 @@ uv run minos --version
 
 Ruff, BasedPyright, mypy, and pytest are pinned in `uv.lock`. Terminal and
 Neovim integration is documented in [CONTRIBUTING.md](CONTRIBUTING.md).
-Security and correctness come first; performance is measured as product
-behavior, with targeted mutation and integration testing for critical paths.
+Security, correctness, and measured performance are co-equal release
+requirements. Evidence-based tradeoffs and representative benchmarks are
+required, while developer convenience follows those requirements. Critical
+paths receive targeted mutation and integration testing.
 
 A production-only maintenance Compose stack currently serves an explicit holding
 page through Cloudflare Tunnel. The watcher foundation now includes an executable
@@ -106,8 +108,12 @@ docker compose --profile preflight run --rm watcher-preflight
 docker compose up --detach watcher
 ```
 
-The real-AWS acceptance harness under `infra/terraform/test-phase0` is opt-in and
-requires a dedicated non-production account. Production Terraform apply,
+The real-AWS acceptance harness under `infra/terraform/watcher-acceptance` is
+opt-in and creates only randomized, tagged disposable resources in the built-in
+repository account. It requires a dedicated non-default profile, exact
+same-account and production confirmations, reviewed plan digests, and separate
+apply, writer-revocation, and destroy approvals. The operator must be an exact
+preconfigured least-privilege IAM principal. Production Terraform apply,
 Mikr.us activation, and restore drills remain explicit operator approval gates.
 
 ## Data

@@ -1,6 +1,7 @@
 import time
 from pathlib import Path
 
+from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
     BlobReceipt,
     ClaimRequest,
@@ -21,7 +22,10 @@ _DIGEST = "d" * 64
 
 
 def test_verified_run_image_allows_reconciliation_and_cleans_up(tmp_path: Path) -> None:
-    store = ControlStore.open(tmp_path / "control.sqlite3")
+    store = ControlStore.open(
+        tmp_path / "control.sqlite3",
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     staging = RecoveryImageStagingArea(tmp_path / "staging")
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))

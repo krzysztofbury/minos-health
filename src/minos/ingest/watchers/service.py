@@ -268,6 +268,7 @@ class WatcherService:
         self._capacity_gate = capacity_gate
 
     def validate_scheduled_collectors(self, *, limit: int = 100) -> None:
+        self._store.validate_scheduled_source_configurations(limit=limit)
         for source in self._store.list_scheduled_sources(limit=limit):
             _ = self._collectors.resolve(source.watcher_type)
 

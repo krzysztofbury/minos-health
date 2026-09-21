@@ -2,7 +2,4 @@
 all:
   hosts:
     minos-production:
-      ansible_host: andrzej159.mikrus.xyz
-      ansible_port: 10159
-      ansible_user: root
       ansible_python_interpreter: /usr/bin/python3

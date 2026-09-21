@@ -18,13 +18,14 @@ runtime. This removes a production database dependency. One generated database
 is reused by the CLI and HTTP service; the API image, static web bundle, and CLI
 distribution remain separate release artifacts built from one source commit.
 
-The architecture prioritizes security and correctness, then measured
-performance, then developer convenience. It also optimizes for provenance,
-reproducibility, explainability, low operating cost, and simple recovery. It
-does not optimize for mutable user data or high write throughput. Determinism,
-provenance, and faster completion of real settlement workflows are product
-features: the rule trace, audit history, and measured response time differentiate
-Minos from incumbent tools.
+Security, correctness, and measured performance are co-equal architectural
+release requirements. Tradeoffs among them require representative evidence,
+documented limits, and explicit review; developer convenience follows. The
+architecture also optimizes for provenance, reproducibility, explainability,
+low operating cost, and simple recovery. It does not optimize for mutable user
+data or high write throughput. Determinism, provenance, and faster completion
+of real settlement workflows are product features: the rule trace, audit
+history, and measured response time differentiate Minos from incumbent tools.
 
 ## Component Boundaries
 
@@ -162,7 +163,8 @@ minos-health/
 |-- infra/
 |   |-- bootstrap/
 |   |-- terraform/
-|   |   `-- phase0/                 # S3 archive, IAM, OIDC reads, budget
+|   |   |-- watcher/                # S3 archive, IAM, OIDC reads, budget
+|   |   `-- watcher-acceptance/     # disposable real-AWS acceptance
 |   `-- ansible/                     # Mikr.us host and Compose deployment
 |-- scripts/
 |-- docs/v0.0.1/

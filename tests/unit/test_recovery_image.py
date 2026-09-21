@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
     BlobReceipt,
     ClaimRequest,
@@ -34,7 +35,10 @@ _DIGEST = "a" * 64
 
 def test_daily_image_embeds_metadata_only_in_consistent_copy(tmp_path: Path) -> None:
     database_path = tmp_path / "control.sqlite3"
-    store = ControlStore.open(database_path)
+    store = ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     staging = _staging(tmp_path / "staging")
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
@@ -67,7 +71,10 @@ def test_daily_image_embeds_metadata_only_in_consistent_copy(tmp_path: Path) -> 
 
 
 def test_run_image_requires_exact_committed_run(tmp_path: Path) -> None:
-    store = ControlStore.open(tmp_path / "control.sqlite3")
+    store = ControlStore.open(
+        tmp_path / "control.sqlite3",
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
     staging = _staging(tmp_path / "staging")
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))

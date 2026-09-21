@@ -296,10 +296,11 @@ queries, or encounter payloads in production logs.
 
 ## Quality Requirements
 
-- Security and correctness take precedence over performance; measured
-  performance takes precedence over developer convenience. Minos must not claim
-  to be faster than competing workflows without representative browser and API
-  benchmarks.
+- Security, correctness, and measured performance are co-equal release
+  requirements. A release must satisfy all three; tradeoffs require
+  representative evidence, documented limits, and explicit review. Developer
+  convenience follows these requirements. Minos must not claim to be faster
+  than competing workflows without representative browser and API benchmarks.
 - Unit tests cover normalization, hierarchy, ranking, condition evaluation,
   and error mapping.
 - Targeted mutation tests cover safety-critical validation, state transitions,

@@ -210,17 +210,23 @@ test, and debug it.
 
 ### Engineering Priorities And Dependencies
 
-Security and correctness come first, measured performance second, and developer
-convenience third. Minos is intended to outperform incumbent workflows, but a
-performance claim requires representative browser, API, container, and data
-benchmarks. Validation, privacy, provenance, and determinism are not traded for
-an unmeasured speed improvement.
+Security, correctness, and measured performance are co-equal release
+requirements. A release must satisfy all three; tradeoffs require
+representative evidence, documented limits, and explicit review. Developer
+convenience follows these requirements. Minos is intended to outperform
+incumbent workflows, but a performance claim requires representative browser,
+API, container, and data benchmarks. Validation, privacy, provenance, and
+determinism are not traded for an unmeasured speed improvement.
 
-Prefer the Python standard library when sufficient. Approved foundation tools
+Use the Python standard library when it is the clearest adequate choice. Use a
+maintained library when it materially improves correctness, security,
+interoperability, performance, or maintainability. Approved foundation tools
 are uv for environments and locking, Pydantic at configuration and untrusted
 input boundaries, HTTPX for bounded HTTP communication, pytest for testing, and
-Loguru for allowlisted structured process logs. Dependencies enter the lockfile
-only with working code, a defined boundary, and a licence review.
+Loguru for allowlisted structured process logs. Domain behavior remains
+independent of transport, persistence, and serialization libraries.
+Dependencies enter the lockfile only with working code, a defined boundary,
+and a licence review.
 
 Testing uses unit, targeted mutation, and integration layers. Mutation testing
 focuses on safety-critical decisions and starts only after the selected tool is

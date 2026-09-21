@@ -13,9 +13,10 @@ from pathlib import Path
 from typing import Literal, Protocol, TypeIs, cast
 from uuid import uuid4
 
-from pydantic import ValidationError
-
-from minos.ingest.watchers.config import RskConfiguration
+from minos.ingest.watchers.control.configuration import (
+    SourceConfigurationCodec,
+    SourceConfigurationCodecRegistry,
+)
 from minos.ingest.watchers.control.migrations import (
     CONTROL_SCHEMA_VERSION,
     ControlDatabaseIdentity,
@@ -139,6 +140,7 @@ class ControlStore:
         connection: sqlite3.Connection,
         *,
         busy_timeout_ms: int = 5000,
+        source_configuration_codecs: SourceConfigurationCodecRegistry | None = None,
         _owner: object | None = None,
     ) -> None:
         if _owner is not _CONTROL_STORE_OWNER:
@@ -149,6 +151,9 @@ class ControlStore:
             raise ControlValidationError("busy timeout must be between 1 and 60000 ms")
         _initialize_writer_connection(connection, busy_timeout_ms)
         self._connection: sqlite3.Connection = connection
+        self._source_configuration_codecs: SourceConfigurationCodecRegistry = (
+            source_configuration_codecs or SourceConfigurationCodecRegistry()
+        )
         self._closed: bool = False
 
     @classmethod
@@ -158,6 +163,7 @@ class ControlStore:
         *,
         busy_timeout_ms: int = 5000,
         allow_thread_handoff: bool = False,
+        source_configuration_codecs: SourceConfigurationCodecRegistry | None = None,
     ) -> ControlStore:
         connection = sqlite3.connect(
             database_path,
@@ -169,6 +175,7 @@ class ControlStore:
             return cls(
                 connection,
                 busy_timeout_ms=busy_timeout_ms,
+                source_configuration_codecs=source_configuration_codecs,
                 _owner=_CONTROL_STORE_OWNER,
             )
         except BaseException as error:
@@ -324,16 +331,37 @@ class ControlStore:
         _validate_identifier(command.watcher_type, "watcher type", 64)
         _validate_boolean(command.enabled, "source enabled state")
         _reject_sensitive_configuration(command.configuration)
-        validated_configuration = _validate_source_configuration(command)
-        configuration_json = _encode_json(
-            validated_configuration, 65_536, "configuration"
+        codec, validated_configuration = _validate_source_configuration(
+            command,
+            self._source_configuration_codecs,
         )
+        configuration_json = _canonical_source_configuration_json(
+            validated_configuration
+        )
+        if configuration_json is None:
+            raise ControlValidationError("source configuration is invalid")
+        if _codec_claim_timeout_ms(codec, configuration_json) is None:
+            raise ControlValidationError(
+                "source configuration claim timeout is invalid"
+            )
         configuration_sha256 = sha256(configuration_json.encode("utf-8")).hexdigest()
 
         with self._write_transaction() as now_ms:
             current = self._read_source_configuration(command.source_id)
             if current is not None:
-                watcher_type, revision, current_sha256, enabled = current
+                (
+                    watcher_type,
+                    revision,
+                    current_sha256,
+                    current_json,
+                    enabled,
+                ) = current
+                _ = _validate_stored_source_configuration(
+                    watcher_type,
+                    current_json,
+                    current_sha256,
+                    self._source_configuration_codecs,
+                )
                 if watcher_type != command.watcher_type:
                     raise ControlValidationError("a source watcher type is immutable")
                 if (
@@ -528,6 +556,43 @@ class ControlStore:
             _validate_scheduled_projection(schedule)
         return schedules
 
+    def validate_scheduled_source_configurations(
+        self,
+        *,
+        limit: int = 100,
+    ) -> None:
+        self._require_open()
+        _validate_list_limit(limit, _MAX_SCHEDULED_SOURCES, "schedule")
+        rows = cast(
+            list[tuple[str, str, str | None, str | None]],
+            self._connection.execute(
+                """
+                SELECT s.source_id, s.watcher_type, c.configuration_json,
+                       c.configuration_sha256
+                FROM source_schedules AS ss
+                JOIN sources AS s ON s.source_id = ss.source_id
+                LEFT JOIN source_configuration_revisions AS c
+                  ON c.source_id = s.source_id
+                 AND c.configuration_revision = s.current_configuration_revision
+                WHERE s.enabled = 1
+                ORDER BY s.source_id
+                LIMIT ?
+                """,
+                (limit + 1,),
+            ).fetchall(),
+        )
+        _reject_truncated_rows(rows, limit, "scheduled source configuration")
+        for source_id, watcher_type, configuration_json, configuration_sha256 in rows:
+            _validate_identifier(source_id, "stored source ID", 64)
+            if configuration_json is None or configuration_sha256 is None:
+                raise ControlStorageError("scheduled source configuration is missing")
+            _ = _validate_stored_source_configuration(
+                watcher_type,
+                configuration_json,
+                configuration_sha256,
+                self._source_configuration_codecs,
+            )
+
     def load_retry_policy(self, source_id: str) -> RetryPolicy | None:
         self._require_open()
         _validate_identifier(source_id, "source ID", 64)
@@ -554,7 +619,7 @@ class ControlStore:
         row = self._read_persisted_source_row(source_id, configuration_revision=None)
         if row is None:
             raise SourceNotFoundError("watcher source does not exist")
-        return _persisted_source_state(row)
+        return _persisted_source_state(row, self._source_configuration_codecs)
 
     def load_claim_state(self, claim: ClaimIdentity) -> PersistedSourceState:
         self._require_open()
@@ -586,7 +651,7 @@ class ControlStore:
         )
         if row is None:
             raise ControlStorageError("claimed source configuration is missing")
-        return _persisted_source_state(row)
+        return _persisted_source_state(row, self._source_configuration_codecs)
 
     def acquire_claim(self, request: ClaimRequest) -> RunClaim:
         self._require_open()
@@ -613,10 +678,11 @@ class ControlStore:
         self._require_open()
         with self._write_transaction() as now_ms:
             row = cast(
-                tuple[str, int, str] | None,
+                tuple[str, str, int, str, str] | None,
                 self._connection.execute(
                     """
-                    SELECT s.source_id, ss.next_due_at_ms, c.configuration_json
+                    SELECT s.source_id, s.watcher_type, ss.next_due_at_ms,
+                           c.configuration_json, c.configuration_sha256
                     FROM source_schedules AS ss
                     JOIN sources AS s ON s.source_id = ss.source_id
                     JOIN source_configuration_revisions AS c
@@ -638,12 +704,23 @@ class ControlStore:
             )
             if row is None:
                 return None
-            source_id, due_at_ms, configuration_json = row
+            (
+                source_id,
+                watcher_type,
+                due_at_ms,
+                configuration_json,
+                configuration_sha256,
+            ) = row
             request = ClaimRequest(
                 source_id=source_id,
                 run_mode="catch_up",
                 scheduled_at_ms=due_at_ms,
-                deadline_after_ms=_read_operation_deadline_ms(configuration_json),
+                deadline_after_ms=_read_operation_deadline_ms(
+                    watcher_type,
+                    configuration_json,
+                    configuration_sha256,
+                    self._source_configuration_codecs,
+                ),
                 expected_due_at_ms=due_at_ms,
             )
             return self._acquire_claim_in_transaction(request, now_ms)
@@ -652,12 +729,21 @@ class ControlStore:
         self._require_open()
         _validate_identifier(source_id, "source ID", 64)
         with self._write_transaction() as now_ms:
-            configuration_json = self._read_enabled_configuration_json(source_id)
+            (
+                watcher_type,
+                configuration_json,
+                configuration_sha256,
+            ) = self._read_enabled_configuration(source_id)
             request = ClaimRequest(
                 source_id=source_id,
                 run_mode="manual",
                 scheduled_at_ms=now_ms,
-                deadline_after_ms=_read_operation_deadline_ms(configuration_json),
+                deadline_after_ms=_read_operation_deadline_ms(
+                    watcher_type,
+                    configuration_json,
+                    configuration_sha256,
+                    self._source_configuration_codecs,
+                ),
             )
             return self._acquire_claim_in_transaction(request, now_ms)
 
@@ -671,11 +757,12 @@ class ControlStore:
         _validate_claim_request(request)
         _validate_claim_timing(request, now_ms)
         source = cast(
-            tuple[int, int | None, int, str | None] | None,
+            tuple[str, int, int | None, int, str | None, str | None] | None,
             self._connection.execute(
                 """
-                SELECT s.enabled, s.current_configuration_revision,
-                       s.fencing_epoch, c.configuration_json
+                SELECT s.watcher_type, s.enabled, s.current_configuration_revision,
+                       s.fencing_epoch, c.configuration_json,
+                       c.configuration_sha256
                 FROM sources AS s
                 LEFT JOIN source_configuration_revisions AS c
                   ON c.source_id = s.source_id
@@ -687,10 +774,27 @@ class ControlStore:
         )
         if source is None:
             raise SourceNotFoundError("watcher source does not exist")
-        enabled, configuration_revision, fencing_epoch, configuration_json = source
-        if enabled != 1 or configuration_revision is None or configuration_json is None:
+        (
+            watcher_type,
+            enabled,
+            configuration_revision,
+            fencing_epoch,
+            configuration_json,
+            configuration_sha256,
+        ) = source
+        if (
+            enabled != 1
+            or configuration_revision is None
+            or configuration_json is None
+            or configuration_sha256 is None
+        ):
             raise ClaimBlockedError("watcher source is disabled or unconfigured")
-        operation_deadline_ms = _read_operation_deadline_ms(configuration_json)
+        operation_deadline_ms = _read_operation_deadline_ms(
+            watcher_type,
+            configuration_json,
+            configuration_sha256,
+            self._source_configuration_codecs,
+        )
         if request.deadline_after_ms > operation_deadline_ms:
             raise ControlValidationError(
                 "claim deadline exceeds the configured operation deadline"
@@ -1479,13 +1583,13 @@ class ControlStore:
     def _read_source_configuration(
         self,
         source_id: str,
-    ) -> tuple[str, int, str, bool] | None:
+    ) -> tuple[str, int, str, str, bool] | None:
         row = cast(
-            tuple[str, int, str, int] | None,
+            tuple[str, int, str, str, int] | None,
             self._connection.execute(
                 """
                 SELECT s.watcher_type, s.current_configuration_revision,
-                       c.configuration_sha256, s.enabled
+                       c.configuration_sha256, c.configuration_json, s.enabled
                 FROM sources AS s
                 JOIN source_configuration_revisions AS c
                   ON c.source_id = s.source_id
@@ -1497,8 +1601,14 @@ class ControlStore:
         )
         if row is None:
             return None
-        watcher_type, revision, configuration_sha256, enabled = row
-        return watcher_type, revision, configuration_sha256, bool(enabled)
+        watcher_type, revision, configuration_sha256, configuration_json, enabled = row
+        return (
+            watcher_type,
+            revision,
+            configuration_sha256,
+            configuration_json,
+            bool(enabled),
+        )
 
     def _read_persisted_source_row(
         self,
@@ -1541,12 +1651,13 @@ class ControlStore:
             ).fetchone(),
         )
 
-    def _read_enabled_configuration_json(self, source_id: str) -> str:
+    def _read_enabled_configuration(self, source_id: str) -> tuple[str, str, str]:
         row = cast(
-            tuple[int, str | None] | None,
+            tuple[str, int, str | None, str | None] | None,
             self._connection.execute(
                 """
-                SELECT s.enabled, c.configuration_json
+                SELECT s.watcher_type, s.enabled, c.configuration_json,
+                       c.configuration_sha256
                 FROM sources AS s
                 LEFT JOIN source_configuration_revisions AS c
                   ON c.source_id = s.source_id
@@ -1558,9 +1669,10 @@ class ControlStore:
         )
         if row is None:
             raise SourceNotFoundError("watcher source does not exist")
-        if row[0] != 1 or row[1] is None:
+        watcher_type, enabled, configuration_json, configuration_sha256 = row
+        if enabled != 1 or configuration_json is None or configuration_sha256 is None:
             raise ClaimBlockedError("watcher source is disabled or unconfigured")
-        return row[1]
+        return watcher_type, configuration_json, configuration_sha256
 
     def _read_due_at(self, source_id: str, now_ms: int) -> int | None:
         row = cast(
@@ -1585,12 +1697,21 @@ class ControlStore:
         *,
         run_mode: Literal["scheduled", "catch_up"],
     ) -> ClaimRequest:
-        configuration_json = self._read_enabled_configuration_json(source_id)
+        (
+            watcher_type,
+            configuration_json,
+            configuration_sha256,
+        ) = self._read_enabled_configuration(source_id)
         return ClaimRequest(
             source_id=source_id,
             run_mode=run_mode,
             scheduled_at_ms=due_at_ms,
-            deadline_after_ms=_read_operation_deadline_ms(configuration_json),
+            deadline_after_ms=_read_operation_deadline_ms(
+                watcher_type,
+                configuration_json,
+                configuration_sha256,
+                self._source_configuration_codecs,
+            ),
             expected_due_at_ms=due_at_ms,
         )
 
@@ -2401,37 +2522,93 @@ def _reject_sensitive_configuration(configuration: dict[str, JsonValue]) -> None
 
 def _validate_source_configuration(
     command: SourceConfiguration,
-) -> dict[str, JsonValue]:
-    if command.watcher_type != "rsk":
+    codecs: SourceConfigurationCodecRegistry,
+) -> tuple[SourceConfigurationCodec, dict[str, JsonValue]]:
+    codec = codecs.resolve(command.watcher_type)
+    if codec is None:
         raise ControlValidationError(
-            "watcher type has no registered configuration model"
+            "watcher type has no registered configuration codec"
         )
-    allowed_fields = frozenset(RskConfiguration.model_fields)
-    unexpected_fields = set(command.configuration).difference(allowed_fields)
-    if unexpected_fields:
-        raise ControlValidationError("source configuration contains unsupported keys")
-    try:
-        validated = RskConfiguration.model_validate(command.configuration)
-    except ValidationError as error:
-        raise ControlValidationError("source configuration is invalid") from error
-    return cast(dict[str, JsonValue], validated.model_dump(mode="json"))
+    validated = _canonicalize_source_configuration(codec, command.configuration)
+    if validated is None:
+        raise ControlValidationError("source configuration is invalid")
+    return codec, validated
 
 
-def _read_operation_deadline_ms(configuration_json: str) -> int:
+def _canonicalize_source_configuration(
+    codec: SourceConfigurationCodec,
+    configuration: dict[str, JsonValue],
+) -> dict[str, JsonValue] | None:
+    copied = _copy_source_configuration(configuration)
+    if copied is None:
+        return None
     try:
-        configuration = RskConfiguration.model_validate_json(configuration_json)
-    except ValidationError as error:
-        raise ControlStorageError("stored source configuration is invalid") from error
-    deadline_ms = int(configuration.operation_deadline_seconds * 1000)
-    if deadline_ms < 1 or deadline_ms > 3_600_000:
-        raise ControlStorageError(
-            "stored operation deadline is outside the supported range"
-        )
+        validated = _configuration_dict(codec.canonicalize(copied))
+    except Exception:
+        return None
+    return validated
+
+
+def _configuration_dict(value: object) -> dict[str, JsonValue]:
+    if not isinstance(value, dict):
+        raise TypeError("source configuration codec did not return an object")
+    return cast(dict[str, JsonValue], value)
+
+
+def _copy_source_configuration(
+    configuration: dict[str, JsonValue],
+) -> dict[str, JsonValue] | None:
+    try:
+        encoded = _encode_json(configuration, 65_536, "configuration")
+        decoded = cast(object, json.loads(encoded))
+    except Exception:
+        return None
+    if not isinstance(decoded, dict):
+        return None
+    return cast(dict[str, JsonValue], decoded)
+
+
+def _canonical_source_configuration_json(
+    configuration: dict[str, JsonValue],
+) -> str | None:
+    try:
+        _reject_sensitive_configuration(configuration)
+        return _encode_json(configuration, 65_536, "configuration")
+    except Exception:
+        return None
+
+
+def _codec_claim_timeout_ms(
+    codec: SourceConfigurationCodec,
+    canonical_configuration_json: str,
+) -> int | None:
+    try:
+        timeout_ms = codec.claim_timeout_ms(canonical_configuration_json)
+    except Exception:
+        return None
+    if not _is_strict_integer(timeout_ms) or timeout_ms < 1 or timeout_ms > 3_600_000:
+        return None
+    return timeout_ms
+
+
+def _read_operation_deadline_ms(
+    watcher_type: str,
+    configuration_json: str,
+    configuration_sha256: str,
+    codecs: SourceConfigurationCodecRegistry,
+) -> int:
+    _configuration, deadline_ms = _validate_stored_source_configuration(
+        watcher_type,
+        configuration_json,
+        configuration_sha256,
+        codecs,
+    )
     return deadline_ms
 
 
 def _persisted_source_state(
     row: tuple[str, str, int, str, str, str | None, int | None],
+    codecs: SourceConfigurationCodecRegistry,
 ) -> PersistedSourceState:
     (
         source_id,
@@ -2445,17 +2622,12 @@ def _persisted_source_state(
     _validate_identifier(source_id, "stored source ID", 64)
     _validate_identifier(watcher_type, "stored watcher type", 64)
     _validate_positive(configuration_revision, "stored configuration revision")
-    if sha256(configuration_json.encode("utf-8")).hexdigest() != configuration_sha256:
-        raise ControlStorageError("stored source configuration checksum differs")
-    configuration = _decode_stored_json(configuration_json, "source configuration")
-    try:
-        validated = _validate_source_configuration(
-            SourceConfiguration(source_id, watcher_type, configuration, True)
-        )
-        if _encode_json(validated, 65_536, "configuration") != configuration_json:
-            raise ControlStorageError("stored source configuration is not canonical")
-    except ControlValidationError as error:
-        raise ControlStorageError("stored source configuration is invalid") from error
+    validated, _deadline_ms = _validate_stored_source_configuration(
+        watcher_type,
+        configuration_json,
+        configuration_sha256,
+        codecs,
+    )
     if cursor_json is None:
         if cursor_state_revision is not None:
             raise ControlStorageError("stored source cursor revision has no cursor")
@@ -2478,6 +2650,43 @@ def _persisted_source_state(
         cursor,
         cursor_state_revision,
     )
+
+
+def _resolve_stored_configuration_codec(
+    watcher_type: str,
+    codecs: SourceConfigurationCodecRegistry,
+) -> SourceConfigurationCodec:
+    _validate_identifier(watcher_type, "stored watcher type", 64)
+    codec = codecs.resolve(watcher_type)
+    if codec is None:
+        raise ControlStorageError(
+            "stored watcher type has no registered configuration codec"
+        )
+    return codec
+
+
+def _validate_stored_source_configuration(
+    watcher_type: str,
+    configuration_json: str,
+    configuration_sha256: str,
+    codecs: SourceConfigurationCodecRegistry,
+) -> tuple[dict[str, JsonValue], int]:
+    if sha256(configuration_json.encode("utf-8")).hexdigest() != configuration_sha256:
+        raise ControlStorageError("stored source configuration checksum differs")
+    configuration = _decode_stored_json(configuration_json, "source configuration")
+    codec = _resolve_stored_configuration_codec(watcher_type, codecs)
+    validated = _canonicalize_source_configuration(codec, configuration)
+    if validated is None:
+        raise ControlStorageError("stored source configuration is invalid")
+    canonical_json = _canonical_source_configuration_json(validated)
+    if canonical_json is None:
+        raise ControlStorageError("stored source configuration is invalid")
+    if canonical_json != configuration_json:
+        raise ControlStorageError("stored source configuration is not canonical")
+    deadline_ms = _codec_claim_timeout_ms(codec, configuration_json)
+    if deadline_ms is None:
+        raise ControlStorageError("stored source claim timeout is invalid")
+    return validated, deadline_ms
 
 
 def _decode_stored_json(encoded: str, label: str) -> dict[str, JsonValue]:

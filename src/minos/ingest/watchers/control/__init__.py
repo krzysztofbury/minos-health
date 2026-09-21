@@ -1,5 +1,10 @@
 """SQLite control-plane persistence for source watchers."""
 
+from minos.ingest.watchers.control.configuration import (
+    SourceConfigurationCodec,
+    SourceConfigurationCodecError,
+    SourceConfigurationCodecRegistry,
+)
 from minos.ingest.watchers.control.migrations import (
     CONTROL_SCHEMA_VERSION,
     AppliedMigration,
@@ -83,6 +88,9 @@ __all__ = [
     "ScheduledSource",
     "ScheduleResult",
     "SourceConfiguration",
+    "SourceConfigurationCodec",
+    "SourceConfigurationCodecError",
+    "SourceConfigurationCodecRegistry",
     "SourceNotFoundError",
     "SourceSchedule",
     "StaleRunClaim",

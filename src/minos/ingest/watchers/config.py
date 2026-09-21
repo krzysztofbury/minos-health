@@ -1,7 +1,20 @@
-from typing import ClassVar, Self
+from typing import ClassVar, Self, cast, final
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from minos.ingest.watchers.control.configuration import (
+    SourceConfigurationCodecError,
+    SourceConfigurationCodecRegistry,
+)
+from minos.ingest.watchers.control.models import JsonValue
 
 
 class RskConfiguration(BaseModel):
@@ -104,3 +117,38 @@ def _validate_source_urls(configuration: RskConfiguration | RskSettings) -> None
             raise ValueError(f"{field_name} must not contain query or fragment data")
         if source_url.path != expected_path:
             raise ValueError(f"{field_name} has an unexpected RSK path")
+
+
+@final
+class RskSourceConfigurationCodec:
+    def canonicalize(
+        self,
+        configuration: dict[str, JsonValue],
+    ) -> dict[str, JsonValue]:
+        try:
+            validated = RskConfiguration.model_validate(configuration)
+        except ValidationError:
+            pass
+        else:
+            return cast(dict[str, JsonValue], validated.model_dump(mode="json"))
+        raise SourceConfigurationCodecError("RSK source configuration is invalid")
+
+    def claim_timeout_ms(self, canonical_configuration_json: str) -> int:
+        try:
+            configuration = RskConfiguration.model_validate_json(
+                canonical_configuration_json
+            )
+        except ValidationError:
+            pass
+        else:
+            deadline_ms = int(configuration.operation_deadline_seconds * 1000)
+            if 1 <= deadline_ms <= 3_600_000:
+                return deadline_ms
+        raise SourceConfigurationCodecError(
+            "stored RSK source configuration is invalid"
+        )
+
+
+RSK_SOURCE_CONFIGURATION_CODECS = SourceConfigurationCodecRegistry(
+    {"rsk": RskSourceConfigurationCodec()}
+)

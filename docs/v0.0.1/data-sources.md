@@ -224,11 +224,13 @@ current `00CD10` XML was created 2026-08-05 while resource version remained
 `013`; without a captured predecessor fixture, do not overstate this as proof
 that bytes changed behind the same UUID.
 
-Issue #6 monitors and archives exact catalog/basic-info responses for every
-returned HCD, but downloads only an explicit product artifact allowlist. The
-initial byte scope is the `00CD10` XML. Copying all 24 currently exposed files
-(about 316 MiB, mostly out-of-scope ICD-11) would broaden licensing and storage
-without product value.
+Issue #6 monitors and archives exact catalog and `basic-info` responses for
+every returned HCD, including ICD-11 HCD `99CD11`. It downloads source file
+bytes only from an explicit product artifact allowlist, initially only the
+`00CD10` XML. ICD-11 product ingestion remains out of scope pending explicit
+product and licensing expansion. Copying all 24 currently exposed files (about
+316 MiB, mostly ICD-11) would broaden licensing and storage without current
+product value.
 
 For allowlisted bytes, compare complete file metadata and compute SHA-256.
 `uuid + creationDate + sizeBytes` is a useful trigger, not a sufficient content

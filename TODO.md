@@ -33,9 +33,11 @@ day-to-day order.
 - [x] Deploy tested image digests from signed version tags without rebuilding.
 - [x] Use Python 3.14 as the sole application language through 2027-08-21;
       keep synchronous domain rules independent of FastAPI and persistence.
-- [x] Prioritize security and correctness, then measured performance, then
-      developer convenience; require unit, targeted mutation or fault injection,
-      integration, and pair-programmer review gates for implementation chunks.
+- [x] Make security, correctness, and measured performance co-equal release
+      requirements; require evidence-based tradeoffs and representative
+      benchmarks, with developer convenience following; require unit, targeted
+      mutation or fault injection, integration, and pair-programmer review gates
+      for implementation chunks.
 
 ## Domains
 
@@ -111,8 +113,9 @@ day-to-day order.
       Mikr.us Compose topology, service-restricted secrets and volumes,
       Healthchecks.io, scheduler-paused preflight, ordinary-loss restore, and
       suspected-compromise restore tooling.
-- [ ] Execute #49 external acceptance: disposable real-AWS tests, exact phase-0
-      Terraform plan approval and apply, watcher secret installation,
+- [ ] Execute #49 external acceptance: same-account disposable real-AWS tests in
+      account `218375352108` with the production-acceptance phrase and exact
+      watcher Terraform plan approval and apply, watcher secret installation,
       scheduler-paused Mikr.us preflight, both empty-host restore drills, and
       representative host load evidence.
 - [ ] Resume issue #6 by capturing dated raw live RSK fixtures before changing
@@ -148,8 +151,8 @@ day-to-day order.
       captured evidence that it succeeds from the Mikr.us environment.
 - [x] Bootstrap the dedicated versioned Terraform state bucket locally and back
       up bootstrap state independently.
-- [ ] Initialize the `phase0` root directly against its own remote-state key.
-- [ ] Provision the phase-0 private versioned S3 snapshot bucket, narrowly
+- [ ] Initialize the `watcher` root directly against its own remote-state key.
+- [ ] Provision the watcher private versioned S3 snapshot bucket, narrowly
       scoped Mikr.us watcher identity, GitHub OIDC read role, and budget in
       remote Terraform state before the first production run. Enforce
       conditional creates and deny watcher overwrite and deletion.
@@ -335,7 +338,7 @@ day-to-day order.
 
 ## Mikr.us, AWS, And Cloudflare
 
-- [ ] Reuse and recovery-test the phase-0 private versioned S3 Terraform state
+- [ ] Reuse and recovery-test the watcher private versioned S3 Terraform state
       bucket with native locking.
 - [x] Purchase the dedicated Mikr.us `3.0` host; pin its SSH host key, rotate the
       console password, install a dedicated 1Password-backed operator key, and
@@ -345,7 +348,7 @@ day-to-day order.
       packages, bounded logs, no unprivileged operators, and no TCP daemon socket.
 - [x] Add service UIDs and GIDs, persistent and staging volumes, and service-
       restricted secret files with the first deployable Compose stack.
-- [x] Create the `phase0` Terraform root for the snapshot bucket, conditional
+- [x] Create the `watcher` Terraform root for the snapshot bucket, conditional
       write policy, watcher IAM identity, GitHub OIDC read role, and budget.
 - [ ] Create the watcher access key manually outside Terraform; store the
       recovery copy in the password manager and install it as a service-

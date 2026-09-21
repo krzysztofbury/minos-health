@@ -180,7 +180,7 @@ def test_role_catalog_rejects_empty_and_duplicate_hcds() -> None:
 def test_basic_info_rejects_identity_mismatch_and_duplicate_files() -> None:
     with pytest.raises(RskSourceDriftError, match="does not match"):
         _ = parse_rsk_catalog_basic_info(
-            _observation(_basic_info_body("00CD11")), "00CD10"
+            _observation(_basic_info_body("99CD11")), "00CD10"
         )
 
     duplicate_file: dict[str, object] = {"uuid": str(_FILE_UUID)}

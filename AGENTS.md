@@ -8,15 +8,15 @@ accepted decision.
 
 ## Priorities
 
-Apply this order when tradeoffs conflict:
-
-1. Security and correctness.
-2. Measured performance.
-3. Developer convenience.
+Security, correctness, and measured performance are co-equal release
+requirements. A release must satisfy all three. Tradeoffs among them require
+representative evidence, documented limits, and explicit review. Developer
+convenience follows these requirements and does not override them.
 
 Minos must be faster than incumbent workflows, but performance claims require
 representative benchmarks. Never weaken validation, provenance, privacy, or
-determinism for an unmeasured optimization.
+determinism for an unmeasured optimization, and do not dismiss a measured
+performance regression for developer convenience.
 
 ## Work Rhythm
 
@@ -31,9 +31,12 @@ determinism for an unmeasured optimization.
 
 ## Implementation
 
-- Prefer the Python standard library when it is sufficient. Approved foundation
-  tools include uv, Pydantic, HTTPX, pytest, and Loguru. Add a dependency only
-  when code uses it and record its purpose and licence.
+- Use the Python standard library when it is the clearest adequate choice. Use
+  maintained libraries when they materially improve correctness, security,
+  interoperability, performance, or maintainability. Approved foundation tools
+  include uv, Pydantic, HTTPX, pytest, and Loguru. Add a dependency only when
+  code uses it, its boundary is defined, and its purpose and licence are
+  reviewed.
 - Use Pydantic at untrusted input and configuration boundaries. Keep domain
   behavior independent of transport, persistence, and serialization libraries.
 - Keep control flow explicit and bounded. Handle every error path; never advance

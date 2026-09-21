@@ -56,8 +56,9 @@ strict = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 markers = [
-  "aws: opt-in tests against disposable resources in a dedicated non-production AWS account",
+  "aws: explicit opt-in tests against tagged disposable resources in the built-in AWS account",
 ]
 
 [tool.ruff]

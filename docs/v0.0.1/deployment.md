@@ -4,7 +4,7 @@ Status: target application architecture with the source-neutral watcher runtime
 implemented. The host currently runs the exact-digest maintenance edge and
 Cloudflare Tunnel. The repository now contains the watcher image, scheduler,
 local Compose stack, S3/recovery composition, and candidate preflight, but no API
-image, source-specific collector, applied phase-0 AWS stack, or release workflow.
+image, source-specific collector, applied watcher AWS stack, or release workflow.
 
 ## Goals
 
@@ -309,9 +309,9 @@ certificate, or CloudWatch application-log stack in the accepted architecture.
 ## Terraform State
 
 `infra/bootstrap` owns the existing dedicated S3 state bucket through its
-separate one-time bootstrap state. The future `phase0` root initializes against
-its own remote-state key and owns the snapshot bucket, IAM policy, GitHub OIDC
-read role, budget notification, and Mikr.us watcher identity.
+separate one-time bootstrap state. The `watcher` root initializes against its
+own remote-state key and owns the snapshot bucket, IAM policy, GitHub OIDC read
+role, budget notification, and Mikr.us watcher identity.
 
 The state bucket and snapshot bucket remain separate. Production state is never
 stored in a GitHub artifact or committed to Git. Any apply requires review of
