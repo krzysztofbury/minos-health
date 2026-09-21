@@ -1,0 +1,69 @@
+name: minos-health
+
+x-watcher-environment: &watcher-environment
+  MINOS_WATCHER_ARCHIVE_DIRECTORY: /var/lib/minos/archive
+  MINOS_WATCHER_DATABASE: /var/lib/minos/control/control.sqlite3
+  MINOS_WATCHER_PROCESS_LOCK: /var/lib/minos/control/watcher.lock
+  MINOS_WATCHER_READINESS_FILE: /tmp/minos-watcher-ready.json
+  MINOS_WATCHER_SCHEDULER_PAUSED: "true"
+  MINOS_WATCHER_STAGING_DIRECTORY: /var/lib/minos/staging
+
+x-watcher-active-environment: &watcher-active-environment
+  <<: *watcher-environment
+  MINOS_WATCHER_SCHEDULER_PAUSED: "false"
+
+x-watcher-runtime: &watcher-runtime
+  image: minos-health-watcher:local
+  build:
+    context: .
+    target: watcher
+  platform: linux/amd64
+  user: "10001:10001"
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  environment: *watcher-environment
+  volumes:
+    - watcher-control:/var/lib/minos/control
+    - watcher-archive:/var/lib/minos/archive
+    - watcher-staging:/var/lib/minos/staging
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=10001,gid=10001,mode=0700
+  init: true
+  cpus: "0.75"
+  mem_limit: 768m
+  pids_limit: 64
+  stop_grace_period: 30s
+  logging:
+    driver: local
+    options:
+      max-file: "3"
+      max-size: 10m
+  healthcheck:
+    test: [CMD, /app/.venv/bin/minos, watcher, health]
+    interval: 5s
+    timeout: 5s
+    retries: 3
+    start_period: 10s
+
+services:
+  watcher-preflight:
+    <<: *watcher-runtime
+    command: [watcher, preflight]
+    profiles: [preflight]
+    restart: "no"
+    healthcheck:
+      disable: true
+
+  watcher:
+    <<: *watcher-runtime
+    command: [watcher, run]
+    environment: *watcher-active-environment
+    restart: unless-stopped
+
+volumes:
+  watcher-control: {}
+  watcher-archive: {}
+  watcher-staging: {}

@@ -1,0 +1,5 @@
+---
+all:
+  hosts:
+    minos-production:
+      ansible_python_interpreter: /usr/bin/python3

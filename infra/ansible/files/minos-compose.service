@@ -1,0 +1,19 @@
+[Unit]
+Description=Minos runtime
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/minos
+ExecStartPre=/usr/bin/docker compose --project-name minos --file /opt/minos/compose.yaml stop --timeout 30 watcher
+ExecStartPre=/usr/bin/docker compose --project-name minos --file /opt/minos/compose.yaml run --rm watcher-preflight
+ExecStart=/usr/bin/docker compose --project-name minos --file /opt/minos/compose.yaml up --detach --remove-orphans --wait --wait-timeout 6600
+ExecStop=/usr/bin/docker compose --project-name minos --file /opt/minos/compose.yaml down --timeout 30
+TimeoutStartSec=7800
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

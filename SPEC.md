@@ -1,7 +1,9 @@
 # Minos Specification
 
 Status: accepted implementation baseline, 2026-08-06; Python architecture and
-phased PWA/commercial direction accepted 2026-08-21
+phased PWA/commercial direction accepted 2026-08-21; security, performance,
+testing, and web-hosting direction accepted 2026-09-17; dedicated Mikr.us
+hosting and SQLite watcher control plane accepted 2026-09-17
 
 ## Goal
 
@@ -33,9 +35,9 @@ Two interfaces share the same domain behaviour:
 
 - Daily watchers over all upstream sources (see
   [data sources](docs/v0.0.1/data-sources.md)).
-- Immutable raw snapshot archive (private versioned S3 plus independent QNAP
-  copy). Publishers can change file sets or reuse URLs without useful content
-  validators; an uncaptured predecessor may be unrecoverable.
+- Immutable raw snapshot archive in private versioned S3. Publishers can change
+  file sets or reuse URLs without useful content validators; an uncaptured
+  predecessor may be unrecoverable.
 - Automated data-update pull requests carrying manifest changes and
   human-readable diffs. Automation proposes; a human reviews and merges.
 
@@ -56,7 +58,8 @@ Two interfaces share the same domain behaviour:
 - Deterministic code and normalized-text search.
 - Human-readable and JSON CLI output.
 - A versioned read-only HTTP API and responsive anonymous webpage.
-- One immutable runtime container for local Docker and AWS Lambda.
+- One immutable API container and one immutable static web artifact, deployed
+  together through Docker Compose locally and on the dedicated Mikr.us host.
 
 ### Planned For v0.0.2 (design baseline now, implementation later)
 
@@ -74,7 +77,8 @@ Two interfaces share the same domain behaviour:
 - Drug data, prices, reimbursement, stock, dosage, or treatment guidance.
 - Semantic or embedding-based search (deferred; requires its own safety and
   relevance gates before reconsideration).
-- Accounts, personalization, favourites, or mutable production data.
+- Accounts, personalization, favourites, or mutable user and product data. The
+  watcher control database is operational state and is explicitly allowed.
 - WHO ICD-10, WHO ICD-9, ICD-9-CM-US variants until separate source and
   redistribution reviews are complete.
 - A public Python SDK, mobile applications, and write APIs.
@@ -129,8 +133,9 @@ With vector search removed from scope, the default engine candidate is plain
 SQLite with FTS5 through Python's pinned runtime and database driver. A short
 implementation spike pins the Python and SQLite versions and verifies local
 read-only operation, deterministic Polish search, FTS5 availability, packaged
-CLI operation, and Lambda compatibility before the physical schema is
-accepted. Portable normalized B-tree search remains the required fallback.
+CLI operation, deterministic container operation, and compatibility with the
+pinned `linux/amd64` runtime before the physical schema is accepted. Portable
+normalized B-tree search remains the required fallback.
 
 ### Grouper (v0.0.2)
 
@@ -159,11 +164,17 @@ dataset explicitly.
 ### HTTP And Web
 
 `minos.http` is a thin FastAPI adapter over the synchronous domain and store.
-Frontend source lives under `apps/web`; `minos.http` packages or serves its
-build output. Static HTML, CSS, and JavaScript avoid requiring a frontend build
-toolchain in `v0.0.1`. The `v0.0.2` encounter builder, trace views, and later
-offline PWA may outgrow this; introducing a frontend toolchain then is an
-accepted future decision, not scope creep now.
+Frontend source lives under `apps/web` and builds into a separate immutable
+static artifact. In production an unprivileged edge container serves that
+artifact and proxies `/api/*`, `/healthz`, and `/readyz` to the API container.
+Cloudflare Tunnel is the only public ingress to the edge. Docker Compose serves
+the exact same frontend artifact and API image locally.
+Static HTML, CSS, and JavaScript avoid requiring a frontend build toolchain in
+`v0.0.1`. This topology works on mobile because application code executes in
+the browser and makes bounded API requests; no persistent frontend server is
+required. The `v0.0.2` encounter builder, trace views, and later offline PWA may
+outgrow this; introducing a frontend toolchain then is an accepted future
+decision, not scope creep now.
 
 The initial endpoint set is:
 
@@ -176,8 +187,8 @@ The initial endpoint set is:
 - `POST /api/v1/group` (`v0.0.2`): stateless encounter grouping. POST because
   encounter payloads must never appear in URLs or logs.
 
-Read endpoints remain GET-based for CloudFront and Lambda Function URL
-integration. Input length, result count, and execution time must be bounded.
+Read endpoints remain GET-based for standard read semantics and cacheability.
+Input length, result count, and execution time must be bounded.
 Queries answering "as of which service date" take an explicit date parameter
 and default to the current date.
 
@@ -285,8 +296,17 @@ queries, or encounter payloads in production logs.
 
 ## Quality Requirements
 
+- Security, correctness, and measured performance are co-equal release
+  requirements. A release must satisfy all three; tradeoffs require
+  representative evidence, documented limits, and explicit review. Developer
+  convenience follows these requirements. Minos must not claim to be faster
+  than competing workflows without representative browser and API benchmarks.
 - Unit tests cover normalization, hierarchy, ranking, condition evaluation,
   and error mapping.
+- Targeted mutation tests cover safety-critical validation, state transitions,
+  ruleset selection, and grouper decisions. Tool selection is gated on Python
+  3.14 compatibility; documented manual mutation or fault-injection cases are
+  required until automation is selected.
 - Fixture-driven ingestion tests include malformed and adversarial XML, XLSX,
   and DOCX inputs.
 - Integration tests exercise CLI and HTTP behaviour against the same fixture.
@@ -297,8 +317,9 @@ queries, or encounter payloads in production logs.
 - The container runs as a non-root user with a read-only runtime filesystem.
 - Container and deployed smoke tests exercise an actual search, not only
   health.
-- Representative load tests measure warm latency, cold start, memory, image
-  size, throttling, and errors before production suitability is declared.
+- Representative load tests measure warm latency, process startup, memory,
+  image size, overload behavior, and errors on the production host before
+  suitability is declared.
 
 ## Privacy And Safety
 
@@ -306,6 +327,10 @@ queries, or encounter payloads in production logs.
 - Raw medical search queries and encounter payloads are prohibited in logs and
   analytics. Changing this boundary requires a separate privacy design and
   explicit accepted decision.
+- Plausible Analytics is allowed for sanitized pageviews and its related
+  aggregate engagement duration and scroll-depth measurements, without cookies
+  or custom event properties. Public URLs must not contain medical queries or
+  patient data; custom events require an explicit allowlist and privacy review.
 - Grouping is stateless: encounter inputs are evaluated in memory and
   discarded.
 - Logs use request IDs, route templates, bounded durations, status classes,
@@ -318,13 +343,19 @@ queries, or encounter payloads in production logs.
 
 ## Delivery
 
-The canonical runtime artifact is a private GHCR image addressed by digest. A
-mandatory signed `v*` tag promotes an image already built and tested from
-`main`; release workflows do not rebuild it. The resolved digest must have a
-verified build attestation binding it to the tagged source commit. AWS
-deployment copies the same single-architecture image manifest to ECR,
-publishes a Lambda version, and atomically updates a `live` alias. The public
-Function URL is qualified by that alias.
+The canonical runtime artifacts are private GHCR API, edge, and watcher images
+addressed by digest. The API image contains the generated read-only reference
+database; the edge image contains the checksummed static web bundle. A mandatory
+signed `v*` tag promotes artifacts already built and tested from `main`; release
+workflows do not rebuild them. Every digest and checksum must have verified
+build provenance binding it to the tagged source commit.
+
+Production runs the complete compatible digest set through Docker Compose on a
+dedicated Mikr.us `3.0` host. Cloudflare Tunnel provides outbound-only public
+ingress to the edge. Deployment records the prior digest set and verifies
+readiness, a known search, static integrity, and mobile and desktop rendering;
+failure restores the complete prior set. Mutable tags and Watchtower-style
+automatic promotion are not deployment mechanisms.
 
 Standalone CLI application bundles and their separate data bundle are also
 built and checksummed on `main`, stored immutably by commit, and promoted
@@ -336,15 +367,19 @@ from application code, verified before local activation, and retained briefly
 for rollback. A browser never receives or replicates the future central
 application database.
 
-AWS Lambda is the primary production target. The container remains portable to
-local Docker, QNAP, or Mikr.us if representative benchmarks or cost invalidate
-Lambda. Source watchers are scheduled CI jobs, independent of the runtime.
-See [deployment.md](docs/v0.0.1/deployment.md).
+GitHub-hosted Actions build, test, scan, attest, and publish artifacts but do not
+run production workloads. The watcher and APScheduler run on the same Mikr.us
+Compose host as the edge and API, with a separate mutable control SQLite
+database protected by revisioned recovery images in S3. AWS is limited to
+private versioned S3, narrow IAM, budgets, and Terraform state. See
+[deployment.md](docs/v0.0.1/deployment.md).
 
 ## Remaining Gates
 
 - Stand up phase 0 watchers and the raw archive (upstream history is being
   lost now).
+- Provision the dedicated Mikr.us `3.0` host and validate complete Compose
+  memory, disk, recovery, and load budgets.
 - Inspect and fixture the actual RSK XML, NFZ XLSX, and komunikat DOCX
   structures.
 - Formal legal opinion: Art. 4 status of zarządzenie appendices for a
@@ -353,8 +388,7 @@ See [deployment.md](docs/v0.0.1/deployment.md).
 - Trademark counsel review of the Minos name (registry pre-screen 2026-08-06:
   EUTM 009772146 covers class 9 software without field limitation; assess
   narrowed-specification filing and non-use exposure).
-- Register `minoshealth.com` and `minoshealth.pl`; decide on the premium
-  `minos.health` after counsel review.
+- Decide on premium `minos.health` after counsel review.
 - Define launch service-level objectives and budget thresholds before load
   tests.
 - Pin the embedded database engine after the reduced-scope spike.

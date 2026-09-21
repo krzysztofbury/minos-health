@@ -27,9 +27,52 @@ release.
   datasets and data-bearing artifacts.
 - Explicit provenance, privacy, safety, compliance, and data-license
   requirements.
+- Reproducible Mikr.us Ansible baseline with pinned host identity, dedicated
+  1Password-backed SSH access, an exact IPv4/IPv6 firewall, unattended upgrades,
+  bounded persistent host logs, and exact Docker Engine and Compose packages
+  with a constrained daemon boundary.
+- Exact-digest maintenance edge and Cloudflare Tunnel for canonical
+  `minoshealth.pl`, with an allowlisted-path `.com` redirect, truthful
+  readiness, restricted tunnel credentials, and no published host application
+  port.
+- Direct cookie-free Plausible pageviews and aggregate engagement measurements,
+  plus Polish privacy-policy and terms pages for the maintenance-stage site.
+- Raw-SQL watcher control schema with a canonical current-state DDL, numbered
+  transactional up/down migrations, exact-byte checksums, forward-reader
+  compatibility, packaged SQL resources, and migration fault-injection tests.
+- Single-writer raw-SQL control transactions for canonical source configuration,
+  validated UTC schedules, fenced claims, legal run transitions, and atomic
+  revisioned observation, cursor, change, incident, and audit commits, including
+  recovery-revision fencing before heartbeat reconciliation.
+- Shared bounded raw-blob staging with atomic local content-addressed storage and
+  direct single-part S3 conditional writes, checksum-enabled verification,
+  bounded conflict handling, and verified reuse receipts.
+- Revisioned SQLite recovery images with integrity and migration validation,
+  version-pinned S3 upload, bounded restore selection, trusted operator copies,
+  signed inventory chains, and safe restore installation.
+- Source-neutral watcher orchestration with one UTC APScheduler worker, durable
+  catch-up, stale-claim expiry, heartbeat reconciliation, capacity gates, and
+  privacy-safe failure handling.
+- Hardened watcher Docker and Compose runtime, Mikr.us candidate preflight and
+  rollback-safe activation, watcher AWS Terraform, and an opt-in disposable AWS
+  acceptance harness.
 
 ### Changed
 
+- Replaced the planned Lambda, ECR, CloudFront, frontend-S3, and QNAP topology
+  with one dedicated Mikr.us `3.0` Docker Compose host behind Cloudflare Tunnel;
+  AWS now provides only versioned source storage, narrow IAM, budgets, and
+  Terraform state.
+- Replaced S3 sidecar and S3-hosted compare-and-swap watcher state with a mutable
+  SQLite control plane on Mikr.us, revisioned S3 database recovery images, and
+  APScheduler;
+  GitHub Actions remains build and test infrastructure only.
+- Superseded an earlier plan that split web delivery between a private
+  S3/CloudFront frontend and a Lambda-hosted API.
+- Made security, correctness, and measured performance co-equal release
+  requirements, with evidence-based tradeoffs, representative benchmarks, and
+  developer convenience following them; adopted unit, targeted mutation,
+  integration, and pair-programmer review gates for incremental work.
 - Recorded the phased client and commercial direction: one responsive PWA,
   immutable offline reference-data synchronization, centrally enforced online
   calculation allowances, and separately licensed organization/hospital

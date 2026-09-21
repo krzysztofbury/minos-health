@@ -15,6 +15,31 @@ __pycache__/
 .env.*
 !.env.example
 
+# Terraform local state and private inputs
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+
+# Materialized production host metadata and SSH trust
+/infra/ansible/inventory/host_vars/minos-production.yml
+/infra/ansible/inventory/host_vars/.minos-production.yml.*.*.tmp
+/infra/ansible/inventory/host_vars/.minos-production.yml.*.*.bak
+/infra/ansible/known_hosts
+/infra/ansible/.known_hosts.*.*.tmp
+/infra/ansible/.known_hosts.*.*.bak
+/infra/ansible/files/root_authorized_keys
+/infra/ansible/files/.root_authorized_keys.*.*.tmp
+/infra/ansible/files/.root_authorized_keys.*.*.bak
+
 # Editors and operating systems
 .idea/
 .vscode/

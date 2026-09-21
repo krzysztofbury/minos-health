@@ -15,14 +15,17 @@ retroactively. The architecture therefore has two halves:
 
 Datasets are small enough to build ahead of deployment and ship with the
 runtime. This removes a production database dependency. One generated database
-is reused by the CLI and HTTP service; the HTTP image and CLI distribution
-remain separate release artifacts.
+is reused by the CLI and HTTP service; the API image, static web bundle, and CLI
+distribution remain separate release artifacts built from one source commit.
 
-The architecture optimizes for correctness, provenance, reproducibility,
-explainability, low operating cost, and simple recovery. It does not optimize
-for mutable user data or high write throughput. Determinism and provenance are
-product features here: the rule trace and the audit history are what
-differentiate Minos from incumbent tools.
+Security, correctness, and measured performance are co-equal architectural
+release requirements. Tradeoffs among them require representative evidence,
+documented limits, and explicit review; developer convenience follows. The
+architecture also optimizes for provenance, reproducibility, explainability,
+low operating cost, and simple recovery. It does not optimize for mutable user
+data or high write throughput. Determinism, provenance, and faster completion
+of real settlement workflows are product features: the rule trace, audit
+history, and measured response time differentiate Minos from incumbent tools.
 
 ## Component Boundaries
 
@@ -59,7 +62,8 @@ With vector search out of scope, the default engine candidate is plain SQLite
 with FTS5 through the pinned Python runtime and database driver. A short spike
 pins the Python and SQLite versions and verifies read-only operation,
 deterministic Polish search, FTS5 availability, standalone CLI packaging, and
-Lambda compatibility before the physical schema is accepted.
+deterministic `linux/amd64` container operation before the physical schema is
+accepted.
 
 ### minos.grouper (planned, v0.0.2)
 
@@ -99,24 +103,30 @@ Responsibilities:
 - health and readiness endpoints;
 - mapping domain errors to stable HTTP errors;
 - privacy-safe request telemetry;
-- embedded static frontend assets;
-- cache and security headers.
+- API cache and security headers.
 
-It runs as an ordinary FastAPI/ASGI process. Lambda Web Adapter translates
-Lambda events to HTTP without adding Lambda-specific code to the application.
+It runs as an ordinary FastAPI/ASGI process behind the private Compose edge
+network. It has no cloud-provider adapter or remote database dependency.
 
-### Watchers (CI, not runtime)
+### Watchers
 
-Scheduled GitHub Actions jobs poll upstream sources and archive raw files (see
-[data-sources.md](data-sources.md)). The source collectors in issues #6-#8 emit
-immutable observations and bounded change or incident records; the automation
-in issue #21 translates reviewed changes into the checked-in source manifest
-consumed by `minos data build`. Observation/change schemas and the build
-manifest are separate contracts. The collectors are otherwise scripts plus
-BAW/CZS source adapters; they hold no deployment permissions and are not part
-of the runtime image. BAW uses anonymous JSON and binary endpoints by default;
-browser automation requires a separate evidence-backed task and is not a
-baseline dependency.
+The dedicated watcher container runs on the Mikr.us Compose host and polls
+upstream sources through APScheduler (see [data-sources.md](data-sources.md)).
+The source collectors in issues #6-#8 emit immutable observations and bounded
+change or incident records; issue #21 translates reviewed changes into the
+checked-in source manifest consumed by `minos data build`. Observation/change
+schemas and the build manifest are separate contracts. BAW uses anonymous JSON
+and binary endpoints by default; browser automation requires a separate
+evidence-backed task and is not a baseline dependency.
+
+The watcher control SQLite database owns source configuration, UTC schedules and
+durable due cursors, fenced run claims, source cursors, state revisions,
+observations, artifact references, changes, incidents, and audit events. Exact
+source bytes live in private versioned S3. On startup the watcher reconciles
+`committed` and `heartbeat_pending` runs before reconstructing in-memory jobs;
+application-level due cursors coalesce downtime into one bounded catch-up run.
+GitHub Actions builds and tests the watcher image but does not schedule
+production collection.
 
 ## Target Repository Layout
 
@@ -136,6 +146,9 @@ minos-health/
 |   |   `-- sqlite/
 |   |       |-- migrations/        # raw numbered build-time SQL
 |   |       `-- queries/
+|   |-- control/
+|   |   `-- sqlite/
+|   |       `-- migrations/        # mutable watcher control plane
 |   `-- application/               # future accounts, billing, and usage
 |       `-- postgresql/migrations/
 |-- tests/
@@ -150,7 +163,9 @@ minos-health/
 |-- infra/
 |   |-- bootstrap/
 |   |-- terraform/
-|   `-- ansible/
+|   |   |-- watcher/                # S3 archive, IAM, OIDC reads, budget
+|   |   `-- watcher-acceptance/     # disposable real-AWS acceptance
+|   `-- ansible/                     # Mikr.us host and Compose deployment
 |-- scripts/
 |-- docs/v0.0.1/
 |-- .github/workflows/
@@ -171,6 +186,57 @@ creates a fresh database, applies every numbered migration transactionally,
 records migration checksums, imports data, and publishes the verified result.
 The CLI, HTTP runtime, and future PWA open that artifact read-only and never run
 reference migrations at startup.
+
+`database/control` is the mutable watcher contract. It also uses raw numbered
+SQLite migrations, but it is never bundled into the public API image or client
+data. The watcher is its only writer. Consistent recovery images are created
+with the SQLite backup API and uploaded to S3; the live database, WAL, and
+shared-memory files are never copied as a backup set.
+
+`database/control/sqlite/schema.sql` is the canonical readable definition of
+the current complete schema. Runtime initialization still applies every
+numbered `up` migration; tests require the migration chain and canonical DDL to
+produce equivalent schemas. Every schema change updates both. Exact migration
+bytes are checksum-locked after application. Down migrations are exercised only
+in local and automated tests; production rollback restores the verified
+pre-deploy recovery image. A retained older watcher may read an explicitly
+compatible newer additive schema after validating every migration it knows.
+
+The Python control adapter owns one dedicated raw-`sqlite3` writer connection.
+It opens explicit `BEGIN IMMEDIATE` transactions in WAL mode with full
+synchronous durability and SQLite defensive mode. Configuration and schedule
+changes, fenced claims, expiry incidents, failures, observation commits, and
+reconciliation transitions each allocate at most one monotonic state revision
+and audit record. Configuration JSON is canonical and excludes secret-like
+keys; cron expressions are parsed in UTC before persistence. Source advancement
+accepts only structurally valid digest-derived receipts from the archive
+boundary and commits observations, blob references, the source cursor, bounded
+changes or incidents, and the `committed` run transition atomically. The archive
+adapter owns native checksum and byte verification. A recovery receipt must
+identify an immutable image of the current database revision before the control
+adapter records `heartbeat_pending`.
+
+The shared archive boundary stages at most one mode-`0600` file per configured
+directory while incrementally computing its byte count and SHA-256. The local
+adapter copies into an archive-owned mode-`0600` inode, atomically installs the
+digest path without replacement, and re-verifies it for development.
+The production adapter uses direct single-part S3 `PutObject` with conditional
+creation and native SHA-256, then checksum-enabled `HeadObject`; it never uses a
+transfer manager or multipart upload. Both return the same control-plane receipt
+and reject existing bytes that do not match the requested digest and size.
+
+The recovery boundary creates consistent SQLite copies only through
+`sqlite3.Connection.backup()`. Recovery-only metadata is embedded in the copy,
+not the live schema, preserving rollback compatibility with the retained watcher.
+Images are integrity-checked, hashed, conditionally uploaded, version-pinned, and
+selected through bounded pagination. Operator-trusted copies use a separately
+signed canonical inventory chain and a restore path that acquires the same
+database-derived process lock as the watcher.
+
+One UTC in-memory APScheduler worker is only a wake-up mechanism. SQLite owns
+durable due cursors, claims, retry policy, and startup catch-up. Startup first
+reconciles committed work, then expires stale claims, reconstructs future jobs,
+and executes at most one overdue cursor before normal scheduling begins.
 
 `database/application` is a reserved future boundary, not part of `v0.0.1`.
 If accounts and billing are introduced, its PostgreSQL migrations and backups
@@ -291,21 +357,23 @@ stateless, and is excluded from any body logging. POST is mandatory because
 encounter facts must never appear in URLs, caches, or access logs.
 
 The static interface and API share an origin. Hashed static assets receive
-long cache lifetimes. CloudFront caching is disabled for `/api/*`, `/healthz`,
-and `/readyz`; the API origin request policy forwards only documented query
-parameters such as `system`, `q`, `date`, and `limit`, with no cookies or
-viewer authorization header. CloudFront access logging remains disabled until
-a privacy review addresses medical terms in URLs.
+long cache lifetimes from the edge container. The edge routes `/api/*`,
+`/healthz`, and `/readyz` to the API container and disables caching for those
+paths. It does not emit access logs containing complete URLs, client addresses,
+or query values. Cloudflare Tunnel is the only public ingress. Mobile and
+desktop browsers receive the same responsive static artifact.
 
 ## Runtime
 
 The runtime image contains:
 
 - the Minos Python environment and ASGI entry point;
-- embedded or packaged static assets;
 - the generated read-only database;
-- dataset and build provenance;
-- Lambda Web Adapter files needed by the Lambda profile.
+- dataset and build provenance.
+
+The separate edge image contains only an unprivileged static server, reviewed
+HTML, CSS, JavaScript, icons, and build metadata. Docker Compose serves the same
+API and edge digests locally and in production.
 
 The standalone CLI bundle and data bundle are promoted alongside the image but
 are not installed in the HTTP runtime image unless a measured operational need
@@ -316,12 +384,21 @@ uses a read-only filesystem, writes only to an explicitly allowed temporary
 path, and handles termination cleanly. No runtime migration or upstream data
 download is allowed.
 
+The watcher is a separate immutable image. Its read-only root filesystem has one
+persistent volume owned by its pinned numeric identity for control SQLite and
+recovery-image staging. Downloads use a separate disk-backed staging directory
+with one temporary file, a `600 MiB` application quota, and a `512 MiB` per-file
+ceiling. Raw bytes are uploaded and checksum-verified in S3 before the related
+observation and source cursor are committed. The edge, API, and watcher images
+are promoted as one compatible digest set.
+
 ## Future PWA And Commercial Boundary
 
 The web client can evolve in phases without a desktop application:
 
-1. `v0.0.1` serves an anonymous responsive web interface through the HTTP
-   runtime.
+1. `v0.0.1` serves an anonymous responsive web interface from the edge container
+   and sends bounded API requests to the API container under the same public
+   Cloudflare Tunnel hostname.
 2. A later installable PWA stores a versioned reference SQLite snapshot through
    SQLite WASM and supported browser storage. On startup or restored
    connectivity it checks a release manifest, downloads a complete compatible
@@ -351,13 +428,11 @@ successful update check visible to the user.
 ## Concurrency And Limits
 
 The HTTP process bounds request body size, query length, result count,
-database work, and request duration. Lambda reserved concurrency is the
-initial global cost and load guard. Per-process limiters may protect a warm
-instance but are not treated as a distributed rate limit.
-
-AWS WAF is not mandatory for the low-volume first release because it adds
-fixed cost and complexity. It can be introduced if observed abuse justifies
-it.
+database work, request duration, worker count, and concurrent requests. Compose
+resource limits and the edge request policy provide the initial host and
+overload guards. These are single-host limits, not a distributed rate limit.
+Cloudflare controls may be introduced only when observed abuse justifies their
+privacy and operational cost.
 
 ## Failure Behaviour
 

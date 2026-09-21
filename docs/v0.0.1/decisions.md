@@ -1,6 +1,6 @@
 # Decisions
 
-Status: accepted planning record, 2026-08-06; amended 2026-08-21
+Status: accepted planning record, 2026-08-06; amended 2026-08-21 and 2026-09-17
 
 ## Product
 
@@ -114,11 +114,12 @@ Verdict: usable only with counsel; moderate-high opposition exposure at EUIPO,
 lower for a narrowed PL national filing. UPRP does not examine relative
 grounds ex officio.
 
-Point-in-time domain checks (2026-08-06): `minoshealth.com` free (~70 PLN/yr),
-`minoshealth.pl` free, `minos.health` free (~450 PLN/yr, verify renewal
-pricing), `minos.pl` and `minos.com` taken. Intended setup: `minoshealth.com`
-canonical, `minoshealth.pl` proxied redirect, `minos.health` optional alias
-after clearance. Availability is not reserved and is not trademark clearance.
+The registered `.com` and `.pl` domains are delegated to Cloudflare. The
+accepted setup makes `minoshealth.pl` canonical behind Cloudflare Tunnel and
+uses a proxied permanent redirect from `minoshealth.com` to `.pl` while
+preserving safe paths. `minos.health` remains an optional alias only after
+trademark review and renewal-price verification; `minos.pl` and `minos.com`
+were already taken at the 2026-08-06 check.
 
 ### Fallback And Rejected Names
 
@@ -207,6 +208,33 @@ engine is versioned code, and every result carries its trace. AI may assist
 implementation, but code is accepted only when the owner can explain, review,
 test, and debug it.
 
+### Engineering Priorities And Dependencies
+
+Security, correctness, and measured performance are co-equal release
+requirements. A release must satisfy all three; tradeoffs require
+representative evidence, documented limits, and explicit review. Developer
+convenience follows these requirements. Minos is intended to outperform
+incumbent workflows, but a performance claim requires representative browser,
+API, container, and data benchmarks. Validation, privacy, provenance, and
+determinism are not traded for an unmeasured speed improvement.
+
+Use the Python standard library when it is the clearest adequate choice. Use a
+maintained library when it materially improves correctness, security,
+interoperability, performance, or maintainability. Approved foundation tools
+are uv for environments and locking, Pydantic at configuration and untrusted
+input boundaries, HTTPX for bounded HTTP communication, pytest for testing, and
+Loguru for allowlisted structured process logs. Domain behavior remains
+independent of transport, persistence, and serialization libraries.
+Dependencies enter the lockfile only with working code, a defined boundary,
+and a licence review.
+
+Testing uses unit, targeted mutation, and integration layers. Mutation testing
+focuses on safety-critical decisions and starts only after the selected tool is
+proven compatible with Python 3.14; documented manual mutation or
+fault-injection cases are required until then. Each coherent implementation
+chunk receives a pair-programmer TigerStyle review and user-visible diff before
+the next chunk.
+
 ### Bitemporal Versioning
 
 Every rule-bearing fact carries valid time (the reporting period it governs)
@@ -226,78 +254,91 @@ period (per § 10 of the base act).
 With vector search cut from scope, the engine spike shrinks: the default
 candidate is plain SQLite with FTS5 through the pinned Python runtime and
 database driver. The spike verifies local read-only operation, standalone CLI
-packaging, Lambda compatibility, deterministic Polish search, and FTS5.
+packaging, deterministic `linux/amd64` container operation, Polish search, and
+FTS5.
 Normalized B-tree search remains the portable fallback. Semantic
 neighbours are deferred entirely and would require their own safety gates to
 return.
 
 ### Ingestion Model
 
-Watchers-first. Scheduled CI jobs poll upstream sources daily, archive scoped
-raw files immediately (publishers can mutate file sets or reuse URLs without
-useful content validators), and emit immutable change records or incidents.
-The later automation in issue #21 turns reviewed changes into data PRs with
-manifest changes and diffs. A human approves and CI builds immutable artifacts.
-The "CI never follows latest" rule is unchanged. Details in
-[data-sources.md](data-sources.md).
+Watchers-first. A dedicated watcher container on Mikr.us uses APScheduler and a
+mutable control SQLite database to poll upstream sources, archive scoped raw
+files immediately, and emit change records or incidents. Exact bytes live in
+private versioned S3; source configuration, schedules, runs, observations,
+artifact references, source cursors, state revisions, and audit records live in
+SQLite. S3 is not a database and contains no mutable watcher-state object or
+provenance sidecars. Immutable control-database recovery images are distinct
+from source cursors.
+
+Issue #21 turns reviewed changes into data PRs with manifest changes and diffs.
+An operator-dispatched protected workflow identifies one verified recovery image
+through the read-only GitHub OIDC archive role and exports only the selected
+bounded change record; the watcher receives no GitHub credential. A human
+approves and CI builds immutable artifacts. The "CI never follows latest" rule
+is unchanged. Details in [data-sources.md](data-sources.md).
 
 ### Frontend
 
 Frontend source lives under `apps/web`. The first webpage may remain static
-HTML, CSS, and JavaScript whose build output is served by `minos.http`; this
-does not require a separate deployed frontend service. The later installable
-PWA adds a service worker, local SQLite through WASM and browser storage, and
-one-way dataset-release synchronization. The `v0.0.2` encounter builder and
-trace visualization may justify introducing the frontend toolchain before the
-offline phase.
+HTML, CSS, and JavaScript with no frontend build framework. Its immutable output
+is embedded in a separate unprivileged edge image. Docker Compose serves that
+image locally and on Mikr.us, proxies API paths to the private API container,
+and exposes the shared origin only through Cloudflare Tunnel. The later
+installable PWA adds a service worker, local SQLite through WASM and browser
+storage, and one-way dataset-release synchronization. The `v0.0.2` encounter
+builder and trace visualization may justify introducing a frontend toolchain
+before the offline phase.
 
 ## Artifact And Release
 
-One `linux/amd64` HTTP image is the runtime artifact for local Docker, QNAP,
-Mikr.us, and AWS Lambda through Lambda Web Adapter.
+One `linux/amd64` API image, one edge image containing the checksummed static
+web bundle, and one watcher image are the runtime artifacts. Docker Compose runs
+the complete set locally and on the dedicated Mikr.us `3.0` host.
 
 Private GHCR is canonical. Images are built on `main`, tagged by commit, and
 addressed by digest. A build attestation binds the digest to its source commit
-and workflow identity. A mandatory signed `v*` tag promotes the verified
-digest; it does not rebuild. AWS receives the same single-architecture
-manifest in same-region ECR and deploys a versioned Lambda through a `live`
-alias-qualified Function URL. Prebuilt standalone CLI and data artifacts follow
-the same promotion rule.
+and workflow identity; the web bundle has equivalent commit-bound checksum
+provenance. A mandatory signed `v*` tag promotes the verified artifacts; it does
+not rebuild. Deployment pulls an exact compatible digest set from private GHCR,
+verifies it through the public Cloudflare hostname, and restores the complete
+previous set on failure. Prebuilt standalone CLI and data artifacts follow the
+same promotion rule.
 
 Mutable `latest` deployment and Watchtower-style production promotion are
 rejected. Helm is rejected because there is no Kubernetes deployment.
 
 ## Production Hosting
 
-### Primary: AWS Lambda
+### Sole Production Runtime: Mikr.us 3.0
 
-AWS Lambda was selected because it supports the desired Terraform and GitHub
-OIDC workflow, immutable image versions, atomic aliases, and recovery from
-declarative state without a server disk.
+Mikr.us `3.0` is the sole production runtime for `v0.0.1`. The dedicated host
+runs Cloudflare Tunnel, edge, API, and watcher containers through Compose.
+Ansible owns reproducible host configuration, a restricted token pulls exact
+private GHCR digests, and no application port is published publicly.
 
-The planned ingress is CloudFront with Origin Access Control to an `AWS_IAM`
-Lambda Function URL qualified by `live`. Cloudflare manages DNS but does not
-replace CloudFront's signed origin access. The `v0.0.2` POST grouping path
-requires explicit design for signed POST handling (`x-amz-content-sha256`)
-before implementation.
+This accepts host patching and recovery responsibility in exchange for one
+small fixed annual cost and a much simpler system than separate Lambda,
+CloudFront, ECR, S3 frontend, and watcher-control services. The host is not a
+backup: mutable control SQLite is backed up consistently to S3, raw bytes are
+stored directly in versioned S3, and complete empty-host recovery is tested.
 
-### Fallback: Mikr.us 3.0
-
-Mikr.us `3.0` remains the low-fixed-cost fallback if representative AWS
-benchmarks fail. If used, it is disposable: Ansible provisions Docker and
-Compose, a restricted token pulls an exact GHCR digest, and Cloudflare Tunnel
-provides ingress.
+AWS remains only for the snapshot bucket, narrow IAM, budget notification, and
+Terraform state. A managed application runtime can be reconsidered only if
+measured availability, capacity, or operational burden exceeds recorded limits.
 
 ## Infrastructure Ownership
 
 - Terraform/OpenTofu owns stable AWS and Cloudflare resources, including the
-  snapshot bucket.
-- Ansible owns a future Mikr.us host configuration.
-- Docker Compose owns local, QNAP, and Mikr.us process topology.
-- GitHub Actions owns test, build, attestation, promotion, deployment, and
-  scheduled watcher orchestration. Source collectors in issues #6-#8 may write
-  only to the snapshot bucket; issue #21 may also open manifest PRs. They hold
-  no deployment permissions.
+  snapshot bucket, watcher IAM policy, OIDC read role, budget, DNS, and tunnel
+  routing where supported.
+- Ansible owns the Mikr.us host configuration.
+- Docker Compose owns local and Mikr.us process topology.
+- GitHub-hosted Actions own tests, builds, scans, attestations, and GHCR
+  publication. They do not run production schedules or use the host Docker
+  socket.
+- APScheduler in the watcher container owns runtime dispatch; SQLite owns its
+  durable configuration and status.
 - A registrar remains responsible only for domain registration and delegation.
 
 ## Privacy And Observability
@@ -308,11 +349,35 @@ discarded. Structured events use route templates, request IDs, status classes,
 timings, result counts, and dataset versions. Any future query analytics
 require a separate privacy design and accepted decision.
 
+The public site loads Plausible directly, not through a tag manager, for
+sanitized pageviews and the tracker's related aggregate engagement duration and
+scroll-depth measurements. The accepted configuration uses no cookies, local
+storage, persistent identifiers, advertising, user IDs, medical values, or
+custom event properties. Public URLs must not carry medical queries. Automatic
+form, download, and outbound-link tracking remain disabled; any custom event
+requires a documented property allowlist and privacy review.
+
+Loguru emits allowlisted structured events to stdout for collection by the
+active platform. It is not the incident model or an external error tracker.
+Watcher and recovery-image failures surface through SQLite incidents and
+privacy-safe Healthchecks.io pings; public readiness is checked externally.
+Docker logs are bounded locally. CloudWatch is not part of the runtime.
+Selection of an external error-reporting service remains open and must pass a
+privacy review before receiving events.
+
+Local application secrets live only in ignored `.env` files; local cloud
+credentials stay in external profiles or keychains. Production secrets are
+host-managed files restricted to root and the pinned numeric UID or GID of only
+the required service, then mounted read-only into that container. Recovery
+copies stay in the password manager. GitHub authenticates to AWS through OIDC
+and never stores long-lived AWS access keys. The narrowly scoped watcher access
+key is an explicit external-host exception and never enters Git, `.env`, GitHub,
+Terraform state, or an image.
+
 ## Open Gates
 
 - Trademark counsel review of Minos; fallback decision if negative.
-- Domain registration (`minoshealth.com`, `minoshealth.pl`; `minos.health`
-  decision).
+- DNSSEC and the optional `minos.health` decision.
 - Formal Art. 4 legal opinion for commercial use of NFZ-published data.
 - `CC BY-NC-SA 3.0 IGO` scope resolution for the RSK ICD-10 dictionary.
 - Inspection and fixturing of complete RSK XML, NFZ XLSX, and komunikat DOCX
