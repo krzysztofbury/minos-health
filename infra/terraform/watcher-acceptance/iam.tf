@@ -84,7 +84,7 @@ data "aws_iam_policy_document" "watcher_archive" {
 
 resource "aws_iam_role_policy" "watcher_archive" {
   name   = "${local.resource_name}-watcher-archive"
-  role   = "${local.resource_name}-watcher"
+  role   = aws_iam_role.watcher.name
   policy = data.aws_iam_policy_document.watcher_archive.json
 
   depends_on = [

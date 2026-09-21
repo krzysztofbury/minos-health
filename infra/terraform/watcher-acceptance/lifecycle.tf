@@ -1,5 +1,5 @@
 resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
-  bucket = local.bucket_name
+  bucket = aws_s3_bucket.snapshots.id
 
   rule {
     id     = "expire-run-recovery"
