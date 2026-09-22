@@ -141,8 +141,12 @@ The target lifecycle is:
     command validates any existing immutable public generation. An absent
     projection is valid only before the canary.
 11. Before active services start, Ansible runs one manual RSK collection with a
-    900-second outer timeout. Manual mode forces a fresh `00CD10` XML download.
-    The canary must commit and publish a canonical, schema-valid projection.
+    900-second outer timeout. It archives the catalog and `basic-info` response
+    for every returned HCD, so ICD-9 and ICD-11 metadata are part of the same
+    committed canary. The public projection contains file-level entries for
+    every observed HCD that exposes files. Manual mode additionally forces a
+    fresh download of the separately allowlisted `00CD10` XML product. The
+    canary must commit and publish a canonical, schema-valid projection.
 12. The operator starts the exact candidate digest with scheduling unpaused only
     for the active watcher. Its health contract becomes ready after startup
     reconciliation, stale-claim expiry, job reconstruction, and bounded catch-up;

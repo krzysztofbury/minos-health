@@ -224,13 +224,21 @@ current `00CD10` XML was created 2026-08-05 while resource version remained
 `013`; without a captured predecessor fixture, do not overstate this as proof
 that bytes changed behind the same UUID.
 
-Issue #6 monitors and archives exact catalog and `basic-info` responses for
-every returned HCD, including ICD-11 HCD `99CD11`. It downloads source file
-bytes only from an explicit product artifact allowlist, initially only the
-`00CD10` XML. ICD-11 product ingestion remains out of scope pending explicit
-product and licensing expansion. Copying all 24 currently exposed files (about
-316 MiB, mostly ICD-11) would broaden licensing and storage without current
-product value.
+Issue #6 does not omit ICD-9 or ICD-11. It monitors and archives the exact
+catalog and `basic-info` responses for every returned HCD, including the RSK
+ICD-9 and ICD-11 resources. The public Sources timeline includes file-level
+metadata from each observed HCD that exposes files; an HCD with an empty file
+list still remains preserved in the private exact metadata observation.
+
+Product-byte acquisition is a separate allowlist. It initially contains only
+the `00CD10` XML. Current ICD-9 product-byte acquisition is owned by issue #7
+and will use the newer CZS source because the RSK ICD-9 publication is stale.
+Full ICD-11 acquisition, ingestion, and search is owned by issue #53. Copying
+all 24 currently exposed RSK files (about 316 MiB, mostly ICD-11) before that
+selection would broaden licensing and storage without identifying the required
+product artifacts. Expanding the byte allowlist requires naming the exact
+artifacts and reviewing their product and redistribution boundaries; it does
+not require a change to the existing all-HCD metadata monitoring.
 
 For allowlisted bytes, compare complete file metadata and compute SHA-256.
 `uuid + creationDate + sizeBytes` is a useful trigger, not a sufficient content
@@ -238,12 +246,13 @@ identity. Re-fetch metadata after download to detect rotation during transfer.
 Daily scheduled and catch-up collections download the allowlisted file on the
 first observation or when its selected identity or complete file set changes.
 Weekly verification and explicit manual collection always re-download and
-re-hash it because the source provides no validators. Persisted cursors are validated against their
-full-state digest, catalog membership, normalized resource metadata, and
-selected product identity before any request; missing or inconsistent state
-fails closed rather than being replaced from the current source. The
-post-download `00CD10` metadata response is also archived exactly and must match
-the pre-download structure before the observation set can commit.
+re-hash it because the source provides no validators. Persisted cursors are
+validated against their full-state digest, catalog membership, normalized
+resource metadata, and selected product identity before any request; missing
+or inconsistent state fails closed rather than being replaced from the current
+source. The post-download `00CD10` metadata response is also archived exactly
+and must match the pre-download structure before the observation set can
+commit.
 
 Production composition registers `RskSourceCollector` for watcher kind `rsk`
 with the runtime's bounded blob staging area for both filesystem and S3 archive

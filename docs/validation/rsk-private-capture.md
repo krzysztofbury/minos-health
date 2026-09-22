@@ -10,13 +10,20 @@ uv run python -m scripts.capture_rsk_fixtures
 The command uses fixed anonymous HTTPS endpoints on
 `rsk3.ezdrowie.gov.pl`. Redirects, environment proxies, environment
 credentials, and netrc authentication are disabled. It retrieves the role
-catalog, then each returned HCD's `basic-info` sequentially. It downloads only
-the single active, non-archived, non-education `00CD10` XML selected by metadata
-semantics, never by a pinned UUID or filename. The XML transfer starts at byte
+catalog, then each returned HCD's `basic-info` sequentially. This includes RSK
+ICD-9, ICD-10, ICD-11, and every other resource returned by the catalog. It
+downloads only the single active, non-archived, non-education `00CD10` XML
+selected by metadata semantics, never by a pinned UUID or filename. The XML
+transfer starts at byte
 zero and is checked for declared size, received size, SHA-256, XML structure,
 and HTML substitution. Product XML is bounded at 64 MiB, about five times the
 12,738,027-byte reviewed capture. A complete metadata refetch must match before
 the capture is accepted.
+
+The narrower byte scope does not narrow metadata coverage. It reflects the
+separate product-byte allowlist accepted for issue #6. RSK ICD-9 product bytes
+are stale relative to the CZS source owned by issue #7, while ICD-11 product
+selection, acquisition, ingestion, and search are tracked by issue #53.
 
 Output is anchored to the repository's ignored directory
 `data/private-fixtures/rsk/<UTC timestamp>/` regardless of the current working
@@ -53,3 +60,13 @@ there. That checked file is exact canonical JSON evidence and must not be
 reformatted. Validation rejects any byte-level reformatting and the reviewed
 attestation pins its file SHA-256 as
 `16129d526f282f3f41909dc8f6227f55e07c8cb7664391960cbfbc5e31d891c6`.
+
+The checked checksum file is a development-time attestation for the ignored
+private capture used to validate the parser before the collector database
+existed. It is repository-visible so normal CI can verify the attestation
+schema, canonical bytes, and pinned attestation digest without committing raw
+source bodies or a mutable SQLite database. Matching the attestation back to
+the ignored raw capture remains an opt-in `rsk_live` check that requires
+`MINOS_RSK_PRIVATE_CAPTURE_ROOT`. Normal watcher runs do not update this file:
+their exact observations, blob receipts, cursors, and revisions are stored in
+control SQLite and the private archive.

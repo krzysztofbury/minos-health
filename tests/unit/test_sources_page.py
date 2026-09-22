@@ -106,6 +106,8 @@ def test_sources_page_uses_only_reviewed_dom_and_network_boundaries() -> None:
         assert forbidden not in javascript
     assert "createElement" in javascript
     assert "textContent" in javascript
+    assert "metadane ICD-9, ICD-10 i ICD-11" in html
+    assert "jawnie dozwolony plik XML ICD-10" in html
     assert 'var PROVENANCE_PATH = "/api/v1/provenance/rsk";' in javascript
     assert "/api/v1/artifacts" not in javascript
     assert "amazonaws" not in javascript.lower()
