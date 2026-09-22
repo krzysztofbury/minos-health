@@ -57,19 +57,30 @@ class CdpClient {
   }
 }
 
-async function waitForFile(filePath) {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+async function waitForFile(filePath, process, readStderr) {
+  for (let attempt = 0; attempt < 600; attempt += 1) {
     try {
       return await readFile(filePath, "utf8");
     } catch {
+      if (process.exitCode !== null) {
+        throw new Error(
+          `Chromium exited with ${process.exitCode} before publishing a DevTools port: ${readStderr()}`,
+        );
+      }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
-  throw new Error("Chromium did not publish a DevTools port");
+  throw new Error(`Chromium did not publish a DevTools port within 30 seconds: ${readStderr()}`);
 }
 
-async function connectCdp(profileDirectory) {
-  const lines = (await waitForFile(path.join(profileDirectory, "DevToolsActivePort"))).trim().split("\n");
+async function connectCdp(profileDirectory, process, readStderr) {
+  const lines = (
+    await waitForFile(
+      path.join(profileDirectory, "DevToolsActivePort"),
+      process,
+      readStderr,
+    )
+  ).trim().split("\n");
   const targets = await (await fetch(`http://127.0.0.1:${lines[0]}/json/list`)).json();
   const target = targets.find((candidate) => candidate.type === "page");
   assert.ok(target);
@@ -134,6 +145,7 @@ async function screenshot(client, fileName) {
 }
 
 const profileDirectory = await mkdtemp(path.join(os.tmpdir(), "minos-sources-chromium-"));
+let chromiumStderr = "";
 const chromiumProcess = spawn(chromium, [
   "--headless=new",
   "--no-sandbox",
@@ -151,12 +163,15 @@ const chromiumProcess = spawn(chromium, [
   "about:blank",
 ], { stdio: ["ignore", "pipe", "pipe"] });
 
-let chromiumStderr = "";
 chromiumProcess.stderr.setEncoding("utf8");
 chromiumProcess.stderr.on("data", (chunk) => { chromiumStderr += chunk; });
 
 try {
-  const client = await connectCdp(profileDirectory);
+  const client = await connectCdp(
+    profileDirectory,
+    chromiumProcess,
+    () => chromiumStderr,
+  );
   const consoleErrors = [];
   const exceptions = [];
   const requests = [];
