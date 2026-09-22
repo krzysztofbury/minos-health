@@ -339,6 +339,8 @@
           - watcher_healthchecks_candidate_document.version == 1
           - watcher_healthchecks_candidate_document.sources is mapping
           - watcher_healthchecks_candidate_document.sources | length in range(1, 129)
+          - "'rsk' in watcher_healthchecks_candidate_document.sources"
+          - watcher_healthchecks_candidate_document.sources.rsk is string
           - watcher_healthchecks_candidate_document.preflight is string
           - >-
             watcher_healthchecks_candidate_document.preflight is match(
@@ -693,6 +695,14 @@
         - /var/lib/minos/watcher/archive
         - /var/lib/minos/watcher/staging
 
+    - name: Create the shared public projection directory
+      ansible.builtin.file:
+        path: /var/lib/minos/public
+        state: directory
+        owner: minos-watcher
+        group: minos-watcher
+        mode: "0755"
+
     - name: Inspect restorable watcher control files
       ansible.builtin.stat:
         path: "{{ item }}"
@@ -833,12 +843,20 @@
           dest: edge/nginx.conf
         - src: maintenance-index.html
           dest: edge/index.html
+        - src: home.css
+          dest: edge/home.css
         - src: legal.css
           dest: edge/legal.css
         - src: plausible-init.js
           dest: edge/plausible-init.js
         - src: privacy-policy.html
           dest: edge/privacy-policy.html
+        - src: sources.css
+          dest: edge/sources.css
+        - src: sources.html
+          dest: edge/sources.html
+        - src: sources.js
+          dest: edge/sources.js
         - src: terms.html
           dest: edge/terms.html
         - src: minos-compose.service
@@ -995,11 +1013,19 @@
           - --volume
           - /opt/minos/candidate/edge/index.html:/usr/share/nginx/html/index.html:ro
           - --volume
+          - /opt/minos/candidate/edge/home.css:/usr/share/nginx/html/home.css:ro
+          - --volume
           - /opt/minos/candidate/edge/legal.css:/usr/share/nginx/html/legal.css:ro
           - --volume
           - /opt/minos/candidate/edge/plausible-init.js:/usr/share/nginx/html/plausible-init.js:ro
           - --volume
           - /opt/minos/candidate/edge/privacy-policy.html:/usr/share/nginx/html/privacy-policy.html:ro
+          - --volume
+          - /opt/minos/candidate/edge/sources.css:/usr/share/nginx/html/sources.css:ro
+          - --volume
+          - /opt/minos/candidate/edge/sources.html:/usr/share/nginx/html/sources.html:ro
+          - --volume
+          - /opt/minos/candidate/edge/sources.js:/usr/share/nginx/html/sources.js:ro
           - --volume
           - /opt/minos/candidate/edge/terms.html:/usr/share/nginx/html/terms.html:ro
           - docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972
@@ -1082,17 +1108,21 @@
 
     - name: Inspect the candidate Minos runtime files
       ansible.builtin.stat:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
       loop:
-        - /opt/minos/candidate/compose.yaml
-        - /opt/minos/candidate/edge/nginx.conf
-        - /opt/minos/candidate/edge/index.html
-        - /opt/minos/candidate/edge/legal.css
-        - /opt/minos/candidate/edge/plausible-init.js
-        - /opt/minos/candidate/edge/privacy-policy.html
-        - /opt/minos/candidate/edge/terms.html
-        - /opt/minos/candidate/cloudflared-config.yml
-        - /opt/minos/candidate/minos-compose.service
+        - {key: compose, path: /opt/minos/candidate/compose.yaml}
+        - {key: nginx, path: /opt/minos/candidate/edge/nginx.conf}
+        - {key: index, path: /opt/minos/candidate/edge/index.html}
+        - {key: legal_css, path: /opt/minos/candidate/edge/legal.css}
+        - {key: plausible, path: /opt/minos/candidate/edge/plausible-init.js}
+        - {key: privacy, path: /opt/minos/candidate/edge/privacy-policy.html}
+        - {key: terms, path: /opt/minos/candidate/edge/terms.html}
+        - {key: home_css, path: /opt/minos/candidate/edge/home.css}
+        - {key: sources_css, path: /opt/minos/candidate/edge/sources.css}
+        - {key: sources_html, path: /opt/minos/candidate/edge/sources.html}
+        - {key: sources_js, path: /opt/minos/candidate/edge/sources.js}
+        - {key: cloudflared, path: /opt/minos/candidate/cloudflared-config.yml}
+        - {key: systemd, path: /opt/minos/candidate/minos-compose.service}
       register: watcher_candidate_runtime_files
       when: not ansible_check_mode
 
@@ -1101,32 +1131,68 @@
         that:
           - >-
             watcher_candidate_runtime_files.results |
-            selectattr('stat.isreg') | list | length == 9
+            selectattr('stat.isreg') | list | length == 13
         fail_msg: The candidate Minos runtime is incomplete.
       when: not ansible_check_mode
 
     - name: Inspect the active Minos runtime files
       ansible.builtin.stat:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
       loop:
-        - /opt/minos/compose.yaml
-        - /opt/minos/edge/nginx.conf
-        - /opt/minos/edge/index.html
-        - /opt/minos/edge/legal.css
-        - /opt/minos/edge/plausible-init.js
-        - /opt/minos/edge/privacy-policy.html
-        - /opt/minos/edge/terms.html
-        - /etc/minos/cloudflared/config.yml
-        - /etc/systemd/system/minos-compose.service
+        - {key: compose, path: /opt/minos/compose.yaml}
+        - {key: nginx, path: /opt/minos/edge/nginx.conf}
+        - {key: index, path: /opt/minos/edge/index.html}
+        - {key: legal_css, path: /opt/minos/edge/legal.css}
+        - {key: plausible, path: /opt/minos/edge/plausible-init.js}
+        - {key: privacy, path: /opt/minos/edge/privacy-policy.html}
+        - {key: terms, path: /opt/minos/edge/terms.html}
+        - {key: home_css, path: /opt/minos/edge/home.css}
+        - {key: sources_css, path: /opt/minos/edge/sources.css}
+        - {key: sources_html, path: /opt/minos/edge/sources.html}
+        - {key: sources_js, path: /opt/minos/edge/sources.js}
+        - {key: cloudflared, path: /etc/minos/cloudflared/config.yml}
+        - {key: systemd, path: /etc/systemd/system/minos-compose.service}
       register: watcher_active_runtime_files
+      when: not ansible_check_mode
+
+    - name: Initialize logical Minos runtime checksum maps
+      ansible.builtin.set_fact:
+        watcher_candidate_runtime_checksums: {}
+        watcher_active_runtime_checksums: {}
+      when: not ansible_check_mode
+
+    - name: Index candidate Minos runtime checksums by logical destination
+      ansible.builtin.set_fact:
+        watcher_candidate_runtime_checksums: >-
+          {{ watcher_candidate_runtime_checksums |
+             combine({item.item.key: item.stat.checksum}) }}
+      loop: "{{ watcher_candidate_runtime_files.results }}"
+      when: not ansible_check_mode
+
+    - name: Index active Minos runtime checksums by logical destination
+      ansible.builtin.set_fact:
+        watcher_active_runtime_checksums: >-
+          {{ watcher_active_runtime_checksums |
+             combine({item.item.key: item.stat.checksum | default('')}) }}
+      loop: "{{ watcher_active_runtime_files.results }}"
       when: not ansible_check_mode
 
     - name: Reject a partial active Minos runtime
       ansible.builtin.assert:
         that:
           - >-
-            watcher_active_runtime_files.results |
-            selectattr('stat.exists') | list | length in [0, 9]
+            (watcher_active_runtime_files.results |
+             selectattr('stat.exists') | list | length == 0) or
+            (watcher_active_runtime_files.results[:7] |
+             selectattr('stat.exists') | list | length == 7 and
+             ((watcher_active_runtime_files.results[7].stat.exists and
+               watcher_active_runtime_files.results[8:11] |
+               selectattr('stat.exists') | list | length == 3) or
+              ((not watcher_active_runtime_files.results[7].stat.exists) and
+               watcher_active_runtime_files.results[8:11] |
+               selectattr('stat.exists') | list | length in [0, 3])) and
+             watcher_active_runtime_files.results[11:] |
+             selectattr('stat.exists') | list | length == 2)
           - >-
             watcher_active_runtime_files.results |
             selectattr('stat.isreg', 'defined') |
@@ -1140,8 +1206,16 @@
       ansible.builtin.set_fact:
         watcher_prior_runtime_exists: >-
           {{
-            watcher_active_runtime_files.results |
-            selectattr('stat.exists') | list | length == 9
+            watcher_active_runtime_files.results[:7] |
+            selectattr('stat.exists') | list | length == 7 and
+            ((watcher_active_runtime_files.results[7].stat.exists and
+              watcher_active_runtime_files.results[8:11] |
+              selectattr('stat.exists') | list | length == 3) or
+             ((not watcher_active_runtime_files.results[7].stat.exists) and
+              watcher_active_runtime_files.results[8:11] |
+              selectattr('stat.exists') | list | length in [0, 3])) and
+            watcher_active_runtime_files.results[11:] |
+            selectattr('stat.exists') | list | length == 2
           }}
       when: not ansible_check_mode
 
@@ -1202,10 +1276,8 @@
         watcher_activation_required: >-
           {{
             (not watcher_prior_runtime_exists) or
-            (watcher_candidate_runtime_files.results |
-             map(attribute='stat.checksum') | list !=
-             watcher_active_runtime_files.results |
-             map(attribute='stat.checksum') | list) or
+            (watcher_candidate_runtime_checksums !=
+             watcher_active_runtime_checksums) or
             (watcher_secret_preflight.results[0].stat.checksum | default('') !=
              watcher_secret_candidates.results[0].stat.checksum) or
             (watcher_secret_preflight.results[1].stat.checksum | default('') !=
@@ -1236,6 +1308,7 @@
         - control
         - archive
         - staging
+        - public
       when:
         - not ansible_check_mode
         - watcher_activation_required
@@ -1385,6 +1458,33 @@
         - watcher_activation_required
         - item.exists | bool
       no_log: true
+
+    - name: Snapshot prior optional edge page files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/opt/minos/rollback/{{ item.dest }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      loop:
+        - src: /opt/minos/edge/home.css
+          dest: edge/home.css
+          exists: "{{ watcher_active_runtime_files.results[7].stat.exists }}"
+        - src: /opt/minos/edge/sources.css
+          dest: edge/sources.css
+          exists: "{{ watcher_active_runtime_files.results[8].stat.exists }}"
+        - src: /opt/minos/edge/sources.html
+          dest: edge/sources.html
+          exists: "{{ watcher_active_runtime_files.results[9].stat.exists }}"
+        - src: /opt/minos/edge/sources.js
+          dest: edge/sources.js
+          exists: "{{ watcher_active_runtime_files.results[10].stat.exists }}"
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+        - watcher_prior_runtime_exists
+        - item.exists | bool
 
     - name: Snapshot the active cloudflared credential before replacement
       ansible.builtin.copy:
@@ -1543,6 +1643,10 @@
               dest: /opt/minos/edge/index.html
               group: root
               mode: "0644"
+            - src: edge/home.css
+              dest: /opt/minos/edge/home.css
+              group: root
+              mode: "0644"
             - src: edge/legal.css
               dest: /opt/minos/edge/legal.css
               group: root
@@ -1553,6 +1657,18 @@
               mode: "0644"
             - src: edge/privacy-policy.html
               dest: /opt/minos/edge/privacy-policy.html
+              group: root
+              mode: "0644"
+            - src: edge/sources.css
+              dest: /opt/minos/edge/sources.css
+              group: root
+              mode: "0644"
+            - src: edge/sources.html
+              dest: /opt/minos/edge/sources.html
+              group: root
+              mode: "0644"
+            - src: edge/sources.js
+              dest: /opt/minos/edge/sources.js
               group: root
               mode: "0644"
             - src: edge/terms.html
@@ -1567,6 +1683,174 @@
               dest: /etc/systemd/system/minos-compose.service
               group: root
               mode: "0644"
+
+        - name: Mark the live watcher migration attempt
+          ansible.builtin.set_fact:
+            watcher_live_migration_attempted: true
+            watcher_live_migration_completed: false
+            watcher_live_schema_migrated: false
+
+        - name: Migrate the quiesced live watcher control database
+          ansible.builtin.command:
+            argv:
+              - timeout
+              - --signal=TERM
+              - --kill-after=5s
+              - 300s
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - preflight
+              - run
+              - --rm
+              - --no-deps
+              - watcher-preflight
+              - watcher
+              - migrate-control-database
+          register: watcher_live_migration
+          changed_when: (watcher_live_migration.stdout | from_json).migrated
+
+        - name: Require the exact live watcher migration result
+          ansible.builtin.assert:
+            that:
+              - >-
+                watcher_live_migration.stdout | from_json | length == 3
+              - >-
+                (watcher_live_migration.stdout | from_json).keys() | list | sort ==
+                ['from_version', 'migrated', 'schema_version']
+              - (watcher_live_migration.stdout | from_json).from_version is integer
+              - (watcher_live_migration.stdout | from_json).from_version in [0, 1, 2, 3]
+              - (watcher_live_migration.stdout | from_json).migrated is boolean
+              - (watcher_live_migration.stdout | from_json).schema_version == 3
+              - >-
+                (watcher_live_migration.stdout | from_json).migrated ==
+                ((watcher_live_migration.stdout | from_json).from_version != 3)
+            fail_msg: The live watcher migration result is invalid.
+
+        - name: Record the exact live watcher migration outcome
+          ansible.builtin.set_fact:
+            watcher_live_migration_completed: true
+            watcher_live_schema_migrated: >-
+              {{ (watcher_live_migration.stdout | from_json).migrated }}
+
+        - name: Bootstrap or validate canonical RSK registration before activation
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - bootstrap
+              - run
+              - --rm
+              - --no-deps
+              - watcher-bootstrap-rsk
+          changed_when: true
+
+        - name: Validate the existing public RSK projection without collection
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - preflight
+              - run
+              - --rm
+              - --no-deps
+              - watcher-preflight
+              - watcher
+              - validate-public-rsk
+              - --public-directory
+              - /var/lib/minos/public
+          register: public_projection_preactivation
+          changed_when: false
+
+        - name: Record the validated preactivation public RSK state
+          ansible.builtin.set_fact:
+            public_projection_preactivation_document: >-
+              {{ public_projection_preactivation.stdout | from_json }}
+
+        - name: Require an absent or schema-valid preactivation projection
+          ansible.builtin.assert:
+            that:
+              - >-
+                public_projection_preactivation_document == {'status': 'absent'} or
+                (public_projection_preactivation_document.keys() | list | sort ==
+                 ['revision', 'sha256', 'status'] and
+                 public_projection_preactivation_document.status == 'valid' and
+                 public_projection_preactivation_document.revision is integer and
+                 public_projection_preactivation_document.revision > 0 and
+                 public_projection_preactivation_document.sha256 is match('^[0-9a-f]{64}$'))
+            fail_msg: The existing public RSK projection is malformed.
+
+        - name: Run one bounded manual RSK production canary
+          ansible.builtin.command:
+            argv:
+              - timeout
+              - --signal=TERM
+              - --kill-after=5s
+              - 900s
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - run
+              - --rm
+              - --no-deps
+              - watcher
+              - watcher
+              - run-once
+              - rsk
+          changed_when: true
+
+        - name: Validate the canary public RSK projection before activation
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - preflight
+              - run
+              - --rm
+              - --no-deps
+              - watcher-preflight
+              - watcher
+              - validate-public-rsk
+              - --public-directory
+              - /var/lib/minos/public
+          register: public_projection_canary
+          changed_when: false
+
+        - name: Require a committed canonical RSK canary projection
+          ansible.builtin.assert:
+            that:
+              - >-
+                (public_projection_canary.stdout | from_json).keys() | list | sort ==
+                ['revision', 'sha256', 'status']
+              - (public_projection_canary.stdout | from_json).status == 'valid'
+              - (public_projection_canary.stdout | from_json).revision is integer
+              - (public_projection_canary.stdout | from_json).revision > 0
+              - >-
+                (public_projection_canary.stdout | from_json).sha256 is
+                match('^[0-9a-f]{64}$')
+            fail_msg: The manual RSK canary did not publish a valid projection.
 
         - name: Start the validated Minos candidate
           ansible.builtin.systemd_service:
@@ -1603,12 +1887,154 @@
                 ['cloudflared', 'edge', 'watcher']
             fail_msg: Candidate services did not remain running after activation.
 
+        - name: Locate the running production edge container
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - ps
+              - --quiet
+              - edge
+          register: minos_candidate_edge_id
+          changed_when: false
+          failed_when: >-
+            minos_candidate_edge_id.rc != 0 or
+            minos_candidate_edge_id.stdout_lines | length != 1 or
+            minos_candidate_edge_id.stdout is not match('^[0-9a-f]{64}$')
+
+        - name: Smoke the exact Sources page through the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - exec
+              - "{{ minos_candidate_edge_id.stdout }}"
+              - wget
+              - -S
+              - -O
+              - -
+              - --header
+              - "Host: minoshealth.pl"
+              - http://127.0.0.1:8080/zrodla
+          register: minos_candidate_sources_page
+          changed_when: false
+
+        - name: Require the Sources page and strict CSP from the production edge
+          ansible.builtin.assert:
+            that:
+              - "'<title>Źródła danych - Minos Health</title>' in minos_candidate_sources_page.stdout"
+              - "\"style-src 'self'\" in minos_candidate_sources_page.stderr"
+              - "\"connect-src 'self' https://plausible.io\" in minos_candidate_sources_page.stderr"
+              - "'unsafe-inline' not in minos_candidate_sources_page.stderr"
+              - "'200 OK' in minos_candidate_sources_page.stderr"
+            fail_msg: The production edge did not serve the reviewed Sources page or CSP.
+
+        - name: Smoke exact stylesheet and script assets through the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - exec
+              - "{{ minos_candidate_edge_id.stdout }}"
+              - wget
+              - -q
+              - -O
+              - -
+              - --header
+              - "Host: minoshealth.pl"
+              - "http://127.0.0.1:8080{{ item.path }}"
+          loop:
+            - path: /home.css
+              marker: "grid-template-columns: 1.4fr 0.6fr"
+            - path: /sources.css
+              marker: "--paper: #f2f0e9"
+            - path: /sources.js
+              marker: 'var PROVENANCE_PATH = "/api/v1/provenance/rsk"'
+          register: minos_candidate_edge_assets
+          changed_when: false
+
+        - name: Require exact production edge asset content
+          ansible.builtin.assert:
+            that:
+              - item.item.marker in item.stdout
+            fail_msg: The production edge served an unexpected static asset.
+          loop: "{{ minos_candidate_edge_assets.results }}"
+
+        - name: Probe the exact provenance endpoint through the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - exec
+              - "{{ minos_candidate_edge_id.stdout }}"
+              - wget
+              - -S
+              - -O
+              - -
+              - --header
+              - "Host: minoshealth.pl"
+              - --header
+              - "Accept-Encoding: identity"
+              - http://127.0.0.1:8080/api/v1/provenance/rsk
+          register: minos_candidate_provenance_response
+          changed_when: false
+
+        - name: Require the exact provenance endpoint response
+          ansible.builtin.assert:
+            that:
+              - minos_candidate_provenance_response.rc == 0
+              - "'200 OK' in minos_candidate_provenance_response.stderr"
+            fail_msg: The production edge provenance endpoint failed unexpectedly.
+
+        - name: Revalidate a projection served by the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - exec
+              - --no-TTY
+              - watcher
+              - /app/.venv/bin/minos
+              - watcher
+              - validate-public-rsk
+              - --public-directory
+              - /var/lib/minos/public
+          register: public_projection_postactivation
+          changed_when: false
+
+        - name: Require the edge response to match the validated current projection
+          ansible.builtin.assert:
+            that:
+              - (public_projection_postactivation.stdout | from_json).status == 'valid'
+              - >-
+                minos_candidate_provenance_response.stdout | hash('sha256') ==
+                (public_projection_postactivation.stdout | from_json).sha256
+              - "'application/json' in minos_candidate_provenance_response.stderr"
+            fail_msg: The production edge provenance response differs from current storage.
+
       rescue:
         - name: Stop the rejected Minos candidate
           ansible.builtin.systemd_service:
             name: minos-compose.service
             state: stopped
           failed_when: false
+
+        - name: Preserve a migrated live database for explicit recovery
+          ansible.builtin.fail:
+            msg: >-
+              Candidate activation failed after a changed or indeterminate live
+              control migration; the candidate runtime and database were preserved
+              stopped because an older writer cannot be restarted safely.
+          when:
+            - watcher_live_migration_attempted | default(false) | bool
+            - >-
+              (not (watcher_live_migration_completed | default(false) | bool)) or
+              (watcher_live_schema_migrated | default(false) | bool)
 
         - name: Restore the prior cloudflared credential
           ansible.builtin.copy:
@@ -1774,13 +2200,56 @@
             - /opt/minos/compose.yaml
             - /opt/minos/edge/nginx.conf
             - /opt/minos/edge/index.html
+            - /opt/minos/edge/home.css
             - /opt/minos/edge/legal.css
             - /opt/minos/edge/plausible-init.js
             - /opt/minos/edge/privacy-policy.html
+            - /opt/minos/edge/sources.css
+            - /opt/minos/edge/sources.html
+            - /opt/minos/edge/sources.js
             - /opt/minos/edge/terms.html
             - /etc/minos/cloudflared/config.yml
             - /etc/systemd/system/minos-compose.service
           when: not watcher_prior_runtime_exists
+
+        - name: Restore prior optional edge page files
+          ansible.builtin.copy:
+            src: "/opt/minos/rollback/edge/{{ item.name }}"
+            dest: "/opt/minos/edge/{{ item.name }}"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0644"
+            unsafe_writes: false
+          loop:
+            - name: home.css
+              existed: "{{ watcher_active_runtime_files.results[7].stat.exists }}"
+            - name: sources.css
+              existed: "{{ watcher_active_runtime_files.results[8].stat.exists }}"
+            - name: sources.html
+              existed: "{{ watcher_active_runtime_files.results[9].stat.exists }}"
+            - name: sources.js
+              existed: "{{ watcher_active_runtime_files.results[10].stat.exists }}"
+          when:
+            - watcher_prior_runtime_exists
+            - item.existed | bool
+
+        - name: Remove optional edge page files absent from the prior runtime
+          ansible.builtin.file:
+            path: "/opt/minos/edge/{{ item.name }}"
+            state: absent
+          loop:
+            - name: home.css
+              existed: "{{ watcher_active_runtime_files.results[7].stat.exists }}"
+            - name: sources.css
+              existed: "{{ watcher_active_runtime_files.results[8].stat.exists }}"
+            - name: sources.html
+              existed: "{{ watcher_active_runtime_files.results[9].stat.exists }}"
+            - name: sources.js
+              existed: "{{ watcher_active_runtime_files.results[10].stat.exists }}"
+          when:
+            - watcher_prior_runtime_exists
+            - not (item.existed | bool)
 
         - name: Reload systemd after rejecting an initial Minos runtime
           ansible.builtin.systemd_service:
@@ -1902,17 +2371,25 @@
             {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
           - (minos_edge_boundary[13] | from_json).keys() | list == ['minos_edge']
           - minos_edge_boundary[14] | from_json | selectattr('RW', 'equalto', true) | list | length == 0
-          - minos_edge_boundary[14] | from_json | selectattr('Type', 'equalto', 'bind') | list | length == 6
+          - minos_edge_boundary[14] | from_json | selectattr('Type', 'equalto', 'bind') | list | length == 11
           - >-
             minos_edge_boundary[14] | from_json | map(attribute='Destination') | sort ==
-            ['/etc/nginx/nginx.conf', '/usr/share/nginx/html/index.html',
-             '/usr/share/nginx/html/legal.css', '/usr/share/nginx/html/plausible-init.js',
-             '/usr/share/nginx/html/privacy-policy.html', '/usr/share/nginx/html/terms.html']
+              ['/etc/nginx/nginx.conf', '/usr/share/nginx/html/home.css',
+                '/usr/share/nginx/html/index.html', '/usr/share/nginx/html/legal.css',
+                '/usr/share/nginx/html/plausible-init.js',
+               '/usr/share/nginx/html/privacy-policy.html', '/usr/share/nginx/html/sources.css',
+               '/usr/share/nginx/html/sources.html', '/usr/share/nginx/html/sources.js',
+               '/usr/share/nginx/html/terms.html',
+               '/var/lib/minos/public']
           - >-
             minos_edge_boundary[14] | from_json | map(attribute='Source') | sort ==
-            ['/opt/minos/edge/index.html', '/opt/minos/edge/legal.css',
-             '/opt/minos/edge/nginx.conf', '/opt/minos/edge/plausible-init.js',
-             '/opt/minos/edge/privacy-policy.html', '/opt/minos/edge/terms.html']
+              ['/opt/minos/edge/home.css', '/opt/minos/edge/index.html',
+                '/opt/minos/edge/legal.css', '/opt/minos/edge/nginx.conf',
+                '/opt/minos/edge/plausible-init.js',
+               '/opt/minos/edge/privacy-policy.html', '/opt/minos/edge/sources.css',
+               '/opt/minos/edge/sources.html', '/opt/minos/edge/sources.js',
+               '/opt/minos/edge/terms.html',
+               '/var/lib/minos/public']
           - >-
             minos_edge_boundary[15] | from_json ==
             {'/tmp': 'rw,noexec,nosuid,nodev,size=8m,uid=101,gid=101,mode=0700'}
@@ -1965,21 +2442,23 @@
             ['minos_watcher-egress']
           - >-
             minos_watcher_boundary[14] | from_json |
-            selectattr('RW', 'equalto', true) | list | length == 3
+            selectattr('RW', 'equalto', true) | list | length == 4
           - >-
             minos_watcher_boundary[14] | from_json |
             selectattr('RW', 'equalto', false) | list | length == 2
           - >-
             minos_watcher_boundary[14] | from_json |
-            selectattr('Type', 'equalto', 'bind') | list | length == 5
+            selectattr('Type', 'equalto', 'bind') | list | length == 6
           - >-
             minos_watcher_boundary[14] | from_json | map(attribute='Destination') | sort ==
             ['/run/secrets/aws-credentials', '/run/secrets/healthchecks-targets.json',
-             '/var/lib/minos/archive', '/var/lib/minos/control', '/var/lib/minos/staging']
+             '/var/lib/minos/archive', '/var/lib/minos/control', '/var/lib/minos/public',
+             '/var/lib/minos/staging']
           - >-
             minos_watcher_boundary[14] | from_json | map(attribute='Source') | sort ==
             ['/etc/minos/watcher/aws/credentials',
              '/etc/minos/watcher/healthchecks/targets.json',
+             '/var/lib/minos/public',
              '/var/lib/minos/watcher/archive', '/var/lib/minos/watcher/control',
              '/var/lib/minos/watcher/staging']
           - >-

@@ -1,39 +1,42 @@
 import hashlib
 import re
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Buffer, Callable, Generator, Iterator
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from math import isfinite
 from time import monotonic as _monotonic
 from time import sleep as _sleep
-from typing import BinaryIO, cast
+from typing import Annotated, Protocol, cast, final, override
 from urllib.parse import quote
 from uuid import UUID
 
 import backoff
 import httpx
 from loguru import logger
-from pydantic import TypeAdapter
+from pydantic import Field, TypeAdapter
+
+from minos.ingest.watchers.protocols import SourceDriftWatcherError
 
 from ..config import RskSettings
 from ..models import DownloadResult, HttpObservation
-from .models import RskCatalogMetadata, RskRoleUriModel
-
-_ARCHIVED_HEADER_NAMES = (
-    "content-type",
-    "content-length",
-    "content-encoding",
-    "date",
-    "etag",
-    "last-modified",
+from .models import (
+    RSK_ARCHIVED_HEADER_VALUE_LIMITS,
+    RSK_XML_EXTENSION,
+    RskCatalogMetadata,
+    RskRoleUriModel,
+    is_valid_rsk_archived_header,
 )
+
+_ARCHIVED_HEADER_NAMES = tuple(RSK_ARCHIVED_HEADER_VALUE_LIMITS)
 _RETRYABLE_STATUS_CODES = frozenset({408, 429, 500, 502, 503, 504})
-_ROLE_CATALOG_ADAPTER = TypeAdapter(list[RskRoleUriModel])
+_ROLE_CATALOG_ADAPTER: TypeAdapter[list[RskRoleUriModel]] = TypeAdapter(
+    Annotated[list[RskRoleUriModel], Field(max_length=128)]
+)
 _HCD_PATTERN = re.compile(r"[0-9A-Z]{6}")
 _XML_ROOT_PATTERN = re.compile(rb"<([a-z_][a-z0-9_.:-]*)")
 
 
-class RskProtocolError(ValueError):
+class RskProtocolError(SourceDriftWatcherError, ValueError):
     pass
 
 
@@ -49,14 +52,57 @@ class RskDeadlineExceededError(TimeoutError):
     pass
 
 
-def create_rsk_client(settings: RskSettings) -> httpx.Client:
+class RskDownloadDestination(Protocol):
+    def tell(self) -> int: ...
+
+    def seek(self, offset: int, whence: int = 0, /) -> int: ...
+
+    def truncate(self, size: int | None = None, /) -> int: ...
+
+    def write(self, buffer: Buffer, /) -> int: ...
+
+
+@final
+class _AnonymousRskTransport(httpx.BaseTransport):
+    def __init__(self, transport: httpx.BaseTransport) -> None:
+        self._transport = transport
+
+    @override
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        if "cookie" in request.headers or "authorization" in request.headers:
+            raise RskProtocolError("RSK anonymous request contains forbidden state")
+        response = self._transport.handle_request(request)
+        if "set-cookie" in response.headers:
+            response.close()
+            raise RskProtocolError("RSK anonymous response attempted to set a cookie")
+        return response
+
+    @override
+    def close(self) -> None:
+        self._transport.close()
+
+
+def create_rsk_client(
+    settings: RskSettings,
+    *,
+    transport: httpx.BaseTransport | None = None,
+) -> httpx.Client:
+    anonymous_transport = _AnonymousRskTransport(
+        transport
+        if transport is not None
+        else httpx.HTTPTransport(retries=0, trust_env=False)
+    )
     return httpx.Client(
+        auth=None,
+        cookies={},
         headers={"Accept-Encoding": "identity", "User-Agent": settings.user_agent},
         timeout=httpx.Timeout(
             settings.timeout_seconds,
             connect=settings.connect_timeout_seconds,
         ),
         follow_redirects=False,
+        trust_env=False,
+        transport=anonymous_transport,
     )
 
 
@@ -128,13 +174,13 @@ def download_rsk_file(
     file_uuid: UUID,
     expected_size_bytes: int,
     expected_extension: str,
-    destination: BinaryIO,
+    destination: RskDownloadDestination,
 ) -> DownloadResult:
     if expected_size_bytes < 0 or expected_size_bytes > settings.file_max_bytes:
         raise RskSizeMismatchError(
             f"RSK expected file size is outside the configured bound: {expected_size_bytes} bytes"
         )
-    if expected_extension.lower().lstrip(".") != "xml":
+    if expected_extension != RSK_XML_EXTENSION:
         raise RskProtocolError("RSK file extension is not allowlisted")
 
     _require_empty_seekable_destination(destination)
@@ -143,6 +189,7 @@ def download_rsk_file(
         result = _with_retries(
             lambda deadline: _download_once(
                 client,
+                settings,
                 source_url,
                 expected_size_bytes,
                 expected_extension,
@@ -173,19 +220,26 @@ def download_rsk_file(
 
 def _download_once(
     client: httpx.Client,
+    settings: RskSettings,
     source_url: str,
     expected_size_bytes: int,
     expected_extension: str,
-    destination: BinaryIO,
+    destination: RskDownloadDestination,
     deadline: float,
 ) -> DownloadResult:
     sha256 = hashlib.sha256()
     received_bytes = 0
 
     with client.stream(
-        "GET", source_url, headers={"Accept-Encoding": "identity"}
+        "GET",
+        source_url,
+        headers={"Accept-Encoding": "identity"},
+        timeout=_remaining_timeout(settings, deadline),
     ) as response:
         _ = response.raise_for_status()
+        _require_ok_status(response)
+        if response.headers.get("content-range") is not None:
+            raise RskProtocolError("RSK returned an unexpected partial response")
         _validate_identity_encoding(response)
         _reject_html_response(response)
         declared_size_bytes = _content_length(response.headers)
@@ -198,7 +252,7 @@ def _download_once(
             )
 
         for chunk in _validated_file_chunks(
-            response.iter_raw(), expected_extension, deadline
+            _deadline_chunks(response.iter_raw(), deadline), expected_extension
         ):
             _check_deadline(deadline)
             next_size_bytes = received_bytes + len(chunk)
@@ -235,6 +289,7 @@ def _get_json_body(
     return _with_retries(
         lambda deadline: _get_json_body_once(
             client,
+            settings,
             source_url,
             settings.metadata_max_bytes,
             deadline,
@@ -245,19 +300,26 @@ def _get_json_body(
 
 
 def _get_json_body_once(
-    client: httpx.Client, source_url: str, max_bytes: int, deadline: float
+    client: httpx.Client,
+    settings: RskSettings,
+    source_url: str,
+    max_bytes: int,
+    deadline: float,
 ) -> tuple[bytes, tuple[tuple[str, str], ...]]:
     body = bytearray()
     with client.stream(
-        "GET", source_url, headers={"Accept-Encoding": "identity"}
+        "GET",
+        source_url,
+        headers={"Accept-Encoding": "identity"},
+        timeout=_remaining_timeout(settings, deadline),
     ) as response:
         _ = response.raise_for_status()
+        _require_ok_status(response)
         declared_size_bytes = _content_length(response.headers)
         if declared_size_bytes is not None and declared_size_bytes > max_bytes:
             raise RskSizeMismatchError("RSK metadata exceeds configured size limit")
 
-        for chunk in response.iter_raw():
-            _check_deadline(deadline)
+        for chunk in _deadline_chunks(response.iter_raw(), deadline):
             if len(body) + len(chunk) > max_bytes:
                 raise RskSizeMismatchError("RSK metadata exceeds configured size limit")
             body.extend(chunk)
@@ -293,6 +355,10 @@ def _with_retries[ResultT](
             _check_deadline(deadline)
             return operation(deadline)
         except (httpx.TransportError, httpx.HTTPStatusError) as error:
+            if _monotonic() >= deadline:
+                raise RskDeadlineExceededError(
+                    "RSK operation exceeded its deadline"
+                ) from error
             retryable = _is_retryable(error)
             if not retryable or attempt == settings.retry_max_attempts:
                 raise
@@ -365,19 +431,23 @@ def _retry_delay_seconds(
     return min(max(requested_seconds, jittered_backoff_seconds, 0.0), max_seconds)
 
 
-def _require_empty_seekable_destination(destination: BinaryIO) -> None:
+def _require_empty_seekable_destination(destination: RskDownloadDestination) -> None:
     try:
         start_position = destination.tell()
-        _ = destination.seek(0, 2)
-        end_position = destination.tell()
-        _ = destination.seek(start_position)
+        tracked_size = getattr(destination, "size_bytes", None)
+        if isinstance(tracked_size, int) and not isinstance(tracked_size, bool):
+            end_position = tracked_size
+        else:
+            _ = destination.seek(0, 2)
+            end_position = destination.tell()
+            _ = destination.seek(start_position)
     except (OSError, ValueError) as error:
         raise ValueError("RSK destination must be seekable") from error
     if start_position != 0 or end_position != 0:
         raise ValueError("RSK destination must be empty and positioned at zero")
 
 
-def _reset_destination(destination: BinaryIO) -> None:
+def _reset_destination(destination: RskDownloadDestination) -> None:
     _ = destination.seek(0)
     _ = destination.truncate(0)
 
@@ -385,6 +455,20 @@ def _reset_destination(destination: BinaryIO) -> None:
 def _check_deadline(deadline: float) -> None:
     if _monotonic() >= deadline:
         raise RskDeadlineExceededError("RSK operation exceeded its deadline")
+
+
+def _remaining_timeout(settings: RskSettings, deadline: float) -> httpx.Timeout:
+    remaining_seconds = deadline - _monotonic()
+    if remaining_seconds <= 0:
+        raise RskDeadlineExceededError("RSK operation exceeded its deadline")
+    read_seconds = min(settings.timeout_seconds, remaining_seconds)
+    connect_seconds = min(settings.connect_timeout_seconds, remaining_seconds)
+    return httpx.Timeout(
+        connect=connect_seconds,
+        read=read_seconds,
+        write=read_seconds,
+        pool=read_seconds,
+    )
 
 
 def _validate_json_observation(observation: HttpObservation) -> None:
@@ -417,6 +501,11 @@ def _validate_identity_encoding(response: httpx.Response) -> None:
         )
 
 
+def _require_ok_status(response: httpx.Response) -> None:
+    if response.status_code != 200:
+        raise RskProtocolError("RSK returned an unexpected successful status")
+
+
 def _reject_html_response(response: httpx.Response) -> None:
     content_type = cast(str, response.headers.get("content-type", ""))
     media_type = content_type.partition(";")[0].lower()
@@ -424,12 +513,22 @@ def _reject_html_response(response: httpx.Response) -> None:
         raise RskProtocolError("RSK returned HTML instead of a file")
 
 
+def _deadline_chunks(chunks: Iterator[bytes], deadline: float) -> Iterator[bytes]:
+    while True:
+        _check_deadline(deadline)
+        try:
+            chunk = next(chunks)
+        except StopIteration:
+            return
+        _check_deadline(deadline)
+        yield chunk
+
+
 def _validated_file_chunks(
-    chunks: Iterator[bytes], expected_extension: str, deadline: float
+    chunks: Iterator[bytes], expected_extension: str
 ) -> Iterator[bytes]:
     prefix = bytearray()
     for chunk in chunks:
-        _check_deadline(deadline)
         remaining_prefix_bytes = 512 - len(prefix)
         prefix.extend(chunk[:remaining_prefix_bytes])
         remainder = chunk[remaining_prefix_bytes:]
@@ -446,7 +545,7 @@ def _validated_file_chunks(
 
 
 def _validate_file_prefix(content: bytes | bytearray, expected_extension: str) -> None:
-    if expected_extension.lower().lstrip(".") != "xml":
+    if expected_extension != RSK_XML_EXTENSION:
         raise RskProtocolError("RSK file extension is not allowlisted")
     prefix = bytes(content).removeprefix(b"\xef\xbb\xbf").lstrip().lower()
     if prefix.startswith(b"<!doctype html") or prefix.startswith(b"<html"):
@@ -486,5 +585,7 @@ def _selected_headers(headers: httpx.Headers) -> tuple[tuple[str, str], ...]:
     for name in _ARCHIVED_HEADER_NAMES:
         value = cast(str | None, headers.get(name))
         if value is not None:
+            if not is_valid_rsk_archived_header(name, value):
+                raise RskProtocolError("RSK archived header is outside its bound")
             selected_headers.append((name, value))
     return tuple(selected_headers)

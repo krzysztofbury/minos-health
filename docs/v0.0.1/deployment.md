@@ -3,8 +3,9 @@
 Status: target application architecture with the source-neutral watcher runtime
 implemented. The host currently runs the exact-digest maintenance edge and
 Cloudflare Tunnel. The repository now contains the watcher image, scheduler,
-local Compose stack, S3/recovery composition, and candidate preflight, but no API
-image, source-specific collector, applied watcher AWS stack, or release workflow.
+local Compose stack, RSK collector and public provenance projection,
+S3/recovery composition, and candidate preflight, but no application API image,
+applied watcher AWS stack, or release workflow.
 
 ## Goals
 
@@ -30,12 +31,14 @@ Browser
   -> outbound Cloudflare Tunnel
   -> edge container
      -> static web artifact
+     -> /api/v1/provenance/rsk -> read-only public watcher projection
      -> /api/*, /healthz, /readyz -> API container
 
 Watcher container
   -> APScheduler
   -> mutable control SQLite on a persistent volume
   -> private versioned S3 snapshot bucket
+  -> dedicated local public-projection volume
 
 GitHub-hosted Actions
   -> test, build, scan, attest, publish to private GHCR
@@ -60,7 +63,12 @@ The production Compose project contains:
 - `api`: FastAPI/ASGI service with the generated reference SQLite database
   embedded in the immutable image;
 - `watcher`: APScheduler, source adapters, and the mutable control SQLite
-  database mounted from a dedicated persistent volume.
+  database mounted from a dedicated persistent volume, plus write access to a
+  separate public-projection root;
+- `watcher-bootstrap-rsk`: an explicit one-shot `bootstrap` profile service
+  using the same pinned production watcher image, identity, secrets, networks,
+  and persistent volumes. No active service depends on it, so ordinary stack
+  activation cannot run registration implicitly.
 
 The generated reference database and watcher control database are deliberately
 different systems:
@@ -71,7 +79,10 @@ different systems:
   schedules, runs, observations, artifact references, changes, and incidents.
 
 The watcher is not included in the API image. The edge image contains no Python
-runtime, source snapshots, credentials, or generated medical database.
+runtime, private source snapshots, credentials, or generated medical database.
+It mounts only the dedicated public-projection root read-only. It cannot access
+watcher control SQLite, private filesystem or S3 archive data, staging, AWS
+credentials, Healthchecks targets, S3 URLs, or presigned URLs.
 
 ## Artifact Lifecycle
 
@@ -110,30 +121,45 @@ The target lifecycle is:
 7. The operator quiesces watcher dispatch, reconciles any `committed` or
    `heartbeat_pending` run, creates and verifies a pre-deploy recovery image,
    and records the current and candidate release manifests.
-8. A scheduler-paused candidate watcher validates a disposable database copy,
-   exact schema-version equality, numeric identity, volume and secret access, an
-   S3 checksum round trip, recovery-image creation, and Healthchecks.io access.
-   The application copy is limited to 2 GiB and a 240-second deadline, with a
-   300-second outer process timeout. A missing database on an initial empty host
-   remains valid. Any existing schema mismatch preserves candidate evidence and
-   fails before the active stack is stopped.
+8. A scheduler-paused candidate watcher validates a disposable database copy.
+   Supported v1 and v2 copies are migrated to the exact candidate schema before
+   integrity, migration-checksum, identity, volume, secret, S3 checksum,
+   recovery-image, and Healthchecks.io checks. The original live database is not
+   changed. The copy is limited to 2 GiB and a 240-second deadline, with a
+   300-second outer timeout. A missing database on an initial empty host remains
+   valid. A newer or malformed schema fails before the active stack is stopped.
 9. The operator stops the previous watcher and captures a second consistent,
-   bounded preactivation image. The current deployment path does not migrate the
-   live database. A schema-changing release needs a separate reviewed activation
-   protocol before it can ship, which prevents rollback from starting an older
-   writer against a candidate-migrated schema.
-10. The operator starts the exact candidate digest with scheduling unpaused only
+   bounded preactivation image. After atomic runtime promotion, the candidate
+   migration command upgrades the quiesced live database from supported v1 or
+   v2 to v3 and reports the exact from/to result. If a later step fails after a
+   schema change, rescue keeps the candidate runtime and migrated database
+   stopped; it never starts an older writer against the newer schema.
+10. Ansible explicitly runs the profile-gated `watcher-bootstrap-rsk` one-shot
+    service with `--no-deps`. An absent RSK registration is created
+    transactionally, an exact existing registration is a no-op, and disabled,
+    customized, or partial state fails without being overwritten. A read-only
+    command validates any existing immutable public generation. An absent
+    projection is valid only before the canary.
+11. Before active services start, Ansible runs one manual RSK collection with a
+    900-second outer timeout. Manual mode forces a fresh `00CD10` XML download.
+    The canary must commit and publish a canonical, schema-valid projection.
+12. The operator starts the exact candidate digest with scheduling unpaused only
     for the active watcher. Its health contract becomes ready after startup
     reconciliation, stale-claim expiry, job reconstruction, and bounded catch-up;
     every probe verifies the marked scheduler process and exact control schema.
     Compose waits for health, and Ansible then requires 30 seconds of healthy,
-    restart-free stability. Candidate and ordinary preflight services remain
-    scheduler-paused and cannot report active readiness.
-11. Success writes a signed append-only deployment receipt to an operator-only
+    restart-free stability. It requests `/zrodla`, its exact CSS and JavaScript
+    assets, the strict CSP, and the provenance endpoint through the running
+    production edge. Provenance must return HTTP 200 canonical JSON whose
+    SHA-256 matches the revalidated current generation. Candidate and ordinary
+    preflight services remain scheduler-paused and cannot report active
+    readiness.
+13. Success writes a signed append-only deployment receipt to an operator-only
     S3 prefix. Before the canary commits, failure restores the complete previous
-    release and may restore the pre-deploy recovery image. The current activation
-    requires schema equality, so rollback restores only a schema-identical prior
-    writer and preserves live state; an older database image must not be restored.
+    release and may restore the pre-deploy recovery image only if the live schema
+    was not migrated. After migration, explicit recovery retains the promoted
+    candidate and current live state; an older database image or writer must not
+    be restored automatically.
 
 Initial production deployment is an explicit operator action. A later SSH
 workflow may automate the same exact-digest procedure, but it must not broaden
@@ -201,6 +227,24 @@ writes. Exact raw bytes are uploaded to S3 and are not retained as the only copy
 on the host. Logs use Docker's bounded `local` driver rather than an unbounded
 JSON log file.
 
+The watcher publishes sanitized provenance under
+`generations/<state-revision>-<projection-sha256>/`, fsyncs every file and
+directory, then atomically replaces the `current` symlink using descriptor-
+relative no-follow operations. Generation files are mode `0444` and directories
+are mode `0555`; the current generation and two predecessors are retained.
+Automatic publication refuses to replace a newer current revision with an
+older recovered control database. Nginx serves only the exact extensionless
+`/api/v1/provenance/rsk` route with JSON, `nosniff`, same-origin, and `no-store`
+headers. The responsive Polish `/zrodla` page reads only that same-origin route,
+validates the complete bounded schema before rendering, and derives every
+official RSK link from a validated UUID. It renders at most 75 rows at once,
+debounces local filtering, and labels current, stale, severe-stale, and material
+future-clock states separately from schema validity. Nginx serves the page and
+its `/sources.css` and `/sources.js` assets only on exact query-free paths,
+compresses JSON, and applies a CSP with external styles only. The artifact
+namespace is deny-all and returns 404. The page offers no Minos artifact
+download.
+
 The watcher image remains shell-free. Compose invokes the packaged
 `minos watcher health` command directly. Its readiness marker is bound to the
 live process identity, refreshed by the sole scheduler worker, and removed on
@@ -266,6 +310,15 @@ The legal run transitions are `running -> committed -> heartbeat_pending ->
 successful`, `running -> failed`, and `running -> expired`. Acquisition creates
 `running`; only the matching live fenced claim can leave it. `committed` never
 expires, terminal states never reopen, and no transition may be skipped.
+
+Claiming a durable schedule advances its cron cursor but retains the original
+scheduled time and run mode as a pending obligation until the run reaches
+`successful`. Failure or expiry atomically records a bounded exponential
+retry-not-before time. A single scheduler interval job checks eligible durable
+work, while SQLite serialization and the source blocking-run guard permit only
+one claimant. Restart reconstruction uses the same persisted state, so an
+exhausted daily, catch-up, or weekly collection is delayed rather than lost or
+immediately busy-looped.
 
 There is no atomic transaction across local SQLite and S3. A complete host loss
 after local commit but before recovery-image upload can lose that unacknowledged

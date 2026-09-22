@@ -183,9 +183,13 @@ jobs:
             --user 10001:10001 --cap-drop ALL \
             --security-opt no-new-privileges \
             minos-health-watcher:local --version
+          docker compose --file compose.yaml --profile bootstrap run --rm --no-deps \
+            watcher-bootstrap-rsk
           docker compose --file compose.yaml run --rm --no-deps \
             --entrypoint /app/.venv/bin/python watcher -c \
             "from pathlib import Path; p=Path('/var/lib/minos/staging/.minos-blob-ci-stale'); p.write_bytes(b'partial'); p.chmod(0o600)"
+          docker compose --file compose.yaml --profile preflight run --rm --no-deps \
+            watcher-preflight
           docker compose --file compose.yaml up --detach --no-build \
             --wait --wait-timeout 60 watcher
           sleep 15
@@ -226,6 +230,7 @@ jobs:
           assert destinations == {
               "/var/lib/minos/archive",
               "/var/lib/minos/control",
+              "/var/lib/minos/public",
               "/var/lib/minos/staging",
           }
           PY

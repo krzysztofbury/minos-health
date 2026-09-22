@@ -102,6 +102,12 @@ class HealthcheckTargets:
     def configured_sources(self) -> tuple[str, ...]:
         return tuple(sorted(self._sources))
 
+    def require_sources(self, source_ids: tuple[str, ...]) -> None:
+        if len(source_ids) > _MAX_TARGETS or len(source_ids) != len(set(source_ids)):
+            raise HealthcheckError("enabled source target set is invalid")
+        for source_id in source_ids:
+            _ = self.source(source_id)
+
 
 @final
 class HealthchecksClient:

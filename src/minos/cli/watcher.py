@@ -1,12 +1,14 @@
 import os
+import sqlite3
 import stat
 import time
 from collections.abc import Callable, Generator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Literal, Protocol, cast, final
 
+import httpx
 from pydantic import AliasChoices, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -16,12 +18,18 @@ from minos.ingest.watchers.archive import (
     FilesystemBlobArchive,
     S3BlobArchive,
 )
-from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
+from minos.ingest.watchers.config import (
+    RSK_SOURCE_CONFIGURATION_CODECS,
+    RskSettings,
+)
 from minos.ingest.watchers.control import (
+    CONTROL_SCHEMA_VERSION,
     CommittedRun,
     ControlStore,
     RecoveryReceipt,
+    SourceConfiguration,
     SourceConfigurationCodecRegistry,
+    SourceSchedule,
 )
 from minos.ingest.watchers.healthchecks import (
     HealthchecksClient,
@@ -49,12 +57,19 @@ from minos.ingest.watchers.protocols import (
     RecoveryPublisher,
     WatcherRuntimeError,
 )
+from minos.ingest.watchers.publication import (
+    ImmutableGenerationPublisher,
+    prepare_public_root,
+)
 from minos.ingest.watchers.recovery import (
+    FilesystemRecoveryStore,
     PublishedRecoveryImage,
     RecoveryClass,
     RecoveryImageStagingArea,
     S3RecoveryStore,
 )
+from minos.ingest.watchers.rsk.collector import RskSourceCollector
+from minos.ingest.watchers.rsk.publication import RskPublicProjectionPublisher
 from minos.ingest.watchers.scheduler import WatcherScheduler
 from minos.ingest.watchers.service import (
     WatcherProcessLock,
@@ -67,6 +82,10 @@ from minos.ingest.watchers.service import (
 _DEPLOYMENT_COPY_TIMEOUT_SECONDS = 240.0
 # Production mounts /tmp as a private mode-0700 container tmpfs.
 _DEFAULT_READINESS_FILE = Path("/tmp/minos-watcher-ready.json")  # nosec B108
+_RSK_SOURCE_ID = "rsk"
+_RSK_DAILY_CRON = "0 3 * * *"
+_RSK_WEEKLY_VERIFICATION_CRON = "0 4 * * 0"
+type RskClientFactory = Callable[[RskSettings], AbstractContextManager[httpx.Client]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +95,7 @@ class WatcherPaths:
     archive_directory: Path
     process_lock: Path
     recovery_staging_directory: Path
+    public_directory: Path | None = None
 
 
 class WatcherRuntimeSettings(BaseSettings):
@@ -130,6 +150,19 @@ class WatcherCommand(Protocol):
     def run_once(self, source_id: str) -> None: ...
 
     def health(self) -> None: ...
+
+    def bootstrap_rsk(self) -> None: ...
+
+    def migrate_control_database(self) -> tuple[int, int]: ...
+
+    def rebuild_public_rsk(
+        self,
+        *,
+        expected_current_revision: int,
+        expected_current_sha256: str,
+        target_revision: int,
+        target_sha256: str,
+    ) -> str: ...
 
 
 class WatcherFactoryArguments(Protocol):
@@ -194,6 +227,18 @@ class _UnavailableHeartbeat:
 
 
 @final
+class _LocalHeartbeat:
+    def start(self, source_id: str) -> None:
+        _ = source_id
+
+    def success(self, source_id: str) -> None:
+        _ = source_id
+
+    def failure(self, source_id: str) -> None:
+        _ = source_id
+
+
+@final
 class WatcherCliAdapter:
     def __init__(
         self,
@@ -208,6 +253,7 @@ class WatcherCliAdapter:
         scheduling_paused: bool = False,
         readiness_file: Path | None = None,
         source_configuration_codecs: SourceConfigurationCodecRegistry | None = None,
+        heartbeat_source_validator: Callable[[tuple[str, ...]], None] | None = None,
         close: Callable[[], None] | None = None,
     ) -> None:
         self._paths = paths
@@ -221,6 +267,9 @@ class WatcherCliAdapter:
         self._readiness = WatcherReadiness(readiness_file or _DEFAULT_READINESS_FILE)
         self._source_configuration_codecs = (
             source_configuration_codecs or SourceConfigurationCodecRegistry()
+        )
+        self._heartbeat_source_validator: Callable[[tuple[str, ...]], None] = (
+            heartbeat_source_validator or (lambda _source_ids: None)
         )
         self._close = close
 
@@ -237,14 +286,14 @@ class WatcherCliAdapter:
                     self._paths.database,
                     source_configuration_codecs=self._source_configuration_codecs,
                 ) as store:
+                    self._validate_heartbeat_sources(store)
                     gate = RuntimeCapacityGate(
                         self._paths.database,
                         self._paths.staging_directory,
                         limits=self._capacity_limits,
                     )
                     _ = gate.check()
-                    store.validate_scheduled_source_configurations()
-                    _ = store.list_scheduled_sources()
+                    self._build_service(store).validate_scheduled_collectors()
                     _ = store.list_reconcilable_runs()
                     _ = store.list_stale_claims()
 
@@ -261,6 +310,7 @@ class WatcherCliAdapter:
                         allow_thread_handoff=True,
                         source_configuration_codecs=self._source_configuration_codecs,
                     ) as store:
+                        self._validate_heartbeat_sources(store)
                         service = self._build_service(store)
                         WatcherScheduler(service).start(
                             on_ready=self._readiness.mark_ready
@@ -276,6 +326,7 @@ class WatcherCliAdapter:
                     self._paths.database,
                     source_configuration_codecs=self._source_configuration_codecs,
                 ) as store:
+                    self._validate_heartbeat_sources(store)
                     service = self._build_service(store)
                     _ = service.run_manual(source_id)
 
@@ -284,7 +335,65 @@ class WatcherCliAdapter:
             if self._scheduling_paused:
                 raise WatcherRuntimeError("paused watcher cannot report ready")
             self._readiness.check()
-            check_watcher_database_readiness(self._paths.database)
+            enabled_source_ids = check_watcher_database_readiness(
+                self._paths.database,
+                collectors=self._collectors,
+                source_configuration_codecs=self._source_configuration_codecs,
+            )
+            self._heartbeat_source_validator(enabled_source_ids)
+
+    def bootstrap_rsk(self) -> None:
+        with self._manage_resources():
+            self._prepare_directories()
+            with WatcherProcessLock(self._paths.process_lock):
+                with ControlStore.open(
+                    self._paths.database,
+                    source_configuration_codecs=self._source_configuration_codecs,
+                ) as store:
+                    _ = store.bootstrap_source(
+                        SourceConfiguration(_RSK_SOURCE_ID, "rsk", {}, True),
+                        _rsk_schedules(),
+                    )
+
+    def migrate_control_database(self) -> tuple[int, int]:
+        with self._manage_resources():
+            self._prepare_directories()
+            with WatcherProcessLock(self._paths.process_lock):
+                prior_version = _read_existing_control_schema_version(
+                    self._paths.database
+                )
+                with ControlStore.open(
+                    self._paths.database,
+                    source_configuration_codecs=self._source_configuration_codecs,
+                ):
+                    pass
+                return prior_version, CONTROL_SCHEMA_VERSION
+
+    def rebuild_public_rsk(
+        self,
+        *,
+        expected_current_revision: int,
+        expected_current_sha256: str,
+        target_revision: int,
+        target_sha256: str,
+    ) -> str:
+        with self._manage_resources():
+            self._prepare_directories()
+            with WatcherProcessLock(self._paths.process_lock):
+                with ControlStore.open(
+                    self._paths.database,
+                    source_configuration_codecs=self._source_configuration_codecs,
+                ) as store:
+                    publisher = RskPublicProjectionPublisher(
+                        ImmutableGenerationPublisher(self._public_directory())
+                    )
+                    return publisher.rebuild(
+                        store,
+                        expected_current_revision=expected_current_revision,
+                        expected_current_sha256=expected_current_sha256,
+                        target_revision=target_revision,
+                        target_sha256=target_sha256,
+                    )
 
     def _build_service(self, store: ControlStore) -> WatcherService:
         gate = RuntimeCapacityGate(
@@ -299,12 +408,21 @@ class WatcherCliAdapter:
             collectors=self._collectors,
             recovery_publisher=self._recovery_publisher,
             heartbeat=self._heartbeat,
+            public_projection_publisher=RskPublicProjectionPublisher(
+                ImmutableGenerationPublisher(self._public_directory())
+            ),
         )
         return WatcherService(
             store=store,
             orchestrator=orchestrator,
             collectors=self._collectors,
             capacity_gate=gate,
+        )
+
+    def _validate_heartbeat_sources(self, store: ControlStore) -> None:
+        enabled_sources = store.list_enabled_source_kinds(limit=128)
+        self._heartbeat_source_validator(
+            tuple(source_id for source_id, _watcher_type in enabled_sources)
         )
 
     def _prepare_directories(self) -> None:
@@ -316,10 +434,14 @@ class WatcherCliAdapter:
             self._paths.recovery_staging_directory,
         ):
             _prepare_private_directory(directory)
+        prepare_public_root(self._public_directory())
         BlobStagingArea(
             self._paths.staging_directory,
             maximum_size_bytes=self._capacity_limits.maximum_download_size_bytes,
         ).cleanup_stale()
+
+    def _public_directory(self) -> Path:
+        return self._paths.public_directory or self._paths.database.parent / "public"
 
     @contextmanager
     def _manage_resources(self) -> Generator[None]:
@@ -369,16 +491,25 @@ def paths_from_environment(
         or _environment_path("MINOS_WATCHER_RECOVERY_STAGING_DIRECTORY")
         or database_path.parent / "recovery-staging"
     )
+    public_path = (
+        _environment_path("MINOS_WATCHER_PUBLIC_DIRECTORY")
+        or database_path.parent / "public"
+    )
     return WatcherPaths(
         database_path,
         staging_path,
         archive_path,
         lock_path,
         recovery_staging_path,
+        public_path,
     )
 
 
-def create_watcher_command(arguments: WatcherFactoryArguments) -> WatcherCommand:
+def create_watcher_command(
+    arguments: WatcherFactoryArguments,
+    *,
+    rsk_client_factory: RskClientFactory | None = None,
+) -> WatcherCommand:
     try:
         settings = WatcherRuntimeSettings.model_validate({})
     except ValidationError as error:
@@ -395,6 +526,11 @@ def create_watcher_command(arguments: WatcherFactoryArguments) -> WatcherCommand
         settings.staging_quota_bytes,
         settings.min_free_bytes,
     )
+    collectors = create_runtime_collectors(
+        paths.staging_directory,
+        maximum_size_bytes=limits.maximum_download_size_bytes,
+        rsk_client_factory=rsk_client_factory,
+    )
     archive_backend = settings.archive_backend
     if archive_backend is None:
         if any(
@@ -410,14 +546,31 @@ def create_watcher_command(arguments: WatcherFactoryArguments) -> WatcherCommand
             raise WatcherRuntimeError("archive backend is not configured")
         archive_backend = "filesystem"
     if archive_backend == "filesystem":
+        recovery_staging = RecoveryImageStagingArea(
+            paths.recovery_staging_directory,
+            maximum_size_bytes=settings.control_max_bytes,
+        )
+        recovery_publisher = RunRecoveryPublisher(
+            recovery_staging,
+            FilesystemRecoveryStore(paths.archive_directory),
+        )
         return WatcherCliAdapter(
             paths,
+            collectors=collectors,
+            recovery_publisher=recovery_publisher,
+            heartbeat=_LocalHeartbeat(),
             capacity_limits=limits,
             scheduling_paused=settings.scheduler_paused,
             readiness_file=settings.readiness_file,
             source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
         )
-    return _create_s3_watcher_command(arguments, settings, paths, limits)
+    return _create_s3_watcher_command(
+        arguments,
+        settings,
+        paths,
+        limits,
+        collectors,
+    )
 
 
 def _create_s3_watcher_command(
@@ -425,6 +578,7 @@ def _create_s3_watcher_command(
     settings: WatcherRuntimeSettings,
     paths: WatcherPaths,
     limits: CapacityLimits,
+    collectors: CollectorRegistry,
 ) -> WatcherCommand:
     bucket = _required_setting(settings.s3_bucket, "S3 bucket")
     region = _required_setting(settings.aws_region, "AWS region")
@@ -456,7 +610,8 @@ def _create_s3_watcher_command(
         maximum_size_bytes=settings.control_max_bytes,
     )
     recovery_publisher = RunRecoveryPublisher(recovery_staging, recovery_store)
-    heartbeat = HealthchecksClient(HealthcheckTargets.load(target_file))
+    healthcheck_targets = HealthcheckTargets.load(target_file)
+    heartbeat = HealthchecksClient(healthcheck_targets)
     try:
         paused_preflight = (
             _create_production_preflight(
@@ -485,6 +640,7 @@ def _create_s3_watcher_command(
         raise
     return WatcherCliAdapter(
         paths,
+        collectors=collectors,
         archive=archive,
         recovery_publisher=recovery_publisher,
         heartbeat=heartbeat,
@@ -493,7 +649,54 @@ def _create_s3_watcher_command(
         scheduling_paused=settings.scheduler_paused,
         readiness_file=settings.readiness_file,
         source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+        heartbeat_source_validator=healthcheck_targets.require_sources,
         close=heartbeat.close,
+    )
+
+
+def create_runtime_collectors(
+    staging_directory: Path,
+    *,
+    maximum_size_bytes: int,
+    rsk_client_factory: RskClientFactory | None = None,
+) -> CollectorRegistry:
+    staging = BlobStagingArea(
+        staging_directory,
+        maximum_size_bytes=maximum_size_bytes,
+    )
+    collector = (
+        RskSourceCollector(staging)
+        if rsk_client_factory is None
+        else RskSourceCollector(staging, client_factory=rsk_client_factory)
+    )
+    registry = CollectorRegistry()
+    registry.register(
+        "rsk",
+        collector,
+        required_schedule_modes=("scheduled", "weekly_verification"),
+    )
+    return registry
+
+
+def _rsk_schedules() -> tuple[SourceSchedule, SourceSchedule]:
+    return (
+        SourceSchedule(
+            _RSK_SOURCE_ID,
+            _RSK_DAILY_CRON,
+            3600,
+            3,
+            0.5,
+            30.0,
+        ),
+        SourceSchedule(
+            _RSK_SOURCE_ID,
+            _RSK_WEEKLY_VERIFICATION_CRON,
+            3600,
+            3,
+            0.5,
+            30.0,
+            "weekly_verification",
+        ),
     )
 
 
@@ -568,6 +771,37 @@ def _required_path(value: Path | None, label: str) -> Path:
     if value is None:
         raise WatcherRuntimeError(f"{label} is not configured")
     return value
+
+
+def _read_existing_control_schema_version(database: Path) -> int:
+    if not database.exists():
+        return 0
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = sqlite3.connect(
+            f"{database.resolve().as_uri()}?mode=ro",
+            uri=True,
+            isolation_level=None,
+        )
+        row = cast(
+            tuple[object] | None, connection.execute("PRAGMA user_version").fetchone()
+        )
+    except OSError, sqlite3.Error:
+        raise WatcherRuntimeError(
+            "control database schema version is unavailable"
+        ) from None
+    finally:
+        if connection is not None:
+            connection.close()
+    if (
+        row is None
+        or len(row) != 1
+        or type(row[0]) is not int
+        or row[0] < 1
+        or row[0] > CONTROL_SCHEMA_VERSION
+    ):
+        raise WatcherRuntimeError("control database schema version is unsupported")
+    return row[0]
 
 
 def create_deployment_control_copy(source: Path, destination: Path) -> int:

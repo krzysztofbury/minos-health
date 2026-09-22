@@ -235,8 +235,48 @@ product value.
 For allowlisted bytes, compare complete file metadata and compute SHA-256.
 `uuid + creationDate + sizeBytes` is a useful trigger, not a sufficient content
 identity. Re-fetch metadata after download to detect rotation during transfer.
-Re-download and re-hash unchanged allowlisted files at least weekly, and on a
-manual forced run, because the source provides no validators.
+Daily scheduled and catch-up collections download the allowlisted file on the
+first observation or when its selected identity or complete file set changes.
+Weekly verification and explicit manual collection always re-download and
+re-hash it because the source provides no validators. Persisted cursors are validated against their
+full-state digest, catalog membership, normalized resource metadata, and
+selected product identity before any request; missing or inconsistent state
+fails closed rather than being replaced from the current source. The
+post-download `00CD10` metadata response is also archived exactly and must match
+the pre-download structure before the observation set can commit.
+
+Production composition registers `RskSourceCollector` for watcher kind `rsk`
+with the runtime's bounded blob staging area for both filesystem and S3 archive
+backends. The explicit `watcher bootstrap-rsk` command creates the canonical
+source only when absent and installs independent durable daily and weekly
+verification obligations. Runtime startup validates every enabled source kind
+against both the configuration-codec and collector registries and checks the
+schedule modes declared by that collector. Empty, disabled-only, unknown, and
+partial source compositions fail readiness rather than becoming inert.
+
+Every committed RSK metadata observation also carries a strict public snapshot.
+It allowlists only HCD, bounded resource and publisher labels, official file
+identity and dates, file type and byte count, the exact metadata-response
+SHA-256, and the verified product SHA-256 only for privately archived bytes.
+Descriptions, publisher addresses and contacts, tax identifiers, education
+links, arbitrary publisher and file URLs, response headers, cursors, S3 keys,
+and signed URLs are excluded. Official origin links are reconstructed only from
+the fixed validated RSK file endpoint and a validated UUID.
+
+After recovery reconciliation, the watcher projects at most 512 complete
+committed revisions and 8,192 timeline entries through the run's committed
+state-revision fence. Canonical JSON is limited to 8 MiB. If a limit requires
+truncation, only complete oldest revisions are omitted. The projection is
+installed as a read-only filesystem generation and an atomic `current` symlink
+before the success heartbeat. The edge mounts only this public root read-only;
+it never mounts control SQLite, the private archive, staging, or credentials.
+
+`manifests/redistribution.json` is schema version 1 and currently contains an
+empty artifact allowlist. Therefore every provenance entry has
+`downloadable=false` and `download_url=null`, and all artifact routes return
+404. Positive publication is intentionally absent. Per-request guarded
+streaming remains deferred until an approved digest allowlist and application
+endpoint exist.
 
 ## NFZ Statistics API
 

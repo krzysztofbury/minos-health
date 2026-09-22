@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="index, follow">
+    <meta name="description" content="Pochodzenie, wersje i sumy kontrolne publicznych danych RSK obserwowanych przez Minos Health.">
+    <title>Źródła danych - Minos Health</title>
+    <link rel="stylesheet" href="/sources.css">
+    <script src="/plausible-init.js"></script>
+    <script async src="https://plausible.io/js/pa-NFvtUdLPyyrZ5D9U4M1M9.js"></script>
+    <script defer src="/sources.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#timeline">Przejdź do osi źródeł</a>
+    <header class="site-header">
+      <a class="brand" href="/">Minos Health</a>
+      <nav aria-label="Główna nawigacja">
+        <a aria-current="page" href="/zrodla">Źródła</a>
+        <a href="/polityka-prywatnosci">Prywatność</a>
+        <a href="/regulamin">Regulamin</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Publiczny rejestr pochodzenia danych</p>
+          <h1 id="page-title">Skąd wiemy,<br><span>co wiemy.</span></h1>
+          <p class="lead">
+            Minos obserwuje publiczny Rejestr Systemów Kodowania i zapisuje,
+            która wersja, plik oraz odpowiedź metadanych były widoczne w danym
+            momencie. To ślad pochodzenia, a nie biblioteka plików do pobrania.
+          </p>
+        </div>
+        <aside class="time-note" aria-labelledby="time-note-title">
+          <p class="note-number">01</p>
+          <div>
+            <h2 id="time-note-title">Dwie osie czasu</h2>
+            <p>
+              Daty źródłowe i okres ważności podaje wydawca w RSK. Czas
+              obserwacji oznacza moment, w którym Minos odczytał odpowiedź
+              wydawcy. Nie jest datą publikacji ani dowodem momentu zmiany.
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="projection" aria-labelledby="projection-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-index">Stan publikacji / RSK</p>
+            <h2 id="projection-title">Aktualność projekcji</h2>
+          </div>
+          <p id="load-state" class="load-state is-unavailable" role="status" aria-live="polite">
+            Rejestr wymaga JavaScript i jest obecnie niedostępny.
+          </p>
+        </div>
+
+        <dl id="projection-facts" class="projection-facts" hidden>
+          <div>
+            <dt>Obserwacja do rewizji</dt>
+            <dd id="revision-value">-</dd>
+          </div>
+          <div>
+            <dt>Utworzono projekcję</dt>
+            <dd id="projected-value">-</dd>
+          </div>
+          <div>
+            <dt>Aktualność</dt>
+            <dd id="freshness-value">-</dd>
+          </div>
+          <div>
+            <dt>Zakres historii</dt>
+            <dd id="history-value">-</dd>
+          </div>
+        </dl>
+        <button id="retry-button" class="retry-button" type="button" hidden>
+          Spróbuj ponownie
+        </button>
+      </section>
+
+      <section id="timeline" class="timeline" aria-labelledby="timeline-title">
+        <div class="section-heading timeline-heading">
+          <div>
+            <p class="section-index">Oś obserwacji</p>
+            <h2 id="timeline-title">Zasoby i pliki</h2>
+          </div>
+          <p id="result-count" class="result-count" aria-live="polite"></p>
+        </div>
+
+        <div id="controls" class="controls" hidden>
+          <div class="search-field">
+            <label for="source-search">Szukaj po HCD lub nazwie zasobu</label>
+            <input id="source-search" type="search" autocomplete="off" maxlength="80" placeholder="np. 00CD10 lub ICD-10">
+          </div>
+          <div class="filters" role="group" aria-label="Filtr statusu">
+            <span>Status</span>
+            <button type="button" data-status="all" aria-pressed="true">Wszystkie</button>
+            <button type="button" data-status="current" aria-pressed="false">Bieżące</button>
+            <button type="button" data-status="historical" aria-pressed="false">Historyczne</button>
+            <button type="button" data-status="missing" aria-pressed="false">Brakujące</button>
+          </div>
+          <p class="controls-note">
+            Wyszukiwanie i filtry działają tylko w pobranej projekcji na tym
+            urządzeniu. Nie są wyszukiwarką medyczną ani produktową i nie
+            wysyłają wpisanej treści do Minos ani Plausible.
+          </p>
+        </div>
+
+        <div id="empty-state" class="empty-state" hidden>
+          <p class="empty-kicker">Brak wpisów</p>
+          <h3 id="empty-title">Rejestr nie zawiera jeszcze obserwacji.</h3>
+          <p id="empty-detail">Po pierwszej poprawnej publikacji wpisy pojawią się tutaj automatycznie.</p>
+        </div>
+
+        <div id="table-region" class="table-region" hidden>
+          <table aria-label="Historia obserwacji zasobów i plików RSK">
+            <thead>
+              <tr>
+                <th scope="col">Stan</th>
+                <th scope="col">Zasób</th>
+                <th scope="col">Plik</th>
+                <th scope="col">Daty</th>
+                <th scope="col">Pochodzenie i integralność</th>
+              </tr>
+            </thead>
+            <tbody id="timeline-body"></tbody>
+          </table>
+        </div>
+        <nav id="pagination" class="pagination" aria-label="Strony wyników" hidden>
+          <button id="previous-page" type="button">Poprzednia</button>
+          <span id="page-status" aria-live="polite">Strona 1 z 1</span>
+          <button id="next-page" type="button">Następna</button>
+        </nav>
+      </section>
+
+      <section class="checksum-note" aria-labelledby="checksum-title">
+        <p class="note-number">02</p>
+        <div>
+          <h2 id="checksum-title">Dwie różne sumy kontrolne</h2>
+          <p>
+            SHA-256 odpowiedzi metadanych identyfikuje dokładną odpowiedź RSK
+            opisującą zasób. Nie jest sumą pliku produktu. Osobną sumę SHA-256
+            produktu pokazujemy tylko wtedy, gdy Minos prywatnie zarchiwizował
+            i zweryfikował dokładne bajty pliku.
+          </p>
+        </div>
+      </section>
+
+      <section class="notices" aria-labelledby="notices-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-index">Kontekst i odpowiedzialność</p>
+            <h2 id="notices-title">Ważne informacje</h2>
+          </div>
+        </div>
+        <div class="notice-grid">
+          <article>
+            <h3>Tłumaczenie WHO</h3>
+            <p>
+              RSK informuje, że polskie tłumaczenie ICD-10 nie zostało
+              przygotowane przez WHO. WHO nie odpowiada za jego treść ani
+              dokładność. Wiążące i autentyczne jest wydanie angielskie z 2019 roku.
+            </p>
+          </article>
+          <article>
+            <h3>Brak zatwierdzenia</h3>
+            <p>
+              Minos nie jest sponsorowany ani zatwierdzony przez RSK, Centrum
+              e-Zdrowia, NFZ, WHO ani wydawców prezentowanych zasobów.
+            </p>
+          </article>
+          <article>
+            <h3>Nie jest poradą medyczną</h3>
+            <p>
+              Rejestr opisuje techniczne pochodzenie danych. Nie jest poradą
+              medyczną, diagnozą ani podstawą decyzji klinicznej lub rozliczeniowej.
+            </p>
+          </article>
+        </div>
+        <div id="public-notices" class="public-notices" hidden>
+          <h3>Komunikaty zapisane w publicznej projekcji</h3>
+          <ul id="public-notice-list"></ul>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Minos Health</span>
+      <a href="/">Strona główna</a>
+      <a href="/polityka-prywatnosci">Polityka prywatności</a>
+      <a href="/regulamin">Regulamin</a>
+      <a href="mailto:kontakt@minoshealth.pl">kontakt@minoshealth.pl</a>
+    </footer>
+    <noscript>
+      <p class="noscript">Rejestr jest niedostępny bez JavaScript. Włącz JavaScript, aby pobrać publiczne dane o pochodzeniu RSK.</p>
+    </noscript>
+  </body>
+</html>

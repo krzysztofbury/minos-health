@@ -333,21 +333,36 @@ def validate_recovery_image(
     expected_size_bytes: int | None = None,
     validation_time_ms: int | None = None,
     progress_check: Callable[[], None] | None = None,
+    _expected_link_count: int = 1,
+    _descriptor: int | None = None,
 ) -> RecoveryImageMetadata:
     if progress_check is not None:
         progress_check()
-    status = path.lstat()
-    _validate_file(status)
-    digest, size_bytes = _path_identity(
-        path,
-        expected_size_bytes,
-        progress_check=progress_check,
+    status = path.lstat() if _descriptor is None else os.fstat(_descriptor)
+    _validate_file(status, expected_link_count=_expected_link_count)
+    digest, size_bytes = (
+        _path_identity(
+            path,
+            expected_size_bytes,
+            progress_check=progress_check,
+            expected_link_count=_expected_link_count,
+        )
+        if _descriptor is None
+        else _descriptor_identity(
+            _descriptor,
+            maximum_size_bytes=(expected_size_bytes or MAX_RECOVERY_IMAGE_SIZE_BYTES),
+            progress_check=progress_check,
+            expected_link_count=_expected_link_count,
+        )
     )
     if expected_sha256 is not None and digest != expected_sha256:
         raise RecoveryVerificationError("recovery image checksum does not match")
     if expected_size_bytes is not None and size_bytes != expected_size_bytes:
         raise RecoveryVerificationError("recovery image byte count does not match")
-    uri = f"file:{quote(str(path.resolve()), safe='/')}?mode=ro&immutable=1"
+    database_path = (
+        str(path.resolve()) if _descriptor is None else f"/proc/self/fd/{_descriptor}"
+    )
+    uri = f"file:{quote(database_path, safe='/')}?mode=ro&immutable=1"
     connection = sqlite3.connect(uri, uri=True, isolation_level=None)
     try:
         _ = connection.execute("PRAGMA query_only = ON")
@@ -710,6 +725,7 @@ def _path_identity(
     expected_size_bytes: int | None,
     *,
     progress_check: Callable[[], None] | None = None,
+    expected_link_count: int = 1,
 ) -> tuple[str, int]:
     maximum = expected_size_bytes or MAX_RECOVERY_IMAGE_SIZE_BYTES
     descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
@@ -719,6 +735,7 @@ def _path_identity(
             descriptor,
             maximum_size_bytes=maximum,
             progress_check=progress_check,
+            expected_link_count=expected_link_count,
         )
     except BaseException as error:
         active_error = error
@@ -744,8 +761,12 @@ def _descriptor_identity(
     *,
     maximum_size_bytes: int,
     progress_check: Callable[[], None] | None = None,
+    expected_link_count: int = 1,
 ) -> tuple[str, int]:
-    _validate_file(os.fstat(descriptor))
+    _validate_file(
+        os.fstat(descriptor),
+        expected_link_count=expected_link_count,
+    )
     digest = hashlib.sha256()
     offset_bytes = 0
     while chunk := os.pread(descriptor, _HASH_CHUNK_BYTES, offset_bytes):
@@ -792,12 +813,18 @@ def _validate_directory(status: os.stat_result) -> None:
         )
 
 
-def _validate_file(status: os.stat_result) -> None:
+def _validate_file(
+    status: os.stat_result,
+    *,
+    expected_link_count: int = 1,
+) -> None:
+    if expected_link_count not in (1, 2):
+        raise ValueError("recovery image link count expectation is unsupported")
     if not stat.S_ISREG(status.st_mode):
         raise RecoveryVerificationError("recovery image must be a regular file")
     if stat.S_IMODE(status.st_mode) != 0o600:
         raise RecoveryVerificationError("recovery image mode must be 0600")
-    if status.st_uid != os.geteuid() or status.st_nlink != 1:
+    if status.st_uid != os.geteuid() or status.st_nlink != expected_link_count:
         raise RecoveryVerificationError("recovery image ownership is unsafe")
 
 

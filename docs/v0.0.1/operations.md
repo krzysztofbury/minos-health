@@ -13,6 +13,122 @@ images, signed release and deployment records, and Terraform state. A run is
 not acknowledged as successful while the Mikr.us disk is the only copy of its
 control metadata.
 
+### RSK Acquisition Modes
+
+RSK `scheduled` and `catch_up` runs use daily acquisition semantics: they
+archive the catalog and every returned HCD's `basic-info`, but download the
+allowlisted `00CD10` XML only for a first observation, a selected identity or
+file-set change. `weekly_verification` and `manual` runs always download and
+re-hash the selected XML.
+
+Before making a network request or a download decision, the collector validates
+the persisted cursor's canonical full-state digest, exact catalog-to-resource
+membership, normalized per-HCD metadata and digests, `00CD10` file-set link, and
+semantic selected-file identity. Missing or inconsistent persisted state fails
+closed as control-state corruption. It never forces a replacement download,
+because doing so could hide local corruption and replace historical provenance
+with current upstream state.
+
+Each forced or changed download starts at byte zero, validates the declared and
+received size, media type, XML completeness, and SHA-256, then archives an exact
+post-download `00CD10` metadata refetch. Schema drift, duplicate UUIDs, ambiguous
+selection, persistent rotation, malformed XML, and wrong media fail closed
+without advancing observations or the source cursor. Bounded transport
+failures, retryable HTTP statuses, and transient rotation enter the
+source-neutral retry policy.
+
+### RSK Registration And Scheduling
+
+Registration is an explicit one-shot activation action, not watcher startup
+side effect. The production Ansible activation invokes this command after
+candidate preflight and promotion, and before starting the active watcher. It
+uses `--no-deps`; local operators can run the equivalent command directly:
+
+```text
+docker compose --profile bootstrap run --rm watcher-bootstrap-rsk
+```
+
+Both local and rendered production Compose projects define this service under
+the explicit `bootstrap` profile with the watcher's image, identity, secrets,
+networks, and persistent paths. The active watcher and deployment services do
+not depend on it, so ordinary `docker compose up` never performs registration.
+Ansible calls the one-shot service as a separate fail-closed activation step.
+It creates state only when source `rsk` is absent, treats an exact existing
+registration as an idempotent no-op, and rejects disabled, customized, or
+partial state without overwriting it.
+
+The equivalent direct command is `minos watcher bootstrap-rsk` with the same
+database, staging, archive, and canonical process-lock paths used by the watcher.
+It atomically creates enabled source `rsk`, canonical watcher kind `rsk`, the
+fully materialized default RSK configuration, daily `0 3 * * *` UTC polling,
+and Sunday `0 4 * * 0` UTC forced verification. Both schedules use a 3600-second
+misfire grace and the bounded 3-attempt, 0.5-to-30-second retry policy.
+
+The command is idempotent only when configuration, enablement, schedule set,
+cron expressions, misfire policy, and retry policy match exactly. It does not
+reset due cursors. An operator-disabled source, custom configuration, custom
+schedule, or partial registration causes a conflict and no write. Resolve such
+state explicitly instead of rerunning bootstrap as a repair command.
+
+Daily and weekly obligations have independent SQLite cursors. When both are
+overdue, weekly verification has deterministic claim priority and daily remains
+due. Startup drains at most the configured scheduler projection limit, then
+stops; it does not poll in a busy loop. Overdue daily work reaches the collector
+as `catch_up`, while overdue weekly work retains `weekly_verification` so the
+forced re-download cannot be weakened by a restart. A claimed occurrence is
+advanced before collection under the same fenced transaction. In-process retry
+keeps the original mode; exhausted or stale claims are incidented and are not
+immediately reclaimed, avoiding a failure loop.
+
+A metadata rotation during transfer has a dedicated retryable outcome. The
+orchestrator discards that attempt's staged control receipts and restarts from a
+fresh catalog and all-HCD metadata snapshot. A stable retry may commit; repeated
+rotation exhausts the configured bounded claim retry policy without partial
+observations or cursor movement. Content-addressed bytes published before the
+rotation check may remain as unreferenced immutable archive blobs.
+
+Every RSK request receives connect, pool, write, and per-read HTTPX timeouts
+bounded by the remaining claim deadline. The client checks the absolute
+deadline before and after each streamed chunk, and the collector checks it
+between parsing, archive publication, cursor and observation preparation, and
+XML validation. Deadline exhaustion is retryable but cannot commit partial
+state.
+
+### Public Provenance Publication
+
+Run reconciliation orders durable effects as: committed observation, verified
+recovery image, `heartbeat_pending`, local public projection, external success
+heartbeat, then `successful`. Publication failure leaves the run
+`heartbeat_pending` and the previous generation active. A retry reuses or
+validates the immutable generation and completes the same switch idempotently.
+If interruption occurs after the symlink switch, the new generation may already
+be active, but the run remains retryable until heartbeat acknowledgement.
+
+Startup first restores a missing or stale projection from the latest committed
+RSK revision and then reconciles pending runs. A restored older control database
+cannot silently replace a newer active public generation; automatic downgrade
+is rejected for operator investigation. The public endpoint contains no
+downloadable artifacts while `manifests/redistribution.json` has an empty
+allowlist. Guarded application streaming is deferred until legal approval names
+specific digests and an application endpoint exists.
+
+An intentional reset uses the same control database and public directory as the
+stopped watcher. Record the exact active revision and projection digest, build
+and review the target digest from the selected recovery-reconciled revision,
+then run:
+
+```sh
+minos watcher rebuild-public-rsk \
+  --expected-current-revision <active-revision> \
+  --expected-current-sha256 <active-projection-sha256> \
+  --target-revision <target-revision> \
+  --target-sha256 <reviewed-target-projection-sha256>
+```
+
+The command holds the watcher process lock and fails if either current fence is
+stale, the target revision was not recovery reconciled, or rebuilt target bytes
+do not match the reviewed digest. There is no unfenced or implicit downgrade.
+
 ## Asset Inventory
 
 | Asset | Primary location | Recovery protection |
@@ -20,6 +136,7 @@ control metadata.
 | Source and manifests | Private GitHub repository | Git history and remote |
 | Raw source snapshots | Private versioned S3 bucket | Content addressing, conditional writes, no watcher delete permission |
 | Watcher control database | Mikr.us persistent volume | Immutable revisioned S3 recovery images and restore drills |
+| Sanitized public provenance | Dedicated host directory, watcher RW and edge RO | Current plus two prior immutable filesystem generations |
 | Generated reference database | Private API image and data artifact | GHCR digest, checksum, reproducible build |
 | Static web artifact | Private edge image and build artifact | GHCR digest, checksum, reproducible build |
 | Watcher runtime | Private watcher image | GHCR digest and bounded release retention |
@@ -52,16 +169,24 @@ disabled against a disposable database copy. It then verifies:
 5. Static assets match the recorded checksums.
 6. Mobile and desktop browser flows render and perform a real search.
 7. The pinned watcher UID/GID can access its volume and mounted secret files.
-8. Migration compatibility, an S3 native-checksum probe, a recovery-image
-   round trip, and a dedicated Healthchecks.io preflight check succeed while
-   dispatch remains paused.
-9. The previous watcher stops; the exact candidate starts paused against the live
-   volume, applies the tested migration, and verifies the live revision,
-   migration checksums, WAL, secrets, and post-migration recovery image. The two
-   watcher processes never own the volume concurrently.
-10. Container health, memory, disk, and error signals remain within recorded
-   launch thresholds under representative traffic and one bounded watcher
-   canary run.
+8. A disposable control-database copy upgrades supported older schemas to the
+   candidate schema, then migration compatibility, an S3 native-checksum probe,
+   a recovery-image round trip, and a dedicated Healthchecks.io preflight check
+   succeed while dispatch remains paused. Every enabled source must have a
+   Healthchecks target; an unrelated-only target map fails preflight.
+9. The previous watcher stops. The candidate captures preactivation evidence,
+   promotes the reviewed runtime, and applies the same tested migration to the
+   quiesced live volume. The two watcher processes never own the volume
+   concurrently. If the live schema changed and a later activation step fails,
+   rescue preserves the candidate runtime and migrated database stopped rather
+   than starting an older writer.
+10. Activation bootstraps or validates canonical RSK registration, validates any
+    existing public projection, runs one 900-second-bounded manual RSK canary,
+    and requires its canonical public projection before active services start.
+11. Container health, memory, disk, and error signals remain within recorded
+    launch thresholds under representative traffic. The production edge must
+    return HTTP 200 canonical JSON whose SHA-256 equals the validated current
+    projection.
 
 The first production deployments are explicit operator actions. Automation may
 later execute the same bounded procedure over restricted SSH, but it must not
@@ -80,10 +205,11 @@ metadata until the incident is understood. Do not let image cleanup remove the
 current or prior compatible release.
 
 The scheduler remains quiesced until the serving and watcher preflights pass.
-Every `v0.0.1` control migration and candidate write must remain readable by the
-retained previous watcher throughout the rollback window; test this on a copy
-before touching the live database. An incompatible control migration blocks the
-release and requires a separately designed maintenance cutover.
+Every supported control migration is tested first on a disposable copy. Before
+the live migration, normal rescue may restore the prior compatible runtime.
+After the live schema changes, automatic rollback to an older writer is
+forbidden; preserve the promoted candidate and migrated database stopped for
+explicit recovery.
 
 Before the candidate canary commits, rollback may restore the verified
 pre-deploy recovery image with the pinned ownership and modes. Once a candidate
@@ -119,8 +245,9 @@ retention and do not require a currently committed run. Each image:
    key and compares byte count and native checksum after either create or `412`;
    a `409` retries the bounded conditional operation. Multipart upload is
    prohibited for watcher-created recovery images.
-8. For a run image, records `heartbeat_pending`, sends the external success
-   heartbeat, and marks the run successful only after the response succeeds.
+8. For a run image, records `heartbeat_pending`, publishes the fenced sanitized
+   public projection, sends the external success heartbeat, and marks the run
+   successful only after the response succeeds.
 9. Removes the temporary local copy.
 
 Current recovery images become expiration-eligible after 30 days for `run`, 31

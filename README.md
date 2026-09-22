@@ -97,14 +97,15 @@ page through Cloudflare Tunnel. The watcher foundation now includes an executabl
 UTC scheduler, fenced SQLite control transactions, local and S3 archives,
 revisioned recovery images, signed trusted-recovery inventories, Healthchecks.io
 integration, preflight commands, a hardened watcher image, and local Compose.
-Source-specific collection remains disabled until issue #6 registers the RSK
-collector, so this is infrastructure rather than a production data watcher.
+The RSK collector is registered in the runtime, but a fresh control volume must
+be initialized explicitly before the watcher starts.
 
 Local runtime commands are:
 
 ```sh
 docker compose build watcher
-docker compose --profile preflight run --rm watcher-preflight
+docker compose --profile bootstrap run --rm --no-deps watcher-bootstrap-rsk
+docker compose --profile preflight run --rm --no-deps watcher-preflight
 docker compose up --detach watcher
 ```
 

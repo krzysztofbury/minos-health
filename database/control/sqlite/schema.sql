@@ -1,4 +1,4 @@
-PRAGMA user_version = 1;
+PRAGMA user_version = 3;
 
 CREATE TABLE control_schema_migrations (
     version INTEGER PRIMARY KEY,
@@ -67,21 +67,52 @@ CREATE TABLE source_configuration_revisions (
 ) STRICT;
 
 CREATE TABLE source_schedules (
-    source_id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    run_mode TEXT NOT NULL,
     cron_expression TEXT NOT NULL,
     next_due_at_ms INTEGER NOT NULL,
     misfire_grace_seconds INTEGER NOT NULL,
     retry_max_attempts INTEGER NOT NULL,
     retry_base_seconds REAL NOT NULL,
     retry_max_seconds REAL NOT NULL,
+    pending_scheduled_at_ms INTEGER,
+    pending_run_mode TEXT,
+    retry_not_before_ms INTEGER,
+    retry_failure_count INTEGER NOT NULL DEFAULT 0,
     updated_at_ms INTEGER NOT NULL,
+    PRIMARY KEY (source_id, run_mode),
     FOREIGN KEY (source_id) REFERENCES sources (source_id) ON DELETE RESTRICT,
+    CHECK (run_mode IN ('scheduled', 'weekly_verification')),
     CHECK (length(cron_expression) BETWEEN 9 AND 256),
     CHECK (next_due_at_ms BETWEEN 1 AND 253402300799999),
     CHECK (misfire_grace_seconds BETWEEN 1 AND 86400),
     CHECK (retry_max_attempts BETWEEN 1 AND 10),
     CHECK (retry_base_seconds > 0 AND retry_base_seconds <= 300),
     CHECK (retry_max_seconds >= retry_base_seconds AND retry_max_seconds <= 3600),
+    CHECK (
+        pending_scheduled_at_ms IS NULL
+        OR pending_scheduled_at_ms BETWEEN 1 AND 253402300799999
+    ),
+    CHECK (
+        pending_run_mode IS NULL
+        OR pending_run_mode IN ('scheduled', 'weekly_verification', 'catch_up')
+    ),
+    CHECK (
+        retry_not_before_ms IS NULL
+        OR retry_not_before_ms BETWEEN 1 AND 253402300799999
+    ),
+    CHECK (retry_failure_count BETWEEN 0 AND 31),
+    CHECK (
+        (pending_scheduled_at_ms IS NULL AND pending_run_mode IS NULL
+            AND retry_not_before_ms IS NULL AND retry_failure_count = 0)
+        OR (pending_scheduled_at_ms IS NOT NULL AND pending_run_mode IS NOT NULL)
+    ),
+    CHECK (
+        (run_mode = 'scheduled' AND pending_run_mode IN ('scheduled', 'catch_up'))
+        OR (run_mode = 'weekly_verification'
+            AND pending_run_mode = 'weekly_verification')
+        OR pending_run_mode IS NULL
+    ),
     CHECK (updated_at_ms BETWEEN 1 AND 253402300799999)
 ) STRICT;
 
@@ -299,7 +330,7 @@ INSERT INTO control_state (
 ) VALUES (
     1,
     0,
-    1,
+    3,
     CAST(strftime('%s', 'now') AS INTEGER) * 1000
 );
 
@@ -316,5 +347,37 @@ INSERT INTO control_schema_migrations (
     'be2adaa27b180d1b6f5677887b5e649a536cdd81b13a252018ab43b8cb63832b',
     '936380d5b230f7521bd409d18022af96d83b1befccde676d52cee404f8ba116c',
     1,
+    CAST(strftime('%s', 'now') AS INTEGER) * 1000
+);
+
+INSERT INTO control_schema_migrations (
+    version,
+    name,
+    up_sha256,
+    down_sha256,
+    minimum_reader_version,
+    applied_at_ms
+) VALUES (
+    2,
+    'durable_schedule_obligations',
+    'f965414badfdc0f8d2be1366cc8ef1f1f9ab11c0f5347e99689bd7de4a32b402',
+    '4ede51a550339ddca1201c0cd5a045e6de4a33f9745ecdf26a9df5ff4b56bf90',
+    2,
+    CAST(strftime('%s', 'now') AS INTEGER) * 1000
+);
+
+INSERT INTO control_schema_migrations (
+    version,
+    name,
+    up_sha256,
+    down_sha256,
+    minimum_reader_version,
+    applied_at_ms
+) VALUES (
+    3,
+    'retryable_schedule_obligations',
+    '05acc0a63711bc39b2921d30e882548cca3a5c42c6943886fa3ff3ce6a57a075',
+    '9431ca930c74c5d8a61652fde7b93eee46f50b2000857d99cbe3db2a09ef4a90',
+    3,
     CAST(strftime('%s', 'now') AS INTEGER) * 1000
 );

@@ -10,6 +10,7 @@ x-watcher-environment: &watcher-environment
   MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE: /run/secrets/healthchecks-targets.json
   MINOS_WATCHER_IMAGE_DIGEST: "{{ watcher_expected_image_digest }}"
   MINOS_WATCHER_PROCESS_LOCK: /var/lib/minos/control/watcher.lock
+  MINOS_WATCHER_PUBLIC_DIRECTORY: /var/lib/minos/public
   MINOS_WATCHER_READINESS_FILE: /tmp/minos-watcher-ready.json
   MINOS_WATCHER_RUNTIME_IMAGE_DIGEST: "{{ watcher_runtime_image_digest }}"
   MINOS_WATCHER_S3_BUCKET: "{{ watcher_s3_bucket }}"
@@ -38,6 +39,7 @@ x-watcher-runtime: &watcher-runtime
     - /var/lib/minos/watcher/control:/var/lib/minos/control:rw
     - /var/lib/minos/watcher/archive:/var/lib/minos/archive:rw
     - /var/lib/minos/watcher/staging:/var/lib/minos/staging:rw
+    - /var/lib/minos/public:/var/lib/minos/public:rw
     - /etc/minos/watcher/aws/credentials:/run/secrets/aws-credentials:ro
     - /etc/minos/watcher/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro
   tmpfs:
@@ -75,10 +77,15 @@ services:
     volumes:
       - /opt/minos/edge/nginx.conf:/etc/nginx/nginx.conf:ro
       - /opt/minos/edge/index.html:/usr/share/nginx/html/index.html:ro
+      - /opt/minos/edge/home.css:/usr/share/nginx/html/home.css:ro
       - /opt/minos/edge/legal.css:/usr/share/nginx/html/legal.css:ro
       - /opt/minos/edge/plausible-init.js:/usr/share/nginx/html/plausible-init.js:ro
       - /opt/minos/edge/privacy-policy.html:/usr/share/nginx/html/privacy-policy.html:ro
+      - /opt/minos/edge/sources.css:/usr/share/nginx/html/sources.css:ro
+      - /opt/minos/edge/sources.html:/usr/share/nginx/html/sources.html:ro
+      - /opt/minos/edge/sources.js:/usr/share/nginx/html/sources.js:ro
       - /opt/minos/edge/terms.html:/usr/share/nginx/html/terms.html:ro
+      - /var/lib/minos/public:/var/lib/minos/public:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=8m,uid=101,gid=101,mode=0700
     networks:
@@ -143,6 +150,14 @@ services:
         max-file: "3"
         max-size: 10m
 
+  watcher-bootstrap-rsk:
+    <<: *watcher-runtime
+    profiles: [bootstrap]
+    command: [watcher, bootstrap-rsk]
+    restart: "no"
+    healthcheck:
+      disable: true
+
   watcher-preflight:
     <<: *watcher-runtime
     profiles: [preflight]
@@ -162,6 +177,7 @@ services:
       - /var/lib/minos/watcher/candidate-preflight/control:/var/lib/minos/control:rw
       - /var/lib/minos/watcher/candidate-preflight/archive:/var/lib/minos/archive:rw
       - /var/lib/minos/watcher/candidate-preflight/staging:/var/lib/minos/staging:rw
+      - /var/lib/minos/watcher/candidate-preflight/public:/var/lib/minos/public:rw
       - /etc/minos/watcher/candidate/aws/credentials:/run/secrets/aws-credentials:ro
       - /etc/minos/watcher/candidate/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro
 

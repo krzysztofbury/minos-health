@@ -38,6 +38,10 @@ from minos.ingest.watchers.control import (
     SourceConfiguration,
     SourceSchedule,
     UncertainControlOutcomeError,
+    validate_control_database,
+)
+from minos.ingest.watchers.control.migrations import (
+    rollback_control_migrations_for_testing,
 )
 from minos.ingest.watchers.healthchecks import (
     HealthcheckError,
@@ -146,10 +150,12 @@ class _RetryCollector:
         self._delegate = delegate
         self._failures = failures
         self.attempts = 0
+        self.run_modes: list[str] = []
 
     @contextmanager
     def collect(self, context: CollectionContext) -> Generator[CollectedRun]:
         self.attempts += 1
+        self.run_modes.append(context.run.run_mode)
         if self.attempts <= self._failures:
             raise RetryableWatcherError("retryable test failure")
         with self._delegate.collect(context) as collected:
@@ -364,6 +370,23 @@ class _Heartbeat:
         self._events.append("heartbeat_failure")
 
 
+@final
+class _PublicPublisher:
+    def __init__(self, events: list[str], *, failures: int = 0) -> None:
+        self._events = events
+        self._failures = failures
+
+    def publish(self, store: ControlStore, run: CommittedRun) -> None:
+        _ = store, run
+        self._events.append("public_projection")
+        if self._failures > 0:
+            self._failures -= 1
+            raise RuntimeError("injected public publication failure")
+
+    def restore(self, store: ControlStore) -> None:
+        _ = store
+
+
 def _open_source_store(
     database_path: Path,
     *,
@@ -443,6 +466,7 @@ def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
             collectors=registry,
             recovery_publisher=_RecoveryPublisher(events),
             heartbeat=_Heartbeat(events),
+            public_projection_publisher=_PublicPublisher(events),
         )
         claim = store.claim_manual("rsk")
 
@@ -455,9 +479,50 @@ def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
             "commit",
             "recovery",
             "heartbeat_pending",
+            "public_projection",
             "heartbeat_success",
             "final_success",
         ]
+    finally:
+        store.close()
+
+
+def test_publication_failure_leaves_retryable_heartbeat_pending_run(
+    tmp_path: Path,
+) -> None:
+    events: list[str] = []
+    database = tmp_path / "control.sqlite3"
+    store = _open_source_store(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk", _Collector(BlobStagingArea(tmp_path / "stage"), events)
+        )
+        public = _PublicPublisher(events, failures=1)
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_Archive(events),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher(events),
+            heartbeat=_Heartbeat(events),
+            public_projection_publisher=public,
+        )
+
+        with pytest.raises(RuntimeError, match="public publication"):
+            _ = orchestrator.run_claim(
+                store.claim_manual("rsk"),
+                RetryPolicy(1, 1.0, 1.0),
+            )
+
+        assert _query(database, "SELECT status FROM watcher_runs") == [
+            ("heartbeat_pending",)
+        ]
+        assert "heartbeat_success" not in events
+        orchestrator.reconcile_all()
+        assert _query(database, "SELECT status FROM watcher_runs") == [("successful",)]
+        assert events.count("recovery") == 1
+        assert events.count("public_projection") == 2
     finally:
         store.close()
 
@@ -716,6 +781,61 @@ def test_retry_policy_retries_only_explicit_precommit_failure(tmp_path: Path) ->
 
         assert collector.attempts == 3
         assert sleeps == [0.5, 0.75]
+    finally:
+        store.close()
+
+
+def test_weekly_retry_exhaustion_preserves_mode_and_does_not_busy_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now_ms = [1_800_000_000_000 - 86_400_000]
+    monkeypatch.setattr(
+        "minos.ingest.watchers.control.store._utc_now_ms",
+        lambda: now_ms[0],
+    )
+    database = tmp_path / "control.sqlite3"
+    store = _open_source_store(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        _ = store.set_schedule(
+            SourceSchedule(
+                "rsk",
+                "0 3 * * *",
+                300,
+                2,
+                0.01,
+                0.01,
+                "weekly_verification",
+            )
+        )
+        now_ms[0] = 1_800_000_000_000
+        collector = _RetryCollector(
+            _Collector(BlobStagingArea(tmp_path / "stage"), []),
+            failures=2,
+        )
+        registry = CollectorRegistry()
+        registry.register("rsk", collector)
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_Archive([]),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher([]),
+            heartbeat=_Heartbeat([]),
+            sleep=lambda _seconds: None,
+        )
+        claim = store.claim_named_due("rsk", "weekly_verification")
+        assert claim is not None
+
+        with pytest.raises(RetryableWatcherError):
+            _ = orchestrator.run_claim(claim, claim.retry_policy)
+
+        assert collector.run_modes == [
+            "weekly_verification",
+            "weekly_verification",
+        ]
+        assert store.claim_named_due("rsk", "weekly_verification") is None
+        assert _query(database, "SELECT status FROM watcher_runs") == [("failed",)]
     finally:
         store.close()
 
@@ -995,6 +1115,7 @@ class _SchedulerService:
     def __init__(self, events: list[str]) -> None:
         self.events = events
         self.catch_up_count = 0
+        self.catch_up_remaining = 2
         self.fail_due = False
 
     def reconcile(self, *, limit: int) -> None:
@@ -1020,17 +1141,36 @@ class _SchedulerService:
                 300,
                 RetryPolicy(3, 0.5, 30.0),
             ),
+            ScheduledSource(
+                "rsk",
+                "rsk",
+                "0 4 * * 0",
+                1,
+                300,
+                RetryPolicy(3, 0.5, 30.0),
+                "weekly_verification",
+            ),
         )
 
     def run_one_catch_up(self) -> None:
         self.catch_up_count += 1
         self.events.append("catch_up")
 
-    def run_due(self, source_id: str) -> None:
+    def run_catch_up(self, *, limit: int) -> int:
+        assert limit == 100
+        completed = 0
+        while completed < limit and self.catch_up_remaining > 0:
+            self.catch_up_remaining -= 1
+            self.catch_up_count += 1
+            completed += 1
+            self.events.append("catch_up")
+        return completed
+
+    def run_due(self, source_id: str, run_mode: str) -> None:
         _ = source_id
         if self.fail_due:
             raise RuntimeError("private upstream URL")
-        self.events.append("due")
+        self.events.append(f"due:{run_mode}")
 
     def publish_periodic_recovery(self, recovery_class: RecoveryClass) -> None:
         self.events.append(f"recovery_{recovery_class}")
@@ -1109,7 +1249,7 @@ def test_scheduler_does_not_report_ready_with_missing_source_codec(
     assert "ready" not in events
 
 
-def test_scheduler_startup_order_and_exactly_one_catch_up() -> None:
+def test_scheduler_startup_order_and_bounded_catch_up() -> None:
     events: list[str] = []
     service = _SchedulerService(events)
     backend = _SchedulerBackend(events)
@@ -1129,6 +1269,9 @@ def test_scheduler_startup_order_and_exactly_one_catch_up() -> None:
         "future_jobs",
         "future_jobs",
         "future_jobs",
+        "future_jobs",
+        "future_jobs",
+        "catch_up",
         "catch_up",
         "ensure_recovery_daily",
         "ensure_recovery_weekly",
@@ -1136,14 +1279,16 @@ def test_scheduler_startup_order_and_exactly_one_catch_up() -> None:
         "start",
         "ready",
     ]
-    assert service.catch_up_count == 1
+    assert service.catch_up_count == 2
     assert [job[1]["id"] for job in backend.jobs[:3]] == [
         "recovery:daily",
         "recovery:weekly",
         "recovery:monthly",
     ]
     source_options = next(
-        options for _function, options in backend.jobs if options["id"] == "watcher:rsk"
+        options
+        for _function, options in backend.jobs
+        if options["id"] == "watcher:rsk:scheduled"
     )
     assert source_options["coalesce"] is True
     assert source_options["max_instances"] == 1
@@ -1164,6 +1309,16 @@ def test_scheduler_startup_order_and_exactly_one_catch_up() -> None:
     )
     readiness_callback()
     assert events[-1] == "ready"
+    durable_callback = cast(
+        Callable[[], None],
+        next(
+            function
+            for function, options in backend.jobs
+            if options["id"] == "watcher:durable-dispatch"
+        ),
+    )
+    durable_callback()
+    assert events[-1] == "catch_up"
     periodic_callback = cast(Callable[[RecoveryClass], object], backend.jobs[0][0])
     _ = periodic_callback("daily")
     assert events[-1] == "ensure_recovery_daily"
@@ -1181,15 +1336,15 @@ def test_scheduler_callback_replaces_sensitive_exception() -> None:
 
     service.fail_due = True
     callback = cast(
-        Callable[[str], object],
+        Callable[[str, str], object],
         next(
             function
             for function, options in backend.jobs
-            if options["id"] == "watcher:rsk"
+            if options["id"] == "watcher:rsk:scheduled"
         ),
     )
     with pytest.raises(SchedulerError) as captured:
-        _ = callback("rsk")
+        _ = callback("rsk", "scheduled")
     assert str(captured.value) == "scheduled watcher run failed"
     assert captured.value.__suppress_context__ is True
 
@@ -1414,14 +1569,14 @@ def test_deployment_copy_rejects_schema_mismatch_and_preserves_evidence(
             INSERT INTO control_schema_migrations (
                 version, name, up_sha256, down_sha256,
                 minimum_reader_version, applied_at_ms
-            ) VALUES (2, 'future_schema', ?, ?, 2, 1)
+            ) VALUES (4, 'future_schema', ?, ?, 4, 1)
             """,
             ("a" * 64, "b" * 64),
         )
         _ = connection.execute(
-            "UPDATE control_state SET schema_version = 2 WHERE singleton_id = 1"
+            "UPDATE control_state SET schema_version = 4 WHERE singleton_id = 1"
         )
-        _ = connection.execute("PRAGMA user_version = 2")
+        _ = connection.execute("PRAGMA user_version = 4")
     finally:
         connection.close()
     source_before = source.read_bytes()
@@ -1439,7 +1594,42 @@ def test_deployment_copy_rejects_schema_mismatch_and_preserves_evidence(
     evidence = sqlite3.connect(destination)
     try:
         assert evidence.execute("PRAGMA integrity_check").fetchone() == ("ok",)
-        assert evidence.execute("PRAGMA user_version").fetchone() == (2,)
+        assert evidence.execute("PRAGMA user_version").fetchone() == (4,)
+    finally:
+        evidence.close()
+
+
+@pytest.mark.parametrize("live_schema_version", [1, 2])
+def test_deployment_copy_migrates_supported_live_schema_on_disposable_evidence(
+    tmp_path: Path,
+    live_schema_version: int,
+) -> None:
+    source = tmp_path / "control.sqlite3"
+    destination = tmp_path / "evidence.sqlite3"
+    with ControlStore.open(source):
+        pass
+    connection = sqlite3.connect(source, isolation_level=None)
+    try:
+        _ = rollback_control_migrations_for_testing(
+            connection,
+            live_schema_version,
+        )
+    finally:
+        connection.close()
+
+    migrated_version = copy_control_database(
+        source,
+        destination,
+        deadline_monotonic=time.monotonic() + 5,
+    )
+
+    assert migrated_version == 3
+    assert _query(source, "PRAGMA user_version") == [(live_schema_version,)]
+    evidence = sqlite3.connect(destination, isolation_level=None)
+    try:
+        identity = validate_control_database(evidence)
+        assert identity.schema_version == 3
+        assert evidence.execute("PRAGMA integrity_check").fetchone() == ("ok",)
     finally:
         evidence.close()
 
@@ -1473,10 +1663,11 @@ def test_watcher_preflight_cleans_interrupted_download_staging(tmp_path: Path) -
         tmp_path / "control" / "recovery-staging",
     )
 
-    WatcherCliAdapter(
-        paths,
-        capacity_limits=CapacityLimits(1024 * 1024, 1, 1, 1),
-    ).preflight()
+    with pytest.raises(RuntimeError, match="no enabled sources"):
+        WatcherCliAdapter(
+            paths,
+            capacity_limits=CapacityLimits(1024 * 1024, 1, 1, 1),
+        ).preflight()
 
     assert not stale.exists()
 
@@ -1579,6 +1770,9 @@ def test_healthchecks_file_transport_and_errors_keep_urls_secret(
     )
     settings = HealthchecksFileSettings(healthchecks_targets_file=target_file)
     targets = HealthcheckTargets.load(settings.healthchecks_targets_file)
+    targets.require_sources(("rsk",))
+    with pytest.raises(HealthcheckError, match="not configured"):
+        targets.require_sources(("rsk", "unconfigured"))
     requested: list[str] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
@@ -1607,6 +1801,34 @@ def test_healthchecks_file_transport_and_errors_keep_urls_secret(
             client.success("rsk")
     assert secret not in str(captured.value)
     assert secret not in repr(captured.value)
+
+
+@pytest.mark.parametrize(
+    "sources",
+    [
+        {},
+        {"unrelated": "https://hc-ping.com/unrelated"},
+    ],
+)
+def test_healthchecks_targets_require_every_enabled_source(
+    tmp_path: Path,
+    sources: dict[str, str],
+) -> None:
+    target_file = tmp_path / "healthchecks.json"
+    _ = target_file.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "sources": sources,
+                "preflight": "https://hc-ping.com/preflight",
+            }
+        )
+    )
+
+    targets = HealthcheckTargets.load(target_file)
+
+    with pytest.raises(HealthcheckError, match="not configured"):
+        targets.require_sources(("rsk",))
 
 
 def _query(database_path: Path, sql: str) -> list[tuple[object, ...]]:

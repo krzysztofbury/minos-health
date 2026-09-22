@@ -149,25 +149,45 @@ candidate must not run preflight, stop, promote, or restart the active stack.
 Later applies still supply all non-secret runtime settings, omit secret source
 variables, and preserve the installed credentials.
 
-For a changed candidate, the playbook compares all staged runtime files and the
-running watcher image reference before activation. The candidate application
-creates a consistent, 2 GiB-bounded SQLite backup with a 240-second internal
-deadline and a 300-second outer process timeout. It requires the copied live
-schema version to equal the candidate schema version before the active stack is
-stopped. An absent database on an initial empty host remains allowed. Schema
-changes therefore require a separately reviewed migration activation design;
-this playbook does not migrate the live database and cannot roll an older writer
-onto a newer schema.
+For a changed candidate, the playbook compares keyed checksums for all staged
+runtime files and the running watcher image reference before activation. The
+candidate application creates a consistent, 2 GiB-bounded SQLite backup with a
+240-second internal deadline and a 300-second outer process timeout. Supported
+v1 and v2 copies are migrated to the candidate v3 schema and then validated;
+the original live database remains untouched. A missing database on an initial
+empty host remains allowed. A newer, malformed, or unmigratable copy fails before
+the active stack is stopped.
 
 After stopping the active stack, the same bounded path captures a second
-preactivation image before promotion. A failed activation restores the prior
-runtime files and image reference against the unchanged, schema-identical live
-database. It never rolls back or deletes the live database. Candidate evidence
-remains under `/var/lib/minos/watcher/candidate-preflight` and stopped
-preactivation evidence remains under `/opt/minos/rollback/control`, including
-evidence from a schema rejection. A failed initial apply removes only promoted
-runtime configuration. The playbook also fails closed if the LXC cannot enforce
-the disk-backed staging bind mount with `noexec,nosuid,nodev`.
+preactivation image before promotion. The promoted candidate then migrates the
+quiesced live database and verifies an exact structured result. If activation
+fails without changing the schema, rescue restores the prior runtime. If the
+schema changed, rescue preserves the promoted candidate and migrated database
+stopped rather than starting an older writer. It never rolls back or deletes the
+live database. Candidate evidence remains under
+`/var/lib/minos/watcher/candidate-preflight` and stopped preactivation evidence
+remains under `/opt/minos/rollback/control`. The playbook also fails closed if
+the LXC cannot enforce the disk-backed staging bind mount with
+`noexec,nosuid,nodev`.
+
+After promotion and before starting active services, the activation block runs
+the profile-gated `watcher-bootstrap-rsk` service with `--no-deps`. The atomic
+bootstrap creates canonical RSK state only when the source is absent, is a no-op
+for an exact match, and rejects disabled, customized, or partial registration.
+A rejection enters the normal activation rescue before the candidate watcher
+starts. The bootstrap service is not a Compose dependency. If a later activation
+step fails after a fresh bootstrap, the canonical database registration remains
+as recoverable, idempotent state; runtime and secret rollback never deletes the
+live control database.
+Before startup, a read-only `validate-public-rsk` command accepts an absent fresh
+projection or validates the current immutable tree, manifest, digest, schema, and
+revision fence. It does not invoke a collector. An existing malformed projection
+enters activation rescue before any candidate service starts.
+The playbook then runs one 900-second-bounded manual RSK canary with the same
+pinned image, live volume, S3 credentials, Healthchecks targets, and public
+projection root. Manual mode forces the allowlisted XML download. The canary must
+commit, acknowledge its source-specific heartbeat, and produce a canonical valid
+projection before active services start.
 The temporary edge serves an explicit maintenance page, reports edge liveness at
 `/healthz`, reports product unavailability at `/readyz`, redirects `.com` to the
 matching `.pl` path, and publishes no host port. It is not the Minos application.
@@ -181,6 +201,17 @@ edge, `cloudflared`, and watcher containers with no Docker port bindings. The
 watcher assertion covers its exact digest, numeric identity, supplementary secret
 group, read-only root, dropped capabilities, restart count, resource limits,
 bounded logs, mounts, and healthy state after a 30-second stability interval.
+The watcher alone mounts `/var/lib/minos/public` read-write. The edge mounts that
+directory read-only and receives no watcher control, archive, staging, AWS, or
+Healthchecks mounts. Its exact provenance route reads the atomic `current`
+generation; the artifact namespace remains an unconditional 404.
+The same reviewed edge artifacts provide the exact `/zrodla`, `/sources.css`,
+and `/sources.js` routes. During activation, Ansible requests those routes,
+strict CSP headers, and the exact provenance endpoint from inside the running
+production edge container. Provenance must return HTTP 200 and its bytes must
+match the digest of the revalidated current generation. The page reads only the public same-origin provenance
+projection; it receives no private archive, control database, S3, or artifact
+route.
 
 ## Recovery Boundary
 

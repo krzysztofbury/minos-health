@@ -1,3 +1,6 @@
+import re
+import shutil
+import subprocess
 from pathlib import Path
 from typing import cast
 
@@ -20,7 +23,7 @@ def mapping(value: object) -> dict[str, object]:
     return cast(dict[str, object], value)
 
 
-def rendered_production_compose() -> dict[str, object]:
+def rendered_production_compose_source() -> str:
     rendered = source("infra/ansible/templates/minos-compose.yml.j2")
     replacements = {
         "{{ watcher_aws_region }}": "eu-central-1",
@@ -40,7 +43,11 @@ def rendered_production_compose() -> dict[str, object]:
     for template, value in replacements.items():
         rendered = rendered.replace(template, value)
     assert "{{" not in rendered
-    return mapping(cast(object, yaml.safe_load(rendered)))
+    return rendered
+
+
+def rendered_production_compose() -> dict[str, object]:
+    return mapping(cast(object, yaml.safe_load(rendered_production_compose_source())))
 
 
 def test_watcher_image_is_lockfile_driven_wheel_only_and_non_root() -> None:
@@ -74,11 +81,16 @@ def test_local_compose_has_hardened_disk_backed_filesystem_runtime(
     document = mapping(cast(object, yaml.safe_load(source("compose.yaml"))))
     services = mapping(document["services"])
     watcher = mapping(services["watcher"])
+    bootstrap = mapping(services["watcher-bootstrap-rsk"])
     preflight = mapping(services["watcher-preflight"])
 
     assert watcher["platform"] == "linux/amd64"
     assert watcher["user"] == "10001:10001"
     assert watcher["command"] == ["watcher", "run"]
+    assert bootstrap["command"] == ["watcher", "bootstrap-rsk"]
+    assert bootstrap["profiles"] == ["bootstrap"]
+    assert bootstrap["restart"] == "no"
+    assert mapping(bootstrap["healthcheck"]) == {"disable": True}
     assert preflight["command"] == ["watcher", "preflight"]
     assert preflight["profiles"] == ["preflight"]
     assert watcher["read_only"] is True
@@ -107,6 +119,7 @@ def test_local_compose_has_hardened_disk_backed_filesystem_runtime(
         "MINOS_WATCHER_ARCHIVE_DIRECTORY",
         "MINOS_WATCHER_DATABASE",
         "MINOS_WATCHER_PROCESS_LOCK",
+        "MINOS_WATCHER_PUBLIC_DIRECTORY",
         "MINOS_WATCHER_READINESS_FILE",
         "MINOS_WATCHER_SCHEDULER_PAUSED",
         "MINOS_WATCHER_STAGING_DIRECTORY",
@@ -115,6 +128,10 @@ def test_local_compose_has_hardened_disk_backed_filesystem_runtime(
     assert mapping(preflight["environment"])["MINOS_WATCHER_SCHEDULER_PAUSED"] == (
         "true"
     )
+    assert bootstrap["environment"] == preflight["environment"]
+    assert bootstrap["volumes"] == watcher["volumes"]
+    assert bootstrap["user"] == watcher["user"]
+    _assert_bootstrap_is_explicit(services)
     _assert_cli_paths_parse(environment, monkeypatch)
 
     volumes = mapping(document["volumes"])
@@ -122,10 +139,12 @@ def test_local_compose_has_hardened_disk_backed_filesystem_runtime(
         "watcher-control",
         "watcher-archive",
         "watcher-staging",
+        "watcher-public",
     }
     watcher_volumes = cast(list[str], watcher["volumes"])
     watcher_tmpfs = cast(list[str], watcher["tmpfs"])
     assert "watcher-staging:/var/lib/minos/staging" in watcher_volumes
+    assert "watcher-public:/var/lib/minos/public:rw" in watcher_volumes
     assert all("/var/lib/minos/staging" not in mount for mount in watcher_tmpfs)
 
 
@@ -135,14 +154,20 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
     document = rendered_production_compose()
     services = mapping(document["services"])
     watcher = mapping(services["watcher"])
+    bootstrap = mapping(services["watcher-bootstrap-rsk"])
     preflight = mapping(services["watcher-preflight"])
     candidate_preflight = mapping(services["watcher-candidate-preflight"])
+    edge = mapping(services["edge"])
 
     assert watcher["image"] == f"ghcr.io/example/minos-watcher@sha256:{'a' * 64}"
     assert watcher["platform"] == "linux/amd64"
     assert watcher["user"] == "10001:10001"
     assert watcher["group_add"] == ["10002"]
     assert watcher["command"] == ["watcher", "run"]
+    assert bootstrap["command"] == ["watcher", "bootstrap-rsk"]
+    assert bootstrap["profiles"] == ["bootstrap"]
+    assert bootstrap["restart"] == "no"
+    assert mapping(bootstrap["healthcheck"]) == {"disable": True}
     assert preflight["command"] == ["watcher", "preflight"]
     assert preflight["profiles"] == ["preflight"]
     assert candidate_preflight["profiles"] == ["candidate-preflight"]
@@ -153,6 +178,22 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         mapping(candidate_preflight["environment"])["MINOS_WATCHER_SCHEDULER_PAUSED"]
         == "true"
     )
+    assert bootstrap["environment"] == preflight["environment"]
+    for runtime_field in (
+        "image",
+        "pull_policy",
+        "platform",
+        "user",
+        "group_add",
+        "read_only",
+        "cap_drop",
+        "security_opt",
+        "volumes",
+        "tmpfs",
+        "networks",
+    ):
+        assert bootstrap[runtime_field] == watcher[runtime_field]
+    _assert_bootstrap_is_explicit(services)
     assert any(
         str(volume).startswith("/var/lib/minos/watcher/candidate-preflight/control:")
         for volume in cast(list[str], candidate_preflight["volumes"])
@@ -192,6 +233,7 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE",
         "MINOS_WATCHER_IMAGE_DIGEST",
         "MINOS_WATCHER_PROCESS_LOCK",
+        "MINOS_WATCHER_PUBLIC_DIRECTORY",
         "MINOS_WATCHER_READINESS_FILE",
         "MINOS_WATCHER_RUNTIME_IMAGE_DIGEST",
         "MINOS_WATCHER_S3_BUCKET",
@@ -214,9 +256,44 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "/var/lib/minos/watcher/control:/var/lib/minos/control:rw",
         "/var/lib/minos/watcher/archive:/var/lib/minos/archive:rw",
         "/var/lib/minos/watcher/staging:/var/lib/minos/staging:rw",
+        "/var/lib/minos/public:/var/lib/minos/public:rw",
         "/etc/minos/watcher/aws/credentials:/run/secrets/aws-credentials:ro",
         "/etc/minos/watcher/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro",
     }
+    edge_volumes = cast(list[str], edge["volumes"])
+    assert "/var/lib/minos/public:/var/lib/minos/public:ro" in edge_volumes
+    assert all("watcher/control" not in value for value in edge_volumes)
+    assert all("watcher/archive" not in value for value in edge_volumes)
+    assert all("/run/secrets/" not in value for value in edge_volumes)
+    assert "environment" not in edge
+
+
+def test_rendered_production_compose_validates_with_bootstrap_profile(
+    tmp_path: Path,
+) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("Docker CLI is required for Compose model validation")
+    compose_path = tmp_path / "minos-compose.yml"
+    _ = compose_path.write_text(rendered_production_compose_source(), encoding="utf-8")
+
+    completed = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "--profile",
+            "bootstrap",
+            "--file",
+            str(compose_path),
+            "config",
+            "--quiet",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> None:
@@ -250,6 +327,7 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "candidate_payload | length in range(64, 4097)" in playbook
     assert "candidate_payload | length in range(2, 65537)" in playbook
     assert "sources | length in range(1, 129)" in playbook
+    assert "'rsk' in watcher_healthchecks_candidate_document.sources" in playbook
     assert "Stage validated watcher secret candidates" in playbook
     assert "Stage the validated cloudflared credential candidate" in playbook
     assert "Load the candidate cloudflared credential with the pinned image" in playbook
@@ -268,7 +346,7 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "one runnable candidate watcher manifest" in playbook
     assert playbook.count("copy-control-database") == 2
     assert "source.backup(destination" not in playbook
-    assert playbook.count("--kill-after=5s") == 2
+    assert playbook.count("--kill-after=5s") == 4
     assert 'minos_watcher_boundary[17] == "0"' in playbook
 
     validate_aws_secret = playbook.index(
@@ -312,6 +390,27 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
         "Atomically promote the validated cloudflared credential while stopped"
     )
     promote = playbook.index("Promote validated Minos runtime files while stopped")
+    migrate_control = playbook.index(
+        "Migrate the quiesced live watcher control database"
+    )
+    bootstrap_rsk = playbook.index(
+        "Bootstrap or validate canonical RSK registration before activation"
+    )
+    validate_public_rsk = playbook.index(
+        "Validate the existing public RSK projection without collection"
+    )
+    canary = playbook.index("Run one bounded manual RSK production canary")
+    validate_canary = playbook.index(
+        "Validate the canary public RSK projection before activation"
+    )
+    start_candidate = playbook.index("Start the validated Minos candidate")
+    smoke_sources = playbook.index(
+        "Smoke the exact Sources page through the production edge"
+    )
+    smoke_provenance = playbook.index(
+        "Probe the exact provenance endpoint through the production edge"
+    )
+    activation_rescue = playbook.index("rescue:", bootstrap_rsk)
     assert (
         validate_cloudflared_secret
         < stage_cloudflared
@@ -326,12 +425,66 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
         < promote_secrets
         < promote_cloudflared
         < promote
+        < migrate_control
+        < bootstrap_rsk
+        < validate_public_rsk
+        < canary
+        < validate_canary
+        < start_candidate
+        < smoke_sources
+        < smoke_provenance
+        < activation_rescue
     )
+    bootstrap_command = playbook[bootstrap_rsk:start_candidate]
+    assert "- --profile\n              - bootstrap" in bootstrap_command
+    assert "- run\n              - --rm\n              - --no-deps" in bootstrap_command
+    assert "- watcher-bootstrap-rsk" in bootstrap_command
+    assert "failed_when: false" not in bootstrap_command
+    assert bootstrap_rsk < playbook.index("rescue:", bootstrap_rsk)
+    projection_validation = playbook[validate_public_rsk:start_candidate]
+    assert "validate-public-rsk" in projection_validation
+    assert "run-once\n              - rsk" in projection_validation
+    assert "900s" in projection_validation
+    assert "--public-directory" in projection_validation
+    edge_smoke = playbook[smoke_sources:activation_rescue]
+    assert "http://127.0.0.1:8080/zrodla" in edge_smoke
+    assert "http://127.0.0.1:8080/api/v1/provenance/rsk" in edge_smoke
+    assert "safe fresh-install absence" not in edge_smoke
+    assert "'200 OK' in minos_candidate_provenance_response.stderr" in edge_smoke
     assert "watcher_candidate_runtime_files.results" in playbook
     assert "watcher_active_runtime_files.results" in playbook
+    active_inventory = playbook[
+        playbook.index("Inspect the active Minos runtime files") : playbook.index(
+            "Reject a partial active Minos runtime"
+        )
+    ]
+    assert (
+        active_inventory.index("edge/terms.html")
+        < active_inventory.index("edge/home.css")
+        < active_inventory.index("edge/sources.css")
+    )
+    candidate_inventory = playbook[
+        playbook.index("Inspect the candidate Minos runtime files") : playbook.index(
+            "Require a complete candidate Minos runtime"
+        )
+    ]
+    logical_key_pattern = re.compile(r"- \{key: ([a-z_]+), path:")
+    candidate_keys = cast(list[str], logical_key_pattern.findall(candidate_inventory))
+    active_keys = cast(list[str], logical_key_pattern.findall(active_inventory))
+    assert candidate_keys == active_keys
+    distinct_checksums = {
+        key: f"sha256-{index:02d}" for index, key in enumerate(candidate_keys)
+    }
+    assert distinct_checksums == dict(reversed(tuple(distinct_checksums.items())))
+    assert "watcher_candidate_runtime_checksums" in playbook
+    assert "watcher_active_runtime_checksums" in playbook
+    assert "map(attribute='stat.checksum')" not in playbook
     assert "watcher_active_image.stdout" in playbook
     assert playbook.count("- watcher_activation_required") >= 8
     assert "rescue:" in playbook[stop_active:]
+    migration_rescue_guard = playbook.index(
+        "Preserve a migrated live database for explicit recovery", activation_rescue
+    )
     restore_secrets = playbook.index("Restore prior watcher secrets", stop_active)
     restore_cloudflared = playbook.index(
         "Restore the prior cloudflared credential", stop_active
@@ -340,6 +493,12 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
         "Restore prior Minos runtime files and image reference", stop_active
     )
     assert restore_cloudflared < restore_secrets < restore_runtime
+    assert activation_rescue < migration_rescue_guard < restore_cloudflared
+    rescue_guard = playbook[migration_rescue_guard:restore_cloudflared]
+    assert "watcher_live_migration_attempted | default(false) | bool" in rescue_guard
+    assert "watcher_live_migration_completed | default(false) | bool" in rescue_guard
+    assert "watcher_live_schema_migrated | default(false) | bool" in rescue_guard
+    assert "watcher_live_migration.stdout | from_json" not in rescue_guard
     assert (
         "Restore prior Minos runtime files and image reference"
         in playbook[stop_active:]
@@ -412,6 +571,19 @@ def _assert_cli_paths_parse(
         str(paths.archive_directory) == environment["MINOS_WATCHER_ARCHIVE_DIRECTORY"]
     )
     assert str(paths.process_lock) == environment["MINOS_WATCHER_PROCESS_LOCK"]
+
+
+def _assert_bootstrap_is_explicit(services: dict[str, object]) -> None:
+    bootstrap_name = "watcher-bootstrap-rsk"
+    assert "depends_on" not in mapping(services[bootstrap_name])
+    for service_name, service_value in services.items():
+        if service_name == bootstrap_name:
+            continue
+        dependencies = mapping(service_value).get("depends_on", {})
+        if isinstance(dependencies, list):
+            assert bootstrap_name not in dependencies
+        else:
+            assert bootstrap_name not in mapping(dependencies)
 
 
 def _assert_cli_runtime_settings_parse(

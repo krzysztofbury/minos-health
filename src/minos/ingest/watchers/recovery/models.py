@@ -67,6 +67,7 @@ class RecoveryImageLease:
                 raise RecoveryStagingError("recovery image lease is closed")
             duplicate = os.dup(self.descriptor)
         try:
+            _ = os.lseek(duplicate, 0, os.SEEK_SET)
             file = os.fdopen(duplicate, "rb", closefd=True)
         except BaseException as error:
             try:

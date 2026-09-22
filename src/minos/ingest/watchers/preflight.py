@@ -28,7 +28,9 @@ from minos.ingest.watchers.control import (
     ControlSnapshotError,
     ControlStore,
     ControlStoreError,
+    MigrationError,
     SourceConfigurationCodecRegistry,
+    apply_control_migrations,
 )
 from minos.ingest.watchers.protocols import PreflightProbe
 from minos.ingest.watchers.recovery import (
@@ -302,14 +304,32 @@ def copy_control_database(
         if integrity != [("ok",)]:
             raise PreflightError("control database evidence integrity check failed")
         evidence_consistent = True
-        schema_version = _read_control_schema_version(destination)
+        live_schema_version = _read_control_schema_version(destination)
         if time.monotonic() >= deadline_monotonic:
             raise PreflightError("control database evidence deadline expired")
-        if schema_version != expected_schema_version:
+        if live_schema_version > expected_schema_version:
             raise PreflightError(
                 "candidate control schema version differs from live database"
             )
-        return schema_version
+        try:
+            migration = apply_control_migrations(destination)
+        except MigrationError:
+            raise PreflightError(
+                "candidate control database migration validation failed"
+            ) from None
+        if (
+            migration.schema_version != expected_schema_version
+            or migration.forward_compatible
+        ):
+            raise PreflightError(
+                "candidate control schema version differs from live database"
+            )
+        migrated_integrity = destination.execute("PRAGMA integrity_check").fetchall()
+        if migrated_integrity != [("ok",)]:
+            raise PreflightError(
+                "migrated control database evidence integrity check failed"
+            )
+        return migration.schema_version
     except PreflightError as error:
         primary_error = error
         raise

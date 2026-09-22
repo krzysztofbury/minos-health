@@ -7,13 +7,15 @@ import stat
 import time
 from pathlib import Path
 from types import TracebackType
-from typing import Self, cast, final
+from typing import Self, TypeIs, cast, final
 from uuid import uuid4
 
 from minos.ingest.watchers.control import (
     ControlStore,
     IncidentDraft,
+    ScheduledRunMode,
     ScheduledSource,
+    SourceConfigurationCodecRegistry,
     StaleClaimError,
     validate_control_database,
 )
@@ -36,6 +38,8 @@ class WatcherReadinessError(WatcherRuntimeError):
 
 _READINESS_MAX_AGE_MS = 75 * 60 * 1000
 _READINESS_MAX_FUTURE_SKEW_MS = 5000
+_MAX_READINESS_SOURCES = 1000
+_MAX_READINESS_SCHEDULES = 2000
 
 
 def watcher_process_lock_path(database_path: str | Path) -> Path:
@@ -221,7 +225,12 @@ class WatcherReadiness:
             raise WatcherReadinessError("watcher scheduler worker is not responsive")
 
 
-def check_watcher_database_readiness(database_path: Path) -> None:
+def check_watcher_database_readiness(
+    database_path: Path,
+    *,
+    collectors: CollectorRegistry,
+    source_configuration_codecs: SourceConfigurationCodecRegistry,
+) -> tuple[str, ...]:
     connection: sqlite3.Connection | None = None
     try:
         connection = sqlite3.connect(
@@ -230,6 +239,55 @@ def check_watcher_database_readiness(database_path: Path) -> None:
             isolation_level=None,
         )
         _ = validate_control_database(connection)
+        enabled_sources = cast(
+            list[tuple[str, str]],
+            connection.execute(
+                """
+                SELECT source_id, watcher_type
+                FROM sources
+                WHERE enabled = 1
+                ORDER BY source_id
+                LIMIT ?
+                """,
+                (_MAX_READINESS_SOURCES + 1,),
+            ).fetchall(),
+        )
+        if len(enabled_sources) > _MAX_READINESS_SOURCES:
+            raise WatcherReadinessError(
+                "watcher enabled source count exceeds its bound"
+            )
+        schedule_rows = cast(
+            list[tuple[str, str]],
+            connection.execute(
+                """
+                SELECT ss.source_id, ss.run_mode
+                FROM source_schedules AS ss
+                JOIN sources AS s ON s.source_id = ss.source_id
+                WHERE s.enabled = 1
+                ORDER BY ss.source_id, ss.run_mode
+                LIMIT ?
+                """,
+                (_MAX_READINESS_SCHEDULES + 1,),
+            ).fetchall(),
+        )
+        if len(schedule_rows) > _MAX_READINESS_SCHEDULES:
+            raise WatcherReadinessError("watcher schedule count exceeds its bound")
+        schedules_by_source: dict[str, set[ScheduledRunMode]] = {
+            source_id: set() for source_id, _watcher_type in enabled_sources
+        }
+        for source_id, run_mode in schedule_rows:
+            if not _is_scheduled_run_mode(run_mode):
+                raise WatcherReadinessError("watcher schedule mode is invalid")
+            schedules_by_source[source_id].add(run_mode)
+        _validate_enabled_source_composition(
+            enabled_sources,
+            schedules_by_source,
+            collectors,
+            source_configuration_codecs=source_configuration_codecs,
+        )
+        return tuple(source_id for source_id, _watcher_type in enabled_sources)
+    except WatcherReadinessError:
+        raise
     except OSError, sqlite3.Error:
         raise WatcherReadinessError("watcher control database is not ready") from None
     finally:
@@ -269,8 +327,17 @@ class WatcherService:
 
     def validate_scheduled_collectors(self, *, limit: int = 100) -> None:
         self._store.validate_scheduled_source_configurations(limit=limit)
-        for source in self._store.list_scheduled_sources(limit=limit):
-            _ = self._collectors.resolve(source.watcher_type)
+        enabled_sources = self._store.list_enabled_source_kinds(limit=limit)
+        schedules_by_source: dict[str, set[ScheduledRunMode]] = {
+            source_id: set() for source_id, _watcher_type in enabled_sources
+        }
+        for schedule in self._store.list_scheduled_sources(limit=limit * 2):
+            schedules_by_source[schedule.source_id].add(schedule.run_mode)
+        _validate_enabled_source_composition(
+            enabled_sources,
+            schedules_by_source,
+            self._collectors,
+        )
 
     def reconcile(self, *, limit: int = 100) -> None:
         self._orchestrator.reconcile_all(limit=limit)
@@ -292,11 +359,15 @@ class WatcherService:
     def scheduled_sources(self, *, limit: int = 100) -> tuple[ScheduledSource, ...]:
         return self._store.list_scheduled_sources(limit=limit)
 
-    def run_due(self, source_id: str) -> CompletedRun | None:
+    def run_due(
+        self,
+        source_id: str,
+        run_mode: ScheduledRunMode = "scheduled",
+    ) -> CompletedRun | None:
         source = self._store.load_source_state(source_id)
         _ = self._collectors.resolve(source.watcher_type)
         self._require_capacity(source_id=source_id)
-        claim = self._store.claim_named_due(source_id)
+        claim = self._store.claim_named_due(source_id, run_mode)
         if claim is None:
             return None
         return self._orchestrator.run_claim(claim, claim.retry_policy)
@@ -307,6 +378,16 @@ class WatcherService:
         if claim is None:
             return None
         return self._orchestrator.run_claim(claim, claim.retry_policy)
+
+    def run_catch_up(self, *, limit: int = 100) -> int:
+        if isinstance(limit, bool) or limit < 1 or limit > 1000:
+            raise WatcherRuntimeError("catch-up limit is unsupported")
+        completed = 0
+        for _index in range(limit):
+            if self.run_one_catch_up() is None:
+                break
+            completed += 1
+        return completed
 
     def run_manual(self, source_id: str) -> CompletedRun:
         source = self._store.load_source_state(source_id)
@@ -349,3 +430,30 @@ class WatcherService:
                     f"capacity incident also failed: {type(incident_error).__name__}"
                 )
             raise
+
+
+def _validate_enabled_source_composition(
+    enabled_sources: tuple[tuple[str, str], ...] | list[tuple[str, str]],
+    schedules_by_source: dict[str, set[ScheduledRunMode]],
+    collectors: CollectorRegistry,
+    *,
+    source_configuration_codecs: SourceConfigurationCodecRegistry | None = None,
+) -> None:
+    if not enabled_sources:
+        raise WatcherRuntimeError("watcher has no enabled sources")
+    for source_id, watcher_type in enabled_sources:
+        if source_configuration_codecs is not None:
+            if source_configuration_codecs.resolve(watcher_type) is None:
+                raise WatcherRuntimeError(
+                    "enabled watcher source has no configuration codec"
+                )
+        _ = collectors.resolve(watcher_type)
+        required = set(collectors.required_schedule_modes(watcher_type))
+        if not required.issubset(schedules_by_source[source_id]):
+            raise WatcherRuntimeError(
+                "enabled watcher source is missing a required schedule"
+            )
+
+
+def _is_scheduled_run_mode(value: object) -> TypeIs[ScheduledRunMode]:
+    return value in ("scheduled", "weekly_verification")

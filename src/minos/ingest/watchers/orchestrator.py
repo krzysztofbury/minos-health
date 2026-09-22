@@ -30,8 +30,11 @@ from minos.ingest.watchers.protocols import (
     CollectorNotRegisteredError,
     CollectorRegistry,
     HeartbeatClient,
+    NoopPublicProjectionPublisher,
+    PublicProjectionPublisher,
     RecoveryPublisher,
     RetryableWatcherError,
+    SourceDriftWatcherError,
     WatcherRuntimeError,
 )
 from minos.ingest.watchers.recovery import (
@@ -186,6 +189,7 @@ class WatcherOrchestrator:
         collectors: CollectorRegistry,
         recovery_publisher: RecoveryPublisher,
         heartbeat: HeartbeatClient,
+        public_projection_publisher: PublicProjectionPublisher | None = None,
         sleep: Callable[[float], None] = time.sleep,
         now_ms: Callable[[], int] | None = None,
     ) -> None:
@@ -193,6 +197,9 @@ class WatcherOrchestrator:
         self._archive = archive
         self._collectors = collectors
         self._recovery_publisher = recovery_publisher
+        self._public_projection_publisher = (
+            public_projection_publisher or NoopPublicProjectionPublisher()
+        )
         self._heartbeat = heartbeat
         self._sleep = sleep
         self._now_ms = now_ms or _utc_now_ms
@@ -310,6 +317,7 @@ class WatcherOrchestrator:
             )
 
     def reconcile_all(self, *, limit: int = 100) -> None:
+        self._public_projection_publisher.restore(self._store)
         for run in self._store.list_reconcilable_runs(limit=limit):
             try:
                 self.reconcile_run(run)
@@ -330,6 +338,7 @@ class WatcherOrchestrator:
             )
         elif run.status != "heartbeat_pending":
             raise WatcherRuntimeError("run has an unsupported reconciliation status")
+        self._public_projection_publisher.publish(self._store, run)
         self._heartbeat.success(run.source_id)
         _ = self._store.mark_successful(
             run.run_id,
@@ -472,6 +481,8 @@ def _validate_count(count: int, minimum: int, maximum: int, label: str) -> None:
 def _failure_category(phase: str, error: BaseException) -> str:
     if isinstance(error, BlobArchiveError):
         return "archive_failure"
+    if isinstance(error, SourceDriftWatcherError):
+        return "source_drift"
     if isinstance(error, CollectorNotRegisteredError):
         return "collector_unavailable"
     categories = {

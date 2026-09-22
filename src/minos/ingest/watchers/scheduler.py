@@ -2,6 +2,7 @@ from collections.abc import Callable
 from datetime import UTC
 from typing import Protocol, cast, final
 
+from minos.ingest.watchers.control import ScheduledRunMode
 from minos.ingest.watchers.recovery import RecoveryClass
 from minos.ingest.watchers.service import WatcherService
 
@@ -12,6 +13,7 @@ _PERIODIC_RECOVERY_JOBS: tuple[tuple[RecoveryClass, str], ...] = (
 )
 _RECOVERY_MISFIRE_GRACE_SECONDS = 3600
 _READINESS_INTERVAL_SECONDS = 30
+_DURABLE_DISPATCH_INTERVAL_SECONDS = 30
 
 
 class SchedulerError(RuntimeError):
@@ -55,10 +57,11 @@ class WatcherScheduler:
         self._service.expire_stale_claims(limit=self._projection_limit)
         self._service.validate_scheduled_collectors(limit=self._projection_limit)
         self._install_future_jobs()
+        self._install_durable_dispatch_job()
         if on_ready is not None:
             self._install_readiness_job(on_ready)
             self._install_started_listener(on_ready)
-        _ = self._service.run_one_catch_up()
+        _ = self._service.run_catch_up(limit=self._projection_limit)
         for recovery_class, _expression in _PERIODIC_RECOVERY_JOBS:
             _ = self._service.ensure_periodic_recovery(recovery_class)
         self._backend.start()
@@ -83,6 +86,19 @@ class WatcherScheduler:
             coalesce=True,
             max_instances=1,
             misfire_grace_time=_READINESS_INTERVAL_SECONDS,
+            replace_existing=False,
+        )
+
+    def _install_durable_dispatch_job(self) -> None:
+        _ = self._backend.add_job(
+            self._run_catch_up_safely,
+            trigger="interval",
+            seconds=_DURABLE_DISPATCH_INTERVAL_SECONDS,
+            id="watcher:durable-dispatch",
+            name="watcher:durable-dispatch",
+            coalesce=True,
+            max_instances=1,
+            misfire_grace_time=_DURABLE_DISPATCH_INTERVAL_SECONDS,
             replace_existing=False,
         )
 
@@ -119,20 +135,30 @@ class WatcherScheduler:
             _ = self._backend.add_job(
                 self._run_due_safely,
                 trigger=trigger,
-                args=(source.source_id,),
-                id=f"watcher:{source.source_id}",
-                name=f"watcher:{source.source_id}",
+                args=(source.source_id, source.run_mode),
+                id=f"watcher:{source.source_id}:{source.run_mode}",
+                name=f"watcher:{source.source_id}:{source.run_mode}",
                 coalesce=True,
                 max_instances=1,
                 misfire_grace_time=source.misfire_grace_seconds,
                 replace_existing=False,
             )
 
-    def _run_due_safely(self, source_id: str) -> None:
+    def _run_due_safely(
+        self,
+        source_id: str,
+        run_mode: ScheduledRunMode,
+    ) -> None:
         try:
-            _ = self._service.run_due(source_id)
+            _ = self._service.run_due(source_id, run_mode)
         except Exception:
             raise SchedulerError("scheduled watcher run failed") from None
+
+    def _run_catch_up_safely(self) -> None:
+        try:
+            _ = self._service.run_one_catch_up()
+        except Exception:
+            raise SchedulerError("durable watcher dispatch failed") from None
 
     def _run_periodic_recovery_safely(self, recovery_class: RecoveryClass) -> None:
         try:

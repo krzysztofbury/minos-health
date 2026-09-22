@@ -118,19 +118,32 @@ day-to-day order.
       watcher Terraform plan approval and apply, watcher secret installation,
       scheduler-paused Mikr.us preflight, both empty-host restore drills, and
       representative host load evidence.
-- [ ] Resume issue #6 by capturing dated raw live RSK fixtures before changing
-      parsers, then finish bounded HTTPX retrieval and Pydantic validation for
-      the catalog and every returned `basic-info` resource.
-- [ ] Store exact catalog and metadata response bytes and complete observations
+- [x] Add the issue #6 private capture gate: fixed anonymous endpoints, bounded
+      exact-byte staging, semantic `00CD10` XML selection, rotation quarantine,
+      schema-shaped synthetic fixtures, and an opt-in live compatibility check.
+- [x] Run and review the dated live RSK compatibility capture under ignored
+      `data/`, including all returned metadata and the allowlisted XML.
+- [x] Finish watcher integration for the catalog and every returned `basic-info`
+      resource after this capture chunk.
+- [x] Store exact catalog and metadata response bytes and complete observations
       for every HCD. Compare full structures; use `uuid + creationDate +
       sizeBytes` only as a cheap change trigger.
-- [ ] Archive only the allowlisted `00CD10` XML initially. Stream from byte zero,
+- [x] Archive only the allowlisted `00CD10` XML initially. Stream from byte zero,
       compute SHA-256, verify declared and received lengths, reject HTML or wrong
       magic, re-fetch metadata after the batch, and quarantine rotated or
       ambiguous transfers.
-- [ ] Add issue #6 daily, weekly forced re-download/re-hash, and manual modes;
+- [x] Add issue #6 daily, weekly forced re-download/re-hash, and manual modes;
       prove interruption, retry, metadata rotation, same-metadata changed bytes,
       stale-worker, transaction failure, and duplicate-notification behavior.
+- [x] Register the RSK collector in filesystem and S3 runtime composition and
+      add explicit atomic RSK bootstrap with independent durable daily and
+      weekly verification cursors, conflict preservation, and bounded catch-up.
+- [x] Publish bounded, canonical, PII-sanitized RSK provenance through immutable
+      local generations and an atomic revision fence; mount only that root into
+      the edge, expose the exact provenance endpoint, and keep redistribution
+      deny-all while the legal digest allowlist is empty.
+- [x] Build the accepted Sources HTML, CSS, and JavaScript UI over the public
+      provenance endpoint. This remains separate from the publication boundary.
 - [ ] Complete issue #6 with the atomic #49 observation transaction, exact
       revisioned recovery image, external heartbeat, documented local and
       production Compose commands, and the first forced Mikr.us observation of
@@ -138,7 +151,7 @@ day-to-day order.
 - [ ] Planning estimates remain 30-50 hours for #49 and 8-14 hours for #6 after
       #49, excluding the RSK transport hardening already implemented.
 
-- [ ] Scheduled watcher: archive the RSK catalog and metadata for every returned
+- [x] Scheduled watcher: archive the RSK catalog and metadata for every returned
       HCD; alert on set/schema drift; download only allowlisted product files
       (initially `00CD10` XML), compare complete metadata, and compute SHA-256.
 - [ ] Scheduled watcher: NFZ DSOZ listing, general Centrala provider news,
@@ -181,7 +194,7 @@ day-to-day order.
 - [x] Stage at most one download in a disk-backed `noexec,nosuid,nodev`
       directory with a `600 MiB` application quota, `512 MiB` per-file ceiling,
       startup cleanup, and pre-run free-space assertion.
-- [ ] Archive every selected raw file immediately under a digest-only
+- [x] Archive every selected raw file immediately under a digest-only
       `blobs/sha256/<digest>` key. Use bounded single-part `PutObject`; send and
       verify S3 native SHA-256 plus byte count after conditional create or reuse.
       Source identity stays in SQLite.

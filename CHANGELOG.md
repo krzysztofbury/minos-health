@@ -56,6 +56,40 @@ release.
 - Hardened watcher Docker and Compose runtime, Mikr.us candidate preflight and
   rollback-safe activation, watcher AWS Terraform, and an opt-in disposable AWS
   acceptance harness.
+- Private, bounded RSK compatibility capture with schema-bounded response
+  models, semantic `00CD10` XML selection, full metadata rotation detection,
+  digest-addressed evidence, a privacy-safe checksum projection, and wholly
+  synthetic committed fixtures.
+- Source-neutral RSK collection with exact all-HCD metadata observations,
+  allowlisted streamed `00CD10` XML acquisition, canonical semantic cursors,
+  daily and weekly verification semantics, deep rotation checks, and atomic
+  observation, cursor, change, recovery, and heartbeat integration.
+- Fail-closed RSK cursor integrity validation, fresh-snapshot retries for
+  metadata rotation, and remaining-claim HTTP connect/read deadline enforcement.
+- Filesystem and S3 watcher runtime registration for the RSK collector, plus an
+  explicit conflict-safe `watcher bootstrap-rsk` command with canonical source
+  configuration and daily and weekly schedules.
+- Generic multi-obligation durable source scheduling with independent cursors,
+  deterministic weekly-first co-due claims, bounded restart catch-up, and
+  fenced concurrent claim protection.
+- Persisted retry-not-before state for failed durable obligations, local
+  filesystem recovery and heartbeat composition, and fail-closed source and
+  schedule readiness validation.
+- Strict RSK public provenance observations and bounded committed-history
+  projection with canonical JSON, complete-revision truncation, immutable
+  filesystem generations, atomic activation, startup restoration, and a
+  watcher-RW/edge-RO shared volume.
+- Exact Nginx `/api/v1/provenance/rsk` delivery and a checked schema-version-1
+  empty redistribution manifest, with universal artifact-route denial.
+- Responsive Polish `/zrodla` provenance page with strict browser-side schema
+  validation, deterministic RSK history, source and observation dates, separate
+  metadata and privately archived product checksums, accessible local filters,
+  and exact static-asset and analytics routes.
+- Source-complete Healthchecks validation, explicit supported live control-schema
+  migration, keyed deployment file checksums, a bounded pre-start manual RSK
+  canary, and exact post-start provenance byte validation.
+- Crash-idempotent filesystem recovery publication that verifies and completes a
+  valid destination hard link left before temporary-name cleanup.
 
 ### Changed
 
