@@ -52,7 +52,7 @@ EXPECTED_TAGS = {
     "Repository": "krzysztofbury/minos-health",
 }
 EXPECTED_POLICY_SHA256 = {
-    "acceptance_operator_boundary": "c48b2378feb4cb75fbcf616c58884bed462fcad100c82e787e3225ffbdf64c14",
+    "acceptance_operator_boundary": "124dbccc1b978439d325130e7ae37cde0caa0be44363e939524e0f5247f73d86",
     "acceptance_watcher_boundary": "91ab68d1b81b319c49134c39730361e3e4598aa7f6a5ac41014f0e6b38185d0b",
     "github_reader_boundary": "73bcefd93a5886a60fc799194ac4c5568823fe7f86799257d7eb961da9930f80",
     "production_operator_boundary": "cf9beec199eb81a99b43434b60ebe93fd720688cc74e51f657e295203f121b19",
@@ -60,7 +60,7 @@ EXPECTED_POLICY_SHA256 = {
     "watcher_boundary": "f869bbd94ba056a2ea4641cba5f6f34d3173d798f760da0ab0d2f581409757ce",
 }
 PREVIOUS_ACCEPTANCE_OPERATOR_SHA256 = (
-    "1838dec3a1843f65f7ab3d8e74211c7966d425e2dfdbe1959b44f943ffdc8e99"
+    "c48b2378feb4cb75fbcf616c58884bed462fcad100c82e787e3225ffbdf64c14"
 )
 
 
@@ -393,32 +393,57 @@ def validate_read_preflight_update(document: object) -> None:
         "previous inline differs from boundary",
     )
     statements = policy_statements(old_policy)
-    matches = [
-        index
-        for index, statement in enumerate(statements)
+    bucket_matches = [
+        statement
+        for statement in statements
+        if statement.get("Sid") == "ManageOnlyDisposableBuckets"
+    ]
+    role_matches = [
+        statement
+        for statement in statements
         if statement.get("Sid") == "ManageOnlyDisposableWatcherRoles"
     ]
-    require(len(matches) == 1, "previous role management statement missing")
-    index = matches[0]
-    management = statements[index]
-    actions = statement_actions(management)
-    require(actions.count("iam:GetRole") == 1, "previous GetRole permission missing")
     require(
-        management.get("Resource")
+        len(bucket_matches) == len(role_matches) == 1,
+        "reviewed management statements missing",
+    )
+    bucket = bucket_matches[0]
+    role = role_matches[0]
+    require(
+        bucket.get("Resource") == "arn:aws:s3:::minos-health-watcher-acceptance-*",
+        "bucket read scope changed",
+    )
+    require(
+        role.get("Resource")
         == f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-acceptance-*-watcher",
-        "role read resource is unbounded",
+        "role read scope changed",
     )
-    statements.insert(
-        index,
-        {
-            "Sid": "CheckDisposableWatcherRoleExistence",
-            "Effect": "Allow",
-            "Action": "iam:GetRole",
-            "Resource": management["Resource"],
-        },
+    bucket_actions = statement_actions(bucket)
+    role_actions = statement_actions(role)
+    require(
+        bucket_actions[:3]
+        == ["s3:GetBucketLocation", "s3:GetBucketTagging", "s3:PutBucketTagging"],
+        "bucket action baseline changed",
     )
-    management["Action"] = [action for action in actions if action != "iam:GetRole"]
-    old_policy["Statement"] = statements
+    require(role_actions[0] == "iam:ListRoleTags", "role action baseline changed")
+    bucket["Action"] = (
+        bucket_actions[:3]
+        + [
+            "s3:GetBucketCORS",
+            "s3:GetBucketWebsite",
+            "s3:GetBucketAccelerateConfiguration",
+            "s3:GetBucketRequestPayment",
+            "s3:GetBucketLogging",
+            "s3:GetBucketReplication",
+            "s3:GetBucketObjectLockConfiguration",
+        ]
+        + bucket_actions[3:]
+    )
+    role["Action"] = (
+        role_actions[:1]
+        + ["iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole"]
+        + role_actions[1:]
+    )
     updated = decode_policy(boundary_after.get("policy"), "updated acceptance boundary")
     require(updated == old_policy, "boundary adds permissions beyond scoped role read")
     require(
