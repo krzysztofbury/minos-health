@@ -277,8 +277,12 @@ committed revisions and 8,192 timeline entries through the run's committed
 state-revision fence. Canonical JSON is limited to 8 MiB. If a limit requires
 truncation, only complete oldest revisions are omitted. The projection is
 installed as a read-only filesystem generation and an atomic `current` symlink
-before the success heartbeat. The edge mounts only this public root read-only;
-it never mounts control SQLite, the private archive, staging, or credentials.
+before the run is finalized locally. The persisted `heartbeat_pending` state is
+a compatibility name for this finalization phase, not a monitoring request.
+Only after durable terminal completion does the watcher make a best-effort
+self-hosted Uptime Kuma up or down push. A failed push never blocks or changes
+the terminal watcher result. The edge mounts only this public root read-only; it
+never mounts control SQLite, the private archive, staging, or credentials.
 
 `manifests/redistribution.json` is schema version 1 and currently contains an
 empty artifact allowlist. Therefore every provenance entry has

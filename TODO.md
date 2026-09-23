@@ -30,6 +30,10 @@ day-to-day order.
       build and test infrastructure rather than a production runtime.
 - [x] Use mutable SQLite for watcher control state and private versioned S3 for
       immutable raw bytes and revisioned control-database recovery images.
+- [x] Self-host Uptime Kuma 2.5.5 on the same Mikr.us host for coarse public
+      status and watcher completion notifications, without paid external
+      monitoring SaaS. Accept for now that this cannot detect or notify for a
+      total Mikr.us host, network, or power outage.
 - [x] Deploy tested image digests from signed version tags without rebuilding.
 - [x] Use Python 3.14 as the sole application language through 2027-08-21;
       keep synchronous domain rules independent of FastAPI and persistence.
@@ -108,11 +112,11 @@ day-to-day order.
 - [x] Deliver #49 recovery and scheduling next: verified SQLite recovery images,
       bounded paginated restore selection, operator-trusted images and signed
       inventories, APScheduler reconstruction, one bounded catch-up, stale-run
-      expiry, and heartbeat reconciliation.
+      expiry, and pending-run reconciliation.
 - [x] Finish #49 repository production integration: add the pinned watcher service to the
       Mikr.us Compose topology, service-restricted secrets and volumes,
-      Healthchecks.io, scheduler-paused preflight, ordinary-loss restore, and
-      suspected-compromise restore tooling.
+      scheduler-paused preflight, read-only watcher status, bounded local logs,
+      ordinary-loss restore, and suspected-compromise restore tooling.
 - [ ] Execute #49 external acceptance: same-account disposable real-AWS tests in
       account `218375352108` with the production-acceptance phrase and exact
       watcher Terraform plan approval and apply, watcher secret installation,
@@ -145,9 +149,9 @@ day-to-day order.
 - [x] Build the accepted Sources HTML, CSS, and JavaScript UI over the public
       provenance endpoint. This remains separate from the publication boundary.
 - [ ] Complete issue #6 with the atomic #49 observation transaction, exact
-      revisioned recovery image, external heartbeat, documented local and
-      production Compose commands, and the first forced Mikr.us observation of
-      all HCD metadata plus the current `00CD10` XML.
+      revisioned recovery image, durable local finalization, documented local
+      and production Compose status and log commands, and the first forced
+      Mikr.us observation of all HCD metadata plus the current `00CD10` XML.
 - [ ] Planning estimates remain 30-50 hours for #49 and 8-14 hours for #6 after
       #49, excluding the RSK transport hardening already implemented.
 
@@ -185,7 +189,7 @@ day-to-day order.
       into hard incidents and failed claims, and prove observations and source
       cursors remain unchanged.
 - [x] Run APScheduler `3.11.x` as one UTC `BlockingScheduler` worker with
-      bounded misfire handling. Reconcile committed and heartbeat-pending runs
+      bounded misfire handling. Reconcile committed and `heartbeat_pending` runs
       before dispatch and use durable due cursors plus token-and-epoch fenced
       claims for catch-up, manual, expiry, and stale-worker rejection.
 - [ ] Run issue #6 through one Docker/Compose watcher command locally and on
@@ -210,6 +214,29 @@ day-to-day order.
       change into a data PR; never give the watcher a GitHub token or auto-merge.
 - [ ] Alert on watcher failure and on upstream schema drift (new załącznik
       names, changed file formats).
+- [x] Bootstrap Uptime Kuma privately on Mikr.us from the pinned rootless image,
+      with no host port or public route. Create the admin and 2FA, HTTP monitor,
+      paused RSK push monitor, and status page domain mapping. Remove the
+      temporary restricted SSH forwarding exception after setup.
+- [x] Stop Uptime Kuma and save its complete `/app/data` tree as an encrypted
+      off-host 1Password Document. Read it back, check the image pin, and run a
+      SQLite integrity check before restarting the container.
+- [x] Prepare and read back the watcher-only RSK Push target document in
+      1Password from the rotated Kuma token; keep it off the host until the
+      watcher deployment.
+- [x] Restore the stopped 1Password Kuma backup to a disposable isolated Docker
+      volume and start the same pinned rootless image as UID `10003`. Confirm
+      health and the status page, then remove the test volume and container.
+- [ ] Include restored Kuma state in a complete empty-host Mikr.us recovery drill
+      before an image upgrade; never copy its live SQLite database.
+- [x] Configure a dedicated Telegram bot and test delivery through Kuma. Attach
+      the notification to the public-edge HTTP monitor and save a new stopped
+      1Password backup containing the verified notification configuration.
+- [ ] Install the mode-0600 watcher target document, activate required monitoring
+      with the watcher release, configure public DNS and tunnel routing, then
+      visually verify `status.minoshealth.pl` on mobile and desktop.
+- [ ] Keep issue #54 as the future private detailed admin portal. The public
+      Uptime Kuma page exposes coarse service state only.
 
 ## Repository Baseline
 
@@ -386,7 +413,7 @@ day-to-day order.
       compatible release manifest; do not deploy mutable tags or use Watchtower.
 - [ ] Quiesce watcher dispatch, verify a pre-deploy recovery image, test
       migrations on a disposable copy, and run scheduler-paused volume, secret,
-      S3, recovery-image, and Healthchecks.io preflights before activation.
+      S3, and recovery-image preflights before activation.
 - [ ] Stop the prior watcher, start the exact candidate digest paused on the live
       volume, apply the tested migration, verify live revision/WAL/secrets and a
       post-migration recovery image, then activate one bounded canary.
@@ -404,9 +431,10 @@ day-to-day order.
 - [ ] Load-test warm API paths, process restart, concurrent watcher work, and a
       documented launch burst through Cloudflare Tunnel.
 - [ ] Verify production through the public domain with a real search request.
-- [ ] Add bounded Docker logs, external readiness and known-search checks, and
-      privacy-safe Healthchecks.io pings for watcher, recovery-image, and trusted-
-      inventory schedules.
+- [ ] Verify bounded Docker logs, read-only watcher status, and operator-run
+      readiness and known-search checks. Accept that these local signals do not
+      detect a complete Mikr.us host, network, or power outage from outside its
+      fault domain.
 - [ ] Test recovery from Git, signed release and deployment records, versioned
       S3 snapshots and control recovery images, GHCR digests, and Terraform
       state onto an empty host.

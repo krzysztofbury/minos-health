@@ -43,7 +43,7 @@ release.
 - Single-writer raw-SQL control transactions for canonical source configuration,
   validated UTC schedules, fenced claims, legal run transitions, and atomic
   revisioned observation, cursor, change, incident, and audit commits, including
-  recovery-revision fencing before heartbeat reconciliation.
+  recovery-revision fencing before durable local finalization.
 - Shared bounded raw-blob staging with atomic local content-addressed storage and
   direct single-part S3 conditional writes, checksum-enabled verification,
   bounded conflict handling, and verified reuse receipts.
@@ -51,7 +51,7 @@ release.
   version-pinned S3 upload, bounded restore selection, trusted operator copies,
   signed inventory chains, and safe restore installation.
 - Source-neutral watcher orchestration with one UTC APScheduler worker, durable
-  catch-up, stale-claim expiry, heartbeat reconciliation, capacity gates, and
+  catch-up, stale-claim expiry, pending-run reconciliation, capacity gates, and
   privacy-safe failure handling.
 - Hardened watcher Docker and Compose runtime, Mikr.us candidate preflight and
   rollback-safe activation, watcher AWS Terraform, and an opt-in disposable AWS
@@ -63,7 +63,7 @@ release.
 - Source-neutral RSK collection with exact all-HCD metadata observations,
   allowlisted streamed `00CD10` XML acquisition, canonical semantic cursors,
   daily and weekly verification semantics, deep rotation checks, and atomic
-  observation, cursor, change, recovery, and heartbeat integration.
+  observation, cursor, change, recovery, and local finalization integration.
 - Fail-closed RSK cursor integrity validation, fresh-snapshot retries for
   metadata rotation, and remaining-claim HTTP connect/read deadline enforcement.
 - Filesystem and S3 watcher runtime registration for the RSK collector, plus an
@@ -73,8 +73,8 @@ release.
   deterministic weekly-first co-due claims, bounded restart catch-up, and
   fenced concurrent claim protection.
 - Persisted retry-not-before state for failed durable obligations, local
-  filesystem recovery and heartbeat composition, and fail-closed source and
-  schedule readiness validation.
+  filesystem recovery and local finalization composition, and fail-closed source
+  and schedule readiness validation.
 - Strict RSK public provenance observations and bounded committed-history
   projection with canonical JSON, complete-revision truncation, immutable
   filesystem generations, atomic activation, startup restoration, and a
@@ -85,11 +85,16 @@ release.
   validation, deterministic RSK history, source and observation dates, separate
   metadata and privately archived product checksums, accessible local filters,
   and exact static-asset and analytics routes.
-- Source-complete Healthchecks validation, explicit supported live control-schema
-  migration, keyed deployment file checksums, a bounded pre-start manual RSK
-  canary, and exact post-start provenance byte validation.
+- Read-only bounded watcher status backed by control SQLite, bounded local
+  Docker logs, explicit supported live control-schema migration, keyed
+  deployment file checksums, a bounded pre-start manual RSK canary, and exact
+  post-start provenance byte validation.
 - Crash-idempotent filesystem recovery publication that verifies and completes a
   valid destination hard link left before temporary-name cleanup.
+- Self-hosted Uptime Kuma 2.5.5 using the pinned official MIT `slim-rootless`
+  `linux/amd64` image, a rootless `10003:10003` identity, private monitoring
+  network, outbound monitor and notification network, persistent data, a
+  conditional default-off public route, and privacy-safe watcher up/down pushes.
 
 ### Changed
 
@@ -101,6 +106,12 @@ release.
   SQLite control plane on Mikr.us, revisioned S3 database recovery images, and
   APScheduler;
   GitHub Actions remains build and test infrastructure only.
+- Removed the paid external watcher-monitoring SaaS dependency. Detailed state
+  remains in SQLite incidents, the read-only CLI status, and bounded host-local
+  logs, while self-hosted Uptime Kuma provides coarse status and notifications.
+  Because Kuma runs on the same Mikr.us host, a total host, network, or power
+  outage cannot be detected or notified by this stack; that limitation is
+  accepted for now.
 - Superseded an earlier plan that split web delivery between a private
   S3/CloudFront frontend and a Lambda-hosted API.
 - Made security, correctness, and measured performance co-equal release

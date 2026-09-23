@@ -68,6 +68,12 @@ verification. Reconciliation accepts a recovery receipt only when its image
 revision equals the current database revision and records its immutable key and
 digest before moving a run to `heartbeat_pending`.
 
+`heartbeat_pending` is a compatibility name retained in the durable schema. It
+means that recovery verification completed and local run finalization is still
+pending. It does not represent a monitoring request. The watcher sends the
+best-effort Uptime Kuma up or down signal only after the run reaches a durable
+terminal state; monitoring failure never blocks or changes watcher completion.
+
 ## Changing The Schema
 
 Every schema change must:

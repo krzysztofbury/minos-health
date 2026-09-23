@@ -1,8 +1,9 @@
 # Deployment
 
 Status: target application architecture with the source-neutral watcher runtime
-implemented. The host currently runs the exact-digest maintenance edge and
-Cloudflare Tunnel. The repository now contains the watcher image, scheduler,
+implemented. The host currently runs the exact-digest maintenance edge,
+Cloudflare Tunnel, and a separate private Uptime Kuma bootstrap container.
+The repository now contains the watcher image, scheduler,
 local Compose stack, RSK collector and public provenance projection,
 S3/recovery composition, and candidate preflight, but no application API image,
 applied watcher AWS stack, or release workflow.
@@ -34,11 +35,22 @@ Browser
      -> /api/v1/provenance/rsk -> read-only public watcher projection
      -> /api/*, /healthz, /readyz -> API container
 
+Status-page browser
+  -> status.minoshealth.pl
+  -> conditional outbound Cloudflare Tunnel route
+  -> Uptime Kuma container
+
 Watcher container
   -> APScheduler
   -> mutable control SQLite on a persistent volume
   -> private versioned S3 snapshot bucket
   -> dedicated local public-projection volume
+  -> best-effort terminal up/down push to Uptime Kuma
+
+Uptime Kuma container
+  -> private monitoring network
+  -> outbound HTTP monitors and notifications
+  -> persistent /app/data bind mount
 
 GitHub-hosted Actions
   -> test, build, scan, attest, publish to private GHCR
@@ -46,9 +58,10 @@ GitHub-hosted Actions
 ```
 
 The host exposes no application port to the public internet. `cloudflared`
-opens an outbound tunnel to the edge container. The edge serves static files
-and proxies API routes under the same origin. The API and watcher networks are
-private Compose networks; only the edge is reachable through the tunnel.
+opens outbound routes to the edge and, only after explicit enablement, Uptime
+Kuma. The edge serves static files and proxies API routes under the same origin.
+The application and monitoring networks are private Compose networks. Neither
+Kuma nor the watcher receives a Docker socket or host port.
 
 Mikr.us `3.0` is the selected production plan: 2 GB RAM, 25 GB disk, Docker
 support, and a fixed 130 PLN annual price observed during planning. It provides
@@ -65,6 +78,10 @@ The production Compose project contains:
 - `watcher`: APScheduler, source adapters, and the mutable control SQLite
   database mounted from a dedicated persistent volume, plus write access to a
   separate public-projection root;
+- `uptime-kuma`: self-hosted Uptime Kuma 2.5.5 from the official MIT
+  `slim-rootless` `linux/amd64` image, rootless as `10003:10003`, with a private
+  monitoring network, a separate outbound monitor and notification network,
+  and `/var/lib/minos/uptime-kuma` mounted at `/app/data`;
 - `watcher-bootstrap-rsk`: an explicit one-shot `bootstrap` profile service
   using the same pinned production watcher image, identity, secrets, networks,
   and persistent volumes. No active service depends on it, so ordinary stack
@@ -82,7 +99,7 @@ The watcher is not included in the API image. The edge image contains no Python
 runtime, private source snapshots, credentials, or generated medical database.
 It mounts only the dedicated public-projection root read-only. It cannot access
 watcher control SQLite, private filesystem or S3 archive data, staging, AWS
-credentials, Healthchecks targets, S3 URLs, or presigned URLs.
+credentials, S3 URLs, or presigned URLs.
 
 ## Artifact Lifecycle
 
@@ -94,6 +111,7 @@ ghcr.io/krzysztofbury/minos-health-api@sha256:<digest>
 ghcr.io/krzysztofbury/minos-health-web@sha256:<digest>
 ghcr.io/krzysztofbury/minos-health-watcher@sha256:<digest>
 cloudflare/cloudflared@sha256:<digest>
+docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
 ```
 
 `latest`, `main`, and other mutable tags are not deployable references.
@@ -124,8 +142,8 @@ The target lifecycle is:
 8. A scheduler-paused candidate watcher validates a disposable database copy.
    Supported v1 and v2 copies are migrated to the exact candidate schema before
    integrity, migration-checksum, identity, volume, secret, S3 checksum,
-   recovery-image, and Healthchecks.io checks. The original live database is not
-   changed. The copy is limited to 2 GiB and a 240-second deadline, with a
+   and recovery-image checks. The original live database is not changed. The
+   copy is limited to 2 GiB and a 240-second deadline, with a
    300-second outer timeout. A missing database on an initial empty host remains
    valid. A newer or malformed schema fails before the active stack is stopped.
 9. The operator stops the previous watcher and captures a second consistent,
@@ -214,8 +232,9 @@ Every production image must:
 - terminate cleanly and fail rather than serve incomplete data;
 - carry source commit, build, dataset, and licence labels.
 
-Only the watcher receives persistent writable storage. Ansible initializes its
-persistent control directory as the pinned watcher UID and GID with mode `0700`;
+Only the watcher and Uptime Kuma receive persistent writable storage. Ansible
+initializes the watcher's persistent control directory as the pinned watcher
+UID and GID with mode `0700`;
 SQLite, its WAL, recovery-image staging files, and their parent directory remain
 writable by that identity. Restore reapplies the same ownership and modes before
 startup. Downloads use a separate disk-backed `noexec,nosuid,nodev` staging
@@ -230,6 +249,11 @@ only bounded tmpfs mounts when a demonstrated runtime path needs temporary
 writes. Exact raw bytes are uploaded to S3 and are not retained as the only copy
 on the host. Logs use Docker's bounded `local` driver rather than an unbounded
 JSON log file.
+
+Ansible initializes `/var/lib/minos/uptime-kuma` as `10003:10003` with mode
+`0700`. Image identity is pinned beside the data. An image change fails closed
+until a stopped full-data backup and migration procedure exists. Never copy
+Kuma's SQLite files while the service is live.
 
 The watcher publishes sanitized provenance under
 `generations/<state-revision>-<projection-sha256>/`, fsyncs every file and
@@ -257,6 +281,23 @@ Production allows a 6,400-second health start period, a 6,600-second Compose
 wait, and a 7,800-second systemd start timeout. These bounds cover the supported
 one-hour collector deadline plus bounded recovery and preflight work. After
 startup, a marker older than 75 minutes fails health as an unresponsive worker.
+
+Operators inspect durable watcher state and bounded local logs on the host with:
+
+```sh
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher status --json
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  logs --since 24h --tail 500 --timestamps watcher
+```
+
+The optional source filter is `minos watcher status [SOURCE_ID] --json`.
+
+The watcher sends Uptime Kuma only `up` after durable success or `down` after a
+durable failed terminal result. It sends nothing at run start. Monitor requests
+are best-effort and never block or alter the watcher result. The persisted
+`heartbeat_pending` name remains a compatibility name for durable local
+finalization before `successful`, not a pending monitoring request.
 
 ## Watcher Scheduling And State
 
@@ -305,10 +346,11 @@ in `committed`. No later claim for that source may start while a committed run
 awaits reconciliation. The reconciler uses the SQLite backup API to create an
 integrity-checked recovery image for that exact revision, uploads and verifies
 it under an immutable revision-and-digest key, then records `heartbeat_pending`.
-It sends the success heartbeat only from that state and marks the run
-`successful` after a successful response. Every transition is idempotent. On
-restart or restore, reconciliation resumes upload, verification, or heartbeat;
-a duplicate heartbeat is acceptable, but a newer run never overtakes it.
+It publishes the local projection from that state and marks the run `successful`
+after durable local finalization. Every transition is idempotent. On restart or
+restore, reconciliation resumes upload, verification, or finalization, and a
+newer run never overtakes it. `heartbeat_pending` is retained as a compatibility
+name for this local phase and does not represent an external ping.
 
 The legal run transitions are `running -> committed -> heartbeat_pending ->
 successful`, `running -> failed`, and `running -> expired`. Acquisition creates
@@ -381,6 +423,8 @@ After legal clearance and registration:
 
 - `minoshealth.pl` is canonical and routes to Cloudflare Tunnel;
 - `minoshealth.com` redirects permanently to `.pl` while preserving safe paths;
+- `status.minoshealth.pl` routes to Uptime Kuma only when
+  `uptime_kuma_public_status_enabled=true` after private bootstrap;
 - `minos.health`, if purchased, redirects the same way;
 - Cloudflare manages DNS and tunnel routing;
 - DNSSEC is enabled after the registrar and delegation chain are verified;
@@ -399,14 +443,21 @@ Production images pin numeric service UIDs and GIDs in the release contract.
 Ansible creates each secret directory as `root:<service-gid>` mode `0750` and
 each file as `root:<service-gid>` mode `0440`; Compose adds only that group and
 mounts only the required file read-only. The watcher reads AWS credentials from
-`AWS_SHARED_CREDENTIALS_FILE` and the Healthchecks.io target through a dedicated
-`_FILE` setting. `cloudflared` receives its supported credentials file and
-configuration, not an environment token. A preflight tests traversal and reads
-using every exact image digest. Secret files include:
+`AWS_SHARED_CREDENTIALS_FILE`. `cloudflared` receives its supported credentials
+file and configuration, not an environment token. A preflight tests traversal
+and reads using every exact image digest. Secret files include:
 
 - the Cloudflare Tunnel credential;
 - the narrowly scoped S3 access key;
-- the Healthchecks.io ping target used by the watcher.
+- the Uptime Kuma watcher target document, installed for the watcher only.
+
+The target document has the exact schema
+`{"version":1,"sources":{"rsk":"<32-character-alphanumeric-token>"}}`.
+During private bootstrap, `{"version":1,"sources":{}}` is valid only with
+`watcher_uptime_kuma_required=false`. The source file supplied through
+`watcher_uptime_kuma_targets_source` must be a regular mode-`0400` or
+mode-`0600` file outside the repository. Ansible installs it as a root-owned,
+watcher-secret-group file and Compose mounts it read-only only into the watcher.
 
 The private GHCR package-read token is separate host-side deployment material.
 It belongs in the root-owned Docker credential store and is never mounted into

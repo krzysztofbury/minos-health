@@ -1,6 +1,7 @@
 # Decisions
 
-Status: accepted planning record, 2026-08-06; amended 2026-08-21 and 2026-09-17
+Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
+and 2026-09-23
 
 ## Product
 
@@ -359,8 +360,42 @@ requires a documented property allowlist and privacy review.
 
 Loguru emits allowlisted structured events to stdout for collection by the
 active platform. It is not the incident model or an external error tracker.
-Watcher and recovery-image failures surface through SQLite incidents and
-privacy-safe Healthchecks.io pings; public readiness is checked externally.
+Watcher and recovery-image failures surface through SQLite incidents inspected
+with the detailed read-only
+`minos watcher status [SOURCE_ID] [--database PATH] [--json]` command.
+Operators correlate that durable status with bounded privacy-safe local
+lifecycle output retained by Docker's `local` log driver. The production
+commands are:
+
+```sh
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher status --json
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher status rsk --json
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  logs --since 24h --tail 500 --timestamps watcher
+```
+
+`heartbeat_pending` remains the persisted compatibility name for the durable
+local finalization phase after recovery-image verification. It is not a
+monitoring request. The watcher sends only up or down to Uptime Kuma after a
+durable terminal result; a failed monitor request is best-effort and never
+blocks or changes watcher completion.
+
+The accepted monitor is self-hosted Uptime Kuma 2.5.5 on the same Mikr.us host,
+not a paid external monitoring SaaS. It uses the official MIT `slim-rootless`
+`linux/amd64` image pinned to
+`sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6`,
+numeric identity `10003:10003`, no Docker socket, no host port, a private
+Compose monitoring network, a separate outbound notification and HTTP monitor
+network, and persistent `/app/data` at `/var/lib/minos/uptime-kuma`. The
+Cloudflare route defaults off until private setup and access controls are
+complete.
+
+`status.minoshealth.pl` publishes coarse service state only. Detailed watcher
+state remains private, and issue #54 remains the future private detailed admin
+portal. Since Kuma shares the host, it cannot detect or notify for a total
+Mikr.us host, network, or power outage. This limitation is accepted for now.
 Docker logs are bounded locally. CloudWatch is not part of the runtime.
 Selection of an external error-reporting service remains open and must pass a
 privacy review before receiving events.

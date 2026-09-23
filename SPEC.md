@@ -3,7 +3,8 @@
 Status: accepted implementation baseline, 2026-08-06; Python architecture and
 phased PWA/commercial direction accepted 2026-08-21; security, performance,
 testing, and web-hosting direction accepted 2026-09-17; dedicated Mikr.us
-hosting and SQLite watcher control plane accepted 2026-09-17
+hosting and SQLite watcher control plane accepted 2026-09-17; same-host
+self-hosted Uptime Kuma monitoring accepted 2026-09-23
 
 ## Goal
 
@@ -370,8 +371,12 @@ application database.
 GitHub-hosted Actions build, test, scan, attest, and publish artifacts but do not
 run production workloads. The watcher and APScheduler run on the same Mikr.us
 Compose host as the edge and API, with a separate mutable control SQLite
-database protected by revisioned recovery images in S3. AWS is limited to
-private versioned S3, narrow IAM, budgets, and Terraform state. See
+database protected by revisioned recovery images in S3. The same host runs
+self-hosted Uptime Kuma 2.5.5 for coarse public service state and watcher
+completion notifications. This avoids paid external monitoring SaaS, but cannot
+detect or notify for a total Mikr.us host, network, or power outage. That
+same-host limitation is accepted for now. AWS is limited to private versioned
+S3, narrow IAM, budgets, and Terraform state. See
 [deployment.md](docs/v0.0.1/deployment.md).
 
 ## Remaining Gates

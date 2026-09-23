@@ -65,6 +65,14 @@ images in private versioned S3. GitHub-hosted Actions build and test the images
 but do not run production schedules. Collectors in issues #6-#8 emit change
 records and issue #21 proposes reviewed manifest PRs.
 
+The same Mikr.us host also runs self-hosted Uptime Kuma 2.5.5 at
+`status.minoshealth.pl`. Its public page is limited to coarse service state;
+detailed watcher state remains private through `minos watcher status`, with
+issue #54 reserved for a future private detailed admin portal. This replaces a
+paid external monitoring SaaS, not the need for monitoring. Because Kuma shares
+the host, it cannot detect or notify for a total Mikr.us host, network, or power
+outage. This limitation is accepted for now.
+
 The initial service remains anonymous. The accepted later client direction is
 one installable responsive PWA that can synchronize a verified immutable
 SQLite reference snapshot for offline use. Future individual calculations are
@@ -93,12 +101,15 @@ required, while developer convenience follows those requirements. Critical
 paths receive targeted mutation and integration testing.
 
 A production-only maintenance Compose stack currently serves an explicit holding
-page through Cloudflare Tunnel. The watcher foundation now includes an executable
+page through Cloudflare Tunnel. A separate digest-pinned Uptime Kuma bootstrap
+container runs privately on the same host; its public status hostname is not
+routed yet. The watcher foundation now includes an executable
 UTC scheduler, fenced SQLite control transactions, local and S3 archives,
-revisioned recovery images, signed trusted-recovery inventories, Healthchecks.io
-integration, preflight commands, a hardened watcher image, and local Compose.
-The RSK collector is registered in the runtime, but a fresh control volume must
-be initialized explicitly before the watcher starts.
+revisioned recovery images, signed trusted-recovery inventories, a read-only
+watcher status command, preflight commands, a hardened watcher image, bounded
+local Docker logs, and local Compose. The RSK collector is registered in the
+runtime, but a fresh control volume must be initialized explicitly before the
+watcher starts.
 
 Local runtime commands are:
 
@@ -107,7 +118,24 @@ docker compose build watcher
 docker compose --profile bootstrap run --rm --no-deps watcher-bootstrap-rsk
 docker compose --profile preflight run --rm --no-deps watcher-preflight
 docker compose up --detach watcher
+docker compose exec --no-TTY watcher /app/.venv/bin/minos watcher status --json
+docker compose logs --since 24h --tail 500 --timestamps watcher
 ```
+
+Use `minos watcher status [SOURCE_ID] --json` to inspect one configured source.
+The status path opens control SQLite read-only. These host-local status and log
+commands do not detect a complete Mikr.us host, network, or power outage from
+outside its fault domain.
+
+Uptime Kuma setup and the two-stage public-route bootstrap are documented in
+[the Ansible runbook](infra/ansible/README.md). The operator created its admin
+account and 2FA, configured a private status page and paused watcher push
+monitor, tested a Telegram alert from Kuma, and stored a stopped
+integrity-checked off-host backup in 1Password on 2026-09-23. An isolated
+Docker restore of that backup passed against the same pinned image without
+network or host ports. The watcher stack, DNS status route, watcher push
+delivery, full host-loss recovery, representative load, and public browser
+verification remain pending.
 
 The real-AWS acceptance harness under `infra/terraform/watcher-acceptance` is
 opt-in and creates only randomized, tagged disposable resources in the built-in
