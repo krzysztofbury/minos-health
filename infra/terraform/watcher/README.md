@@ -28,6 +28,12 @@ Before planning, obtain explicit approval for all of these values:
 - the monthly budget amount, capped at the approved USD 20 ceiling;
 - the budget recipient email address.
 
+Issue #55 owns the missing scoped production operator and IAM boundary review.
+A saved plan made using the existing broad bootstrap SSO role is review evidence
+only, not an apply authorization. Do not apply until the dedicated operator is
+provisioned, the watcher and GitHub reader IAM boundaries are reviewed, and a
+fresh exact plan is generated and approved under that operator.
+
 No credential, access key, subscriber secret, or real identifier belongs in the
 committed example. Copy it to the ignored `terraform.tfvars` and replace every
 placeholder. The example budget amount is deliberately invalid until reviewed.
@@ -51,13 +57,25 @@ cp infra/terraform/watcher/terraform.tfvars.example \
 Initialize the existing bootstrap state bucket using its exact approved name:
 
 ```bash
+mise exec -- aws s3api head-bucket \
+  --profile "$AWS_PROFILE" \
+  --region "<state-bucket-region>" \
+  --bucket "<state-bucket-name>" \
+  --expected-bucket-owner "<twelve-digit-account-id>" \
+  --query BucketRegion --output text
 mise exec -- terraform -chdir=infra/terraform/watcher init \
   -backend-config="bucket=<state-bucket-name>" \
   -backend-config="region=<state-bucket-region>" \
-  -backend-config="expected_bucket_owner=<twelve-digit-account-id>" \
+  -backend-config='allowed_account_ids=["<twelve-digit-account-id>"]' \
   -lockfile=readonly
 mise exec -- terraform -chdir=infra/terraform/watcher validate
 ```
+
+The `head-bucket` command must return the reviewed state-bucket region before
+Terraform initializes. It checks the S3 bucket owner explicitly; the supported
+Terraform backend `allowed_account_ids` option independently checks the caller's
+AWS account. Terraform 1.16 does not support `expected_bucket_owner` as an S3
+backend configuration argument.
 
 For local static validation only, use `terraform init -backend=false`. It does
 not prove AWS behavior and must not be used as apply evidence.
