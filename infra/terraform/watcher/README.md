@@ -57,12 +57,14 @@ cp infra/terraform/watcher/terraform.tfvars.example \
 Initialize the existing bootstrap state bucket using its exact approved name:
 
 ```bash
-mise exec -- aws s3api head-bucket \
+mise exec -- aws s3api list-objects-v2 \
   --profile "$AWS_PROFILE" \
   --region "<state-bucket-region>" \
   --bucket "<state-bucket-name>" \
+  --prefix watcher/terraform.tfstate \
+  --max-keys 1 --no-paginate \
   --expected-bucket-owner "<twelve-digit-account-id>" \
-  --query BucketRegion --output text
+  --query Name --output text
 mise exec -- terraform -chdir=infra/terraform/watcher init \
   -backend-config="bucket=<state-bucket-name>" \
   -backend-config="region=<state-bucket-region>" \
@@ -71,8 +73,11 @@ mise exec -- terraform -chdir=infra/terraform/watcher init \
 mise exec -- terraform -chdir=infra/terraform/watcher validate
 ```
 
-The `head-bucket` command must return the reviewed state-bucket region before
-Terraform initializes. It checks the S3 bucket owner explicitly; the supported
+The bounded `list-objects-v2` command must return the exact reviewed bucket
+name before Terraform initializes. It checks the S3 bucket owner explicitly
+using only the existing watcher state-key prefix permission. Bucket region was
+independently verified during the operator bootstrap and cannot be changed on
+an existing bucket; the supported
 Terraform backend `allowed_account_ids` option independently checks the caller's
 AWS account. Terraform 1.16 does not support `expected_bucket_owner` as an S3
 backend configuration argument.

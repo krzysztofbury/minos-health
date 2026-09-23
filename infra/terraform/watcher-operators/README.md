@@ -97,3 +97,9 @@ The production watcher IAM user and GitHub reader role in
 Regenerate that root's saved plan under the scoped operator profile and obtain a
 second independent digest-specific approval before applying it. The older
 bootstrap-administrator plan is review evidence, not an apply candidate.
+
+On 2026-09-23 an exact 13-create IAM plan was applied after digest-specific
+approval. The live-role guard verified all three SSO-assumable operator roles,
+their six managed boundaries, exact trust and inline policies, seven effective
+allow/deny decisions, and a versioned read of this root's state through the
+dedicated recovery role. No watcher access key or snapshot bucket was created.
