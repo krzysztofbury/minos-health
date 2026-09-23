@@ -101,6 +101,23 @@ def test_materializer_serializes_validated_host_material_atomically(
     )
 
 
+def test_materializer_identifies_failed_secret_field_without_leaking_reference(
+    tmp_path: Path,
+) -> None:
+    def unavailable(reference: str) -> str:
+        if reference == SECRET_REFERENCES["ansible_port"]:
+            raise MaterializationError("private 1Password diagnostic")
+        return "unused"
+
+    with pytest.raises(MaterializationError) as captured:
+        materialize(tmp_path / "repository", tmp_path / "home", read_secret=unavailable)
+
+    assert str(captured.value) == "1Password read failed for ansible_port"
+    assert "private 1Password diagnostic" not in str(captured.value)
+    assert "op://" not in str(captured.value)
+    assert not (tmp_path / "repository").exists()
+
+
 def test_materializer_fsyncs_every_output_parent_directory(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

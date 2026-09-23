@@ -1,6 +1,7 @@
 import hashlib
 import json
 import sqlite3
+import threading
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import ClassVar, cast, final, override
 import pytest
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+import minos.ingest.watchers.control.store as control_store_module
 from minos.ingest.watchers.config import (
     RSK_SOURCE_CONFIGURATION_CODECS,
     RskSourceConfigurationCodec,
@@ -31,6 +33,8 @@ from minos.ingest.watchers.control import (
     ObservationDraft,
     RecoveryReceipt,
     RetryPolicy,
+    RunClaim,
+    ScheduledRunMode,
     SourceConfiguration,
     SourceConfigurationCodec,
     SourceConfigurationCodecError,
@@ -986,6 +990,98 @@ def test_observation_commit_advances_all_state_atomically(
         _ = store.acquire_claim(_manual_claim_request(_NOW_MS))
 
 
+def test_committed_history_is_revision_fenced_and_truncates_complete_runs(
+    store: ControlStore,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_source(store)
+    first_claim = store.acquire_claim(_manual_claim_request(_NOW_MS))
+    first = store.commit_observations(first_claim.identity, _observation_commit())
+    _ = store.mark_heartbeat_pending(
+        first.run_id,
+        committed_state_revision=first.committed_state_revision,
+        recovery_receipt=_recovery_receipt(first),
+    )
+    _ = store.mark_successful(
+        first.run_id,
+        committed_state_revision=first.committed_state_revision,
+    )
+
+    second_claim = store.acquire_claim(_manual_claim_request(_NOW_MS))
+    digest = "c" * 64
+    second_observation = ObservationDraft(
+        "observation-0000000002",
+        "catalog",
+        "UZYNLG",
+        digest,
+        _NOW_MS,
+        {"status": 200, "revision": 2},
+        (ObservationBlob("response", 0, digest),),
+    )
+    second = store.commit_observations(
+        second_claim.identity,
+        ObservationCommit(
+            (
+                BlobReceipt(
+                    digest,
+                    2,
+                    "application/json",
+                    f"blobs/sha256/{digest}",
+                    digest,
+                    2,
+                ),
+            ),
+            (second_observation,),
+            {"etag": "v2"},
+        ),
+    )
+
+    fenced = store.load_committed_observation_history(
+        _SOURCE_ID,
+        "catalog",
+        through_state_revision=first.committed_state_revision,
+    )
+    latest_only = store.load_committed_observation_history(
+        _SOURCE_ID,
+        "catalog",
+        through_state_revision=second.committed_state_revision,
+        maximum_revisions=1,
+    )
+
+    assert [item.state_revision for item in fenced.revisions] == [
+        first.committed_state_revision
+    ]
+    assert fenced.older_revisions_exist is False
+    assert [item.state_revision for item in latest_only.revisions] == [
+        second.committed_state_revision
+    ]
+    assert latest_only.older_revisions_exist is True
+
+    monkeypatch.setattr(control_store_module, "_MAX_PUBLIC_HISTORY_INPUT_ROWS", 1)
+    work_bounded = store.load_committed_observation_history(
+        _SOURCE_ID,
+        "catalog",
+        through_state_revision=second.committed_state_revision,
+    )
+    assert [item.state_revision for item in work_bounded.revisions] == [
+        second.committed_state_revision
+    ]
+    assert work_bounded.older_revisions_exist is True
+
+    monkeypatch.setattr(
+        control_store_module,
+        "_MAX_PUBLIC_HISTORY_INPUT_ROWS",
+        16_384,
+    )
+    monkeypatch.setattr(control_store_module, "_MAX_PUBLIC_HISTORY_INPUT_BYTES", 1)
+    with pytest.raises(ControlStorageError, match="input budget"):
+        _ = store.load_committed_observation_history(
+            _SOURCE_ID,
+            "catalog",
+            through_state_revision=second.committed_state_revision,
+        )
+
+
 def test_duplicate_write_failure_rolls_back_entire_observation_commit(
     store: ControlStore,
     database_path: Path,
@@ -1490,6 +1586,233 @@ def test_atomic_overdue_and_named_due_claims(
     named = store.claim_named_due("rsk-b")
     assert named is not None
     assert named.run_mode == "scheduled"
+
+
+def test_co_due_weekly_claim_has_priority_and_preserves_daily_obligation(
+    store: ControlStore,
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    _configure_source(store)
+    daily = store.set_schedule(_schedule())
+    weekly = store.set_schedule(replace(_schedule(), run_mode="weekly_verification"))
+    assert daily.next_due_at_ms == weekly.next_due_at_ms
+    clock.set(_NOW_MS)
+
+    verification = store.claim_one_overdue()
+
+    assert verification is not None
+    assert verification.run_mode == "weekly_verification"
+    _ = store.fail_claim(verification.identity, error_category="exhausted")
+    daily_catch_up = store.claim_one_overdue()
+    assert daily_catch_up is not None
+    assert daily_catch_up.run_mode == "catch_up"
+    assert daily_catch_up.scheduled_at_ms == daily.next_due_at_ms
+    cursors = _query(
+        database_path,
+        """
+        SELECT run_mode, next_due_at_ms
+        FROM source_schedules
+        ORDER BY run_mode
+        """,
+    )
+    assert cursors == [
+        ("scheduled", _NEXT_DAILY_FIRE_MS),
+        ("weekly_verification", _NEXT_DAILY_FIRE_MS),
+    ]
+
+
+def test_restart_claims_overdue_weekly_with_forced_mode(
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as first:
+        _configure_source(first)
+        _ = first.set_schedule(replace(_schedule(), run_mode="weekly_verification"))
+    clock.set(_NOW_MS)
+
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as restarted:
+        claim = restarted.claim_one_overdue()
+
+    assert claim is not None
+    assert claim.run_mode == "weekly_verification"
+
+
+def test_concurrent_due_claimers_create_one_fenced_claim(
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as setup:
+        _configure_source(setup)
+        _ = setup.set_schedule(_schedule())
+    clock.set(_NOW_MS)
+    barrier = threading.Barrier(2)
+    claims: list[RunClaim | None] = []
+    errors: list[BaseException] = []
+
+    def claim() -> None:
+        try:
+            with ControlStore.open(
+                database_path,
+                source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+            ) as contender:
+                _ = barrier.wait(timeout=5)
+                claims.append(contender.claim_named_due(_SOURCE_ID))
+        except BaseException as error:
+            errors.append(error)
+
+    workers = [threading.Thread(target=claim) for _index in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=10)
+
+    assert all(not worker.is_alive() for worker in workers)
+    assert errors == []
+    assert len([claim for claim in claims if claim is not None]) == 1
+    assert _query(database_path, "SELECT COUNT(*) FROM watcher_runs") == [(1,)]
+    assert _query(database_path, "SELECT fencing_epoch FROM sources") == [(1,)]
+
+
+@pytest.mark.parametrize(
+    ("scheduled_mode", "expected_run_mode"),
+    (("scheduled", "catch_up"), ("weekly_verification", "weekly_verification")),
+)
+def test_failed_due_obligation_retries_after_persisted_backoff_and_restart(
+    database_path: Path,
+    clock: _TestClock,
+    scheduled_mode: ScheduledRunMode,
+    expected_run_mode: str,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as first:
+        _configure_source(first)
+        schedule = first.set_schedule(replace(_schedule(), run_mode=scheduled_mode))
+    clock.set(_NOW_MS)
+
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as first:
+        claim = first.claim_one_overdue()
+        assert claim is not None
+        assert claim.run_mode == expected_run_mode
+        _ = first.fail_claim(claim.identity, error_category="exhausted")
+        assert first.claim_one_overdue() is None
+
+    clock.set(_NOW_MS + 499)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as before_backoff:
+        assert before_backoff.claim_one_overdue() is None
+
+    clock.set(_NOW_MS + 500)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as restarted:
+        retry = restarted.claim_one_overdue()
+
+    assert retry is not None
+    assert retry.run_mode == expected_run_mode
+    assert retry.scheduled_at_ms == schedule.next_due_at_ms
+
+
+def test_concurrent_retry_claimers_create_one_fenced_claim(
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as setup:
+        _configure_source(setup)
+        _ = setup.set_schedule(_schedule())
+    clock.set(_NOW_MS)
+    with ControlStore.open(
+        database_path,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as setup:
+        claim = setup.claim_one_overdue()
+        assert claim is not None
+        _ = setup.fail_claim(claim.identity, error_category="exhausted")
+    clock.set(_NOW_MS + 500)
+    barrier = threading.Barrier(2)
+    claims: list[RunClaim | None] = []
+    errors: list[BaseException] = []
+
+    def claim_retry() -> None:
+        try:
+            with ControlStore.open(
+                database_path,
+                source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+            ) as contender:
+                _ = barrier.wait(timeout=5)
+                claims.append(contender.claim_one_overdue())
+        except BaseException as error:
+            errors.append(error)
+
+    workers = [threading.Thread(target=claim_retry) for _index in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=10)
+
+    assert all(not worker.is_alive() for worker in workers)
+    assert errors == []
+    assert len([claim for claim in claims if claim is not None]) == 1
+    assert _query(database_path, "SELECT COUNT(*) FROM watcher_runs") == [(2,)]
+
+
+def test_successful_due_run_completes_pending_obligation(
+    store: ControlStore,
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    clock.set(_NOW_MS - 86_400_000)
+    _configure_source(store)
+    _ = store.set_schedule(_schedule())
+    clock.set(_NOW_MS)
+    claim = store.claim_one_overdue()
+    assert claim is not None
+    committed = store.commit_observations(claim.identity, _observation_commit())
+    _ = store.mark_heartbeat_pending(
+        committed.run_id,
+        committed_state_revision=committed.committed_state_revision,
+        recovery_receipt=_recovery_receipt(committed),
+    )
+
+    _ = store.mark_successful(
+        committed.run_id,
+        committed_state_revision=committed.committed_state_revision,
+    )
+
+    assert _query(
+        database_path,
+        """
+        SELECT pending_scheduled_at_ms, pending_run_mode,
+               retry_not_before_ms, retry_failure_count
+        FROM source_schedules
+        """,
+    ) == [(None, None, None, 0)]
+    assert store.claim_one_overdue() is None
 
 
 def test_store_rejects_caller_owned_connections(tmp_path: Path) -> None:

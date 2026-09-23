@@ -68,15 +68,24 @@ jobs:
             --inventory localhost, --connection local \
             --module-name ansible.builtin.template \
             --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/minos-compose.yml.j2 dest=${RUNNER_TEMP}/minos-compose.yaml" \
-            --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","watcher_archive_backend":"s3","watcher_aws_region":"eu-central-1","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_expected_bucket_owner":"123456789012","watcher_secrets_gid":10002,"watcher_uid":10001}'
+            --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","uptime_kuma_gid":10003,"uptime_kuma_image_reference":"docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6","uptime_kuma_uid":10003,"watcher_archive_backend":"s3","watcher_aws_region":"eu-central-1","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_expected_bucket_owner":"123456789012","watcher_secrets_gid":10002,"watcher_uid":10001,"watcher_uptime_kuma_required":false}'
           uvx --from ansible-core==2.21.4 ansible localhost \
             --inventory localhost, --connection local \
             --module-name ansible.builtin.template \
             --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/cloudflared-config.yml.j2 dest=${RUNNER_TEMP}/cloudflared-config.yml" \
-            --extra-vars '{"cloudflared_tunnel_id":"11111111-2222-3333-4444-555555555555"}'
+            --extra-vars '{"cloudflared_tunnel_id":"11111111-2222-3333-4444-555555555555","uptime_kuma_public_status_enabled":false}'
+          uvx --from ansible-core==2.21.4 ansible localhost \
+            --inventory localhost, --connection local \
+            --module-name ansible.builtin.template \
+            --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/cloudflared-config.yml.j2 dest=${RUNNER_TEMP}/cloudflared-public-status-config.yml" \
+            --extra-vars '{"cloudflared_tunnel_id":"11111111-2222-3333-4444-555555555555","uptime_kuma_public_status_enabled":true}'
           docker compose --file "$RUNNER_TEMP/minos-compose.yaml" config --quiet
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/cloudflared-config.yml:/etc/cloudflared/config.yml:ro" \
+            docker.io/cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4 \
+            tunnel --config /etc/cloudflared/config.yml ingress validate
+          docker run --rm --network none \
+            --volume "$RUNNER_TEMP/cloudflared-public-status-config.yml:/etc/cloudflared/config.yml:ro" \
             docker.io/cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4 \
             tunnel --config /etc/cloudflared/config.yml ingress validate
 
@@ -183,9 +192,13 @@ jobs:
             --user 10001:10001 --cap-drop ALL \
             --security-opt no-new-privileges \
             minos-health-watcher:local --version
+          docker compose --file compose.yaml --profile bootstrap run --rm --no-deps \
+            watcher-bootstrap-rsk
           docker compose --file compose.yaml run --rm --no-deps \
             --entrypoint /app/.venv/bin/python watcher -c \
             "from pathlib import Path; p=Path('/var/lib/minos/staging/.minos-blob-ci-stale'); p.write_bytes(b'partial'); p.chmod(0o600)"
+          docker compose --file compose.yaml --profile preflight run --rm --no-deps \
+            watcher-preflight
           docker compose --file compose.yaml up --detach --no-build \
             --wait --wait-timeout 60 watcher
           sleep 15
@@ -226,6 +239,7 @@ jobs:
           assert destinations == {
               "/var/lib/minos/archive",
               "/var/lib/minos/control",
+              "/var/lib/minos/public",
               "/var/lib/minos/staging",
           }
           PY

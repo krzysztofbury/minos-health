@@ -5,6 +5,7 @@ type JsonValue = (
     None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
 )
 type RunMode = Literal["scheduled", "weekly_verification", "manual", "catch_up"]
+type ScheduledRunMode = Literal["scheduled", "weekly_verification"]
 type ReconcilableStatus = Literal["committed", "heartbeat_pending"]
 
 
@@ -33,6 +34,7 @@ class SourceSchedule:
     retry_max_attempts: int
     retry_base_seconds: float
     retry_max_seconds: float
+    run_mode: ScheduledRunMode = "scheduled"
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +52,14 @@ class ScheduledSource:
     next_due_at_ms: int
     misfire_grace_seconds: int
     retry_policy: RetryPolicy
+    run_mode: ScheduledRunMode = "scheduled"
+
+
+@dataclass(frozen=True, slots=True)
+class BootstrapResult:
+    source_id: str
+    state_revision: int
+    changed: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +189,54 @@ class CommittedRun:
     committed_state_revision: int
     committed_at_ms: int
     status: ReconcilableStatus = "committed"
+
+
+@dataclass(frozen=True, slots=True)
+class CommittedObservation:
+    observation_id: str
+    observation_kind: str
+    source_identity: str
+    response_sha256: str
+    observed_at_ms: int
+    metadata: dict[str, JsonValue]
+
+
+@dataclass(frozen=True, slots=True)
+class CommittedBlobEvidence:
+    blob_role: str
+    ordinal: int
+    sha256: str
+    size_bytes: int
+    media_type: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class CommittedProductEvidence:
+    state_revision: int
+    observation_id: str
+    source_identity: str
+    response_sha256: str
+    observed_at_ms: int
+    metadata: dict[str, JsonValue]
+    response_size_bytes: int
+    response_media_type: str | None
+    blobs: tuple[CommittedBlobEvidence, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CommittedObservationRevision:
+    state_revision: int
+    committed_at_ms: int
+    observations: tuple[CommittedObservation, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CommittedObservationHistory:
+    source_id: str
+    through_state_revision: int
+    revisions: tuple[CommittedObservationRevision, ...]
+    older_revisions_exist: bool
+    product_evidence: tuple[CommittedProductEvidence, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

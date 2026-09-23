@@ -3,15 +3,137 @@
 ## Operating Model
 
 One dedicated Mikr.us `3.0` host runs the public edge, API, watchers, scheduler,
-and Cloudflare Tunnel through Docker Compose. The host is replaceable, but it is
-not stateless: the watcher control SQLite database is mutable and therefore
-receives consistent, tested S3 recovery images.
+self-hosted Uptime Kuma, and Cloudflare Tunnel through Docker Compose. The host
+is replaceable, but it is not stateless: the watcher control SQLite database is
+mutable and therefore receives consistent, tested S3 recovery images. Kuma also
+has mutable `/app/data` and requires a separate stopped encrypted off-host
+backup.
 
 The complete system of record is Git, reviewed manifests, pinned image digests,
 versioned S3 source snapshots, revision-numbered control-database recovery
 images, signed release and deployment records, and Terraform state. A run is
 not acknowledged as successful while the Mikr.us disk is the only copy of its
 control metadata.
+
+### RSK Acquisition Modes
+
+RSK `scheduled` and `catch_up` runs use daily acquisition semantics: they
+archive the catalog and every returned HCD's `basic-info`, but download the
+allowlisted `00CD10` XML only for a first observation, a selected identity or
+file-set change. `weekly_verification` and `manual` runs always download and
+re-hash the selected XML.
+
+Before making a network request or a download decision, the collector validates
+the persisted cursor's canonical full-state digest, exact catalog-to-resource
+membership, normalized per-HCD metadata and digests, `00CD10` file-set link, and
+semantic selected-file identity. Missing or inconsistent persisted state fails
+closed as control-state corruption. It never forces a replacement download,
+because doing so could hide local corruption and replace historical provenance
+with current upstream state.
+
+Each forced or changed download starts at byte zero, validates the declared and
+received size, media type, XML completeness, and SHA-256, then archives an exact
+post-download `00CD10` metadata refetch. Schema drift, duplicate UUIDs, ambiguous
+selection, persistent rotation, malformed XML, and wrong media fail closed
+without advancing observations or the source cursor. Bounded transport
+failures, retryable HTTP statuses, and transient rotation enter the
+source-neutral retry policy.
+
+### RSK Registration And Scheduling
+
+Registration is an explicit one-shot activation action, not watcher startup
+side effect. The production Ansible activation invokes this command after
+candidate preflight and promotion, and before starting the active watcher. It
+uses `--no-deps`; local operators can run the equivalent command directly:
+
+```text
+docker compose --profile bootstrap run --rm watcher-bootstrap-rsk
+```
+
+Both local and rendered production Compose projects define this service under
+the explicit `bootstrap` profile with the watcher's image, identity, secrets,
+networks, and persistent paths. The active watcher and deployment services do
+not depend on it, so ordinary `docker compose up` never performs registration.
+Ansible calls the one-shot service as a separate fail-closed activation step.
+It creates state only when source `rsk` is absent, treats an exact existing
+registration as an idempotent no-op, and rejects disabled, customized, or
+partial state without overwriting it.
+
+The equivalent direct command is `minos watcher bootstrap-rsk` with the same
+database, staging, archive, and canonical process-lock paths used by the watcher.
+It atomically creates enabled source `rsk`, canonical watcher kind `rsk`, the
+fully materialized default RSK configuration, daily `0 3 * * *` UTC polling,
+and Sunday `0 4 * * 0` UTC forced verification. Both schedules use a 3600-second
+misfire grace and the bounded 3-attempt, 0.5-to-30-second retry policy.
+
+The command is idempotent only when configuration, enablement, schedule set,
+cron expressions, misfire policy, and retry policy match exactly. It does not
+reset due cursors. An operator-disabled source, custom configuration, custom
+schedule, or partial registration causes a conflict and no write. Resolve such
+state explicitly instead of rerunning bootstrap as a repair command.
+
+Daily and weekly obligations have independent SQLite cursors. When both are
+overdue, weekly verification has deterministic claim priority and daily remains
+due. Startup drains at most the configured scheduler projection limit, then
+stops; it does not poll in a busy loop. Overdue daily work reaches the collector
+as `catch_up`, while overdue weekly work retains `weekly_verification` so the
+forced re-download cannot be weakened by a restart. A claimed occurrence is
+advanced before collection under the same fenced transaction. In-process retry
+keeps the original mode; exhausted or stale claims are incidented and are not
+immediately reclaimed, avoiding a failure loop.
+
+A metadata rotation during transfer has a dedicated retryable outcome. The
+orchestrator discards that attempt's staged control receipts and restarts from a
+fresh catalog and all-HCD metadata snapshot. A stable retry may commit; repeated
+rotation exhausts the configured bounded claim retry policy without partial
+observations or cursor movement. Content-addressed bytes published before the
+rotation check may remain as unreferenced immutable archive blobs.
+
+Every RSK request receives connect, pool, write, and per-read HTTPX timeouts
+bounded by the remaining claim deadline. The client checks the absolute
+deadline before and after each streamed chunk, and the collector checks it
+between parsing, archive publication, cursor and observation preparation, and
+XML validation. Deadline exhaustion is retryable but cannot commit partial
+state.
+
+### Public Provenance Publication
+
+Run reconciliation orders durable effects as: committed observation, verified
+recovery image, `heartbeat_pending`, local public projection, then `successful`.
+Publication failure leaves the run
+`heartbeat_pending` and the previous generation active. A retry reuses or
+validates the immutable generation and completes local finalization idempotently.
+If interruption occurs after the symlink switch, the new generation may already
+be active, but the run remains retryable until local finalization completes.
+`heartbeat_pending` is retained as a compatibility name for this durable local
+phase. It does not represent a monitoring request. After durable terminal
+completion, the watcher makes a best-effort Uptime Kuma up or down push. Push
+failure never blocks or changes the watcher result.
+
+Startup first restores a missing or stale projection from the latest committed
+RSK revision and then reconciles pending runs. A restored older control database
+cannot silently replace a newer active public generation; automatic downgrade
+is rejected for operator investigation. The public endpoint contains no
+downloadable artifacts while `manifests/redistribution.json` has an empty
+allowlist. Guarded application streaming is deferred until legal approval names
+specific digests and an application endpoint exists.
+
+An intentional reset uses the same control database and public directory as the
+stopped watcher. Record the exact active revision and projection digest, build
+and review the target digest from the selected recovery-reconciled revision,
+then run:
+
+```sh
+minos watcher rebuild-public-rsk \
+  --expected-current-revision <active-revision> \
+  --expected-current-sha256 <active-projection-sha256> \
+  --target-revision <target-revision> \
+  --target-sha256 <reviewed-target-projection-sha256>
+```
+
+The command holds the watcher process lock and fails if either current fence is
+stale, the target revision was not recovery reconciled, or rebuilt target bytes
+do not match the reviewed digest. There is no unfenced or implicit downgrade.
 
 ## Asset Inventory
 
@@ -20,9 +142,11 @@ control metadata.
 | Source and manifests | Private GitHub repository | Git history and remote |
 | Raw source snapshots | Private versioned S3 bucket | Content addressing, conditional writes, no watcher delete permission |
 | Watcher control database | Mikr.us persistent volume | Immutable revisioned S3 recovery images and restore drills |
+| Sanitized public provenance | Dedicated host directory, watcher RW and edge RO | Current plus two prior immutable filesystem generations |
 | Generated reference database | Private API image and data artifact | GHCR digest, checksum, reproducible build |
 | Static web artifact | Private edge image and build artifact | GHCR digest, checksum, reproducible build |
 | Watcher runtime | Private watcher image | GHCR digest and bounded release retention |
+| Uptime Kuma state | `/var/lib/minos/uptime-kuma`, mounted as `/app/data` | Complete stopped encrypted off-host backup; restore same pinned version first |
 | Terraform state | Private S3 state bucket | Versioning, encryption, locking, recovery copy |
 | Domain | Registrar | Lock, 2FA, auto-renewal, recovery codes |
 | DNS and ingress | Cloudflare | Configuration record and recovery credentials |
@@ -52,16 +176,25 @@ disabled against a disposable database copy. It then verifies:
 5. Static assets match the recorded checksums.
 6. Mobile and desktop browser flows render and perform a real search.
 7. The pinned watcher UID/GID can access its volume and mounted secret files.
-8. Migration compatibility, an S3 native-checksum probe, a recovery-image
-   round trip, and a dedicated Healthchecks.io preflight check succeed while
-   dispatch remains paused.
-9. The previous watcher stops; the exact candidate starts paused against the live
-   volume, applies the tested migration, and verifies the live revision,
-   migration checksums, WAL, secrets, and post-migration recovery image. The two
-   watcher processes never own the volume concurrently.
-10. Container health, memory, disk, and error signals remain within recorded
-   launch thresholds under representative traffic and one bounded watcher
-   canary run.
+8. A disposable control-database copy upgrades supported older schemas to the
+   candidate schema, then migration compatibility, an S3 native-checksum probe,
+   and a recovery-image round trip succeed while dispatch remains paused.
+9. The previous watcher stops. The candidate captures preactivation evidence,
+   promotes the reviewed runtime, and applies the same tested migration to the
+   quiesced live volume. The two watcher processes never own the volume
+   concurrently. If the live schema changed and a later activation step fails,
+   rescue preserves the candidate runtime and migrated database stopped rather
+   than starting an older writer.
+10. Activation bootstraps or validates canonical RSK registration, validates any
+    existing public projection, runs one 900-second-bounded manual RSK canary,
+    and requires its canonical public projection before active services start.
+11. Container health, memory, disk, and error signals remain within recorded
+    launch thresholds under representative traffic. The production edge must
+    return HTTP 200 canonical JSON whose SHA-256 equals the validated current
+    projection.
+12. Uptime Kuma has no host port or Docker socket, the public status route was
+    enabled only after private admin and 2FA setup, HTTP and RSK push monitors
+    use reviewed notifications, and the public page contains coarse state only.
 
 The first production deployments are explicit operator actions. Automation may
 later execute the same bounded procedure over restricted SSH, but it must not
@@ -70,9 +203,9 @@ change the release selection rule or deploy mutable tags.
 ## Rollback
 
 Rollback restores the previous complete compatible API, edge, watcher,
-`cloudflared`, and dataset digest set, not individual containers selected
-independently. It does not rebuild, retag, mutate the reference database, or
-follow `latest`.
+`cloudflared`, Uptime Kuma, and dataset digest set, not individual containers
+selected independently. It does not rebuild, retag, mutate the reference
+database, or follow `latest`.
 
 After rollback, repeat readiness, static-integrity, browser, and known-search
 tests through the public hostname. Preserve failed-version logs and release
@@ -80,10 +213,11 @@ metadata until the incident is understood. Do not let image cleanup remove the
 current or prior compatible release.
 
 The scheduler remains quiesced until the serving and watcher preflights pass.
-Every `v0.0.1` control migration and candidate write must remain readable by the
-retained previous watcher throughout the rollback window; test this on a copy
-before touching the live database. An incompatible control migration blocks the
-release and requires a separately designed maintenance cutover.
+Every supported control migration is tested first on a disposable copy. Before
+the live migration, normal rescue may restore the prior compatible runtime.
+After the live schema changes, automatic rollback to an older writer is
+forbidden; preserve the promoted candidate and migrated database stopped for
+explicit recovery.
 
 Before the candidate canary commits, rollback may restore the verified
 pre-deploy recovery image with the pinned ownership and modes. Once a candidate
@@ -119,8 +253,9 @@ retention and do not require a currently committed run. Each image:
    key and compares byte count and native checksum after either create or `412`;
    a `409` retries the bounded conditional operation. Multipart upload is
    prohibited for watcher-created recovery images.
-8. For a run image, records `heartbeat_pending`, sends the external success
-   heartbeat, and marks the run successful only after the response succeeds.
+8. For a run image, records `heartbeat_pending`, publishes the fenced sanitized
+   public projection, and marks the run successful only after durable local
+   finalization succeeds.
 9. Removes the temporary local copy.
 
 Current recovery images become expiration-eligible after 30 days for `run`, 31
@@ -158,8 +293,8 @@ never selected. Trusted database copies become expiration-eligible after 400
 days, with noncurrent versions eligible one day later. The small signed inventory
 objects never expire, so their chain remains verifiable from sequence one. The
 public verification key and latest trusted inventory also belong in the off-host
-recovery kit; the signing key never enters Mikr.us. Missing the weekly cadence
-triggers an external alert.
+recovery kit; the signing key never enters Mikr.us. Operators detect a missed
+weekly cadence from the read-only watcher status during routine review.
 
 Ordinary host-loss recovery may use the newest valid watcher-created recovery
 image. If host or watcher-key compromise is suspected, automatic newest-image
@@ -193,8 +328,8 @@ conflicting sequence fail closed immediately. Receipt objects do not expire.
 
 1. Obtain a replacement dedicated Mikr.us `3.0` host.
 2. Verify SSH host identity and apply the reviewed Ansible configuration.
-3. Install fresh service-restricted Cloudflare, Healthchecks.io, and AWS secret
-   files plus the root-owned GHCR Docker credential.
+3. Install fresh service-restricted Cloudflare and AWS secret files plus the
+   root-owned GHCR Docker credential.
 4. Verify the unique signed deployment-receipt chain head and its signed release
    manifest, then pull the exact current API, edge, watcher, and `cloudflared`
    digests.
@@ -205,9 +340,11 @@ conflicting sequence fail closed immediately. Receipt objects do not expire.
    revision and migration set, and integrity before placing it on the persistent
    volume with the pinned watcher ownership and modes.
 7. Start Compose without public ingress and verify internal readiness, source
-   schedules, and known searches.
+   schedules, known searches, the restored Uptime Kuma data against the same
+   pinned version, and the installed watcher target document.
 8. Start `cloudflared`, then verify TLS, readiness, mobile and desktop rendering,
-   known searches, and watcher heartbeat through external services.
+   known searches, the coarse public status page, notification delivery,
+   read-only watcher status, and bounded local watcher logs.
 
 ### Control Database Corruption
 
@@ -241,6 +378,31 @@ and then repeat public TLS, browser, and known-search checks. Do not change
 nameservers during an unrelated application incident unless DNS is proven to be
 the failing boundary.
 
+### Uptime Kuma Backup And Restore
+
+Uptime Kuma data can contain the admin credential state, notification
+credentials, and watcher push tokens. Back up the complete `/app/data` tree,
+which is `/var/lib/minos/uptime-kuma` on the host, only while Kuma is stopped:
+
+```sh
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  stop uptime-kuma
+```
+
+Keep the service stopped until the complete directory has been archived,
+encrypted, transferred off-host, and checked. Never copy the live SQLite
+database, WAL, or shared-memory files. Restore the same pinned version first:
+Uptime Kuma 2.5.5, official MIT `slim-rootless`, `linux/amd64`, digest
+`sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6`.
+Ansible intentionally refuses an image change while preserved data exists until
+a reviewed stopped backup and migration procedure is available.
+
+On 2026-09-23 an isolated restore of the refreshed 1Password Document used a
+disposable local Docker volume, the same pinned image and UID `10003`, no
+network, and no published port. The restored service became healthy and served
+the status page; the temporary container and volume were removed. This does not
+replace the pending complete empty-host Mikr.us recovery drill.
+
 ## Recovery Drills
 
 Before `v0.0.1`, perform and time at least:
@@ -251,7 +413,9 @@ Before `v0.0.1`, perform and time at least:
 - reconstruction of a generated database from pinned raw snapshots;
 - complete Compose deployment to an empty `linux/amd64` host;
 - rollback to the prior compatible API, edge, watcher, `cloudflared`, and
-  dataset digest set;
+  Uptime Kuma and dataset digest set;
+- restore of a complete encrypted Uptime Kuma `/app/data` backup against the
+  same pinned image before testing any migration;
 - recovery of registrar, Cloudflare, GHCR, AWS, and SSH access without relying
   on an active developer laptop.
 
@@ -260,10 +424,10 @@ every unresolved manual step.
 
 ## Logging
 
-Loguru is configured once at each Python process entry and emits allowlisted
-structured JSON to stdout in production. Local development may use a
-human-readable console format with the same fields. Libraries and domain code
-must not install independent sinks or serialize arbitrary request, response, or
+Watcher lifecycle and RSK transport events use allowlisted Loguru fields. Docker
+retains stdout and stderr with its bounded `local` driver; a dedicated production
+JSON sink and application-wide logging configuration remain future work.
+Libraries and domain code must not serialize arbitrary request, response, or
 exception objects.
 
 Application logs may contain:
@@ -294,6 +458,33 @@ require an explicit event and property allowlist.
 CloudWatch is not used for the Mikr.us runtime. A future external error service
 requires explicit event allowlisting, bounded retention, and a privacy review.
 
+Inspect all watcher sources or one source through the read-only status command:
+
+```sh
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher status --json
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher status rsk --json
+```
+
+Read a bounded recent log window from the host-local Docker log store:
+
+```sh
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  logs --since 24h --tail 500 --timestamps watcher
+```
+
+For direct local development, use
+`uv run minos watcher status [SOURCE_ID] --database
+.minos/control/control.sqlite3 --json`.
+The status path opens SQLite read-only and reports bounded schedules, recent
+runs and changes, open incidents, and verified downloaded products without raw
+source payloads or credentials. Confirm the container is running before treating
+empty log output as evidence. Self-hosted Uptime Kuma adds coarse public state
+and notifications, but runs on this same host. It cannot detect or notify for a
+total Mikr.us host, network, or power outage. This limitation is accepted for
+now.
+
 ## Secrets And Configuration
 
 Local development uses ignored `.env` files based on `.env.example`. Local
@@ -304,8 +495,17 @@ UID or GID of the required service. Ansible creates service-specific directories
 and Compose mounts each file read-only into only that container:
 
 - Cloudflare Tunnel credential for `cloudflared`;
-- narrowly scoped AWS access key for the watcher.
-- Healthchecks.io ping target for the watcher.
+- narrowly scoped AWS access key for the watcher;
+- Uptime Kuma target JSON for the watcher, containing only version, source IDs,
+  and 32-character alphanumeric push tokens.
+
+The production target schema is exactly
+`{"version":1,"sources":{"rsk":"<32-character-alphanumeric-token>"}}`.
+An empty `sources` mapping is allowed only during bootstrap while
+`watcher_uptime_kuma_required=false`. Supply the file to Ansible through
+`watcher_uptime_kuma_targets_source` from a mode-`0400` or mode-`0600` regular
+file outside the repository. Set `watcher_uptime_kuma_required=true` only after
+the corresponding push monitor exists.
 
 The GHCR package-read token belongs in the root-owned host Docker credential
 store for image pulls and is not mounted into a container.
@@ -328,17 +528,24 @@ Initial operational signals are:
 - warm latency and bounded timeout rate;
 - container restart count and health;
 - host memory, disk space, and inode headroom;
-- external readiness and known-search failures;
+- operator-run public readiness and known-search failures;
 - deployed image digests and dataset release;
 - per-source observation age;
 - watcher due, running, failed, stale, and disabled status;
 - backup age and last restore-test date;
 - S3 spend and forecast.
 
-Healthchecks.io receives only opaque schedule IDs and start, success, or failure
-pings. It receives no URLs, source content, stack traces, or medical data. A
-missing heartbeat detects complete host or scheduler failure from outside the
-Mikr.us fault domain.
+SQLite incidents and `minos watcher status [SOURCE_ID] --json` are the watcher
+status authority. Docker's bounded local logs provide process detail. The
+self-hosted Uptime Kuma public page provides coarse service state only; issue
+#54 remains the future private detailed admin portal. Kuma HTTP monitors,
+watcher terminal up/down pushes, and notifications do not replace SQLite as the
+detailed authority. Monitor requests are best-effort and never block or alter
+watcher completion.
+
+Because Kuma is on the same Mikr.us host, it cannot detect or notify for a total
+host, network, or power outage. This limitation is accepted for now. There is no
+paid external monitoring SaaS in the accepted design.
 
 Empty log output is not evidence of health until the service, container, and log
 filter are confirmed against actually running resources.

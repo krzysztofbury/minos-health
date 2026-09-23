@@ -1,10 +1,12 @@
 # Deployment
 
 Status: target application architecture with the source-neutral watcher runtime
-implemented. The host currently runs the exact-digest maintenance edge and
-Cloudflare Tunnel. The repository now contains the watcher image, scheduler,
-local Compose stack, S3/recovery composition, and candidate preflight, but no API
-image, source-specific collector, applied watcher AWS stack, or release workflow.
+implemented. The host currently runs the exact-digest maintenance edge,
+Cloudflare Tunnel, and a separate private Uptime Kuma bootstrap container.
+The repository now contains the watcher image, scheduler,
+local Compose stack, RSK collector and public provenance projection,
+S3/recovery composition, and candidate preflight, but no application API image,
+applied watcher AWS stack, or release workflow.
 
 ## Goals
 
@@ -30,12 +32,25 @@ Browser
   -> outbound Cloudflare Tunnel
   -> edge container
      -> static web artifact
+     -> /api/v1/provenance/rsk -> read-only public watcher projection
      -> /api/*, /healthz, /readyz -> API container
+
+Status-page browser
+  -> status.minoshealth.pl
+  -> conditional outbound Cloudflare Tunnel route
+  -> Uptime Kuma container
 
 Watcher container
   -> APScheduler
   -> mutable control SQLite on a persistent volume
   -> private versioned S3 snapshot bucket
+  -> dedicated local public-projection volume
+  -> best-effort terminal up/down push to Uptime Kuma
+
+Uptime Kuma container
+  -> private monitoring network
+  -> outbound HTTP monitors and notifications
+  -> persistent /app/data bind mount
 
 GitHub-hosted Actions
   -> test, build, scan, attest, publish to private GHCR
@@ -43,9 +58,10 @@ GitHub-hosted Actions
 ```
 
 The host exposes no application port to the public internet. `cloudflared`
-opens an outbound tunnel to the edge container. The edge serves static files
-and proxies API routes under the same origin. The API and watcher networks are
-private Compose networks; only the edge is reachable through the tunnel.
+opens outbound routes to the edge and, only after explicit enablement, Uptime
+Kuma. The edge serves static files and proxies API routes under the same origin.
+The application and monitoring networks are private Compose networks. Neither
+Kuma nor the watcher receives a Docker socket or host port.
 
 Mikr.us `3.0` is the selected production plan: 2 GB RAM, 25 GB disk, Docker
 support, and a fixed 130 PLN annual price observed during planning. It provides
@@ -60,7 +76,16 @@ The production Compose project contains:
 - `api`: FastAPI/ASGI service with the generated reference SQLite database
   embedded in the immutable image;
 - `watcher`: APScheduler, source adapters, and the mutable control SQLite
-  database mounted from a dedicated persistent volume.
+  database mounted from a dedicated persistent volume, plus write access to a
+  separate public-projection root;
+- `uptime-kuma`: self-hosted Uptime Kuma 2.5.5 from the official MIT
+  `slim-rootless` `linux/amd64` image, rootless as `10003:10003`, with a private
+  monitoring network, a separate outbound monitor and notification network,
+  and `/var/lib/minos/uptime-kuma` mounted at `/app/data`;
+- `watcher-bootstrap-rsk`: an explicit one-shot `bootstrap` profile service
+  using the same pinned production watcher image, identity, secrets, networks,
+  and persistent volumes. No active service depends on it, so ordinary stack
+  activation cannot run registration implicitly.
 
 The generated reference database and watcher control database are deliberately
 different systems:
@@ -71,7 +96,10 @@ different systems:
   schedules, runs, observations, artifact references, changes, and incidents.
 
 The watcher is not included in the API image. The edge image contains no Python
-runtime, source snapshots, credentials, or generated medical database.
+runtime, private source snapshots, credentials, or generated medical database.
+It mounts only the dedicated public-projection root read-only. It cannot access
+watcher control SQLite, private filesystem or S3 archive data, staging, AWS
+credentials, S3 URLs, or presigned URLs.
 
 ## Artifact Lifecycle
 
@@ -83,6 +111,7 @@ ghcr.io/krzysztofbury/minos-health-api@sha256:<digest>
 ghcr.io/krzysztofbury/minos-health-web@sha256:<digest>
 ghcr.io/krzysztofbury/minos-health-watcher@sha256:<digest>
 cloudflare/cloudflared@sha256:<digest>
+docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
 ```
 
 `latest`, `main`, and other mutable tags are not deployable references.
@@ -110,30 +139,49 @@ The target lifecycle is:
 7. The operator quiesces watcher dispatch, reconciles any `committed` or
    `heartbeat_pending` run, creates and verifies a pre-deploy recovery image,
    and records the current and candidate release manifests.
-8. A scheduler-paused candidate watcher validates a disposable database copy,
-   exact schema-version equality, numeric identity, volume and secret access, an
-   S3 checksum round trip, recovery-image creation, and Healthchecks.io access.
-   The application copy is limited to 2 GiB and a 240-second deadline, with a
-   300-second outer process timeout. A missing database on an initial empty host
-   remains valid. Any existing schema mismatch preserves candidate evidence and
-   fails before the active stack is stopped.
+8. A scheduler-paused candidate watcher validates a disposable database copy.
+   Supported v1 and v2 copies are migrated to the exact candidate schema before
+   integrity, migration-checksum, identity, volume, secret, S3 checksum,
+   and recovery-image checks. The original live database is not changed. The
+   copy is limited to 2 GiB and a 240-second deadline, with a
+   300-second outer timeout. A missing database on an initial empty host remains
+   valid. A newer or malformed schema fails before the active stack is stopped.
 9. The operator stops the previous watcher and captures a second consistent,
-   bounded preactivation image. The current deployment path does not migrate the
-   live database. A schema-changing release needs a separate reviewed activation
-   protocol before it can ship, which prevents rollback from starting an older
-   writer against a candidate-migrated schema.
-10. The operator starts the exact candidate digest with scheduling unpaused only
+   bounded preactivation image. After atomic runtime promotion, the candidate
+   migration command upgrades the quiesced live database from supported v1 or
+   v2 to v3 and reports the exact from/to result. If a later step fails after a
+   schema change, rescue keeps the candidate runtime and migrated database
+   stopped; it never starts an older writer against the newer schema.
+10. Ansible explicitly runs the profile-gated `watcher-bootstrap-rsk` one-shot
+    service with `--no-deps`. An absent RSK registration is created
+    transactionally, an exact existing registration is a no-op, and disabled,
+    customized, or partial state fails without being overwritten. A read-only
+    command validates any existing immutable public generation. An absent
+    projection is valid only before the canary.
+11. Before active services start, Ansible runs one manual RSK collection with a
+    900-second outer timeout. It archives the catalog and `basic-info` response
+    for every returned HCD, so ICD-9 and ICD-11 metadata are part of the same
+    committed canary. The public projection contains file-level entries for
+    every observed HCD that exposes files. Manual mode additionally forces a
+    fresh download of the separately allowlisted `00CD10` XML product. The
+    canary must commit and publish a canonical, schema-valid projection.
+12. The operator starts the exact candidate digest with scheduling unpaused only
     for the active watcher. Its health contract becomes ready after startup
     reconciliation, stale-claim expiry, job reconstruction, and bounded catch-up;
     every probe verifies the marked scheduler process and exact control schema.
     Compose waits for health, and Ansible then requires 30 seconds of healthy,
-    restart-free stability. Candidate and ordinary preflight services remain
-    scheduler-paused and cannot report active readiness.
-11. Success writes a signed append-only deployment receipt to an operator-only
+    restart-free stability. It requests `/zrodla`, its exact CSS and JavaScript
+    assets, the strict CSP, and the provenance endpoint through the running
+    production edge. Provenance must return HTTP 200 canonical JSON whose
+    SHA-256 matches the revalidated current generation. Candidate and ordinary
+    preflight services remain scheduler-paused and cannot report active
+    readiness.
+13. Success writes a signed append-only deployment receipt to an operator-only
     S3 prefix. Before the canary commits, failure restores the complete previous
-    release and may restore the pre-deploy recovery image. The current activation
-    requires schema equality, so rollback restores only a schema-identical prior
-    writer and preserves live state; an older database image must not be restored.
+    release and may restore the pre-deploy recovery image only if the live schema
+    was not migrated. After migration, explicit recovery retains the promoted
+    candidate and current live state; an older database image or writer must not
+    be restored automatically.
 
 Initial production deployment is an explicit operator action. A later SSH
 workflow may automate the same exact-digest procedure, but it must not broaden
@@ -184,8 +232,9 @@ Every production image must:
 - terminate cleanly and fail rather than serve incomplete data;
 - carry source commit, build, dataset, and licence labels.
 
-Only the watcher receives persistent writable storage. Ansible initializes its
-persistent control directory as the pinned watcher UID and GID with mode `0700`;
+Only the watcher and Uptime Kuma receive persistent writable storage. Ansible
+initializes the watcher's persistent control directory as the pinned watcher
+UID and GID with mode `0700`;
 SQLite, its WAL, recovery-image staging files, and their parent directory remain
 writable by that identity. Restore reapplies the same ownership and modes before
 startup. Downloads use a separate disk-backed `noexec,nosuid,nodev` staging
@@ -201,6 +250,29 @@ writes. Exact raw bytes are uploaded to S3 and are not retained as the only copy
 on the host. Logs use Docker's bounded `local` driver rather than an unbounded
 JSON log file.
 
+Ansible initializes `/var/lib/minos/uptime-kuma` as `10003:10003` with mode
+`0700`. Image identity is pinned beside the data. An image change fails closed
+until a stopped full-data backup and migration procedure exists. Never copy
+Kuma's SQLite files while the service is live.
+
+The watcher publishes sanitized provenance under
+`generations/<state-revision>-<projection-sha256>/`, fsyncs every file and
+directory, then atomically replaces the `current` symlink using descriptor-
+relative no-follow operations. Generation files are mode `0444` and directories
+are mode `0555`; the current generation and two predecessors are retained.
+Automatic publication refuses to replace a newer current revision with an
+older recovered control database. Nginx serves only the exact extensionless
+`/api/v1/provenance/rsk` route with JSON, `nosniff`, same-origin, and `no-store`
+headers. The responsive Polish `/zrodla` page reads only that same-origin route,
+validates the complete bounded schema before rendering, and derives every
+official RSK link from a validated UUID. It renders at most 75 rows at once,
+debounces local filtering, and labels current, stale, severe-stale, and material
+future-clock states separately from schema validity. Nginx serves the page and
+its `/sources.css` and `/sources.js` assets only on exact query-free paths,
+compresses JSON, and applies a CSP with external styles only. The artifact
+namespace is deny-all and returns 404. The page offers no Minos artifact
+download.
+
 The watcher image remains shell-free. Compose invokes the packaged
 `minos watcher health` command directly. Its readiness marker is bound to the
 live process identity, refreshed by the sole scheduler worker, and removed on
@@ -209,6 +281,23 @@ Production allows a 6,400-second health start period, a 6,600-second Compose
 wait, and a 7,800-second systemd start timeout. These bounds cover the supported
 one-hour collector deadline plus bounded recovery and preflight work. After
 startup, a marker older than 75 minutes fails health as an unresponsive worker.
+
+Operators inspect durable watcher state and bounded local logs on the host with:
+
+```sh
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher status --json
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  logs --since 24h --tail 500 --timestamps watcher
+```
+
+The optional source filter is `minos watcher status [SOURCE_ID] --json`.
+
+The watcher sends Uptime Kuma only `up` after durable success or `down` after a
+durable failed terminal result. It sends nothing at run start. Monitor requests
+are best-effort and never block or alter the watcher result. The persisted
+`heartbeat_pending` name remains a compatibility name for durable local
+finalization before `successful`, not a pending monitoring request.
 
 ## Watcher Scheduling And State
 
@@ -257,15 +346,25 @@ in `committed`. No later claim for that source may start while a committed run
 awaits reconciliation. The reconciler uses the SQLite backup API to create an
 integrity-checked recovery image for that exact revision, uploads and verifies
 it under an immutable revision-and-digest key, then records `heartbeat_pending`.
-It sends the success heartbeat only from that state and marks the run
-`successful` after a successful response. Every transition is idempotent. On
-restart or restore, reconciliation resumes upload, verification, or heartbeat;
-a duplicate heartbeat is acceptable, but a newer run never overtakes it.
+It publishes the local projection from that state and marks the run `successful`
+after durable local finalization. Every transition is idempotent. On restart or
+restore, reconciliation resumes upload, verification, or finalization, and a
+newer run never overtakes it. `heartbeat_pending` is retained as a compatibility
+name for this local phase and does not represent an external ping.
 
 The legal run transitions are `running -> committed -> heartbeat_pending ->
 successful`, `running -> failed`, and `running -> expired`. Acquisition creates
 `running`; only the matching live fenced claim can leave it. `committed` never
 expires, terminal states never reopen, and no transition may be skipped.
+
+Claiming a durable schedule advances its cron cursor but retains the original
+scheduled time and run mode as a pending obligation until the run reaches
+`successful`. Failure or expiry atomically records a bounded exponential
+retry-not-before time. A single scheduler interval job checks eligible durable
+work, while SQLite serialization and the source blocking-run guard permit only
+one claimant. Restart reconstruction uses the same persisted state, so an
+exhausted daily, catch-up, or weekly collection is delayed rather than lost or
+immediately busy-looped.
 
 There is no atomic transaction across local SQLite and S3. A complete host loss
 after local commit but before recovery-image upload can lose that unacknowledged
@@ -324,6 +423,8 @@ After legal clearance and registration:
 
 - `minoshealth.pl` is canonical and routes to Cloudflare Tunnel;
 - `minoshealth.com` redirects permanently to `.pl` while preserving safe paths;
+- `status.minoshealth.pl` routes to Uptime Kuma only when
+  `uptime_kuma_public_status_enabled=true` after private bootstrap;
 - `minos.health`, if purchased, redirects the same way;
 - Cloudflare manages DNS and tunnel routing;
 - DNSSEC is enabled after the registrar and delegation chain are verified;
@@ -342,14 +443,21 @@ Production images pin numeric service UIDs and GIDs in the release contract.
 Ansible creates each secret directory as `root:<service-gid>` mode `0750` and
 each file as `root:<service-gid>` mode `0440`; Compose adds only that group and
 mounts only the required file read-only. The watcher reads AWS credentials from
-`AWS_SHARED_CREDENTIALS_FILE` and the Healthchecks.io target through a dedicated
-`_FILE` setting. `cloudflared` receives its supported credentials file and
-configuration, not an environment token. A preflight tests traversal and reads
-using every exact image digest. Secret files include:
+`AWS_SHARED_CREDENTIALS_FILE`. `cloudflared` receives its supported credentials
+file and configuration, not an environment token. A preflight tests traversal
+and reads using every exact image digest. Secret files include:
 
 - the Cloudflare Tunnel credential;
 - the narrowly scoped S3 access key;
-- the Healthchecks.io ping target used by the watcher.
+- the Uptime Kuma watcher target document, installed for the watcher only.
+
+The target document has the exact schema
+`{"version":1,"sources":{"rsk":"<32-character-alphanumeric-token>"}}`.
+During private bootstrap, `{"version":1,"sources":{}}` is valid only with
+`watcher_uptime_kuma_required=false`. The source file supplied through
+`watcher_uptime_kuma_targets_source` must be a regular mode-`0400` or
+mode-`0600` file outside the repository. Ansible installs it as a root-owned,
+watcher-secret-group file and Compose mounts it read-only only into the watcher.
 
 The private GHCR package-read token is separate host-side deployment material.
 It belongs in the root-owned Docker credential store and is never mounted into

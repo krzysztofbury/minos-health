@@ -59,6 +59,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
   "aws: explicit opt-in tests against tagged disposable resources in the built-in AWS account",
+  "rsk_live: explicit opt-in compatibility test for an ignored private RSK capture",
 ]
 
 [tool.ruff]

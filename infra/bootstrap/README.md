@@ -86,10 +86,16 @@ terraform {
 Initialization supplies the deployment-specific controls explicitly:
 
 ```bash
+mise exec -- aws s3api head-bucket \
+  --profile "$AWS_PROFILE" \
+  --region eu-central-1 \
+  --bucket "<state-bucket-name>" \
+  --expected-bucket-owner "<twelve-digit-account-id>" \
+  --query BucketRegion --output text
 mise exec -- terraform -chdir=infra/terraform/watcher init \
   -backend-config="bucket=<state-bucket-name>" \
   -backend-config="region=eu-central-1" \
-  -backend-config="expected_bucket_owner=<twelve-digit-account-id>" \
+  -backend-config='allowed_account_ids=["<twelve-digit-account-id>"]' \
   -lockfile=readonly
 ```
 

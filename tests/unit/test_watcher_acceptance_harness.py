@@ -218,6 +218,19 @@ def test_production_apply_is_bound_to_the_reviewed_plan_digest() -> None:
     assert "aws_iam_access_key" not in script
 
 
+def test_production_backend_verifies_owner_and_uses_supported_account_guard() -> None:
+    script = (SCRIPTS / "aws-watcher-production-apply.sh").read_text()
+    readme = (ROOT / "infra" / "terraform" / "watcher" / "README.md").read_text()
+
+    assert "s3api head-bucket" in script
+    assert "--expected-bucket-owner" in script
+    assert script.index("s3api head-bucket") < script.index("watcher_terraform init")
+    assert '-backend-config="allowed_account_ids=' in script
+    assert '-backend-config="expected_bucket_owner=' not in script
+    assert "s3api head-bucket" in readme
+    assert "allowed_account_ids" in readme
+
+
 def test_aws_tests_are_marked_and_default_to_skip_without_opt_in() -> None:
     conftest = (ROOT / "tests" / "aws" / "conftest.py").read_text()
     acceptance = (ROOT / "tests" / "aws" / "test_watcher_acceptance.py").read_text()

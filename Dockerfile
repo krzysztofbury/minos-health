@@ -42,15 +42,18 @@ RUN addgroup -S -g 10001 minos-watcher && \
     mkdir -p \
       /var/lib/minos/control \
       /var/lib/minos/archive \
+      /var/lib/minos/public \
       /var/lib/minos/staging && \
     chown 10001:10001 \
       /var/lib/minos/control \
       /var/lib/minos/archive \
+      /var/lib/minos/public \
       /var/lib/minos/staging && \
     chmod 0700 \
       /var/lib/minos/control \
       /var/lib/minos/archive \
       /var/lib/minos/staging && \
+    chmod 0755 /var/lib/minos/public && \
     rm -rf \
       /bin/ash \
       /bin/busybox \

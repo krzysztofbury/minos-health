@@ -1,21 +1,24 @@
+from __future__ import annotations
+
+import json
+import os
 from argparse import ArgumentParser
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from minos.cli.recovery import (
-    RecoveryCommand,
-    RecoveryCommandArguments,
-    create_recovery_command,
+from minos.cli.watcher_status import (
+    WatcherRuntimeError,
+    format_watcher_status,
+    read_watcher_status,
+    resolve_status_database,
 )
-from minos.cli.watcher import (
-    WatcherCommand,
-    create_deployment_control_copy,
-    create_watcher_command,
-)
-from minos.ingest.watchers.protocols import WatcherRuntimeError
+
+if TYPE_CHECKING:
+    from minos.cli.recovery import RecoveryCommand, RecoveryCommandArguments
+    from minos.cli.watcher import WatcherCommand
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +31,10 @@ class WatcherCommandArguments:
     source_id: str | None
     source_database: Path | None = None
     destination_database: Path | None = None
+    expected_current_revision: int | None = None
+    expected_current_sha256: str | None = None
+    target_revision: int | None = None
+    target_sha256: str | None = None
 
 
 def build_parser() -> ArgumentParser:
@@ -56,14 +63,57 @@ def build_parser() -> ArgumentParser:
         "health",
         help="Check that the active watcher reached and retained readiness.",
     )
+    bootstrap_rsk = watcher_commands.add_parser(
+        "bootstrap-rsk",
+        help="Create the canonical RSK source and durable schedules if absent.",
+    )
+    migrate_control = watcher_commands.add_parser(
+        "migrate-control-database",
+        help="Migrate the quiesced live watcher control database.",
+    )
+    rebuild_public_rsk = watcher_commands.add_parser(
+        "rebuild-public-rsk",
+        help="Explicitly rebuild the public RSK generation behind revision fences.",
+    )
+    _ = rebuild_public_rsk.add_argument(
+        "--expected-current-revision",
+        type=int,
+        required=True,
+    )
+    _ = rebuild_public_rsk.add_argument(
+        "--expected-current-sha256",
+        required=True,
+    )
+    _ = rebuild_public_rsk.add_argument("--target-revision", type=int, required=True)
+    _ = rebuild_public_rsk.add_argument("--target-sha256", required=True)
+    validate_public_rsk = watcher_commands.add_parser(
+        "validate-public-rsk",
+        help="Validate an existing public RSK generation without collecting data.",
+    )
+    _ = validate_public_rsk.add_argument("--public-directory", type=Path)
     copy_control = watcher_commands.add_parser(
         "copy-control-database",
         help="Create bounded deployment evidence from a live control database.",
     )
     _ = copy_control.add_argument("--source-database", type=Path, required=True)
     _ = copy_control.add_argument("--destination-database", type=Path, required=True)
+    status = watcher_commands.add_parser(
+        "status",
+        help="Read a bounded snapshot of watcher control state.",
+    )
+    _ = status.add_argument("source_id", nargs="?")
+    _ = status.add_argument("--database", type=Path)
+    _ = status.add_argument("--json", action="store_true", dest="status_json")
     _ = run_once.add_argument("source_id")
-    for command in (preflight, run, run_once, health):
+    for command in (
+        preflight,
+        run,
+        run_once,
+        health,
+        bootstrap_rsk,
+        migrate_control,
+        rebuild_public_rsk,
+    ):
         _add_watcher_paths(command)
     recovery = commands.add_parser("recovery", help="Operate trusted recovery data.")
     recovery_commands = recovery.add_subparsers(dest="recovery_command", required=True)
@@ -128,8 +178,42 @@ def main(
         parser.print_help()
         return
     try:
+        if raw_arguments.get("watcher_command") == "status":
+            database = raw_arguments.get("database")
+            source_id = raw_arguments.get("source_id")
+            if database is not None and not isinstance(database, Path):
+                raise WatcherRuntimeError("watcher status database is invalid")
+            if source_id is not None and not isinstance(source_id, str):
+                raise WatcherRuntimeError("watcher source ID is invalid")
+            snapshot = read_watcher_status(
+                resolve_status_database(database),
+                source_id,
+            )
+            if raw_arguments.get("status_json") is True:
+                print(json.dumps(snapshot, sort_keys=True, separators=(",", ":")))
+            else:
+                print(format_watcher_status(snapshot))
+            return
+        if raw_arguments.get("watcher_command") == "validate-public-rsk":
+            from minos.ingest.watchers.rsk.publication import (
+                validate_deployed_rsk_projection,
+            )
+
+            public_directory = raw_arguments.get("public_directory")
+            if public_directory is None:
+                configured_directory = os.environ.get("MINOS_WATCHER_PUBLIC_DIRECTORY")
+                public_directory = (
+                    Path(configured_directory) if configured_directory else None
+                )
+            if not isinstance(public_directory, Path):
+                raise WatcherRuntimeError("public projection directory is required")
+            projection_result = validate_deployed_rsk_projection(public_directory)
+            print(json.dumps(projection_result, sort_keys=True, separators=(",", ":")))
+            return
         watcher_arguments = _read_watcher_arguments(raw_arguments)
         if watcher_arguments.command == "copy-control-database":
+            from minos.cli.watcher import create_deployment_control_copy
+
             if (
                 watcher_arguments.source_database is None
                 or watcher_arguments.destination_database is None
@@ -148,6 +232,35 @@ def main(
             watcher_command.run()
         elif watcher_arguments.command == "health":
             watcher_command.health()
+        elif watcher_arguments.command == "bootstrap-rsk":
+            watcher_command.bootstrap_rsk()
+        elif watcher_arguments.command == "migrate-control-database":
+            prior_version, schema_version = watcher_command.migrate_control_database()
+            print(
+                json.dumps(
+                    {
+                        "from_version": prior_version,
+                        "migrated": prior_version != schema_version,
+                        "schema_version": schema_version,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+        elif watcher_arguments.command == "rebuild-public-rsk":
+            if (
+                watcher_arguments.expected_current_revision is None
+                or watcher_arguments.expected_current_sha256 is None
+                or watcher_arguments.target_revision is None
+                or watcher_arguments.target_sha256 is None
+            ):
+                raise WatcherRuntimeError("public rebuild fences are required")
+            _ = watcher_command.rebuild_public_rsk(
+                expected_current_revision=(watcher_arguments.expected_current_revision),
+                expected_current_sha256=watcher_arguments.expected_current_sha256,
+                target_revision=watcher_arguments.target_revision,
+                target_sha256=watcher_arguments.target_sha256,
+            )
         elif (
             watcher_arguments.command == "run-once"
             and watcher_arguments.source_id is not None
@@ -187,10 +300,14 @@ def _add_trust_arguments(parser: ArgumentParser) -> None:
 
 
 def _default_watcher_factory(arguments: WatcherCommandArguments) -> WatcherCommand:
+    from minos.cli.watcher import create_watcher_command
+
     return create_watcher_command(arguments)
 
 
 def _default_recovery_factory(arguments: RecoveryCommandArguments) -> RecoveryCommand:
+    from minos.cli.recovery import create_recovery_command
+
     return create_recovery_command(arguments)
 
 
@@ -201,6 +318,10 @@ def _read_watcher_arguments(
     source_id = arguments.get("source_id")
     source_database = arguments.get("source_database")
     destination_database = arguments.get("destination_database")
+    expected_current_revision = arguments.get("expected_current_revision")
+    expected_current_sha256 = arguments.get("expected_current_sha256")
+    target_revision = arguments.get("target_revision")
+    target_sha256 = arguments.get("target_sha256")
     paths = tuple(
         arguments.get(name)
         for name in (
@@ -218,6 +339,19 @@ def _read_watcher_arguments(
         raise WatcherRuntimeError("watcher source database path is invalid")
     if destination_database is not None and not isinstance(destination_database, Path):
         raise WatcherRuntimeError("watcher destination database path is invalid")
+    if (
+        expected_current_revision is not None
+        and type(expected_current_revision) is not int
+    ):
+        raise WatcherRuntimeError("public rebuild current revision is invalid")
+    if target_revision is not None and type(target_revision) is not int:
+        raise WatcherRuntimeError("public rebuild target revision is invalid")
+    if expected_current_sha256 is not None and not isinstance(
+        expected_current_sha256, str
+    ):
+        raise WatcherRuntimeError("public rebuild current digest is invalid")
+    if target_sha256 is not None and not isinstance(target_sha256, str):
+        raise WatcherRuntimeError("public rebuild target digest is invalid")
     if any(path is not None and not isinstance(path, Path) for path in paths):
         raise WatcherRuntimeError("watcher path argument is invalid")
     database, staging, archive, process_lock = cast(
@@ -233,12 +367,18 @@ def _read_watcher_arguments(
         source_id,
         source_database,
         destination_database,
+        expected_current_revision,
+        expected_current_sha256,
+        target_revision,
+        target_sha256,
     )
 
 
 def _read_recovery_arguments(
     arguments: dict[str, object],
 ) -> RecoveryCommandArguments:
+    from minos.cli.recovery import RecoveryCommandArguments
+
     action = arguments.get("recovery_action")
     if not isinstance(action, str):
         raise RuntimeError("recovery command is invalid")
