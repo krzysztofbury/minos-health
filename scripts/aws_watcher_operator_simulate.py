@@ -181,6 +181,52 @@ SCENARIOS = (
         f"arn:aws:s3:::minos-health-tfstate-{ACCOUNT}-eu-central-1/watcher/terraform.tfstate",
         "implicitDeny",
     ),
+    Scenario(
+        "acceptance_operator_boundary",
+        "iam:CreateRole",
+        _ACCEPTANCE_ROLE,
+        "implicitDeny",
+        (("iam:PermissionsBoundary", _ACCEPTANCE_BOUNDARY), *_ACCEPTANCE_TAGS[:-2]),
+    ),
+    Scenario(
+        "acceptance_operator_boundary",
+        "s3:CreateBucket",
+        "arn:aws:s3:::unrelated-bucket",
+        "implicitDeny",
+        (("s3:LocationConstraint", "eu-central-1"),),
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "iam:CreateAccessKey",
+        _WATCHER_USER,
+        "implicitDeny",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "s3:CreateBucket",
+        "arn:aws:s3:::unrelated-bucket",
+        "implicitDeny",
+        (("s3:LocationConstraint", "eu-central-1"),),
+    ),
+    Scenario(
+        "state_recovery_boundary",
+        "s3:PutObject",
+        f"arn:aws:s3:::minos-health-tfstate-{ACCOUNT}-eu-central-1/watcher/terraform.tfstate",
+        "allowed",
+        (("s3:if-match", "reviewed-etag"),),
+    ),
+    Scenario(
+        "state_recovery_boundary",
+        "s3:PutObject",
+        f"arn:aws:s3:::minos-health-tfstate-{ACCOUNT}-eu-central-1/watcher/terraform.tfstate",
+        "implicitDeny",
+    ),
+    Scenario(
+        "state_recovery_boundary",
+        "s3:GetObject",
+        "arn:aws:s3:::unrelated-bucket/private",
+        "implicitDeny",
+    ),
 )
 
 

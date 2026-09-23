@@ -50,7 +50,7 @@ AWS_PROFILE=minos-health-bootstrap \
 
 The script verifies the STS principal, state-bucket owner/region, backend account,
 complete 13-resource create-only plan, fixed role trust, boundary names and
-policies, and 16 bounded read-only IAM simulator allow/deny decisions. It writes
+policies, and 23 bounded read-only IAM simulator allow/deny decisions. It writes
 a mode-`0400` saved plan and mode-`0600` JSON under the
 ignored `artifacts/aws-watcher-operators/` directory. Review those bytes and
 the printed SHA-256 before any apply. A plan made with any changed principal,

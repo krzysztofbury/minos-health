@@ -39,6 +39,18 @@ POLICY_NAMES = {
     "acceptance_operator_boundary": "minos-health-watcher-acceptance-operator-boundary",
     "state_recovery_boundary": "minos-health-watcher-state-recovery-boundary",
 }
+INLINE_POLICY_NAMES = {
+    "production_operator": "minos-health-watcher-terraform-scoped",
+    "acceptance_operator": "minos-health-watcher-acceptance-scoped",
+    "state_recovery": "minos-health-watcher-state-recovery-scoped",
+}
+EXPECTED_TAGS = {
+    "DataClassification": "sensitive",
+    "Environment": "production",
+    "ManagedBy": "Terraform",
+    "Project": "minos-health",
+    "Repository": "krzysztofbury/minos-health",
+}
 EXPECTED_POLICY_SHA256 = {
     "acceptance_operator_boundary": "1838dec3a1843f65f7ab3d8e74211c7966d425e2dfdbe1959b44f943ffdc8e99",
     "acceptance_watcher_boundary": "91ab68d1b81b319c49134c39730361e3e4598aa7f6a5ac41014f0e6b38185d0b",
@@ -168,10 +180,10 @@ def _validate_boundaries(
         resource = changes[f"aws_iam_policy.{key}"]
         require(resource.get("name") == name, f"{key} identity changed")
         require(
-            mapping(resource.get("tags_all"), f"{key} tags").get("Project")
-            == "minos-health",
-            f"{key} ownership tag missing",
+            mapping(resource.get("tags_all"), f"{key} tags") == EXPECTED_TAGS,
+            f"{key} ownership tags changed",
         )
+        require(resource.get("path") == "/", f"{key} IAM path changed")
         policies[key] = decode_policy(resource.get("policy"), key)
         policy_bytes = resource.get("policy")
         if not isinstance(policy_bytes, str):
@@ -195,6 +207,14 @@ def _validate_roles(
     for key, name in ROLE_NAMES.items():
         role = changes[f"aws_iam_role.{key}"]
         require(role.get("name") == name, f"{key} role name changed")
+        require(role.get("path") == "/", f"{key} role path changed")
+        require(
+            role.get("max_session_duration") == 3600, f"{key} session duration changed"
+        )
+        require(
+            role.get("force_detach_policies") is False,
+            f"{key} forced policy detach enabled",
+        )
         expected_boundary = (
             f"arn:aws:iam::{ACCOUNT}:policy/{POLICY_NAMES[key + '_boundary']}"
         )
@@ -203,9 +223,8 @@ def _validate_roles(
             f"{key} role boundary changed",
         )
         require(
-            mapping(role.get("tags_all"), f"{key} role tags").get("Project")
-            == "minos-health",
-            f"{key} role ownership tag missing",
+            mapping(role.get("tags_all"), f"{key} role tags") == EXPECTED_TAGS,
+            f"{key} role ownership tags changed",
         )
         trust = decode_policy(role.get("assume_role_policy"), f"{key} trust")
         trust_statements = policy_statements(trust)
@@ -224,6 +243,10 @@ def _validate_roles(
         )
         role_policy = changes[f"aws_iam_role_policy.{key}"]
         require(role_policy.get("role") == name, f"{key} inline role changed")
+        require(
+            role_policy.get("name") == INLINE_POLICY_NAMES[key],
+            f"{key} inline policy identity changed",
+        )
         inline = decode_policy(role_policy.get("policy"), f"{key} inline")
         require(
             inline == policies[key + "_boundary"], f"{key} role and boundary differ"

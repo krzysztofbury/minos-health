@@ -9,6 +9,8 @@ import scripts.aws_watcher_operator_plan_guard as guard_module
 from scripts.aws_watcher_operator_plan_guard import (
     ACCOUNT,
     EXPECTED,
+    EXPECTED_TAGS,
+    INLINE_POLICY_NAMES,
     ROLE_NAMES,
     SSO_ROLE,
     PlanError,
@@ -83,7 +85,8 @@ def _plan() -> dict[str, object]:
             after = {
                 "name": boundary_names[name],
                 "policy": policy[name],
-                "tags_all": {"Project": "minos-health"},
+                "tags_all": EXPECTED_TAGS,
+                "path": "/",
             }
         elif kind == "aws_iam_role":
             after = {
@@ -92,10 +95,17 @@ def _plan() -> dict[str, object]:
                     f"arn:aws:iam::{ACCOUNT}:policy/{boundary_names[name + '_boundary']}"
                 ),
                 "assume_role_policy": trust,
-                "tags_all": {"Project": "minos-health"},
+                "tags_all": EXPECTED_TAGS,
+                "path": "/",
+                "max_session_duration": 3600,
+                "force_detach_policies": False,
             }
         elif kind == "aws_iam_role_policy":
-            after = {"role": ROLE_NAMES[name], "policy": policy[name + "_boundary"]}
+            after = {
+                "name": INLINE_POLICY_NAMES[name],
+                "role": ROLE_NAMES[name],
+                "policy": policy[name + "_boundary"],
+            }
         else:
             after = {"input": ACCOUNT}
         changes.append(
@@ -153,6 +163,9 @@ def _use_fixture_hashes(
         "public_trust",
         "inline_escalation",
         "unconditional_put",
+        "missing_owner_tag",
+        "force_detach",
+        "wrong_inline_name",
     ],
 )
 def test_plan_guard_rejects_omissions_escalation_and_broken_creation(
@@ -202,6 +215,14 @@ def test_plan_guard_rejects_omissions_escalation_and_broken_creation(
         _after(plan, "aws_iam_policy.watcher_boundary")["policy"] = _policy(
             "s3:PutObject"
         )
+    elif defect == "missing_owner_tag":
+        _after(plan, "aws_iam_policy.watcher_boundary")["tags_all"] = {
+            "Project": "minos-health"
+        }
+    elif defect == "force_detach":
+        _after(plan, "aws_iam_role.production_operator")["force_detach_policies"] = True
+    elif defect == "wrong_inline_name":
+        _after(plan, "aws_iam_role_policy.acceptance_operator")["name"] = "unreviewed"
     else:
         raise AssertionError("unhandled test fault")
 

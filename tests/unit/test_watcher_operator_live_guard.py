@@ -8,7 +8,7 @@ from scripts.aws_watcher_operator_live_guard import (
     verify_policy,
     verify_role,
 )
-from scripts.aws_watcher_operator_plan_guard import ACCOUNT, SSO_ROLE
+from scripts.aws_watcher_operator_plan_guard import ACCOUNT, EXPECTED_TAGS, SSO_ROLE
 
 _NAME = "minos-health-watcher-acceptance-operator"
 _BOUNDARY = f"arn:aws:iam::{ACCOUNT}:policy/{_NAME}-boundary"
@@ -37,7 +37,9 @@ class _Iam:
                 "Arn": f"arn:aws:iam::{ACCOUNT}:role/{_NAME}",
                 "PermissionsBoundary": {"PermissionsBoundaryArn": self.boundary},
                 "AssumeRolePolicyDocument": _TRUST,
-                "Tags": [{"Key": "Project", "Value": "minos-health"}],
+                "Tags": [
+                    {"Key": key, "Value": value} for key, value in EXPECTED_TAGS.items()
+                ],
             }
         }
 

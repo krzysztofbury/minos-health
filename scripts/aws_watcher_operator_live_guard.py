@@ -19,6 +19,7 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
 
 from scripts.aws_watcher_operator_plan_guard import (
     ACCOUNT,
+    EXPECTED_TAGS,
     POLICY_NAMES,
     ROLE_NAMES,
     mapping,
@@ -100,12 +101,14 @@ def verify_role(iam: _IamClient, key: str, expected_trust: dict[str, object]) ->
     if _document(role.get("AssumeRolePolicyDocument"), "live trust") != expected_trust:
         raise ValueError("live operator role trust differs from the reviewed plan")
     tags = sequence(role.get("Tags"), "live role tags")
-    if not any(
-        mapping(tag, "role tag").get("Key") == "Project"
-        and mapping(tag, "role tag").get("Value") == "minos-health"
-        for tag in tags
-    ):
-        raise ValueError("live operator role ownership tag is absent")
+    entries = [mapping(tag, "role tag") for tag in tags]
+    actual_tags = {
+        item["Key"]: item["Value"]
+        for item in entries
+        if isinstance(item.get("Key"), str) and isinstance(item.get("Value"), str)
+    }
+    if len(entries) != len(EXPECTED_TAGS) or actual_tags != EXPECTED_TAGS:
+        raise ValueError("live operator role ownership tags differ")
     attached = mapping(
         iam.list_attached_role_policies(RoleName=name, MaxItems=2), "attached policies"
     )
