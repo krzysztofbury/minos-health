@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import ClassVar, Literal, Protocol, cast, final
 
 import httpx
+from loguru import logger
 from pydantic import AliasChoices, Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -30,10 +31,6 @@ from minos.ingest.watchers.control import (
     SourceConfiguration,
     SourceConfigurationCodecRegistry,
     SourceSchedule,
-)
-from minos.ingest.watchers.healthchecks import (
-    HealthchecksClient,
-    HealthcheckTargets,
 )
 from minos.ingest.watchers.orchestrator import (
     RunRecoveryPublisher,
@@ -78,6 +75,7 @@ from minos.ingest.watchers.service import (
     check_watcher_database_readiness,
     watcher_process_lock_path,
 )
+from minos.ingest.watchers.uptime_kuma import UptimeKumaClient, UptimeKumaTargets
 
 _DEPLOYMENT_COPY_TIMEOUT_SECONDS = 240.0
 # Production mounts /tmp as a private mode-0700 container tmpfs.
@@ -135,8 +133,9 @@ class WatcherRuntimeSettings(BaseSettings):
         default=None,
         validation_alias="AWS_SHARED_CREDENTIALS_FILE",
     )
-    healthchecks_targets_file: Path | None = None
     scheduler_paused: bool = False
+    uptime_kuma_targets_file: Path | None = None
+    uptime_kuma_required: bool = False
     image_digest: str | None = None
     runtime_image_digest: str | None = None
     readiness_file: Path = _DEFAULT_READINESS_FILE
@@ -268,9 +267,7 @@ class WatcherCliAdapter:
         self._source_configuration_codecs = (
             source_configuration_codecs or SourceConfigurationCodecRegistry()
         )
-        self._heartbeat_source_validator: Callable[[tuple[str, ...]], None] = (
-            heartbeat_source_validator or (lambda _source_ids: None)
-        )
+        self._heartbeat_source_validator = heartbeat_source_validator
         self._close = close
 
     def preflight(self) -> None:
@@ -281,12 +278,12 @@ class WatcherCliAdapter:
                     _ = self._paused_preflight.run(
                         scheduling_paused=self._scheduling_paused
                     )
+                    self._validate_heartbeat_sources_without_creation()
                     return
                 with ControlStore.open(
                     self._paths.database,
                     source_configuration_codecs=self._source_configuration_codecs,
                 ) as store:
-                    self._validate_heartbeat_sources(store)
                     gate = RuntimeCapacityGate(
                         self._paths.database,
                         self._paths.staging_directory,
@@ -294,6 +291,7 @@ class WatcherCliAdapter:
                     )
                     _ = gate.check()
                     self._build_service(store).validate_scheduled_collectors()
+                    self._validate_heartbeat_sources(store)
                     _ = store.list_reconcilable_runs()
                     _ = store.list_stale_claims()
 
@@ -340,7 +338,8 @@ class WatcherCliAdapter:
                 collectors=self._collectors,
                 source_configuration_codecs=self._source_configuration_codecs,
             )
-            self._heartbeat_source_validator(enabled_source_ids)
+            if self._heartbeat_source_validator is not None:
+                self._heartbeat_source_validator(enabled_source_ids)
 
     def bootstrap_rsk(self) -> None:
         with self._manage_resources():
@@ -419,12 +418,6 @@ class WatcherCliAdapter:
             capacity_gate=gate,
         )
 
-    def _validate_heartbeat_sources(self, store: ControlStore) -> None:
-        enabled_sources = store.list_enabled_source_kinds(limit=128)
-        self._heartbeat_source_validator(
-            tuple(source_id for source_id, _watcher_type in enabled_sources)
-        )
-
     def _prepare_directories(self) -> None:
         for directory in (
             self._paths.database.parent,
@@ -440,26 +433,40 @@ class WatcherCliAdapter:
             maximum_size_bytes=self._capacity_limits.maximum_download_size_bytes,
         ).cleanup_stale()
 
+    def _validate_heartbeat_sources(self, store: ControlStore) -> None:
+        if self._heartbeat_source_validator is None:
+            return
+        enabled_sources = store.list_enabled_source_kinds(limit=128)
+        self._heartbeat_source_validator(
+            tuple(source_id for source_id, _watcher_type in enabled_sources)
+        )
+
+    def _validate_heartbeat_sources_without_creation(self) -> None:
+        if self._heartbeat_source_validator is None:
+            return
+        if not self._paths.database.exists():
+            self._heartbeat_source_validator(())
+            return
+        with ControlStore.open(
+            self._paths.database,
+            source_configuration_codecs=self._source_configuration_codecs,
+        ) as store:
+            self._validate_heartbeat_sources(store)
+
     def _public_directory(self) -> Path:
         return self._paths.public_directory or self._paths.database.parent / "public"
 
     @contextmanager
     def _manage_resources(self) -> Generator[None]:
-        primary_error: BaseException | None = None
         try:
             yield
-        except BaseException as error:
-            primary_error = error
-            raise
         finally:
             if self._close is not None:
                 try:
                     self._close()
-                except BaseException as close_error:
-                    if primary_error is None:
-                        raise
-                    primary_error.add_note(
-                        f"watcher resource cleanup also failed: {type(close_error).__name__}"
+                except BaseException:
+                    logger.bind(event="watcher_monitor_cleanup_failed").warning(
+                        "Watcher monitor cleanup failed"
                     )
 
 
@@ -540,7 +547,6 @@ def create_watcher_command(
                 settings.s3_expected_bucket_owner,
                 settings.aws_region,
                 settings.aws_shared_credentials_file,
-                settings.healthchecks_targets_file,
             )
         ):
             raise WatcherRuntimeError("archive backend is not configured")
@@ -590,10 +596,9 @@ def _create_s3_watcher_command(
         settings.aws_shared_credentials_file,
         "AWS credential file",
     )
-    target_file = _required_path(
-        settings.healthchecks_targets_file,
-        "Healthchecks target file",
-    )
+    target_file = settings.uptime_kuma_targets_file
+    if settings.uptime_kuma_required and target_file is None:
+        raise WatcherRuntimeError("required Uptime Kuma target file is not configured")
     archive = S3BlobArchive.create(
         bucket=bucket,
         region=region,
@@ -610,8 +615,16 @@ def _create_s3_watcher_command(
         maximum_size_bytes=settings.control_max_bytes,
     )
     recovery_publisher = RunRecoveryPublisher(recovery_staging, recovery_store)
-    healthcheck_targets = HealthcheckTargets.load(target_file)
-    heartbeat = HealthchecksClient(healthcheck_targets)
+    heartbeat: HeartbeatClient = _LocalHeartbeat()
+    heartbeat_source_validator: Callable[[tuple[str, ...]], None] | None = None
+    close: Callable[[], None] | None = None
+    if target_file is not None:
+        targets = UptimeKumaTargets.load(target_file)
+        client = UptimeKumaClient(targets)
+        heartbeat = client
+        close = client.close
+        if settings.uptime_kuma_required:
+            heartbeat_source_validator = targets.require_sources
     try:
         paused_preflight = (
             _create_production_preflight(
@@ -625,18 +638,16 @@ def _create_s3_watcher_command(
                 target_file=target_file,
                 recovery_staging=recovery_staging,
                 recovery_store=recovery_store,
-                heartbeat=heartbeat,
             )
             if arguments.command == "preflight"
             else None
         )
-    except BaseException as error:
-        try:
-            heartbeat.close()
-        except BaseException as close_error:
-            error.add_note(
-                f"heartbeat cleanup also failed: {type(close_error).__name__}"
-            )
+    except BaseException:
+        if close is not None:
+            try:
+                close()
+            except BaseException:
+                pass
         raise
     return WatcherCliAdapter(
         paths,
@@ -649,8 +660,8 @@ def _create_s3_watcher_command(
         scheduling_paused=settings.scheduler_paused,
         readiness_file=settings.readiness_file,
         source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
-        heartbeat_source_validator=healthcheck_targets.require_sources,
-        close=heartbeat.close,
+        heartbeat_source_validator=heartbeat_source_validator,
+        close=close,
     )
 
 
@@ -709,10 +720,9 @@ def _create_production_preflight(
     region: str,
     owner: str,
     credential_file: Path,
-    target_file: Path,
+    target_file: Path | None,
     recovery_staging: RecoveryImageStagingArea,
     recovery_store: S3RecoveryStore,
-    heartbeat: HealthchecksClient,
 ) -> PausedPreflight:
     image_digest = _required_setting(settings.image_digest, "expected image digest")
     runtime_digest = _required_setting(
@@ -734,7 +744,11 @@ def _create_production_preflight(
             expected_uid=10001,
             expected_gid=10001,
         ),
-        secrets=ReadableSecretsProbe((credential_file, target_file)),
+        secrets=ReadableSecretsProbe(
+            (credential_file,)
+            if target_file is None
+            else (credential_file, target_file)
+        ),
         control_database=ControlDatabaseCopyProbe(
             paths.database,
             paths.recovery_staging_directory,
@@ -750,7 +764,6 @@ def _create_production_preflight(
             recovery_staging,
             recovery_store,
         ),
-        healthchecks=heartbeat,
     )
 
 

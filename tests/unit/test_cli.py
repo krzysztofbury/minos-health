@@ -10,7 +10,13 @@ import pytest
 
 import minos.cli.watcher as watcher_module
 from minos.cli.main import WatcherCommandArguments, main
-from minos.cli.watcher import create_watcher_command, paths_from_environment
+from minos.cli.watcher import (
+    WatcherCliAdapter,
+    WatcherPaths,
+    create_runtime_collectors,
+    create_watcher_command,
+    paths_from_environment,
+)
 from minos.ingest.watchers.archive import BlobArchive, FilesystemBlobArchive
 from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
@@ -21,8 +27,10 @@ from minos.ingest.watchers.control import (
 from minos.ingest.watchers.control.migrations import (
     rollback_control_migrations_for_testing,
 )
+from minos.ingest.watchers.preflight import CapacityLimits
 from minos.ingest.watchers.protocols import WatcherRuntimeError
 from minos.ingest.watchers.service import WatcherReadiness, WatcherService
+from minos.ingest.watchers.uptime_kuma import UptimeKumaError
 
 
 def test_module_reports_version() -> None:
@@ -547,9 +555,6 @@ def test_watcher_process_lock_is_derived_from_database(
 
 @final
 class _FactoryHeartbeat:
-    def __init__(self, _targets: object) -> None:
-        self.closed = False
-
     def start(self, _source_id: str) -> None:
         pass
 
@@ -559,25 +564,19 @@ class _FactoryHeartbeat:
     def failure(self, _source_id: str) -> None:
         pass
 
-    def close(self) -> None:
-        self.closed = True
 
-
-def test_production_factory_wires_s3_recovery_and_heartbeat(
+def test_production_factory_wires_s3_recovery_and_local_heartbeat(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     credential_file = tmp_path / "credentials"
-    target_file = tmp_path / "targets.json"
     _ = credential_file.write_text("credential")
-    _ = target_file.write_text("target")
     environment = {
         "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
         "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
         "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
         "AWS_REGION": "eu-central-1",
         "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
-        "MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE": str(target_file),
     }
     for name, value in environment.items():
         monkeypatch.setenv(name, value)
@@ -585,7 +584,6 @@ def test_production_factory_wires_s3_recovery_and_heartbeat(
     recovery_calls: list[dict[str, object]] = []
     heartbeat_instances: list[_FactoryHeartbeat] = []
     scheduler_starts: list[bool] = []
-    validated_heartbeat_sources: list[tuple[str, ...]] = []
     database = tmp_path / "control" / "control.sqlite3"
     database.parent.mkdir()
     database.parent.chmod(0o700)
@@ -623,16 +621,6 @@ def test_production_factory_wires_s3_recovery_and_heartbeat(
             recovery_calls.append(kwargs)
             return object()
 
-    class Targets:
-        def require_sources(self, source_ids: tuple[str, ...]) -> None:
-            validated_heartbeat_sources.append(source_ids)
-
-    class TargetsFactory:
-        @classmethod
-        def load(cls, _path: object) -> object:
-            _ = cls
-            return Targets()
-
     class SchedulerFactory:
         def __init__(self, service: WatcherService) -> None:
             self._service: WatcherService = service
@@ -643,8 +631,8 @@ def test_production_factory_wires_s3_recovery_and_heartbeat(
             on_ready()
             scheduler_starts.append(True)
 
-    def create_heartbeat(targets: object) -> _FactoryHeartbeat:
-        heartbeat = _FactoryHeartbeat(targets)
+    def create_heartbeat() -> _FactoryHeartbeat:
+        heartbeat = _FactoryHeartbeat()
         heartbeat_instances.append(heartbeat)
         return heartbeat
 
@@ -658,12 +646,7 @@ def test_production_factory_wires_s3_recovery_and_heartbeat(
         "S3RecoveryStore",
         RecoveryFactory,
     )
-    monkeypatch.setattr(
-        watcher_module,
-        "HealthcheckTargets",
-        TargetsFactory,
-    )
-    monkeypatch.setattr(watcher_module, "HealthchecksClient", create_heartbeat)
+    monkeypatch.setattr(watcher_module, "_LocalHeartbeat", create_heartbeat)
     monkeypatch.setattr(
         watcher_module,
         "WatcherScheduler",
@@ -689,8 +672,276 @@ def test_production_factory_wires_s3_recovery_and_heartbeat(
     assert archive_calls == [expected]
     assert recovery_calls == [expected]
     assert scheduler_starts == [True]
-    assert validated_heartbeat_sources == [("rsk",)]
-    assert heartbeat_instances[0].closed is True
+    assert len(heartbeat_instances) == 1
+
+
+def test_production_preflight_uses_only_aws_credential_secret(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credential_file = tmp_path / "credentials"
+    _ = credential_file.write_text("credential")
+    digest = f"sha256:{'a' * 64}"
+    environment = {
+        "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
+        "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
+        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
+        "MINOS_WATCHER_IMAGE_DIGEST": digest,
+        "MINOS_WATCHER_RUNTIME_IMAGE_DIGEST": digest,
+        "AWS_REGION": "eu-central-1",
+        "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
+    }
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    captured_secret_paths: list[tuple[Path, ...]] = []
+
+    class Probe:
+        def check(self) -> None:
+            pass
+
+    class CapturingSecretsProbe:
+        def __init__(self, paths: tuple[Path, ...]) -> None:
+            captured_secret_paths.append(paths)
+
+        def check(self) -> None:
+            pass
+
+    class ArchiveFactory:
+        @classmethod
+        def create(cls, **_kwargs: object) -> BlobArchive:
+            _ = cls
+            return FilesystemBlobArchive(tmp_path / "fake-archive")
+
+    class RecoveryFactory:
+        @classmethod
+        def create(cls, **_kwargs: object) -> object:
+            _ = cls
+            return object()
+
+    class ChecksumFactory:
+        @classmethod
+        def create(cls, **_kwargs: object) -> Probe:
+            _ = cls
+            return Probe()
+
+    monkeypatch.setattr(watcher_module, "S3BlobArchive", ArchiveFactory)
+    monkeypatch.setattr(watcher_module, "S3RecoveryStore", RecoveryFactory)
+    monkeypatch.setattr(watcher_module, "S3ChecksumProbe", ChecksumFactory)
+    monkeypatch.setattr(
+        watcher_module,
+        "ReadableSecretsProbe",
+        CapturingSecretsProbe,
+    )
+    database = tmp_path / "control" / "control.sqlite3"
+    arguments = WatcherCommandArguments(
+        "preflight",
+        database,
+        tmp_path / "staging",
+        tmp_path / "archive",
+        database.parent / "watcher.lock",
+        None,
+    )
+
+    _ = create_watcher_command(arguments)
+
+    assert captured_secret_paths == [(credential_file,)]
+
+
+def test_production_preflight_includes_configured_uptime_kuma_secret(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credential_file = tmp_path / "credentials"
+    target_file = tmp_path / "uptime-kuma.json"
+    _ = credential_file.write_text("credential")
+    _ = target_file.write_text('{"version":1,"sources":{}}')
+    digest = f"sha256:{'a' * 64}"
+    environment = {
+        "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
+        "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
+        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
+        "MINOS_WATCHER_IMAGE_DIGEST": digest,
+        "MINOS_WATCHER_RUNTIME_IMAGE_DIGEST": digest,
+        "MINOS_WATCHER_UPTIME_KUMA_TARGETS_FILE": str(target_file),
+        "AWS_REGION": "eu-central-1",
+        "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
+    }
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    captured_secret_paths: list[tuple[Path, ...]] = []
+
+    class Probe:
+        def check(self) -> None:
+            pass
+
+    class CapturingSecretsProbe:
+        def __init__(self, paths: tuple[Path, ...]) -> None:
+            captured_secret_paths.append(paths)
+
+        def check(self) -> None:
+            pass
+
+    class ArchiveFactory:
+        @classmethod
+        def create(cls, **_kwargs: object) -> BlobArchive:
+            _ = cls
+            return FilesystemBlobArchive(tmp_path / "fake-archive")
+
+    class RecoveryFactory:
+        @classmethod
+        def create(cls, **_kwargs: object) -> object:
+            _ = cls
+            return object()
+
+    class ChecksumFactory:
+        @classmethod
+        def create(cls, **_kwargs: object) -> Probe:
+            _ = cls
+            return Probe()
+
+    @final
+    class FakeUptimeKumaClient:
+        def __init__(self, targets: object) -> None:
+            self.targets = targets
+            self.closed = False
+            uptime_clients.append(self)
+
+        def start(self, source_id: str) -> None:
+            _ = source_id
+
+        def success(self, source_id: str) -> None:
+            _ = source_id
+
+        def failure(self, source_id: str) -> None:
+            _ = source_id
+
+        def close(self) -> None:
+            self.closed = True
+
+    uptime_clients: list[FakeUptimeKumaClient] = []
+
+    monkeypatch.setattr(watcher_module, "S3BlobArchive", ArchiveFactory)
+    monkeypatch.setattr(watcher_module, "S3RecoveryStore", RecoveryFactory)
+    monkeypatch.setattr(watcher_module, "S3ChecksumProbe", ChecksumFactory)
+    monkeypatch.setattr(watcher_module, "UptimeKumaClient", FakeUptimeKumaClient)
+    monkeypatch.setattr(
+        watcher_module,
+        "ReadableSecretsProbe",
+        CapturingSecretsProbe,
+    )
+    database = tmp_path / "control" / "control.sqlite3"
+    arguments = WatcherCommandArguments(
+        "preflight",
+        database,
+        tmp_path / "staging",
+        tmp_path / "archive",
+        database.parent / "watcher.lock",
+        None,
+    )
+
+    command = create_watcher_command(arguments)
+    command.bootstrap_rsk()
+
+    assert captured_secret_paths == [(credential_file, target_file)]
+    assert len(uptime_clients) == 1
+    assert uptime_clients[0].closed is True
+
+
+def test_required_uptime_kuma_requires_target_file_for_s3(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credential_file = tmp_path / "credentials"
+    _ = credential_file.write_text("credential")
+    environment = {
+        "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
+        "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
+        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
+        "MINOS_WATCHER_UPTIME_KUMA_REQUIRED": "true",
+        "AWS_REGION": "eu-central-1",
+        "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
+    }
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    arguments = WatcherCommandArguments(
+        "run",
+        tmp_path / "control.sqlite3",
+        tmp_path / "staging",
+        tmp_path / "archive",
+        tmp_path / "watcher.lock",
+        None,
+    )
+
+    with pytest.raises(WatcherRuntimeError, match="required Uptime Kuma"):
+        _ = create_watcher_command(arguments)
+
+
+@pytest.mark.parametrize("operation", ["preflight", "run", "run-once", "health"])
+def test_required_uptime_kuma_validates_every_enabled_source(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    database = tmp_path / "control" / "control.sqlite3"
+    database.parent.mkdir()
+    database.parent.chmod(0o700)
+    with ControlStore.open(
+        database,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    ) as store:
+        _ = store.bootstrap_source(
+            SourceConfiguration("rsk", "rsk", {}, True),
+            (
+                SourceSchedule("rsk", "0 3 * * *", 3600, 3, 0.5, 30.0),
+                SourceSchedule(
+                    "rsk",
+                    "0 4 * * 0",
+                    3600,
+                    3,
+                    0.5,
+                    30.0,
+                    "weekly_verification",
+                ),
+            ),
+        )
+    readiness = tmp_path / f"ready-{operation}.json"
+    if operation == "health":
+        WatcherReadiness(readiness).mark_ready()
+    paths = WatcherPaths(
+        database,
+        tmp_path / f"staging-{operation}",
+        tmp_path / f"archive-{operation}",
+        database.parent / f"{operation}.lock",
+        tmp_path / f"recovery-{operation}",
+    )
+    validated: list[tuple[str, ...]] = []
+
+    def reject_missing(source_ids: tuple[str, ...]) -> None:
+        validated.append(source_ids)
+        raise UptimeKumaError("required Uptime Kuma source is not configured")
+
+    command = WatcherCliAdapter(
+        paths,
+        collectors=create_runtime_collectors(
+            paths.staging_directory,
+            maximum_size_bytes=1024,
+        ),
+        capacity_limits=CapacityLimits(1024 * 1024, 1024, 1024, 1),
+        readiness_file=readiness,
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+        heartbeat_source_validator=reject_missing,
+    )
+
+    with pytest.raises(UptimeKumaError, match="required"):
+        if operation == "preflight":
+            command.preflight()
+        elif operation == "run":
+            command.run()
+        elif operation == "run-once":
+            command.run_once("rsk")
+        else:
+            command.health()
+
+    assert validated == [("rsk",)]
 
 
 def test_production_preflight_factory_requires_complete_fail_closed_settings(

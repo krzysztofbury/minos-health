@@ -60,7 +60,6 @@ _PRODUCTION_PROBE_NAMES = (
     "control_database",
     "s3_checksum",
     "recovery_round_trip",
-    "healthchecks",
 )
 
 
@@ -739,7 +738,6 @@ class PausedPreflight:
         control_database: PreflightProbe,
         s3_checksum: PreflightProbe,
         recovery_round_trip: PreflightProbe,
-        healthchecks: PreflightProbe,
     ) -> PausedPreflight:
         probes = (
             NamedPreflightProbe("capacity", capacity),
@@ -749,7 +747,6 @@ class PausedPreflight:
             NamedPreflightProbe("control_database", control_database),
             NamedPreflightProbe("s3_checksum", s3_checksum),
             NamedPreflightProbe("recovery_round_trip", recovery_round_trip),
-            NamedPreflightProbe("healthchecks", healthchecks),
         )
         if tuple(probe.name for probe in probes) != _PRODUCTION_PROBE_NAMES:
             raise PreflightError("production preflight probe set is incomplete")

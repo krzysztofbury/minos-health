@@ -36,6 +36,13 @@ def rendered_production_compose_source() -> str:
         "{{ watcher_uid }}": "10001",
         "{{ watcher_gid }}": "10001",
         "{{ watcher_secrets_gid }}": "10002",
+        "{{ uptime_kuma_uid }}": "10003",
+        "{{ uptime_kuma_gid }}": "10003",
+        "{{ uptime_kuma_image_reference }}": (
+            "docker.io/louislam/uptime-kuma@sha256:"
+            "8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6"
+        ),
+        "{{ watcher_uptime_kuma_required | string | lower }}": "false",
         "{{ cloudflared_credential_path }}": (
             "/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json"
         ),
@@ -48,6 +55,40 @@ def rendered_production_compose_source() -> str:
 
 def rendered_production_compose() -> dict[str, object]:
     return mapping(cast(object, yaml.safe_load(rendered_production_compose_source())))
+
+
+def test_private_kuma_bootstrap_matches_production_without_public_ingress() -> None:
+    document = mapping(
+        cast(
+            object,
+            yaml.safe_load(source("infra/ansible/uptime-kuma-bootstrap.compose.yml")),
+        )
+    )
+    assert document["name"] == "minos-kuma-bootstrap"
+    services = mapping(document["services"])
+    assert set(services) == {"uptime-kuma"}
+    bootstrap = mapping(services["uptime-kuma"])
+    production = mapping(
+        mapping(rendered_production_compose()["services"])["uptime-kuma"]
+    )
+    assert {key: value for key, value in bootstrap.items() if key != "networks"} == {
+        key: value for key, value in production.items() if key != "networks"
+    }
+    assert bootstrap["networks"] == ["monitoring", "notification-egress"]
+    assert "ports" not in bootstrap
+    assert all(
+        "docker.sock" not in str(mount)
+        for mount in cast(list[str], bootstrap["volumes"])
+    )
+    networks = mapping(document["networks"])
+    assert mapping(networks["monitoring"])["internal"] is True
+    assert "status.minoshealth.pl" not in source(
+        "infra/ansible/uptime-kuma-bootstrap.compose.yml"
+    )
+    playbook = source("infra/ansible/site.yml")
+    assert "Refuse concurrent Uptime Kuma database writers" in playbook
+    assert "label=com.docker.compose.project=minos-kuma-bootstrap" in playbook
+    assert "Refuse a leftover private Kuma SSH forwarding exception" in playbook
 
 
 def test_watcher_image_is_lockfile_driven_wheel_only_and_non_root() -> None:
@@ -158,6 +199,8 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
     preflight = mapping(services["watcher-preflight"])
     candidate_preflight = mapping(services["watcher-candidate-preflight"])
     edge = mapping(services["edge"])
+    cloudflared = mapping(services["cloudflared"])
+    uptime_kuma = mapping(services["uptime-kuma"])
 
     assert watcher["image"] == f"ghcr.io/example/minos-watcher@sha256:{'a' * 64}"
     assert watcher["platform"] == "linux/amd64"
@@ -203,9 +246,10 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "/etc/minos/watcher/candidate/aws/credentials:/run/secrets/aws-credentials:ro"
     ) in candidate_volumes
     assert (
-        "/etc/minos/watcher/candidate/healthchecks/targets.json:"
-        "/run/secrets/healthchecks-targets.json:ro"
+        "/etc/minos/watcher/candidate/uptime-kuma/targets.json:"
+        "/run/secrets/uptime-kuma-targets.json:ro"
     ) in candidate_volumes
+    assert all("healthchecks" not in volume.lower() for volume in candidate_volumes)
     assert watcher["read_only"] is True
     assert watcher["cap_drop"] == ["ALL"]
     assert watcher["security_opt"] == ["no-new-privileges:true"]
@@ -222,6 +266,70 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
     assert "ports" not in watcher
     assert "expose" not in watcher
 
+    assert uptime_kuma["image"] == (
+        "docker.io/louislam/uptime-kuma@sha256:"
+        "8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6"
+    )
+    assert uptime_kuma["platform"] == "linux/amd64"
+    assert uptime_kuma["pull_policy"] == "missing"
+    assert uptime_kuma["user"] == "10003:10003"
+    assert uptime_kuma["read_only"] is True
+    assert uptime_kuma["cap_drop"] == ["ALL"]
+    assert uptime_kuma["security_opt"] == ["no-new-privileges:true"]
+    assert uptime_kuma["restart"] == "unless-stopped"
+    assert uptime_kuma["volumes"] == ["/var/lib/minos/uptime-kuma:/app/data:rw"]
+    assert uptime_kuma["tmpfs"] == [
+        "/tmp:rw,noexec,nosuid,nodev,size=16m,uid=10003,gid=10003,mode=0700"
+    ]
+    assert uptime_kuma["networks"] == ["monitoring", "uptime-kuma-egress"]
+    assert uptime_kuma["expose"] == ["3001"]
+    assert "ports" not in uptime_kuma
+    assert "environment" not in uptime_kuma
+    assert mapping(uptime_kuma["healthcheck"]) == {
+        "test": ["CMD", "/app/extra/healthcheck"],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 6,
+        "start_period": "30s",
+    }
+    assert uptime_kuma["init"] is True
+    assert uptime_kuma["cpus"] == "0.50"
+    assert uptime_kuma["mem_limit"] == "384m"
+    assert uptime_kuma["pids_limit"] == 128
+    assert uptime_kuma["stop_grace_period"] == "30s"
+    assert mapping(uptime_kuma["logging"]) == {
+        "driver": "local",
+        "options": {"max-file": "3", "max-size": "10m"},
+    }
+    assert "depends_on" not in cloudflared or "uptime-kuma" not in mapping(
+        cloudflared["depends_on"]
+    )
+    assert cloudflared["networks"] == ["edge", "monitoring", "tunnel-egress"]
+    assert watcher["networks"] == ["watcher-egress", "monitoring"]
+
+    enabled_services = {
+        name for name, value in services.items() if "profiles" not in mapping(value)
+    }
+    assert enabled_services == {"edge", "cloudflared", "uptime-kuma", "watcher"}
+    networks = mapping(document["networks"])
+    assert set(networks) == {
+        "edge",
+        "monitoring",
+        "tunnel-egress",
+        "uptime-kuma-egress",
+        "watcher-egress",
+    }
+    assert mapping(networks["edge"])["internal"] is True
+    assert mapping(networks["monitoring"])["internal"] is True
+
+    for service_name in ("edge", "cloudflared", "uptime-kuma", "watcher"):
+        service = mapping(services[service_name])
+        assert "ports" not in service
+        assert all(
+            "docker.sock" not in volume and "tcp://" not in volume
+            for volume in cast(list[str], service.get("volumes", []))
+        )
+
     environment = mapping(watcher["environment"])
     assert set(environment) == {
         "AWS_DEFAULT_REGION",
@@ -230,7 +338,6 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "MINOS_WATCHER_ARCHIVE_BACKEND",
         "MINOS_WATCHER_ARCHIVE_DIRECTORY",
         "MINOS_WATCHER_DATABASE",
-        "MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE",
         "MINOS_WATCHER_IMAGE_DIGEST",
         "MINOS_WATCHER_PROCESS_LOCK",
         "MINOS_WATCHER_PUBLIC_DIRECTORY",
@@ -240,14 +347,18 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER",
         "MINOS_WATCHER_SCHEDULER_PAUSED",
         "MINOS_WATCHER_STAGING_DIRECTORY",
+        "MINOS_WATCHER_UPTIME_KUMA_REQUIRED",
+        "MINOS_WATCHER_UPTIME_KUMA_TARGETS_FILE",
     }
     assert environment["AWS_SHARED_CREDENTIALS_FILE"] == (
         "/run/secrets/aws-credentials"
     )
-    assert environment["MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE"] == (
-        "/run/secrets/healthchecks-targets.json"
-    )
     assert environment["MINOS_WATCHER_SCHEDULER_PAUSED"] == "false"
+    assert environment["MINOS_WATCHER_UPTIME_KUMA_REQUIRED"] == "false"
+    assert environment["MINOS_WATCHER_UPTIME_KUMA_TARGETS_FILE"] == (
+        "/run/secrets/uptime-kuma-targets.json"
+    )
+    assert "MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE" not in environment
     _assert_cli_paths_parse(environment, monkeypatch)
     _assert_cli_runtime_settings_parse(environment, monkeypatch)
     assert all("{{" not in str(value) for value in environment.values())
@@ -258,14 +369,49 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "/var/lib/minos/watcher/staging:/var/lib/minos/staging:rw",
         "/var/lib/minos/public:/var/lib/minos/public:rw",
         "/etc/minos/watcher/aws/credentials:/run/secrets/aws-credentials:ro",
-        "/etc/minos/watcher/healthchecks/targets.json:/run/secrets/healthchecks-targets.json:ro",
+        "/etc/minos/watcher/uptime-kuma/targets.json:"
+        + "/run/secrets/uptime-kuma-targets.json:ro",
     }
+    assert all("healthchecks" not in volume.lower() for volume in watcher_volumes)
     edge_volumes = cast(list[str], edge["volumes"])
     assert "/var/lib/minos/public:/var/lib/minos/public:ro" in edge_volumes
     assert all("watcher/control" not in value for value in edge_volumes)
     assert all("watcher/archive" not in value for value in edge_volumes)
     assert all("/run/secrets/" not in value for value in edge_volumes)
     assert "environment" not in edge
+
+
+@pytest.mark.parametrize("public_status_enabled", [False, True])
+def test_cloudflared_status_route_is_explicit_and_precedes_terminal_404(
+    public_status_enabled: bool,
+) -> None:
+    template = source("infra/ansible/templates/cloudflared-config.yml.j2")
+    conditional = """{% if uptime_kuma_public_status_enabled | bool %}
+  - hostname: status.minoshealth.pl
+    service: http://uptime-kuma:3001
+{% endif %}"""
+    rendered = template.replace("{{ cloudflared_tunnel_id }}", "test-tunnel")
+    rendered = rendered.replace(
+        conditional,
+        """
+  - hostname: status.minoshealth.pl
+    service: http://uptime-kuma:3001"""
+        if public_status_enabled
+        else "",
+    )
+    assert "{%" not in rendered
+
+    document = mapping(cast(object, yaml.safe_load(rendered)))
+    ingress = cast(list[dict[str, str]], document["ingress"])
+    assert ingress[-1] == {"service": "http_status:404"}
+    status_routes = [
+        route for route in ingress if route.get("hostname") == "status.minoshealth.pl"
+    ]
+    assert status_routes == (
+        [{"hostname": "status.minoshealth.pl", "service": "http://uptime-kuma:3001"}]
+        if public_status_enabled
+        else []
+    )
 
 
 def test_rendered_production_compose_validates_with_bootstrap_profile(
@@ -305,6 +451,17 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "watcher_gid: 10001" in playbook
     assert "watcher_secrets_gid: 10002" in playbook
     assert "watcher_uid == 10001" in playbook
+    assert "uptime_kuma_uid: 10003" in playbook
+    assert "uptime_kuma_gid: 10003" in playbook
+    assert "uptime_kuma_uid == 10003" in playbook
+    assert "uptime_kuma_gid == 10003" in playbook
+    assert "(not uptime_kuma_public_status_enabled) or" in playbook
+    assert "watcher_uptime_kuma_required" in playbook
+    assert (
+        "docker.io/louislam/uptime-kuma@sha256:"
+        + "8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6"
+        in playbook
+    )
     assert "recurse: true" not in playbook
     assert "Reapply ownership to known control files after a restore" in playbook
     assert "match('^sha256:[a-f0-9]{64}$')" in playbook
@@ -320,25 +477,43 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "watcher_expected_image_digest | default('')" in playbook
     assert "watcher_source_revision | default('')" in playbook
     assert "Require the exact AWS watcher credential schema" in playbook
-    assert "Require the exact Healthchecks target document schema" in playbook
+    assert "Require the exact Uptime Kuma watcher target document schema" in playbook
+    assert (
+        "watcher_uptime_kuma_targets_candidate_document.sources | length <= 128"
+        in playbook
+    )
+    assert (
+        "watcher_uptime_kuma_targets_candidate_document.version is integer" in playbook
+    )
+    assert 'else \'{"version":1,"sources":{}}\'' in playbook
+    assert (
+        "('rsk' in watcher_uptime_kuma_targets_candidate_document.sources)" in playbook
+    )
+    assert "^[a-z][a-z0-9_-]{0,63}$" in playbook
+    assert "^[A-Za-z0-9]{32}$" in playbook
     assert "Require the reviewed tunnel credential before mutating the host" in playbook
     assert ".stat.size in range(64, 4097)" in playbook
-    assert ".stat.size in range(2, 65537)" in playbook
     assert "candidate_payload | length in range(64, 4097)" in playbook
-    assert "candidate_payload | length in range(2, 65537)" in playbook
-    assert "sources | length in range(1, 129)" in playbook
-    assert "'rsk' in watcher_healthchecks_candidate_document.sources" in playbook
-    assert "Stage validated watcher secret candidates" in playbook
+    assert "Stage the validated AWS watcher credential candidate" in playbook
+    assert "Stage the validated Uptime Kuma watcher target candidate" in playbook
     assert "Stage the validated cloudflared credential candidate" in playbook
     assert "Load the candidate cloudflared credential with the pinned image" in playbook
-    assert "Atomically promote validated watcher secrets while stopped" in playbook
+    assert (
+        "Atomically promote validated AWS watcher credentials while stopped" in playbook
+    )
+    assert (
+        "Atomically promote validated Uptime Kuma watcher targets while stopped"
+        in playbook
+    )
     assert (
         "Atomically promote the validated cloudflared credential while stopped"
         in playbook
     )
-    assert "Restore prior watcher secrets" in playbook
+    assert "Restore prior AWS watcher credentials" in playbook
+    assert "Restore prior Uptime Kuma watcher targets" in playbook
     assert "Restore the prior cloudflared credential" in playbook
-    assert "Remove rejected initial watcher secrets" in playbook
+    assert "Remove rejected initial AWS watcher credentials" in playbook
+    assert "Remove rejected initial Uptime Kuma watcher targets" in playbook
     assert "Remove a rejected initial cloudflared credential" in playbook
     assert "Install operator-supplied watcher secret files" not in playbook
     assert "Install the operator-supplied cloudflared credential" not in playbook
@@ -348,17 +523,43 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "source.backup(destination" not in playbook
     assert playbook.count("--kill-after=5s") == 4
     assert 'minos_watcher_boundary[17] == "0"' in playbook
+    assert 'minos_uptime_kuma_boundary[17] == "0"' in playbook
+    assert 'minos_uptime_kuma_boundary[18] == "30"' in playbook
+    assert (
+        "Refuse an Uptime Kuma image change without a stopped migration procedure"
+        in playbook
+    )
+    assert "/var/lib/minos/uptime-kuma/.minos-image-reference" in playbook
+    assert "Refuse unversioned existing Uptime Kuma state" in playbook
+    assert "(not uptime_kuma_database_preflight.stat.exists) or" in playbook
+    assert "src: /var/lib/minos/uptime-kuma/kuma.db" not in playbook
+    for removed_healthchecks_value in (
+        "Healthchecks",
+        "healthchecks",
+        "watcher_healthchecks",
+        "MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE",
+        "/run/secrets/healthchecks-targets.json",
+        "/etc/minos/watcher/healthchecks",
+        "/etc/minos/watcher/candidate/healthchecks",
+        "/opt/minos/rollback/secrets/healthchecks",
+    ):
+        assert removed_healthchecks_value not in playbook
 
     validate_aws_secret = playbook.index(
         "Require the exact AWS watcher credential schema"
     )
-    validate_healthchecks_secret = playbook.index(
-        "Require the exact Healthchecks target document schema"
+    validate_uptime_kuma_secret = playbook.index(
+        "Require the exact Uptime Kuma watcher target document schema"
     )
     validate_cloudflared_secret = playbook.index(
         "Require the reviewed tunnel credential before mutating the host"
     )
-    stage_secrets = playbook.index("Stage validated watcher secret candidates")
+    stage_aws_credentials = playbook.index(
+        "Stage the validated AWS watcher credential candidate"
+    )
+    stage_uptime_kuma_targets = playbook.index(
+        "Stage the validated Uptime Kuma watcher target candidate"
+    )
     stage_cloudflared = playbook.index(
         "Stage the validated cloudflared credential candidate"
     )
@@ -383,8 +584,11 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     stop_active = playbook.index(
         "Stop the active Minos stack after candidate validation"
     )
-    promote_secrets = playbook.index(
-        "Atomically promote validated watcher secrets while stopped"
+    promote_aws_credentials = playbook.index(
+        "Atomically promote validated AWS watcher credentials while stopped"
+    )
+    promote_uptime_kuma_targets = playbook.index(
+        "Atomically promote validated Uptime Kuma watcher targets while stopped"
     )
     promote_cloudflared = playbook.index(
         "Atomically promote the validated cloudflared credential while stopped"
@@ -416,13 +620,15 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
         < stage_cloudflared
         < load_cloudflared
         < calculate_activation
-        and validate_aws_secret < stage_secrets
-        and validate_healthchecks_secret
-        < stage_secrets
+        and validate_aws_secret < stage_aws_credentials
+        and validate_uptime_kuma_secret < stage_uptime_kuma_targets
+        and stage_aws_credentials
+        < stage_uptime_kuma_targets
         < calculate_activation
         < candidate_preflight
         < stop_active
-        < promote_secrets
+        < promote_aws_credentials
+        < promote_uptime_kuma_targets
         < promote_cloudflared
         < promote
         < migrate_control
@@ -485,14 +691,24 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     migration_rescue_guard = playbook.index(
         "Preserve a migrated live database for explicit recovery", activation_rescue
     )
-    restore_secrets = playbook.index("Restore prior watcher secrets", stop_active)
+    restore_aws_credentials = playbook.index(
+        "Restore prior AWS watcher credentials", stop_active
+    )
+    restore_uptime_kuma_targets = playbook.index(
+        "Restore prior Uptime Kuma watcher targets", stop_active
+    )
     restore_cloudflared = playbook.index(
         "Restore the prior cloudflared credential", stop_active
     )
     restore_runtime = playbook.index(
         "Restore prior Minos runtime files and image reference", stop_active
     )
-    assert restore_cloudflared < restore_secrets < restore_runtime
+    assert (
+        restore_cloudflared
+        < restore_aws_credentials
+        < restore_uptime_kuma_targets
+        < restore_runtime
+    )
     assert activation_rescue < migration_rescue_guard < restore_cloudflared
     rescue_guard = playbook[migration_rescue_guard:restore_cloudflared]
     assert "watcher_live_migration_attempted | default(false) | bool" in rescue_guard
@@ -516,6 +732,15 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "unsafe_writes: false" in playbook[stop_active:]
     assert "cloudflared_credential_candidate.stat.checksum" in playbook
     assert "cloudflared_credential_preflight.stat.checksum" in playbook[stop_active:]
+    assert "watcher_uptime_kuma_targets_preflight.stat.checksum" in playbook
+    assert "watcher_uptime_kuma_targets_candidate.stat.checksum" in playbook
+    assert "['cloudflared', 'edge', 'uptime-kuma', 'watcher']" in playbook
+    initial_runtime_removal = playbook[
+        playbook.index("Remove a rejected initial Minos runtime") : playbook.index(
+            "Restore prior optional edge page files"
+        )
+    ]
+    assert "/var/lib/minos/uptime-kuma" not in initial_runtime_removal
 
     assert "set -euo pipefail" in deployment_readme
     assert 'credential_dir="$(mktemp -d)"' in deployment_readme
@@ -545,6 +770,8 @@ def test_no_secret_value_or_mutable_watcher_tag_is_committed() -> None:
     assert "aws_access_key_id" not in runtime_sources.lower()
     assert "aws_secret_access_key" not in runtime_sources.lower()
     assert "hc-ping.com/" not in runtime_sources
+    assert "healthchecks" not in runtime_sources.lower()
+    assert "watcher_healthchecks" not in playbook
     assert "AKIA[A-Z0-9]{16}" in playbook
     assert "[A-Za-z0-9/+=]{40}" in playbook
     assert "minos-health-watcher:latest" not in runtime_sources
@@ -610,6 +837,7 @@ def _assert_cli_runtime_settings_parse(
         == (environment["AWS_SHARED_CREDENTIALS_FILE"])
     )
     assert (
-        str(settings.healthchecks_targets_file)
-        == (environment["MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE"])
+        str(settings.uptime_kuma_targets_file)
+        == environment["MINOS_WATCHER_UPTIME_KUMA_TARGETS_FILE"]
     )
+    assert settings.uptime_kuma_required is False

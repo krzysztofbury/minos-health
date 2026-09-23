@@ -12,9 +12,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast, final
 
-import httpx
 import pytest
 
+import minos.ingest.watchers.orchestrator as orchestrator_module
 from minos.cli.watcher import WatcherCliAdapter, WatcherPaths
 from minos.ingest.watchers.archive import (
     BlobArchiveVerificationError,
@@ -31,6 +31,7 @@ from minos.ingest.watchers.control import (
     ControlStore,
     ObservationCommit,
     ObservationDraft,
+    PersistedSourceState,
     RecoveryReceipt,
     RetryPolicy,
     RunTransition,
@@ -42,12 +43,6 @@ from minos.ingest.watchers.control import (
 )
 from minos.ingest.watchers.control.migrations import (
     rollback_control_migrations_for_testing,
-)
-from minos.ingest.watchers.healthchecks import (
-    HealthcheckError,
-    HealthchecksClient,
-    HealthchecksFileSettings,
-    HealthcheckTargets,
 )
 from minos.ingest.watchers.orchestrator import RunRecoveryPublisher, WatcherOrchestrator
 from minos.ingest.watchers.preflight import (
@@ -370,6 +365,44 @@ class _Heartbeat:
         self._events.append("heartbeat_failure")
 
 
+type _LifecycleRecord = tuple[str, str, dict[str, object]]
+
+
+@final
+class _LifecycleLogger:
+    def __init__(self, events: list[str] | None = None) -> None:
+        self.records: list[_LifecycleRecord] = []
+        self._events = events
+
+    def bind(self, **fields: object) -> _BoundLifecycleLogger:
+        return _BoundLifecycleLogger(self, fields)
+
+    def record(self, level: str, message: str, fields: dict[str, object]) -> None:
+        self.records.append((level, message, dict(fields)))
+        if self._events is not None:
+            self._events.append(f"log:{fields['event']}")
+
+
+@final
+class _BoundLifecycleLogger:
+    def __init__(
+        self,
+        logger: _LifecycleLogger,
+        fields: dict[str, object],
+    ) -> None:
+        self._logger = logger
+        self._fields = fields
+
+    def info(self, message: str) -> None:
+        self._logger.record("info", message, self._fields)
+
+    def error(self, message: str) -> None:
+        self._logger.record("error", message, self._fields)
+
+    def warning(self, message: str) -> None:
+        self._logger.record("warning", message, self._fields)
+
+
 @final
 class _PublicPublisher:
     def __init__(self, events: list[str], *, failures: int = 0) -> None:
@@ -412,8 +445,17 @@ def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
     events: list[str] = []
     store = _open_source_store(tmp_path / "control.sqlite3")
     original_commit = ControlStore.commit_observations
+    original_load = ControlStore.load_claim_state
     original_pending = ControlStore.mark_heartbeat_pending
     original_successful = ControlStore.mark_successful
+
+    def load_state(
+        self: ControlStore,
+        claim: ClaimIdentity,
+    ) -> PersistedSourceState:
+        state = original_load(self, claim)
+        events.append("load_state")
+        return state
 
     def commit(
         self: ControlStore,
@@ -451,9 +493,12 @@ def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
             committed_state_revision=committed_state_revision,
         )
 
+    monkeypatch.setattr(ControlStore, "load_claim_state", load_state)
     monkeypatch.setattr(ControlStore, "commit_observations", commit)
     monkeypatch.setattr(ControlStore, "mark_heartbeat_pending", pending)
     monkeypatch.setattr(ControlStore, "mark_successful", successful)
+    lifecycle_logger = _LifecycleLogger(events)
+    monkeypatch.setattr(orchestrator_module, "logger", lifecycle_logger)
     try:
         _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
         registry = CollectorRegistry()
@@ -473,6 +518,8 @@ def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
         _ = orchestrator.run_claim(claim, RetryPolicy(1, 1.0, 1.0))
 
         assert events == [
+            "load_state",
+            "log:watcher_run_started",
             "heartbeat_start",
             "collect",
             "archive",
@@ -480,15 +527,140 @@ def test_orchestrator_orders_archive_commit_recovery_and_heartbeat(
             "recovery",
             "heartbeat_pending",
             "public_projection",
-            "heartbeat_success",
             "final_success",
+            "heartbeat_success",
+            "log:watcher_run_succeeded",
         ]
+        assert lifecycle_logger.records == [
+            (
+                "info",
+                "Watcher run started",
+                {
+                    "event": "watcher_run_started",
+                    "source_id": "rsk",
+                    "run_id": claim.identity.run_id,
+                    "run_mode": "manual",
+                },
+            ),
+            (
+                "info",
+                "Watcher run succeeded",
+                {
+                    "event": "watcher_run_succeeded",
+                    "source_id": "rsk",
+                    "run_id": claim.identity.run_id,
+                },
+            ),
+        ]
+    finally:
+        store.close()
+
+
+@final
+class _UnavailableMonitor:
+    def __init__(self, secret: str) -> None:
+        self._secret = secret
+
+    def start(self, source_id: str) -> None:
+        _ = source_id
+        raise RuntimeError(self._secret)
+
+    def success(self, source_id: str) -> None:
+        _ = source_id
+        raise RuntimeError(self._secret)
+
+    def failure(self, source_id: str) -> None:
+        _ = source_id
+        raise RuntimeError(self._secret)
+
+
+def test_monitor_outage_does_not_block_successful_durable_transition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "monitor-token-should-not-escape"
+    lifecycle_logger = _LifecycleLogger()
+    monkeypatch.setattr(orchestrator_module, "logger", lifecycle_logger)
+    database = tmp_path / "control.sqlite3"
+    store = _open_source_store(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            _Collector(BlobStagingArea(tmp_path / "stage"), []),
+        )
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_Archive([]),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher([]),
+            heartbeat=_UnavailableMonitor(secret),
+        )
+        claim = store.claim_manual("rsk")
+
+        completed = orchestrator.run_claim(claim, RetryPolicy(1, 1.0, 1.0))
+
+        assert completed.run_id == claim.identity.run_id
+        assert _query(database, "SELECT status FROM watcher_runs") == [("successful",)]
+        warnings = [
+            record for record in lifecycle_logger.records if record[0] == "warning"
+        ]
+        assert [record[2]["monitor_event"] for record in warnings] == [
+            "start",
+            "success",
+        ]
+        assert all(record[2]["run_id"] == claim.identity.run_id for record in warnings)
+        assert secret not in repr(lifecycle_logger.records)
+    finally:
+        store.close()
+
+
+def test_monitor_outage_does_not_block_failed_durable_transition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "monitor-token-should-not-escape"
+    lifecycle_logger = _LifecycleLogger()
+    monkeypatch.setattr(orchestrator_module, "logger", lifecycle_logger)
+    database = tmp_path / "control.sqlite3"
+    store = _open_source_store(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            _Collector(BlobStagingArea(tmp_path / "stage"), []),
+        )
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_Archive([], fail=True),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher([]),
+            heartbeat=_UnavailableMonitor(secret),
+        )
+        claim = store.claim_manual("rsk")
+
+        with pytest.raises(BlobArchiveVerificationError):
+            _ = orchestrator.run_claim(claim, RetryPolicy(1, 1.0, 1.0))
+
+        assert _query(database, "SELECT status FROM watcher_runs") == [("failed",)]
+        warnings = [
+            record for record in lifecycle_logger.records if record[0] == "warning"
+        ]
+        assert [record[2]["monitor_event"] for record in warnings] == [
+            "start",
+            "failure",
+        ]
+        assert all(record[2]["run_id"] == claim.identity.run_id for record in warnings)
+        assert secret not in repr(lifecycle_logger.records)
     finally:
         store.close()
 
 
 def test_publication_failure_leaves_retryable_heartbeat_pending_run(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[str] = []
     database = tmp_path / "control.sqlite3"
@@ -500,6 +672,8 @@ def test_publication_failure_leaves_retryable_heartbeat_pending_run(
             "rsk", _Collector(BlobStagingArea(tmp_path / "stage"), events)
         )
         public = _PublicPublisher(events, failures=1)
+        lifecycle_logger = _LifecycleLogger()
+        monkeypatch.setattr(orchestrator_module, "logger", lifecycle_logger)
         orchestrator = WatcherOrchestrator(
             store=store,
             archive=_Archive(events),
@@ -509,9 +683,10 @@ def test_publication_failure_leaves_retryable_heartbeat_pending_run(
             public_projection_publisher=public,
         )
 
+        claim = store.claim_manual("rsk")
         with pytest.raises(RuntimeError, match="public publication"):
             _ = orchestrator.run_claim(
-                store.claim_manual("rsk"),
+                claim,
                 RetryPolicy(1, 1.0, 1.0),
             )
 
@@ -519,6 +694,18 @@ def test_publication_failure_leaves_retryable_heartbeat_pending_run(
             ("heartbeat_pending",)
         ]
         assert "heartbeat_success" not in events
+        assert lifecycle_logger.records[-1] == (
+            "error",
+            "Watcher run reconciliation failed",
+            {
+                "event": "watcher_run_reconciliation_failed",
+                "source_id": "rsk",
+                "run_id": claim.identity.run_id,
+                "category": "reconciliation_failure",
+                "phase": "reconcile",
+                "persisted": True,
+            },
+        )
         orchestrator.reconcile_all()
         assert _query(database, "SELECT status FROM watcher_runs") == [("successful",)]
         assert events.count("recovery") == 1
@@ -719,6 +906,7 @@ def test_periodic_recovery_startup_publishes_only_missing_current_period(
 
 def test_archive_failure_records_incident_without_advancing_cursor(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[str] = []
     database_path = tmp_path / "control.sqlite3"
@@ -729,6 +917,8 @@ def test_archive_failure_records_incident_without_advancing_cursor(
         registry.register(
             "rsk", _Collector(BlobStagingArea(tmp_path / "stage"), events)
         )
+        lifecycle_logger = _LifecycleLogger()
+        monkeypatch.setattr(orchestrator_module, "logger", lifecycle_logger)
         orchestrator = WatcherOrchestrator(
             store=store,
             archive=_Archive(events, fail=True),
@@ -737,9 +927,10 @@ def test_archive_failure_records_incident_without_advancing_cursor(
             heartbeat=_Heartbeat(events),
         )
 
+        claim = store.claim_manual("rsk")
         with pytest.raises(BlobArchiveVerificationError):
             _ = orchestrator.run_claim(
-                store.claim_manual("rsk"),
+                claim,
                 RetryPolicy(3, 0.01, 0.01),
             )
 
@@ -749,6 +940,138 @@ def test_archive_failure_records_incident_without_advancing_cursor(
             ("archive_failure",)
         ]
         assert events[-1] == "heartbeat_failure"
+        assert lifecycle_logger.records[-1] == (
+            "error",
+            "Watcher run failed",
+            {
+                "event": "watcher_run_failed",
+                "source_id": "rsk",
+                "run_id": claim.identity.run_id,
+                "run_mode": "manual",
+                "category": "archive_failure",
+                "phase": "archive",
+                "persisted": True,
+            },
+        )
+    finally:
+        store.close()
+
+
+def test_expired_collection_failure_logs_only_allowlisted_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now_ms = [1_800_000_000_000]
+    monkeypatch.setattr(
+        "minos.ingest.watchers.control.store._utc_now_ms",
+        lambda: now_ms[0],
+    )
+    lifecycle_logger = _LifecycleLogger()
+    monkeypatch.setattr(orchestrator_module, "logger", lifecycle_logger)
+    database = tmp_path / "control.sqlite3"
+    store = _open_source_store(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            _Collector(BlobStagingArea(tmp_path / "stage"), []),
+        )
+        claim = store.claim_manual("rsk")
+
+        @final
+        class ExpiringArchive:
+            def put(self, blob: StagedBlob) -> BlobReceipt:
+                _ = blob
+                now_ms[0] = claim.identity.deadline_at_ms
+                raise BlobArchiveVerificationError(
+                    "https://private.invalid/path?credential=secret"
+                )
+
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=ExpiringArchive(),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher([]),
+            heartbeat=_Heartbeat([]),
+            now_ms=lambda: now_ms[0],
+        )
+
+        with pytest.raises(BlobArchiveVerificationError):
+            _ = orchestrator.run_claim(claim, RetryPolicy(1, 1.0, 1.0))
+
+        assert _query(database, "SELECT status FROM watcher_runs") == [("expired",)]
+        assert lifecycle_logger.records[-1] == (
+            "error",
+            "Watcher run expired",
+            {
+                "event": "watcher_run_expired",
+                "source_id": "rsk",
+                "run_id": claim.identity.run_id,
+                "run_mode": "manual",
+                "category": "archive_failure",
+                "phase": "archive",
+                "persisted": True,
+            },
+        )
+        encoded_logs = repr(lifecycle_logger.records)
+        assert "private.invalid" not in encoded_logs
+        assert "credential" not in encoded_logs
+        assert "secret" not in encoded_logs
+    finally:
+        store.close()
+
+
+def test_abort_failure_log_does_not_claim_persistence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    lifecycle_logger = _LifecycleLogger()
+    monkeypatch.setattr(orchestrator_module, "logger", lifecycle_logger)
+
+    def fail_abort(
+        self: ControlStore,
+        claim: ClaimIdentity,
+        *,
+        error_category: str,
+        incident: object,
+    ) -> RunTransition:
+        _ = self, claim, error_category, incident
+        raise RuntimeError("/private/path/credentials.json")
+
+    monkeypatch.setattr(ControlStore, "abort_claim", fail_abort)
+    database = tmp_path / "control.sqlite3"
+    store = _open_source_store(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register("rsk", _Collector(BlobStagingArea(tmp_path / "stage"), []))
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_Archive([], fail=True),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher([]),
+            heartbeat=_Heartbeat([]),
+        )
+        claim = store.claim_manual("rsk")
+
+        with pytest.raises(BlobArchiveVerificationError):
+            _ = orchestrator.run_claim(claim, RetryPolicy(1, 1.0, 1.0))
+
+        assert lifecycle_logger.records[-1] == (
+            "error",
+            "Watcher run finalization failed",
+            {
+                "event": "watcher_run_finalization_failed",
+                "source_id": "rsk",
+                "run_id": claim.identity.run_id,
+                "run_mode": "manual",
+                "category": "archive_failure",
+                "phase": "archive",
+                "persisted": False,
+            },
+        )
+        assert "/private/path" not in repr(lifecycle_logger.records)
     finally:
         store.close()
 
@@ -1479,6 +1802,28 @@ def test_preflight_requires_paused_scheduling() -> None:
     assert preflight.run(scheduling_paused=True).completed == ("capacity",)
 
 
+def test_production_preflight_keeps_all_local_and_s3_probes() -> None:
+    preflight = PausedPreflight.production(
+        capacity=_Probe(),
+        image_digest=_Probe(),
+        numeric_identity=_Probe(),
+        secrets=_Probe(),
+        control_database=_Probe(),
+        s3_checksum=_Probe(),
+        recovery_round_trip=_Probe(),
+    )
+
+    assert preflight.run(scheduling_paused=True).completed == (
+        "capacity",
+        "image_digest",
+        "numeric_identity",
+        "secrets",
+        "control_database",
+        "s3_checksum",
+        "recovery_round_trip",
+    )
+
+
 def test_production_preflight_probes_exact_identity_secrets_and_control_copy(
     tmp_path: Path,
 ) -> None:
@@ -1746,89 +2091,6 @@ def test_s3_checksum_probe_uses_conditional_full_object_checksum() -> None:
     assert client.put_call["IfNoneMatch"] == "*"
     assert client.put_call["ChecksumAlgorithm"] == "SHA256"
     assert client.put_call["ExpectedBucketOwner"] == "123456789012"
-
-
-def test_healthchecks_file_transport_and_errors_keep_urls_secret(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    secret = "opaque-healthcheck-identifier"
-    base_url = f"https://hc-ping.com/{secret}"
-    target_file = tmp_path / "healthchecks.json"
-    _ = target_file.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "sources": {"rsk": base_url},
-                "preflight": f"https://hc-ping.com/{secret}-preflight",
-            }
-        )
-    )
-    monkeypatch.setenv(
-        "MINOS_WATCHER_HEALTHCHECKS_TARGETS_FILE",
-        str(target_file),
-    )
-    settings = HealthchecksFileSettings(healthchecks_targets_file=target_file)
-    targets = HealthcheckTargets.load(settings.healthchecks_targets_file)
-    targets.require_sources(("rsk",))
-    with pytest.raises(HealthcheckError, match="not configured"):
-        targets.require_sources(("rsk", "unconfigured"))
-    requested: list[str] = []
-
-    def handle(request: httpx.Request) -> httpx.Response:
-        requested.append(str(request.url))
-        return httpx.Response(204)
-
-    with HealthchecksClient(
-        targets,
-        transport=httpx.MockTransport(handle),
-    ) as client:
-        client.start("rsk")
-        client.success("rsk")
-        client.failure("rsk")
-
-    assert requested == [f"{base_url}/start", base_url, f"{base_url}/fail"]
-    assert secret not in repr(targets)
-
-    def reject(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(500)
-
-    with HealthchecksClient(
-        targets,
-        transport=httpx.MockTransport(reject),
-    ) as client:
-        with pytest.raises(HealthcheckError) as captured:
-            client.success("rsk")
-    assert secret not in str(captured.value)
-    assert secret not in repr(captured.value)
-
-
-@pytest.mark.parametrize(
-    "sources",
-    [
-        {},
-        {"unrelated": "https://hc-ping.com/unrelated"},
-    ],
-)
-def test_healthchecks_targets_require_every_enabled_source(
-    tmp_path: Path,
-    sources: dict[str, str],
-) -> None:
-    target_file = tmp_path / "healthchecks.json"
-    _ = target_file.write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "sources": sources,
-                "preflight": "https://hc-ping.com/preflight",
-            }
-        )
-    )
-
-    targets = HealthcheckTargets.load(target_file)
-
-    with pytest.raises(HealthcheckError, match="not configured"):
-        targets.require_sources(("rsk",))
 
 
 def _query(database_path: Path, sql: str) -> list[tuple[object, ...]]:
