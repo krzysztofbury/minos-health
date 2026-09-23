@@ -66,6 +66,36 @@ _ACCEPTANCE_TAGS = (
 
 READ_PREFLIGHT_SCENARIOS = (
     Scenario(
+        "acceptance_operator_boundary",
+        "s3:GetBucketCORS",
+        f"arn:aws:s3:::minos-health-watcher-acceptance-{ACCOUNT}-0123456789abcdef",
+        "allowed",
+    ),
+    Scenario(
+        "acceptance_operator_boundary",
+        "s3:GetBucketCORS",
+        "arn:aws:s3:::unrelated-bucket",
+        "implicitDeny",
+    ),
+    Scenario(
+        "acceptance_operator_boundary",
+        "iam:ListAttachedRolePolicies",
+        _ACCEPTANCE_ROLE,
+        "allowed",
+        (
+            ("aws:ResourceTag/Disposable", "true"),
+            ("aws:ResourceTag/Environment", "acceptance"),
+            ("aws:ResourceTag/Project", "minos-health"),
+            ("aws:ResourceTag/TestHarness", "watcher-acceptance"),
+        ),
+    ),
+    Scenario(
+        "acceptance_operator_boundary",
+        "iam:ListAttachedRolePolicies",
+        _ACCEPTANCE_ROLE,
+        "implicitDeny",
+    ),
+    Scenario(
         "acceptance_operator_boundary", "iam:GetRole", _ACCEPTANCE_ROLE, "allowed"
     ),
     Scenario(

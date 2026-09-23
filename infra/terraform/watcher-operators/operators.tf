@@ -166,6 +166,10 @@ locals {
         Effect = "Allow"
         Action = [
           "s3:GetBucketLocation", "s3:GetBucketTagging", "s3:PutBucketTagging",
+          "s3:GetBucketCORS", "s3:GetBucketWebsite",
+          "s3:GetBucketAccelerateConfiguration", "s3:GetBucketRequestPayment",
+          "s3:GetBucketLogging", "s3:GetBucketReplication",
+          "s3:GetBucketObjectLockConfiguration",
           "s3:GetBucketVersioning", "s3:PutBucketVersioning",
           "s3:GetBucketPolicy", "s3:PutBucketPolicy", "s3:DeleteBucketPolicy",
           "s3:GetBucketPublicAccessBlock", "s3:PutBucketPublicAccessBlock",
@@ -218,7 +222,7 @@ locals {
       {
         Sid      = "ManageOnlyDisposableWatcherRoles"
         Effect   = "Allow"
-        Action   = ["iam:ListRoleTags", "iam:TagRole", "iam:UntagRole", "iam:ListRolePolicies", "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:DeleteRole"]
+        Action   = ["iam:ListRoleTags", "iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole", "iam:TagRole", "iam:UntagRole", "iam:ListRolePolicies", "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:DeleteRole"]
         Resource = local.acceptance_watcher_arn
         Condition = { StringEquals = {
           "aws:ResourceTag/Disposable"  = "true"

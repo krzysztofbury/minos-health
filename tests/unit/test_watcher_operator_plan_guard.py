@@ -155,19 +155,32 @@ def _use_fixture_hashes(
 
 def _read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     role_arn = f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-acceptance-*-watcher"
+    bucket_arn = "arn:aws:s3:::minos-health-watcher-acceptance-*"
+    bucket_actions = [
+        "s3:GetBucketLocation",
+        "s3:GetBucketTagging",
+        "s3:PutBucketTagging",
+    ]
+    role_actions = ["iam:ListRoleTags", "iam:DeleteRole"]
     previous = json.dumps(
         {
             "Version": "2012-10-17",
             "Statement": [
                 {
+                    "Sid": "ManageOnlyDisposableBuckets",
+                    "Effect": "Allow",
+                    "Action": bucket_actions,
+                    "Resource": bucket_arn,
+                },
+                {
                     "Sid": "ManageOnlyDisposableWatcherRoles",
                     "Effect": "Allow",
-                    "Action": ["iam:GetRole", "iam:DeleteRole"],
+                    "Action": role_actions,
                     "Resource": role_arn,
                     "Condition": {
                         "StringEquals": {"aws:ResourceTag/Disposable": "true"}
                     },
-                }
+                },
             ],
         }
     )
@@ -176,15 +189,29 @@ def _read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
             "Version": "2012-10-17",
             "Statement": [
                 {
-                    "Sid": "CheckDisposableWatcherRoleExistence",
+                    "Sid": "ManageOnlyDisposableBuckets",
                     "Effect": "Allow",
-                    "Action": "iam:GetRole",
-                    "Resource": role_arn,
+                    "Action": bucket_actions
+                    + [
+                        "s3:GetBucketCORS",
+                        "s3:GetBucketWebsite",
+                        "s3:GetBucketAccelerateConfiguration",
+                        "s3:GetBucketRequestPayment",
+                        "s3:GetBucketLogging",
+                        "s3:GetBucketReplication",
+                        "s3:GetBucketObjectLockConfiguration",
+                    ],
+                    "Resource": bucket_arn,
                 },
                 {
                     "Sid": "ManageOnlyDisposableWatcherRoles",
                     "Effect": "Allow",
-                    "Action": ["iam:DeleteRole"],
+                    "Action": [
+                        "iam:ListRoleTags",
+                        "iam:ListAttachedRolePolicies",
+                        "iam:ListInstanceProfilesForRole",
+                        "iam:DeleteRole",
+                    ],
                     "Resource": role_arn,
                     "Condition": {
                         "StringEquals": {"aws:ResourceTag/Disposable": "true"}
@@ -253,11 +280,11 @@ def test_read_preflight_update_rejects_escalation(
     after = cast(dict[str, object], boundary["after"])
     if defect in {"extra_action", "untagged_delete"}:
         policy = cast(dict[str, object], json.loads(cast(str, after["policy"])))
-        statement = cast(list[dict[str, object]], policy["Statement"])[0]
+        statement = cast(list[dict[str, object]], policy["Statement"])[1]
         if defect == "extra_action":
-            statement["Action"] = ["iam:GetRole", "iam:DeleteRole"]
+            statement["Action"] = ["iam:ListRoleTags", "iam:DeleteRole", "iam:PassRole"]
         else:
-            statement["Action"] = "iam:DeleteRole"
+            _ = statement.pop("Condition")
         after["policy"] = json.dumps(policy)
     elif defect == "extra_resource":
         policy = cast(dict[str, object], json.loads(cast(str, after["policy"])))
