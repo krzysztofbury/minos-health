@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 from argparse import ArgumentParser
@@ -5,20 +7,18 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-from minos.cli.recovery import (
-    RecoveryCommand,
-    RecoveryCommandArguments,
-    create_recovery_command,
+from minos.cli.watcher_status import (
+    WatcherRuntimeError,
+    format_watcher_status,
+    read_watcher_status,
+    resolve_status_database,
 )
-from minos.cli.watcher import (
-    WatcherCommand,
-    create_deployment_control_copy,
-    create_watcher_command,
-)
-from minos.ingest.watchers.protocols import WatcherRuntimeError
-from minos.ingest.watchers.rsk.publication import validate_deployed_rsk_projection
+
+if TYPE_CHECKING:
+    from minos.cli.recovery import RecoveryCommand, RecoveryCommandArguments
+    from minos.cli.watcher import WatcherCommand
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +97,13 @@ def build_parser() -> ArgumentParser:
     )
     _ = copy_control.add_argument("--source-database", type=Path, required=True)
     _ = copy_control.add_argument("--destination-database", type=Path, required=True)
+    status = watcher_commands.add_parser(
+        "status",
+        help="Read a bounded snapshot of watcher control state.",
+    )
+    _ = status.add_argument("source_id", nargs="?")
+    _ = status.add_argument("--database", type=Path)
+    _ = status.add_argument("--json", action="store_true", dest="status_json")
     _ = run_once.add_argument("source_id")
     for command in (
         preflight,
@@ -171,7 +178,27 @@ def main(
         parser.print_help()
         return
     try:
+        if raw_arguments.get("watcher_command") == "status":
+            database = raw_arguments.get("database")
+            source_id = raw_arguments.get("source_id")
+            if database is not None and not isinstance(database, Path):
+                raise WatcherRuntimeError("watcher status database is invalid")
+            if source_id is not None and not isinstance(source_id, str):
+                raise WatcherRuntimeError("watcher source ID is invalid")
+            snapshot = read_watcher_status(
+                resolve_status_database(database),
+                source_id,
+            )
+            if raw_arguments.get("status_json") is True:
+                print(json.dumps(snapshot, sort_keys=True, separators=(",", ":")))
+            else:
+                print(format_watcher_status(snapshot))
+            return
         if raw_arguments.get("watcher_command") == "validate-public-rsk":
+            from minos.ingest.watchers.rsk.publication import (
+                validate_deployed_rsk_projection,
+            )
+
             public_directory = raw_arguments.get("public_directory")
             if public_directory is None:
                 configured_directory = os.environ.get("MINOS_WATCHER_PUBLIC_DIRECTORY")
@@ -185,6 +212,8 @@ def main(
             return
         watcher_arguments = _read_watcher_arguments(raw_arguments)
         if watcher_arguments.command == "copy-control-database":
+            from minos.cli.watcher import create_deployment_control_copy
+
             if (
                 watcher_arguments.source_database is None
                 or watcher_arguments.destination_database is None
@@ -271,10 +300,14 @@ def _add_trust_arguments(parser: ArgumentParser) -> None:
 
 
 def _default_watcher_factory(arguments: WatcherCommandArguments) -> WatcherCommand:
+    from minos.cli.watcher import create_watcher_command
+
     return create_watcher_command(arguments)
 
 
 def _default_recovery_factory(arguments: RecoveryCommandArguments) -> RecoveryCommand:
+    from minos.cli.recovery import create_recovery_command
+
     return create_recovery_command(arguments)
 
 
@@ -344,6 +377,8 @@ def _read_watcher_arguments(
 def _read_recovery_arguments(
     arguments: dict[str, object],
 ) -> RecoveryCommandArguments:
+    from minos.cli.recovery import RecoveryCommandArguments
+
     action = arguments.get("recovery_action")
     if not isinstance(action, str):
         raise RuntimeError("recovery command is invalid")
