@@ -195,8 +195,8 @@ def _read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     )
     monkeypatch.setattr(
         guard_module,
-        "EXPECTED_POLICY_SHA256",
-        {"acceptance_operator_boundary": hashlib.sha256(previous.encode()).hexdigest()},
+        "PREVIOUS_ACCEPTANCE_OPERATOR_SHA256",
+        hashlib.sha256(previous.encode()).hexdigest(),
     )
     records: list[dict[str, object]] = []
     for address, fields in (

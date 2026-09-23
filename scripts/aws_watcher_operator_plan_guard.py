@@ -52,13 +52,16 @@ EXPECTED_TAGS = {
     "Repository": "krzysztofbury/minos-health",
 }
 EXPECTED_POLICY_SHA256 = {
-    "acceptance_operator_boundary": "1838dec3a1843f65f7ab3d8e74211c7966d425e2dfdbe1959b44f943ffdc8e99",
+    "acceptance_operator_boundary": "c48b2378feb4cb75fbcf616c58884bed462fcad100c82e787e3225ffbdf64c14",
     "acceptance_watcher_boundary": "91ab68d1b81b319c49134c39730361e3e4598aa7f6a5ac41014f0e6b38185d0b",
     "github_reader_boundary": "73bcefd93a5886a60fc799194ac4c5568823fe7f86799257d7eb961da9930f80",
     "production_operator_boundary": "cf9beec199eb81a99b43434b60ebe93fd720688cc74e51f657e295203f121b19",
     "state_recovery_boundary": "4aee3685f6cb01246537c1202fd6a1d0ba4839d57aaf2f0ccbb8a6302672ed88",
     "watcher_boundary": "f869bbd94ba056a2ea4641cba5f6f34d3173d798f760da0ab0d2f581409757ce",
 }
+PREVIOUS_ACCEPTANCE_OPERATOR_SHA256 = (
+    "1838dec3a1843f65f7ab3d8e74211c7966d425e2dfdbe1959b44f943ffdc8e99"
+)
 
 
 class PlanError(RuntimeError):
@@ -381,7 +384,7 @@ def validate_read_preflight_update(document: object) -> None:
         raise PlanError("previous boundary unavailable")
     require(
         hashlib.sha256(previous.encode()).hexdigest()
-        == EXPECTED_POLICY_SHA256["acceptance_operator_boundary"],
+        == PREVIOUS_ACCEPTANCE_OPERATOR_SHA256,
         "previous boundary differs from reviewed baseline",
     )
     old_policy = decode_policy(previous, "previous acceptance boundary")
