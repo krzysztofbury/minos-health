@@ -353,6 +353,9 @@ day-to-day order.
 - [ ] Create the watcher access key manually outside Terraform; store the
       recovery copy in the password manager and install it as a service-
       restricted host file for the pinned watcher UID/GID.
+- [ ] Complete #55: review scoped AWS production and disposable-test operators,
+      provision the fixed acceptance boundary, and regenerate the production
+      plan under the approved role before any AWS apply.
 - [ ] Authenticate to GHCR with a GitHub token scoped to `read:packages`; use
       AWS OIDC only for GitHub archive reads.
 - [x] Create the Cloudflare Tunnel, back up its scoped credential in 1Password,
