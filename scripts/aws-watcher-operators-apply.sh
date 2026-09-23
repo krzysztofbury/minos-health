@@ -85,10 +85,13 @@ watcher_terraform show -json "$plan_path" >"$plan_json_path"
 python3 "$SCRIPT_DIR/aws_watcher_operator_plan_guard.py" "$plan_json_path"
 timeout "$WATCHER_TIMEOUT_SECONDS" uv run python -m \
   scripts.aws_watcher_operator_simulate "$plan_json_path"
-watcher_apply_immutable_plan \
+watcher_open_confirmed_plan \
   "$plan_path" \
   "APPLY-OPERATORS:$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID" \
   "$MINOS_AWS_OPERATORS_APPLY_CONFIRM"
+timeout "$WATCHER_TIMEOUT_SECONDS" uv run python -m \
+  scripts.aws_watcher_operator_preflight
+watcher_apply_opened_plan "$plan_path"
 
 [[ "$(watcher_terraform output -raw aws_account_id)" == "$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID" ]] || watcher_die \
   "applied operator foundation belongs to another account"
