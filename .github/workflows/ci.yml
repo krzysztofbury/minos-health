@@ -105,6 +105,14 @@ jobs:
           terraform -chdir=infra/terraform/watcher validate
           terraform -chdir=infra/terraform/watcher test
 
+      - name: Initialize, validate, and test scoped watcher operators
+        run: |
+          export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher-operators"
+          terraform -chdir=infra/terraform/watcher-operators init \
+            -backend=false -lockfile=readonly
+          terraform -chdir=infra/terraform/watcher-operators validate
+          terraform -chdir=infra/terraform/watcher-operators test
+
       - name: Initialize, validate, and test disposable watcher Terraform
         run: |
           export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher-acceptance"
