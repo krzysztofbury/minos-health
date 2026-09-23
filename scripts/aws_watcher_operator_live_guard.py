@@ -22,6 +22,7 @@ from scripts.aws_watcher_operator_plan_guard import (
     EXPECTED_TAGS,
     POLICY_NAMES,
     ROLE_NAMES,
+    is_read_preflight_update,
     mapping,
     sequence,
     validate_plan,
@@ -266,15 +267,25 @@ def verify(plan_path: Path, session: _Session) -> None:
         raise ValueError("saved operator plan JSON is unavailable")
     plan = mapping(cast(object, json.loads(plan_path.read_text())), "operator plan")
     validate_plan(plan)
-    changes = {
-        item["address"]: mapping(
-            mapping(item["change"], "planned change")["after"], "planned values"
-        )
-        for raw in sequence(plan.get("resource_changes"), "plan changes")
-        if isinstance(raw, dict)
-        for item in [cast(dict[str, object], raw)]
-        if item.get("mode") == "managed" and isinstance(item.get("address"), str)
-    }
+    if is_read_preflight_update(plan):
+        planned = mapping(plan.get("planned_values"), "planned values")
+        module = mapping(planned.get("root_module"), "root module")
+        changes = {
+            item["address"]: mapping(item.get("values"), "planned values")
+            for raw in sequence(module.get("resources"), "planned resources")
+            for item in [mapping(raw, "planned resource")]
+            if isinstance(item.get("address"), str)
+        }
+    else:
+        changes = {
+            item["address"]: mapping(
+                mapping(item["change"], "planned change")["after"], "planned values"
+            )
+            for raw in sequence(plan.get("resource_changes"), "plan changes")
+            if isinstance(raw, dict)
+            for item in [cast(dict[str, object], raw)]
+            if item.get("mode") == "managed" and isinstance(item.get("address"), str)
+        }
     sts = cast(_StsClient, session.client("sts"))
     if sts.get_caller_identity().get("Account") != ACCOUNT:
         raise ValueError("live verification caller belongs to another AWS account")

@@ -153,6 +153,126 @@ def _use_fixture_hashes(
     monkeypatch.setattr(guard_module, "EXPECTED_POLICY_SHA256", expected)
 
 
+def _read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    role_arn = f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-acceptance-*-watcher"
+    previous = json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "ManageOnlyDisposableWatcherRoles",
+                    "Effect": "Allow",
+                    "Action": ["iam:GetRole", "iam:DeleteRole"],
+                    "Resource": role_arn,
+                    "Condition": {
+                        "StringEquals": {"aws:ResourceTag/Disposable": "true"}
+                    },
+                }
+            ],
+        }
+    )
+    updated = json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "CheckDisposableWatcherRoleExistence",
+                    "Effect": "Allow",
+                    "Action": "iam:GetRole",
+                    "Resource": role_arn,
+                },
+                {
+                    "Sid": "ManageOnlyDisposableWatcherRoles",
+                    "Effect": "Allow",
+                    "Action": ["iam:DeleteRole"],
+                    "Resource": role_arn,
+                    "Condition": {
+                        "StringEquals": {"aws:ResourceTag/Disposable": "true"}
+                    },
+                },
+            ],
+        }
+    )
+    monkeypatch.setattr(
+        guard_module,
+        "EXPECTED_POLICY_SHA256",
+        {"acceptance_operator_boundary": hashlib.sha256(previous.encode()).hexdigest()},
+    )
+    records: list[dict[str, object]] = []
+    for address, fields in (
+        (
+            "aws_iam_policy.acceptance_operator_boundary",
+            {"name": "minos-health-watcher-acceptance-operator-boundary"},
+        ),
+        (
+            "aws_iam_role_policy.acceptance_operator",
+            {
+                "name": "minos-health-watcher-acceptance-scoped",
+                "role": "minos-health-watcher-acceptance-operator",
+            },
+        ),
+    ):
+        records.append(
+            {
+                "address": address,
+                "mode": "managed",
+                "change": {
+                    "actions": ["update"],
+                    "before": {**fields, "policy": previous},
+                    "after": {**fields, "policy": updated},
+                    "after_unknown": {},
+                },
+            }
+        )
+    return {"format_version": "1.2", "resource_changes": records}
+
+
+def test_scoped_read_preflight_update_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validate_plan(_read_update(monkeypatch))
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "extra_action",
+        "untagged_delete",
+        "extra_resource",
+        "unknown",
+        "changed_identity",
+        "missing_boundary",
+    ],
+)
+def test_read_preflight_update_rejects_escalation(
+    defect: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _read_update(monkeypatch)
+    records = cast(list[dict[str, object]], plan["resource_changes"])
+    boundary = cast(dict[str, object], records[0]["change"])
+    after = cast(dict[str, object], boundary["after"])
+    if defect in {"extra_action", "untagged_delete"}:
+        policy = cast(dict[str, object], json.loads(cast(str, after["policy"])))
+        statement = cast(list[dict[str, object]], policy["Statement"])[0]
+        if defect == "extra_action":
+            statement["Action"] = ["iam:GetRole", "iam:DeleteRole"]
+        else:
+            statement["Action"] = "iam:DeleteRole"
+        after["policy"] = json.dumps(policy)
+    elif defect == "extra_resource":
+        policy = cast(dict[str, object], json.loads(cast(str, after["policy"])))
+        cast(list[dict[str, object]], policy["Statement"])[0]["Resource"] = "*"
+        after["policy"] = json.dumps(policy)
+    elif defect == "unknown":
+        boundary["after_unknown"] = {"policy": True}
+    elif defect == "changed_identity":
+        after["name"] = "AdministratorAccess"
+    else:
+        _ = records.pop(0)
+    with pytest.raises(PlanError):
+        validate_plan(plan)
+
+
 @pytest.mark.parametrize(
     "defect",
     [

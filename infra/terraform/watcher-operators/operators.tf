@@ -210,9 +210,15 @@ locals {
         }
       },
       {
+        Sid      = "CheckDisposableWatcherRoleExistence"
+        Effect   = "Allow"
+        Action   = "iam:GetRole"
+        Resource = local.acceptance_watcher_arn
+      },
+      {
         Sid      = "ManageOnlyDisposableWatcherRoles"
         Effect   = "Allow"
-        Action   = ["iam:GetRole", "iam:ListRoleTags", "iam:TagRole", "iam:UntagRole", "iam:ListRolePolicies", "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:DeleteRole"]
+        Action   = ["iam:ListRoleTags", "iam:TagRole", "iam:UntagRole", "iam:ListRolePolicies", "iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:DeleteRole"]
         Resource = local.acceptance_watcher_arn
         Condition = { StringEquals = {
           "aws:ResourceTag/Disposable"  = "true"

@@ -18,6 +18,7 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
 
 from scripts.aws_watcher_operator_plan_guard import (
     ACCOUNT,
+    is_read_preflight_update,
     mapping,
     sequence,
     validate_plan,
@@ -61,6 +62,24 @@ _ACCEPTANCE_TAGS = (
     ("aws:RequestTag/TestHarness", "watcher-acceptance"),
     ("aws:RequestTag/TestRunId", "0123456789abcdef"),
     ("aws:TagKeys", "Disposable"),
+)
+
+READ_PREFLIGHT_SCENARIOS = (
+    Scenario(
+        "acceptance_operator_boundary", "iam:GetRole", _ACCEPTANCE_ROLE, "allowed"
+    ),
+    Scenario(
+        "acceptance_operator_boundary",
+        "iam:GetRole",
+        f"arn:aws:iam::{ACCOUNT}:role/AdministratorAccess",
+        "implicitDeny",
+    ),
+    Scenario(
+        "acceptance_operator_boundary",
+        "iam:DeleteRole",
+        _ACCEPTANCE_ROLE,
+        "implicitDeny",
+    ),
 )
 
 SCENARIOS = (
@@ -232,6 +251,26 @@ SCENARIOS = (
 
 def planned_policies(document: object) -> dict[str, str]:
     validate_plan(document)
+    if is_read_preflight_update(document):
+        root = mapping(document, "operator plan")
+        planned = mapping(root.get("planned_values"), "planned values")
+        module = mapping(planned.get("root_module"), "root module")
+        resources = sequence(module.get("resources"), "planned resources")
+        updated_policies: dict[str, str] = {}
+        for item in resources:
+            resource = mapping(item, "planned resource")
+            address = resource.get("address")
+            if not isinstance(address, str) or not address.startswith(
+                "aws_iam_policy."
+            ):
+                continue
+            value = mapping(resource.get("values"), "planned policy values").get(
+                "policy"
+            )
+            if not isinstance(value, str):
+                raise ValueError("operator boundary is unavailable")
+            updated_policies[address.split(".")[-1]] = value
+        return updated_policies
     if not isinstance(document, dict):
         raise ValueError("operator plan is not an object")
     root = cast(dict[str, object], document)
@@ -298,7 +337,8 @@ def main() -> int:
         path = Path(sys.argv[1])
         if not path.is_file() or path.stat().st_size > 2_000_000:
             raise ValueError("operator plan is unavailable or oversized")
-        policies = planned_policies(cast(object, json.loads(path.read_text())))
+        document = cast(object, json.loads(path.read_text()))
+        policies = planned_policies(document)
         session = cast(
             _AwsSession,
             boto3.Session(
@@ -317,12 +357,15 @@ def main() -> int:
                 ),
             ),
         )
-        for scenario in SCENARIOS:
+        scenarios = SCENARIOS + (
+            READ_PREFLIGHT_SCENARIOS if is_read_preflight_update(document) else ()
+        )
+        for scenario in scenarios:
             evaluate(client, policies, scenario)
     except (OSError, ValueError, BotoCoreError, ClientError) as error:
         print(f"IAM simulator checks failed: {type(error).__name__}", file=sys.stderr)
         return 1
-    print(f"IAM simulator confirmed {len(SCENARIOS)} bounded allow and deny decisions.")
+    print(f"IAM simulator confirmed {len(scenarios)} bounded allow and deny decisions.")
     return 0
 
 

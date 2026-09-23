@@ -294,10 +294,134 @@ def _validate_policy_semantics(policies: dict[str, dict[str, object]]) -> None:
 
 
 def validate_plan(document: object) -> None:
+    if is_read_preflight_update(document):
+        validate_read_preflight_update(document)
+        return
     changes = _managed_changes(document)
     policies = _validate_boundaries(changes)
     _validate_roles(changes, policies)
     _validate_policy_semantics(policies)
+
+
+def is_read_preflight_update(document: object) -> bool:
+    root = mapping(document, "plan root")
+    resources = sequence(root.get("resource_changes"), "resource changes")
+    return any(
+        mapping(item, "resource record").get("mode") == "managed"
+        and mapping(mapping(item, "resource record").get("change"), "change").get(
+            "actions"
+        )
+        == ["update"]
+        for item in resources
+    )
+
+
+def validate_read_preflight_update(document: object) -> None:
+    root = mapping(document, "plan root")
+    require(
+        str(root.get("format_version", "")).startswith("1."), "plan format unsupported"
+    )
+    resources = sequence(root.get("resource_changes"), "resource changes")
+    require(len(resources) <= 32, "resource count unsupported")
+    expected = {
+        "aws_iam_policy.acceptance_operator_boundary",
+        "aws_iam_role_policy.acceptance_operator",
+    }
+    changed: dict[str, tuple[dict[str, object], dict[str, object]]] = {}
+    for item in resources:
+        record = mapping(item, "resource record")
+        if record.get("mode") == "data":
+            continue
+        require(record.get("mode") == "managed", "resource mode unsupported")
+        address = record.get("address")
+        if not isinstance(address, str) or address not in EXPECTED:
+            raise PlanError("unknown operator resource")
+        change = mapping(record.get("change"), "resource change")
+        actions = change.get("actions")
+        if actions == ["no-op"]:
+            require(
+                change.get("before") == change.get("after"), "unexpected no-op values"
+            )
+            continue
+        require(
+            address in expected and address not in changed and actions == ["update"],
+            "unexpected operator update",
+        )
+        before = mapping(change.get("before"), "previous resource")
+        after = mapping(change.get("after"), "updated resource")
+        require(change.get("after_unknown", {}) == {}, "unknown updated fields")
+        require(before.keys() == after.keys(), "updated resource fields differ")
+        require(
+            all(before[key] == after[key] for key in before if key != "policy"),
+            "update changed fields other than policy",
+        )
+        changed[address] = before, after
+    require(
+        set(changed) == expected,
+        "read preflight update must change exactly two policies",
+    )
+    boundary_before, boundary_after = changed[
+        "aws_iam_policy.acceptance_operator_boundary"
+    ]
+    inline_before, inline_after = changed["aws_iam_role_policy.acceptance_operator"]
+    require(
+        boundary_before.get("name") == POLICY_NAMES["acceptance_operator_boundary"],
+        "boundary name changed",
+    )
+    require(
+        inline_before.get("name") == INLINE_POLICY_NAMES["acceptance_operator"],
+        "inline policy name changed",
+    )
+    require(
+        inline_before.get("role") == ROLE_NAMES["acceptance_operator"],
+        "inline policy role changed",
+    )
+    previous = boundary_before.get("policy")
+    if not isinstance(previous, str):
+        raise PlanError("previous boundary unavailable")
+    require(
+        hashlib.sha256(previous.encode()).hexdigest()
+        == EXPECTED_POLICY_SHA256["acceptance_operator_boundary"],
+        "previous boundary differs from reviewed baseline",
+    )
+    old_policy = decode_policy(previous, "previous acceptance boundary")
+    require(
+        decode_policy(inline_before.get("policy"), "previous inline") == old_policy,
+        "previous inline differs from boundary",
+    )
+    statements = policy_statements(old_policy)
+    matches = [
+        index
+        for index, statement in enumerate(statements)
+        if statement.get("Sid") == "ManageOnlyDisposableWatcherRoles"
+    ]
+    require(len(matches) == 1, "previous role management statement missing")
+    index = matches[0]
+    management = statements[index]
+    actions = statement_actions(management)
+    require(actions.count("iam:GetRole") == 1, "previous GetRole permission missing")
+    require(
+        management.get("Resource")
+        == f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-acceptance-*-watcher",
+        "role read resource is unbounded",
+    )
+    statements.insert(
+        index,
+        {
+            "Sid": "CheckDisposableWatcherRoleExistence",
+            "Effect": "Allow",
+            "Action": "iam:GetRole",
+            "Resource": management["Resource"],
+        },
+    )
+    management["Action"] = [action for action in actions if action != "iam:GetRole"]
+    old_policy["Statement"] = statements
+    updated = decode_policy(boundary_after.get("policy"), "updated acceptance boundary")
+    require(updated == old_policy, "boundary adds permissions beyond scoped role read")
+    require(
+        decode_policy(inline_after.get("policy"), "updated inline") == updated,
+        "updated inline differs from boundary",
+    )
 
 
 def main() -> int:
@@ -312,9 +436,7 @@ def main() -> int:
     except (OSError, ValueError, TypeError, PlanError) as error:
         print(f"operator plan rejected: {error}", file=sys.stderr)
         return 1
-    print(
-        "Validated 13 exact create-only operator resources with fixed IAM boundaries."
-    )
+    print("Validated exact operator bootstrap or two-policy read preflight update.")
     return 0
 
 
