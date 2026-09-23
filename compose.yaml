@@ -4,6 +4,7 @@ x-watcher-environment: &watcher-environment
   MINOS_WATCHER_ARCHIVE_DIRECTORY: /var/lib/minos/archive
   MINOS_WATCHER_DATABASE: /var/lib/minos/control/control.sqlite3
   MINOS_WATCHER_PROCESS_LOCK: /var/lib/minos/control/watcher.lock
+  MINOS_WATCHER_PUBLIC_DIRECTORY: /var/lib/minos/public
   MINOS_WATCHER_READINESS_FILE: /tmp/minos-watcher-ready.json
   MINOS_WATCHER_SCHEDULER_PAUSED: "true"
   MINOS_WATCHER_STAGING_DIRECTORY: /var/lib/minos/staging
@@ -29,6 +30,7 @@ x-watcher-runtime: &watcher-runtime
     - watcher-control:/var/lib/minos/control
     - watcher-archive:/var/lib/minos/archive
     - watcher-staging:/var/lib/minos/staging
+    - watcher-public:/var/lib/minos/public:rw
   tmpfs:
     - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=10001,gid=10001,mode=0700
   init: true
@@ -49,6 +51,40 @@ x-watcher-runtime: &watcher-runtime
     start_period: 10s
 
 services:
+  edge:
+    image: docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972
+    user: "101:101"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./infra/ansible/files/edge-nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/ansible/files/maintenance-index.html:/usr/share/nginx/html/index.html:ro
+      - ./infra/ansible/files/home.css:/usr/share/nginx/html/home.css:ro
+      - ./infra/ansible/files/legal.css:/usr/share/nginx/html/legal.css:ro
+      - ./infra/ansible/files/plausible-init.js:/usr/share/nginx/html/plausible-init.js:ro
+      - ./infra/ansible/files/privacy-policy.html:/usr/share/nginx/html/privacy-policy.html:ro
+      - ./infra/ansible/files/sources.css:/usr/share/nginx/html/sources.css:ro
+      - ./infra/ansible/files/sources.html:/usr/share/nginx/html/sources.html:ro
+      - ./infra/ansible/files/sources.js:/usr/share/nginx/html/sources.js:ro
+      - ./infra/ansible/files/terms.html:/usr/share/nginx/html/terms.html:ro
+      - watcher-public:/var/lib/minos/public:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=8m,uid=101,gid=101,mode=0700
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      watcher:
+        condition: service_started
+
+  watcher-bootstrap-rsk:
+    <<: *watcher-runtime
+    command: [watcher, bootstrap-rsk]
+    profiles: [bootstrap]
+    restart: "no"
+    healthcheck:
+      disable: true
+
   watcher-preflight:
     <<: *watcher-runtime
     command: [watcher, preflight]
@@ -67,3 +103,4 @@ volumes:
   watcher-control: {}
   watcher-archive: {}
   watcher-staging: {}
+  watcher-public: {}

@@ -26,6 +26,11 @@
     watcher_uid: 10001
     watcher_gid: 10001
     watcher_secrets_gid: 10002
+    uptime_kuma_uid: 10003
+    uptime_kuma_gid: 10003
+    uptime_kuma_image_reference: docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
+    uptime_kuma_public_status_enabled: false
+    watcher_uptime_kuma_required: false
     watcher_image_repository: ghcr.io/krzysztofbury/minos-health-watcher
     watcher_aws_region: eu-central-1
     cloudflared_credential_path: "/etc/minos/cloudflared/{{ cloudflared_tunnel_id }}.json"
@@ -37,6 +42,16 @@
           - watcher_uid == 10001
           - watcher_gid == 10001
           - watcher_secrets_gid == 10002
+          - uptime_kuma_uid == 10003
+          - uptime_kuma_gid == 10003
+          - >-
+            uptime_kuma_image_reference ==
+            'docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6'
+          - uptime_kuma_public_status_enabled is boolean
+          - watcher_uptime_kuma_required is boolean
+          - >-
+            (not uptime_kuma_public_status_enabled) or
+            watcher_uptime_kuma_required
           - watcher_archive_backend is defined
           - watcher_s3_bucket is defined
           - watcher_s3_expected_bucket_owner is defined
@@ -191,13 +206,10 @@
         fail_msg: The tunnel credential is malformed or belongs to another tunnel.
       when: not ansible_check_mode
 
-    - name: Inspect installed watcher secret files before mutating the host
+    - name: Inspect installed AWS watcher credentials before mutating the host
       ansible.builtin.stat:
-        path: "{{ item }}"
-      loop:
-        - /etc/minos/watcher/aws/credentials
-        - /etc/minos/watcher/healthchecks/targets.json
-      register: watcher_secret_preflight
+        path: /etc/minos/watcher/aws/credentials
+      register: watcher_aws_credentials_preflight
       when: not ansible_check_mode
       no_log: true
 
@@ -211,44 +223,22 @@
         - watcher_aws_credentials_source is defined
       no_log: true
 
-    - name: Inspect supplied Healthchecks targets before mutating the host
-      ansible.builtin.stat:
-        path: "{{ watcher_healthchecks_targets_source }}"
-      delegate_to: localhost
-      register: watcher_healthchecks_targets_source_preflight
-      when:
-        - not ansible_check_mode
-        - watcher_healthchecks_targets_source is defined
-      no_log: true
-
-    - name: Require recoverable watcher secrets before mutating the host
+    - name: Require recoverable AWS watcher credentials before mutating the host
       ansible.builtin.assert:
         that:
           - >-
-            (watcher_secret_preflight.results[0].stat.exists and
-             watcher_secret_preflight.results[0].stat.isreg and
-             watcher_secret_preflight.results[0].stat.uid == 0 and
-             watcher_secret_preflight.results[0].stat.gid == watcher_secrets_gid and
-             watcher_secret_preflight.results[0].stat.mode == '0440' and
-             watcher_secret_preflight.results[0].stat.size in range(64, 4097)) or
+            (watcher_aws_credentials_preflight.stat.exists and
+             watcher_aws_credentials_preflight.stat.isreg and
+             watcher_aws_credentials_preflight.stat.uid == 0 and
+             watcher_aws_credentials_preflight.stat.gid == watcher_secrets_gid and
+             watcher_aws_credentials_preflight.stat.mode == '0440' and
+             watcher_aws_credentials_preflight.stat.size in range(64, 4097)) or
             (watcher_aws_credentials_source is defined and
              watcher_aws_credentials_source_preflight.stat.exists and
              watcher_aws_credentials_source_preflight.stat.isreg and
              watcher_aws_credentials_source_preflight.stat.mode in ['0400', '0600'] and
              watcher_aws_credentials_source_preflight.stat.size in range(64, 4097))
-          - >-
-            (watcher_secret_preflight.results[1].stat.exists and
-             watcher_secret_preflight.results[1].stat.isreg and
-             watcher_secret_preflight.results[1].stat.uid == 0 and
-             watcher_secret_preflight.results[1].stat.gid == watcher_secrets_gid and
-             watcher_secret_preflight.results[1].stat.mode == '0440' and
-             watcher_secret_preflight.results[1].stat.size in range(2, 65537)) or
-            (watcher_healthchecks_targets_source is defined and
-             watcher_healthchecks_targets_source_preflight.stat.exists and
-             watcher_healthchecks_targets_source_preflight.stat.isreg and
-             watcher_healthchecks_targets_source_preflight.stat.mode in ['0400', '0600'] and
-             watcher_healthchecks_targets_source_preflight.stat.size in range(2, 65537))
-        fail_msg: Supply bounded regular watcher secret files with reviewed modes.
+        fail_msg: Supply bounded regular AWS watcher credentials with reviewed modes.
       when: not ansible_check_mode
       no_log: true
 
@@ -271,26 +261,7 @@
         - watcher_aws_credentials_source is not defined
       no_log: true
 
-    - name: Read supplied Healthchecks targets before mutating the host
-      ansible.builtin.slurp:
-        src: "{{ watcher_healthchecks_targets_source }}"
-      delegate_to: localhost
-      register: watcher_healthchecks_targets_source_payload
-      when:
-        - not ansible_check_mode
-        - watcher_healthchecks_targets_source is defined
-      no_log: true
-
-    - name: Read installed Healthchecks targets before mutating the host
-      ansible.builtin.slurp:
-        src: /etc/minos/watcher/healthchecks/targets.json
-      register: watcher_healthchecks_targets_installed_payload
-      when:
-        - not ansible_check_mode
-        - watcher_healthchecks_targets_source is not defined
-      no_log: true
-
-    - name: Decode bounded watcher secret candidates
+    - name: Decode the bounded AWS watcher credential candidate
       ansible.builtin.set_fact:
         watcher_aws_credentials_candidate_payload: >-
           {{
@@ -299,20 +270,6 @@
              else watcher_aws_credentials_installed_payload.content)
             | b64decode
           }}
-        watcher_healthchecks_candidate_payload: >-
-          {{
-            (watcher_healthchecks_targets_source_payload.content
-             if watcher_healthchecks_targets_source is defined
-             else watcher_healthchecks_targets_installed_payload.content)
-            | b64decode
-          }}
-      when: not ansible_check_mode
-      no_log: true
-
-    - name: Parse the bounded Healthchecks target candidate
-      ansible.builtin.set_fact:
-        watcher_healthchecks_candidate_document: >-
-          {{ watcher_healthchecks_candidate_payload | from_json }}
       when: not ansible_check_mode
       no_log: true
 
@@ -328,40 +285,228 @@
       when: not ansible_check_mode
       no_log: true
 
-    - name: Require the exact Healthchecks target document schema
-      ansible.builtin.assert:
-        that:
-          - watcher_healthchecks_candidate_payload | length in range(2, 65537)
-          - watcher_healthchecks_candidate_document is mapping
-          - >-
-            watcher_healthchecks_candidate_document.keys() | list | sort ==
-            ['preflight', 'sources', 'version']
-          - watcher_healthchecks_candidate_document.version == 1
-          - watcher_healthchecks_candidate_document.sources is mapping
-          - watcher_healthchecks_candidate_document.sources | length in range(1, 129)
-          - watcher_healthchecks_candidate_document.preflight is string
-          - >-
-            watcher_healthchecks_candidate_document.preflight is match(
-              '^https://[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(?::443)?/[A-Za-z0-9._~!$&()*+,;=:@%/-]{1,2000}$'
-            )
-        fail_msg: The Healthchecks target candidate has an invalid schema.
+    - name: Inspect installed Uptime Kuma watcher targets before mutating the host
+      ansible.builtin.stat:
+        path: /etc/minos/watcher/uptime-kuma/targets.json
+      register: watcher_uptime_kuma_targets_preflight
       when: not ansible_check_mode
       no_log: true
 
-    - name: Require bounded Healthchecks source targets
+    - name: Inspect supplied Uptime Kuma watcher targets before mutating the host
+      ansible.builtin.stat:
+        path: "{{ watcher_uptime_kuma_targets_source }}"
+      delegate_to: localhost
+      register: watcher_uptime_kuma_targets_source_preflight
+      when:
+        - not ansible_check_mode
+        - watcher_uptime_kuma_targets_source is defined
+      no_log: true
+
+    - name: Require recoverable Uptime Kuma watcher targets before mutating the host
+      ansible.builtin.assert:
+        that:
+          - >-
+            (not watcher_uptime_kuma_targets_preflight.stat.exists) or
+            (watcher_uptime_kuma_targets_preflight.stat.isreg and
+             watcher_uptime_kuma_targets_preflight.stat.uid == 0 and
+             watcher_uptime_kuma_targets_preflight.stat.gid == watcher_secrets_gid and
+             watcher_uptime_kuma_targets_preflight.stat.mode == '0440' and
+             watcher_uptime_kuma_targets_preflight.stat.size in range(2, 65537))
+          - >-
+            (watcher_uptime_kuma_targets_source is not defined) or
+            (watcher_uptime_kuma_targets_source_preflight.stat.exists and
+             watcher_uptime_kuma_targets_source_preflight.stat.isreg and
+             watcher_uptime_kuma_targets_source_preflight.stat.mode in ['0400', '0600'] and
+             watcher_uptime_kuma_targets_source_preflight.stat.size in range(2, 65537))
+        fail_msg: Supply bounded regular Uptime Kuma watcher targets with reviewed modes.
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Read supplied Uptime Kuma watcher targets before mutating the host
+      ansible.builtin.slurp:
+        src: "{{ watcher_uptime_kuma_targets_source }}"
+      delegate_to: localhost
+      register: watcher_uptime_kuma_targets_source_payload
+      when:
+        - not ansible_check_mode
+        - watcher_uptime_kuma_targets_source is defined
+      no_log: true
+
+    - name: Read installed Uptime Kuma watcher targets before mutating the host
+      ansible.builtin.slurp:
+        src: /etc/minos/watcher/uptime-kuma/targets.json
+      register: watcher_uptime_kuma_targets_installed_payload
+      when:
+        - not ansible_check_mode
+        - watcher_uptime_kuma_targets_source is not defined
+        - watcher_uptime_kuma_targets_preflight.stat.exists
+      no_log: true
+
+    - name: Decode the bounded Uptime Kuma watcher target candidate
+      ansible.builtin.set_fact:
+        watcher_uptime_kuma_targets_candidate_payload: >-
+          {{
+            (watcher_uptime_kuma_targets_source_payload.content | b64decode)
+            if watcher_uptime_kuma_targets_source is defined
+            else ((watcher_uptime_kuma_targets_installed_payload.content | b64decode)
+                  if watcher_uptime_kuma_targets_preflight.stat.exists
+                  else '{"version":1,"sources":{}}')
+          }}
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Parse the bounded Uptime Kuma watcher target candidate
+      ansible.builtin.set_fact:
+        watcher_uptime_kuma_targets_candidate_document: >-
+          {{ watcher_uptime_kuma_targets_candidate_payload | from_json }}
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Require the exact Uptime Kuma watcher target document schema
+      ansible.builtin.assert:
+        that:
+          - watcher_uptime_kuma_targets_candidate_payload | length in range(2, 65537)
+          - watcher_uptime_kuma_targets_candidate_document is mapping
+          - >-
+            watcher_uptime_kuma_targets_candidate_document.keys() | list | sort ==
+            ['sources', 'version']
+          - watcher_uptime_kuma_targets_candidate_document.version is integer
+          - watcher_uptime_kuma_targets_candidate_document.version == 1
+          - watcher_uptime_kuma_targets_candidate_document.sources is mapping
+          - watcher_uptime_kuma_targets_candidate_document.sources | length <= 128
+          - >-
+            (not watcher_uptime_kuma_required) or
+            ('rsk' in watcher_uptime_kuma_targets_candidate_document.sources)
+        fail_msg: The Uptime Kuma watcher target candidate has an invalid schema.
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Require string Uptime Kuma watcher target entries
       ansible.builtin.assert:
         that:
           - item.key is string
-          - item.key is match('^[a-z0-9][a-z0-9_-]{0,63}$')
           - item.value is string
-          - >-
-            item.value is match(
-              '^https://[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?(?::443)?/[A-Za-z0-9._~!$&()*+,;=:@%/-]{1,2000}$'
-            )
-        fail_msg: A Healthchecks source target is invalid.
-      loop: "{{ watcher_healthchecks_candidate_document.sources | dict2items }}"
+        fail_msg: An Uptime Kuma watcher target entry is not a string pair.
+      loop: "{{ watcher_uptime_kuma_targets_candidate_document.sources | dict2items }}"
       when: not ansible_check_mode
       no_log: true
+
+    - name: Require safe bounded Uptime Kuma watcher target entries
+      ansible.builtin.assert:
+        that:
+          - item.key is match('^[a-z][a-z0-9_-]{0,63}$')
+          - item.value is match('^[A-Za-z0-9]{32}$')
+        fail_msg: An Uptime Kuma watcher source ID or push token is invalid.
+      loop: "{{ watcher_uptime_kuma_targets_candidate_document.sources | dict2items }}"
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Inspect the pinned Uptime Kuma data image marker
+      ansible.builtin.stat:
+        path: /var/lib/minos/uptime-kuma/.minos-image-reference
+      register: uptime_kuma_image_marker_preflight
+      when: not ansible_check_mode
+
+    - name: Inspect existing Uptime Kuma SQLite state before pinning an image
+      ansible.builtin.stat:
+        path: /var/lib/minos/uptime-kuma/kuma.db
+      register: uptime_kuma_database_preflight
+      when: not ansible_check_mode
+
+    - name: Refuse unversioned existing Uptime Kuma state
+      ansible.builtin.assert:
+        that:
+          - >-
+            (not uptime_kuma_database_preflight.stat.exists) or
+            uptime_kuma_image_marker_preflight.stat.exists
+        fail_msg: Existing Uptime Kuma data needs a reviewed pinned image marker.
+      when: not ansible_check_mode
+
+    - name: Require a bounded regular Uptime Kuma data image marker
+      ansible.builtin.assert:
+        that:
+          - >-
+            (not uptime_kuma_image_marker_preflight.stat.exists) or
+            (uptime_kuma_image_marker_preflight.stat.isreg and
+             uptime_kuma_image_marker_preflight.stat.uid == 0 and
+             uptime_kuma_image_marker_preflight.stat.gid == uptime_kuma_gid and
+             uptime_kuma_image_marker_preflight.stat.mode == '0444' and
+             uptime_kuma_image_marker_preflight.stat.size in range(64, 257))
+        fail_msg: The Uptime Kuma data image marker has an unsafe boundary.
+      when: not ansible_check_mode
+
+    - name: Read the pinned Uptime Kuma data image marker
+      ansible.builtin.slurp:
+        src: /var/lib/minos/uptime-kuma/.minos-image-reference
+      register: uptime_kuma_image_marker_payload
+      when:
+        - not ansible_check_mode
+        - uptime_kuma_image_marker_preflight.stat.exists
+
+    - name: Refuse an Uptime Kuma image change without a stopped migration procedure
+      ansible.builtin.assert:
+        that:
+          - >-
+            (not uptime_kuma_image_marker_preflight.stat.exists) or
+            ((uptime_kuma_image_marker_payload.content | b64decode | trim) ==
+             uptime_kuma_image_reference)
+        fail_msg: >-
+          Refusing to change the Uptime Kuma image for preserved data without a
+          future stopped backup and migration procedure.
+      when: not ansible_check_mode
+
+    - name: Inspect the SSH configuration for a private Kuma setup exception
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - >-
+            from pathlib import Path;
+            p=Path('/etc/ssh/sshd_config');
+            print('present' if b'MINOS TEMP KUMA SETUP' in p.read_bytes() else 'absent')
+      register: uptime_kuma_ssh_exception
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Refuse a leftover private Kuma SSH forwarding exception
+      ansible.builtin.assert:
+        that:
+          - uptime_kuma_ssh_exception.stdout == 'absent'
+        fail_msg: Remove the temporary Kuma SSH forwarding exception before deployment.
+      when: not ansible_check_mode
+
+    - name: Inspect Docker availability for private Kuma bootstrap handoff
+      ansible.builtin.stat:
+        path: /usr/bin/docker
+      register: uptime_kuma_bootstrap_docker
+      when: not ansible_check_mode
+
+    - name: Inspect a separately bootstrapped Uptime Kuma writer
+      ansible.builtin.command:
+        argv:
+          - docker
+          - ps
+          - --quiet
+          - --filter
+          - label=com.docker.compose.project=minos-kuma-bootstrap
+          - --filter
+          - label=com.docker.compose.service=uptime-kuma
+      register: uptime_kuma_bootstrap_writer
+      changed_when: false
+      when:
+        - not ansible_check_mode
+        - uptime_kuma_bootstrap_docker.stat.exists
+
+    - name: Refuse concurrent Uptime Kuma database writers
+      ansible.builtin.assert:
+        that:
+          - >-
+            (not uptime_kuma_bootstrap_docker.stat.exists) or
+            uptime_kuma_bootstrap_writer.stdout | default('') | trim == ''
+        fail_msg: >-
+          Stop the private Kuma bootstrap Compose project before activating the
+          production Compose project against its preserved data directory.
+      when: not ansible_check_mode
 
     - name: Verify IPv4 and IPv6 netfilter access in the LXC guest
       ansible.builtin.command:
@@ -606,10 +751,42 @@
       failed_when: docker_smoke_test.rc != 0 or 'Hello from Docker!' not in docker_smoke_test.stdout
       when: not ansible_check_mode
 
+    - name: Inspect the dedicated Uptime Kuma numeric identity slots
+      ansible.builtin.command:
+        argv: [getent, "{{ item }}", "10003"]
+      loop:
+        - passwd
+        - group
+      register: uptime_kuma_identity_slots
+      changed_when: false
+      failed_when: uptime_kuma_identity_slots.rc not in [0, 2]
+      when: not ansible_check_mode
+
+    - name: Reject Uptime Kuma numeric identity collisions
+      ansible.builtin.assert:
+        that:
+          - >-
+            uptime_kuma_identity_slots.results[0].rc == 2 or
+            uptime_kuma_identity_slots.results[0].stdout.split(':')[0] ==
+            'minos-uptime-kuma'
+          - >-
+            uptime_kuma_identity_slots.results[1].rc == 2 or
+            uptime_kuma_identity_slots.results[1].stdout.split(':')[0] ==
+            'minos-uptime-kuma'
+        fail_msg: UID or GID 10003 belongs to another host identity.
+      when: not ansible_check_mode
+
     - name: Create the cloudflared credential group
       ansible.builtin.group:
         name: minos-cloudflared
         gid: 65532
+        system: true
+        state: present
+
+    - name: Create the pinned Uptime Kuma group
+      ansible.builtin.group:
+        name: minos-uptime-kuma
+        gid: "{{ uptime_kuma_gid }}"
         system: true
         state: present
 
@@ -635,6 +812,41 @@
         shell: /usr/sbin/nologin
         system: true
         state: present
+
+    - name: Create the pinned Uptime Kuma host identity
+      ansible.builtin.user:
+        name: minos-uptime-kuma
+        uid: "{{ uptime_kuma_uid }}"
+        group: minos-uptime-kuma
+        groups: ""
+        append: false
+        create_home: false
+        home: /nonexistent
+        shell: /usr/sbin/nologin
+        system: true
+        state: present
+
+    - name: Read the effective Uptime Kuma host identity
+      ansible.builtin.command:
+        argv: [getent, "{{ item }}", minos-uptime-kuma]
+      loop:
+        - passwd
+        - group
+      register: uptime_kuma_host_identity
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require the dedicated Uptime Kuma host identity
+      ansible.builtin.assert:
+        that:
+          - >-
+            uptime_kuma_host_identity.results[0].stdout is
+            match('^minos-uptime-kuma:x:10003:10003:[^:]*:/nonexistent:/usr/sbin/nologin$')
+          - >-
+            uptime_kuma_host_identity.results[1].stdout ==
+            'minos-uptime-kuma:x:10003:'
+        fail_msg: The effective Uptime Kuma host identity is invalid.
+      when: not ansible_check_mode
 
     - name: Read the cloudflared credential group
       ansible.builtin.getent:
@@ -676,10 +888,10 @@
         - {path: /etc/minos/cloudflared/candidate, group: minos-cloudflared, mode: "0750"}
         - {path: /etc/minos/watcher, group: minos-watcher-secrets, mode: "0750"}
         - {path: /etc/minos/watcher/aws, group: minos-watcher-secrets, mode: "0750"}
-        - {path: /etc/minos/watcher/healthchecks, group: minos-watcher-secrets, mode: "0750"}
+        - {path: /etc/minos/watcher/uptime-kuma, group: minos-watcher-secrets, mode: "0750"}
         - {path: /etc/minos/watcher/candidate, group: minos-watcher-secrets, mode: "0750"}
         - {path: /etc/minos/watcher/candidate/aws, group: minos-watcher-secrets, mode: "0750"}
-        - {path: /etc/minos/watcher/candidate/healthchecks, group: minos-watcher-secrets, mode: "0750"}
+        - {path: /etc/minos/watcher/candidate/uptime-kuma, group: minos-watcher-secrets, mode: "0750"}
 
     - name: Create secure watcher data directories
       ansible.builtin.file:
@@ -692,6 +904,31 @@
         - /var/lib/minos/watcher/control
         - /var/lib/minos/watcher/archive
         - /var/lib/minos/watcher/staging
+
+    - name: Create the shared public projection directory
+      ansible.builtin.file:
+        path: /var/lib/minos/public
+        state: directory
+        owner: minos-watcher
+        group: minos-watcher
+        mode: "0755"
+
+    - name: Create the preserved Uptime Kuma data directory
+      ansible.builtin.file:
+        path: /var/lib/minos/uptime-kuma
+        state: directory
+        owner: minos-uptime-kuma
+        group: minos-uptime-kuma
+        mode: "0700"
+
+    - name: Pin the Uptime Kuma image identity to its preserved data
+      ansible.builtin.copy:
+        content: "{{ uptime_kuma_image_reference }}\n"
+        dest: /var/lib/minos/uptime-kuma/.minos-image-reference
+        owner: root
+        group: minos-uptime-kuma
+        mode: "0444"
+        unsafe_writes: false
 
     - name: Inspect restorable watcher control files
       ansible.builtin.stat:
@@ -777,47 +1014,69 @@
         fail_msg: The watcher staging path is not a hardened disk-backed mount.
       when: not ansible_check_mode
 
-    - name: Stage validated watcher secret candidates
+    - name: Stage the validated AWS watcher credential candidate
       ansible.builtin.copy:
-        content: "{{ item.content }}"
-        dest: "{{ item.dest }}"
+        content: "{{ watcher_aws_credentials_candidate_payload }}"
+        dest: /etc/minos/watcher/candidate/aws/credentials
         owner: root
         group: minos-watcher-secrets
         mode: "0440"
         unsafe_writes: false
-      loop:
-        - content: "{{ watcher_aws_credentials_candidate_payload }}"
-          dest: /etc/minos/watcher/candidate/aws/credentials
-        - content: "{{ watcher_healthchecks_candidate_payload }}"
-          dest: /etc/minos/watcher/candidate/healthchecks/targets.json
       when: not ansible_check_mode
       no_log: true
 
-    - name: Inspect staged watcher secret candidates
+    - name: Inspect the staged AWS watcher credential candidate
       ansible.builtin.stat:
-        path: "{{ item }}"
-      loop:
-        - /etc/minos/watcher/candidate/aws/credentials
-        - /etc/minos/watcher/candidate/healthchecks/targets.json
-      register: watcher_secret_candidates
+        path: /etc/minos/watcher/candidate/aws/credentials
+      register: watcher_aws_credentials_candidate
       when: not ansible_check_mode
       no_log: true
 
-    - name: Require exact staged watcher secret candidates
+    - name: Require the exact staged AWS watcher credential candidate
       ansible.builtin.assert:
         that:
-          - item.stat.exists
-          - item.stat.isreg
-          - item.stat.uid == 0
-          - item.stat.gid == watcher_secrets_gid
-          - item.stat.mode == '0440'
-          - item.stat.checksum == item.expected_checksum
-        fail_msg: A staged watcher secret differs from its validated payload.
-      loop:
-        - stat: "{{ watcher_secret_candidates.results[0].stat }}"
-          expected_checksum: "{{ watcher_aws_credentials_candidate_payload | hash('sha1') }}"
-        - stat: "{{ watcher_secret_candidates.results[1].stat }}"
-          expected_checksum: "{{ watcher_healthchecks_candidate_payload | hash('sha1') }}"
+          - watcher_aws_credentials_candidate.stat.exists
+          - watcher_aws_credentials_candidate.stat.isreg
+          - watcher_aws_credentials_candidate.stat.uid == 0
+          - watcher_aws_credentials_candidate.stat.gid == watcher_secrets_gid
+          - watcher_aws_credentials_candidate.stat.mode == '0440'
+          - >-
+            watcher_aws_credentials_candidate.stat.checksum ==
+            watcher_aws_credentials_candidate_payload | hash('sha1')
+        fail_msg: The staged AWS watcher credential differs from its validated payload.
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Stage the validated Uptime Kuma watcher target candidate
+      ansible.builtin.copy:
+        content: "{{ watcher_uptime_kuma_targets_candidate_payload }}"
+        dest: /etc/minos/watcher/candidate/uptime-kuma/targets.json
+        owner: root
+        group: minos-watcher-secrets
+        mode: "0440"
+        unsafe_writes: false
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Inspect the staged Uptime Kuma watcher target candidate
+      ansible.builtin.stat:
+        path: /etc/minos/watcher/candidate/uptime-kuma/targets.json
+      register: watcher_uptime_kuma_targets_candidate
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Require the exact staged Uptime Kuma watcher target candidate
+      ansible.builtin.assert:
+        that:
+          - watcher_uptime_kuma_targets_candidate.stat.exists
+          - watcher_uptime_kuma_targets_candidate.stat.isreg
+          - watcher_uptime_kuma_targets_candidate.stat.uid == 0
+          - watcher_uptime_kuma_targets_candidate.stat.gid == watcher_secrets_gid
+          - watcher_uptime_kuma_targets_candidate.stat.mode == '0440'
+          - >-
+            watcher_uptime_kuma_targets_candidate.stat.checksum ==
+            watcher_uptime_kuma_targets_candidate_payload | hash('sha1')
+        fail_msg: The staged Uptime Kuma watcher target differs from its validated payload.
       when: not ansible_check_mode
       no_log: true
 
@@ -833,12 +1092,20 @@
           dest: edge/nginx.conf
         - src: maintenance-index.html
           dest: edge/index.html
+        - src: home.css
+          dest: edge/home.css
         - src: legal.css
           dest: edge/legal.css
         - src: plausible-init.js
           dest: edge/plausible-init.js
         - src: privacy-policy.html
           dest: edge/privacy-policy.html
+        - src: sources.css
+          dest: edge/sources.css
+        - src: sources.html
+          dest: edge/sources.html
+        - src: sources.js
+          dest: edge/sources.js
         - src: terms.html
           dest: edge/terms.html
         - src: minos-compose.service
@@ -969,6 +1236,71 @@
           {{ watcher_runtime_image_reference.split('@')[1] }}
       when: not ansible_check_mode
 
+    - name: Pull the exact Uptime Kuma image
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - pull
+          - --platform
+          - linux/amd64
+          - "{{ uptime_kuma_image_reference }}"
+      register: uptime_kuma_pull
+      changed_when: "'Downloaded newer image' in uptime_kuma_pull.stdout"
+      when: not ansible_check_mode
+
+    - name: Inspect the host-observed Uptime Kuma image identity
+      ansible.builtin.command:
+        argv:
+          - docker
+          - image
+          - inspect
+          - --format
+          - "{{ '{{.Os}}/{{.Architecture}}|{{.Config.User}}|{{json .RepoDigests}}' }}"
+          - "{{ uptime_kuma_image_reference }}"
+      register: uptime_kuma_image
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require the exact Uptime Kuma image identity architecture and user
+      ansible.builtin.assert:
+        that:
+          - uptime_kuma_image.stdout.split('|')[0] == 'linux/amd64'
+          - uptime_kuma_image.stdout.split('|')[1] == 'node'
+          - >-
+            'louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6' in
+            (uptime_kuma_image.stdout.split('|')[2] | from_json)
+        fail_msg: The pinned Uptime Kuma image identity architecture or user is invalid.
+      when: not ansible_check_mode
+
+    - name: Read the pinned Uptime Kuma upstream numeric user without root
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --network
+          - none
+          - --read-only
+          - --cap-drop
+          - ALL
+          - --security-opt
+          - no-new-privileges:true
+          - --entrypoint
+          - /usr/bin/id
+          - "{{ uptime_kuma_image_reference }}"
+          - -u
+      register: uptime_kuma_upstream_uid
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Require the pinned Uptime Kuma upstream numeric user
+      ansible.builtin.assert:
+        that:
+          - uptime_kuma_upstream_uid.stdout == '1000'
+        fail_msg: The pinned Uptime Kuma upstream user no longer resolves to UID 1000.
+      when: not ansible_check_mode
+
     - name: Stage the candidate Minos Compose model
       ansible.builtin.template:
         src: minos-compose.yml.j2
@@ -995,11 +1327,19 @@
           - --volume
           - /opt/minos/candidate/edge/index.html:/usr/share/nginx/html/index.html:ro
           - --volume
+          - /opt/minos/candidate/edge/home.css:/usr/share/nginx/html/home.css:ro
+          - --volume
           - /opt/minos/candidate/edge/legal.css:/usr/share/nginx/html/legal.css:ro
           - --volume
           - /opt/minos/candidate/edge/plausible-init.js:/usr/share/nginx/html/plausible-init.js:ro
           - --volume
           - /opt/minos/candidate/edge/privacy-policy.html:/usr/share/nginx/html/privacy-policy.html:ro
+          - --volume
+          - /opt/minos/candidate/edge/sources.css:/usr/share/nginx/html/sources.css:ro
+          - --volume
+          - /opt/minos/candidate/edge/sources.html:/usr/share/nginx/html/sources.html:ro
+          - --volume
+          - /opt/minos/candidate/edge/sources.js:/usr/share/nginx/html/sources.js:ro
           - --volume
           - /opt/minos/candidate/edge/terms.html:/usr/share/nginx/html/terms.html:ro
           - docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972
@@ -1082,17 +1422,21 @@
 
     - name: Inspect the candidate Minos runtime files
       ansible.builtin.stat:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
       loop:
-        - /opt/minos/candidate/compose.yaml
-        - /opt/minos/candidate/edge/nginx.conf
-        - /opt/minos/candidate/edge/index.html
-        - /opt/minos/candidate/edge/legal.css
-        - /opt/minos/candidate/edge/plausible-init.js
-        - /opt/minos/candidate/edge/privacy-policy.html
-        - /opt/minos/candidate/edge/terms.html
-        - /opt/minos/candidate/cloudflared-config.yml
-        - /opt/minos/candidate/minos-compose.service
+        - {key: compose, path: /opt/minos/candidate/compose.yaml}
+        - {key: nginx, path: /opt/minos/candidate/edge/nginx.conf}
+        - {key: index, path: /opt/minos/candidate/edge/index.html}
+        - {key: legal_css, path: /opt/minos/candidate/edge/legal.css}
+        - {key: plausible, path: /opt/minos/candidate/edge/plausible-init.js}
+        - {key: privacy, path: /opt/minos/candidate/edge/privacy-policy.html}
+        - {key: terms, path: /opt/minos/candidate/edge/terms.html}
+        - {key: home_css, path: /opt/minos/candidate/edge/home.css}
+        - {key: sources_css, path: /opt/minos/candidate/edge/sources.css}
+        - {key: sources_html, path: /opt/minos/candidate/edge/sources.html}
+        - {key: sources_js, path: /opt/minos/candidate/edge/sources.js}
+        - {key: cloudflared, path: /opt/minos/candidate/cloudflared-config.yml}
+        - {key: systemd, path: /opt/minos/candidate/minos-compose.service}
       register: watcher_candidate_runtime_files
       when: not ansible_check_mode
 
@@ -1101,32 +1445,68 @@
         that:
           - >-
             watcher_candidate_runtime_files.results |
-            selectattr('stat.isreg') | list | length == 9
+            selectattr('stat.isreg') | list | length == 13
         fail_msg: The candidate Minos runtime is incomplete.
       when: not ansible_check_mode
 
     - name: Inspect the active Minos runtime files
       ansible.builtin.stat:
-        path: "{{ item }}"
+        path: "{{ item.path }}"
       loop:
-        - /opt/minos/compose.yaml
-        - /opt/minos/edge/nginx.conf
-        - /opt/minos/edge/index.html
-        - /opt/minos/edge/legal.css
-        - /opt/minos/edge/plausible-init.js
-        - /opt/minos/edge/privacy-policy.html
-        - /opt/minos/edge/terms.html
-        - /etc/minos/cloudflared/config.yml
-        - /etc/systemd/system/minos-compose.service
+        - {key: compose, path: /opt/minos/compose.yaml}
+        - {key: nginx, path: /opt/minos/edge/nginx.conf}
+        - {key: index, path: /opt/minos/edge/index.html}
+        - {key: legal_css, path: /opt/minos/edge/legal.css}
+        - {key: plausible, path: /opt/minos/edge/plausible-init.js}
+        - {key: privacy, path: /opt/minos/edge/privacy-policy.html}
+        - {key: terms, path: /opt/minos/edge/terms.html}
+        - {key: home_css, path: /opt/minos/edge/home.css}
+        - {key: sources_css, path: /opt/minos/edge/sources.css}
+        - {key: sources_html, path: /opt/minos/edge/sources.html}
+        - {key: sources_js, path: /opt/minos/edge/sources.js}
+        - {key: cloudflared, path: /etc/minos/cloudflared/config.yml}
+        - {key: systemd, path: /etc/systemd/system/minos-compose.service}
       register: watcher_active_runtime_files
+      when: not ansible_check_mode
+
+    - name: Initialize logical Minos runtime checksum maps
+      ansible.builtin.set_fact:
+        watcher_candidate_runtime_checksums: {}
+        watcher_active_runtime_checksums: {}
+      when: not ansible_check_mode
+
+    - name: Index candidate Minos runtime checksums by logical destination
+      ansible.builtin.set_fact:
+        watcher_candidate_runtime_checksums: >-
+          {{ watcher_candidate_runtime_checksums |
+             combine({item.item.key: item.stat.checksum}) }}
+      loop: "{{ watcher_candidate_runtime_files.results }}"
+      when: not ansible_check_mode
+
+    - name: Index active Minos runtime checksums by logical destination
+      ansible.builtin.set_fact:
+        watcher_active_runtime_checksums: >-
+          {{ watcher_active_runtime_checksums |
+             combine({item.item.key: item.stat.checksum | default('')}) }}
+      loop: "{{ watcher_active_runtime_files.results }}"
       when: not ansible_check_mode
 
     - name: Reject a partial active Minos runtime
       ansible.builtin.assert:
         that:
           - >-
-            watcher_active_runtime_files.results |
-            selectattr('stat.exists') | list | length in [0, 9]
+            (watcher_active_runtime_files.results |
+             selectattr('stat.exists') | list | length == 0) or
+            (watcher_active_runtime_files.results[:7] |
+             selectattr('stat.exists') | list | length == 7 and
+             ((watcher_active_runtime_files.results[7].stat.exists and
+               watcher_active_runtime_files.results[8:11] |
+               selectattr('stat.exists') | list | length == 3) or
+              ((not watcher_active_runtime_files.results[7].stat.exists) and
+               watcher_active_runtime_files.results[8:11] |
+               selectattr('stat.exists') | list | length in [0, 3])) and
+             watcher_active_runtime_files.results[11:] |
+             selectattr('stat.exists') | list | length == 2)
           - >-
             watcher_active_runtime_files.results |
             selectattr('stat.isreg', 'defined') |
@@ -1140,8 +1520,16 @@
       ansible.builtin.set_fact:
         watcher_prior_runtime_exists: >-
           {{
-            watcher_active_runtime_files.results |
-            selectattr('stat.exists') | list | length == 9
+            watcher_active_runtime_files.results[:7] |
+            selectattr('stat.exists') | list | length == 7 and
+            ((watcher_active_runtime_files.results[7].stat.exists and
+              watcher_active_runtime_files.results[8:11] |
+              selectattr('stat.exists') | list | length == 3) or
+             ((not watcher_active_runtime_files.results[7].stat.exists) and
+              watcher_active_runtime_files.results[8:11] |
+              selectattr('stat.exists') | list | length in [0, 3])) and
+            watcher_active_runtime_files.results[11:] |
+            selectattr('stat.exists') | list | length == 2
           }}
       when: not ansible_check_mode
 
@@ -1202,14 +1590,12 @@
         watcher_activation_required: >-
           {{
             (not watcher_prior_runtime_exists) or
-            (watcher_candidate_runtime_files.results |
-             map(attribute='stat.checksum') | list !=
-             watcher_active_runtime_files.results |
-             map(attribute='stat.checksum') | list) or
-            (watcher_secret_preflight.results[0].stat.checksum | default('') !=
-             watcher_secret_candidates.results[0].stat.checksum) or
-            (watcher_secret_preflight.results[1].stat.checksum | default('') !=
-             watcher_secret_candidates.results[1].stat.checksum) or
+            (watcher_candidate_runtime_checksums !=
+             watcher_active_runtime_checksums) or
+            (watcher_aws_credentials_preflight.stat.checksum | default('') !=
+             watcher_aws_credentials_candidate.stat.checksum) or
+            (watcher_uptime_kuma_targets_preflight.stat.checksum | default('') !=
+             watcher_uptime_kuma_targets_candidate.stat.checksum) or
             (cloudflared_credential_preflight.stat.checksum | default('') !=
              cloudflared_credential_candidate.stat.checksum) or
             (watcher_active_image.stdout | default('', true) !=
@@ -1236,6 +1622,7 @@
         - control
         - archive
         - staging
+        - public
       when:
         - not ansible_check_mode
         - watcher_activation_required
@@ -1325,7 +1712,7 @@
         - /opt/minos/rollback/secrets
         - /opt/minos/rollback/secrets/cloudflared
         - /opt/minos/rollback/secrets/aws
-        - /opt/minos/rollback/secrets/healthchecks
+        - /opt/minos/rollback/secrets/uptime-kuma
       when:
         - not ansible_check_mode
         - watcher_activation_required
@@ -1364,27 +1751,62 @@
         - watcher_activation_required
         - watcher_prior_runtime_exists
 
-    - name: Snapshot active watcher secrets before replacement
+    - name: Snapshot active AWS watcher credentials before replacement
       ansible.builtin.copy:
-        src: "{{ item.src }}"
-        dest: "{{ item.dest }}"
+        src: /etc/minos/watcher/aws/credentials
+        dest: /opt/minos/rollback/secrets/aws/credentials
         remote_src: true
         owner: root
         group: root
         mode: "0600"
         unsafe_writes: false
-      loop:
-        - src: /etc/minos/watcher/aws/credentials
-          dest: /opt/minos/rollback/secrets/aws/credentials
-          exists: "{{ watcher_secret_preflight.results[0].stat.exists }}"
-        - src: /etc/minos/watcher/healthchecks/targets.json
-          dest: /opt/minos/rollback/secrets/healthchecks/targets.json
-          exists: "{{ watcher_secret_preflight.results[1].stat.exists }}"
       when:
         - not ansible_check_mode
         - watcher_activation_required
-        - item.exists | bool
+        - watcher_aws_credentials_preflight.stat.exists
       no_log: true
+
+    - name: Snapshot active Uptime Kuma watcher targets before replacement
+      ansible.builtin.copy:
+        src: /etc/minos/watcher/uptime-kuma/targets.json
+        dest: /opt/minos/rollback/secrets/uptime-kuma/targets.json
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+        unsafe_writes: false
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+        - watcher_uptime_kuma_targets_preflight.stat.exists
+      no_log: true
+
+    - name: Snapshot prior optional edge page files
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "/opt/minos/rollback/{{ item.dest }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"
+      loop:
+        - src: /opt/minos/edge/home.css
+          dest: edge/home.css
+          exists: "{{ watcher_active_runtime_files.results[7].stat.exists }}"
+        - src: /opt/minos/edge/sources.css
+          dest: edge/sources.css
+          exists: "{{ watcher_active_runtime_files.results[8].stat.exists }}"
+        - src: /opt/minos/edge/sources.html
+          dest: edge/sources.html
+          exists: "{{ watcher_active_runtime_files.results[9].stat.exists }}"
+        - src: /opt/minos/edge/sources.js
+          dest: edge/sources.js
+          exists: "{{ watcher_active_runtime_files.results[10].stat.exists }}"
+      when:
+        - not ansible_check_mode
+        - watcher_activation_required
+        - watcher_prior_runtime_exists
+        - item.exists | bool
 
     - name: Snapshot the active cloudflared credential before replacement
       ansible.builtin.copy:
@@ -1447,20 +1869,26 @@
             - watcher_live_control_database.stat.exists
             - watcher_live_control_database.stat.isreg | default(false)
 
-        - name: Atomically promote validated watcher secrets while stopped
+        - name: Atomically promote validated AWS watcher credentials while stopped
           ansible.builtin.copy:
-            src: "{{ item.src }}"
-            dest: "{{ item.dest }}"
+            src: /etc/minos/watcher/candidate/aws/credentials
+            dest: /etc/minos/watcher/aws/credentials
             remote_src: true
             owner: root
             group: minos-watcher-secrets
             mode: "0440"
             unsafe_writes: false
-          loop:
-            - src: /etc/minos/watcher/candidate/aws/credentials
-              dest: /etc/minos/watcher/aws/credentials
-            - src: /etc/minos/watcher/candidate/healthchecks/targets.json
-              dest: /etc/minos/watcher/healthchecks/targets.json
+          no_log: true
+
+        - name: Atomically promote validated Uptime Kuma watcher targets while stopped
+          ansible.builtin.copy:
+            src: /etc/minos/watcher/candidate/uptime-kuma/targets.json
+            dest: /etc/minos/watcher/uptime-kuma/targets.json
+            remote_src: true
+            owner: root
+            group: minos-watcher-secrets
+            mode: "0440"
+            unsafe_writes: false
           no_log: true
 
         - name: Atomically promote the validated cloudflared credential while stopped
@@ -1495,30 +1923,45 @@
             fail_msg: The promoted tunnel credential differs from its validated candidate.
           no_log: true
 
-        - name: Inspect promoted watcher secrets
+        - name: Inspect promoted AWS watcher credentials
           ansible.builtin.stat:
-            path: "{{ item }}"
-          loop:
-            - /etc/minos/watcher/aws/credentials
-            - /etc/minos/watcher/healthchecks/targets.json
-          register: watcher_promoted_secrets
+            path: /etc/minos/watcher/aws/credentials
+          register: watcher_promoted_aws_credentials
           no_log: true
 
-        - name: Require exact promoted watcher secrets
+        - name: Require exact promoted AWS watcher credentials
           ansible.builtin.assert:
             that:
-              - item.stat.exists
-              - item.stat.isreg
-              - item.stat.uid == 0
-              - item.stat.gid == watcher_secrets_gid
-              - item.stat.mode == '0440'
-              - item.stat.checksum == item.expected_checksum
-            fail_msg: A promoted watcher secret differs from its validated candidate.
-          loop:
-            - stat: "{{ watcher_promoted_secrets.results[0].stat }}"
-              expected_checksum: "{{ watcher_secret_candidates.results[0].stat.checksum }}"
-            - stat: "{{ watcher_promoted_secrets.results[1].stat }}"
-              expected_checksum: "{{ watcher_secret_candidates.results[1].stat.checksum }}"
+              - watcher_promoted_aws_credentials.stat.exists
+              - watcher_promoted_aws_credentials.stat.isreg
+              - watcher_promoted_aws_credentials.stat.uid == 0
+              - watcher_promoted_aws_credentials.stat.gid == watcher_secrets_gid
+              - watcher_promoted_aws_credentials.stat.mode == '0440'
+              - >-
+                watcher_promoted_aws_credentials.stat.checksum ==
+                watcher_aws_credentials_candidate.stat.checksum
+            fail_msg: The promoted AWS watcher credential differs from its validated candidate.
+          no_log: true
+
+        - name: Inspect promoted Uptime Kuma watcher targets
+          ansible.builtin.stat:
+            path: /etc/minos/watcher/uptime-kuma/targets.json
+          register: watcher_promoted_uptime_kuma_targets
+          no_log: true
+
+        - name: Require exact promoted Uptime Kuma watcher targets
+          ansible.builtin.assert:
+            that:
+              - watcher_promoted_uptime_kuma_targets.stat.exists
+              - watcher_promoted_uptime_kuma_targets.stat.isreg
+              - watcher_promoted_uptime_kuma_targets.stat.uid == 0
+              - watcher_promoted_uptime_kuma_targets.stat.gid == watcher_secrets_gid
+              - watcher_promoted_uptime_kuma_targets.stat.mode == '0440'
+              - >-
+                watcher_promoted_uptime_kuma_targets.stat.checksum ==
+                watcher_uptime_kuma_targets_candidate.stat.checksum
+            fail_msg: >-
+              The promoted Uptime Kuma watcher target differs from its validated candidate.
           no_log: true
 
         - name: Promote validated Minos runtime files while stopped
@@ -1543,6 +1986,10 @@
               dest: /opt/minos/edge/index.html
               group: root
               mode: "0644"
+            - src: edge/home.css
+              dest: /opt/minos/edge/home.css
+              group: root
+              mode: "0644"
             - src: edge/legal.css
               dest: /opt/minos/edge/legal.css
               group: root
@@ -1553,6 +2000,18 @@
               mode: "0644"
             - src: edge/privacy-policy.html
               dest: /opt/minos/edge/privacy-policy.html
+              group: root
+              mode: "0644"
+            - src: edge/sources.css
+              dest: /opt/minos/edge/sources.css
+              group: root
+              mode: "0644"
+            - src: edge/sources.html
+              dest: /opt/minos/edge/sources.html
+              group: root
+              mode: "0644"
+            - src: edge/sources.js
+              dest: /opt/minos/edge/sources.js
               group: root
               mode: "0644"
             - src: edge/terms.html
@@ -1567,6 +2026,174 @@
               dest: /etc/systemd/system/minos-compose.service
               group: root
               mode: "0644"
+
+        - name: Mark the live watcher migration attempt
+          ansible.builtin.set_fact:
+            watcher_live_migration_attempted: true
+            watcher_live_migration_completed: false
+            watcher_live_schema_migrated: false
+
+        - name: Migrate the quiesced live watcher control database
+          ansible.builtin.command:
+            argv:
+              - timeout
+              - --signal=TERM
+              - --kill-after=5s
+              - 300s
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - preflight
+              - run
+              - --rm
+              - --no-deps
+              - watcher-preflight
+              - watcher
+              - migrate-control-database
+          register: watcher_live_migration
+          changed_when: (watcher_live_migration.stdout | from_json).migrated
+
+        - name: Require the exact live watcher migration result
+          ansible.builtin.assert:
+            that:
+              - >-
+                watcher_live_migration.stdout | from_json | length == 3
+              - >-
+                (watcher_live_migration.stdout | from_json).keys() | list | sort ==
+                ['from_version', 'migrated', 'schema_version']
+              - (watcher_live_migration.stdout | from_json).from_version is integer
+              - (watcher_live_migration.stdout | from_json).from_version in [0, 1, 2, 3]
+              - (watcher_live_migration.stdout | from_json).migrated is boolean
+              - (watcher_live_migration.stdout | from_json).schema_version == 3
+              - >-
+                (watcher_live_migration.stdout | from_json).migrated ==
+                ((watcher_live_migration.stdout | from_json).from_version != 3)
+            fail_msg: The live watcher migration result is invalid.
+
+        - name: Record the exact live watcher migration outcome
+          ansible.builtin.set_fact:
+            watcher_live_migration_completed: true
+            watcher_live_schema_migrated: >-
+              {{ (watcher_live_migration.stdout | from_json).migrated }}
+
+        - name: Bootstrap or validate canonical RSK registration before activation
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - bootstrap
+              - run
+              - --rm
+              - --no-deps
+              - watcher-bootstrap-rsk
+          changed_when: true
+
+        - name: Validate the existing public RSK projection without collection
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - preflight
+              - run
+              - --rm
+              - --no-deps
+              - watcher-preflight
+              - watcher
+              - validate-public-rsk
+              - --public-directory
+              - /var/lib/minos/public
+          register: public_projection_preactivation
+          changed_when: false
+
+        - name: Record the validated preactivation public RSK state
+          ansible.builtin.set_fact:
+            public_projection_preactivation_document: >-
+              {{ public_projection_preactivation.stdout | from_json }}
+
+        - name: Require an absent or schema-valid preactivation projection
+          ansible.builtin.assert:
+            that:
+              - >-
+                public_projection_preactivation_document == {'status': 'absent'} or
+                (public_projection_preactivation_document.keys() | list | sort ==
+                 ['revision', 'sha256', 'status'] and
+                 public_projection_preactivation_document.status == 'valid' and
+                 public_projection_preactivation_document.revision is integer and
+                 public_projection_preactivation_document.revision > 0 and
+                 public_projection_preactivation_document.sha256 is match('^[0-9a-f]{64}$'))
+            fail_msg: The existing public RSK projection is malformed.
+
+        - name: Run one bounded manual RSK production canary
+          ansible.builtin.command:
+            argv:
+              - timeout
+              - --signal=TERM
+              - --kill-after=5s
+              - 900s
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - run
+              - --rm
+              - --no-deps
+              - watcher
+              - watcher
+              - run-once
+              - rsk
+          changed_when: true
+
+        - name: Validate the canary public RSK projection before activation
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - preflight
+              - run
+              - --rm
+              - --no-deps
+              - watcher-preflight
+              - watcher
+              - validate-public-rsk
+              - --public-directory
+              - /var/lib/minos/public
+          register: public_projection_canary
+          changed_when: false
+
+        - name: Require a committed canonical RSK canary projection
+          ansible.builtin.assert:
+            that:
+              - >-
+                (public_projection_canary.stdout | from_json).keys() | list | sort ==
+                ['revision', 'sha256', 'status']
+              - (public_projection_canary.stdout | from_json).status == 'valid'
+              - (public_projection_canary.stdout | from_json).revision is integer
+              - (public_projection_canary.stdout | from_json).revision > 0
+              - >-
+                (public_projection_canary.stdout | from_json).sha256 is
+                match('^[0-9a-f]{64}$')
+            fail_msg: The manual RSK canary did not publish a valid projection.
 
         - name: Start the validated Minos candidate
           ansible.builtin.systemd_service:
@@ -1600,8 +2227,138 @@
             that:
               - >-
                 minos_candidate_running_services.stdout_lines | sort ==
-                ['cloudflared', 'edge', 'watcher']
+                ['cloudflared', 'edge', 'uptime-kuma', 'watcher']
             fail_msg: Candidate services did not remain running after activation.
+
+        - name: Locate the running production edge container
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - ps
+              - --quiet
+              - edge
+          register: minos_candidate_edge_id
+          changed_when: false
+          failed_when: >-
+            minos_candidate_edge_id.rc != 0 or
+            minos_candidate_edge_id.stdout_lines | length != 1 or
+            minos_candidate_edge_id.stdout is not match('^[0-9a-f]{64}$')
+
+        - name: Smoke the exact Sources page through the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - exec
+              - "{{ minos_candidate_edge_id.stdout }}"
+              - wget
+              - -S
+              - -O
+              - -
+              - --header
+              - "Host: minoshealth.pl"
+              - http://127.0.0.1:8080/zrodla
+          register: minos_candidate_sources_page
+          changed_when: false
+
+        - name: Require the Sources page and strict CSP from the production edge
+          ansible.builtin.assert:
+            that:
+              - "'<title>Źródła danych - Minos Health</title>' in minos_candidate_sources_page.stdout"
+              - "\"style-src 'self'\" in minos_candidate_sources_page.stderr"
+              - "\"connect-src 'self' https://plausible.io\" in minos_candidate_sources_page.stderr"
+              - "'unsafe-inline' not in minos_candidate_sources_page.stderr"
+              - "'200 OK' in minos_candidate_sources_page.stderr"
+            fail_msg: The production edge did not serve the reviewed Sources page or CSP.
+
+        - name: Smoke exact stylesheet and script assets through the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - exec
+              - "{{ minos_candidate_edge_id.stdout }}"
+              - wget
+              - -q
+              - -O
+              - -
+              - --header
+              - "Host: minoshealth.pl"
+              - "http://127.0.0.1:8080{{ item.path }}"
+          loop:
+            - path: /home.css
+              marker: "grid-template-columns: 1.4fr 0.6fr"
+            - path: /sources.css
+              marker: "--paper: #f2f0e9"
+            - path: /sources.js
+              marker: 'var PROVENANCE_PATH = "/api/v1/provenance/rsk"'
+          register: minos_candidate_edge_assets
+          changed_when: false
+
+        - name: Require exact production edge asset content
+          ansible.builtin.assert:
+            that:
+              - item.item.marker in item.stdout
+            fail_msg: The production edge served an unexpected static asset.
+          loop: "{{ minos_candidate_edge_assets.results }}"
+
+        - name: Probe the exact provenance endpoint through the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - exec
+              - "{{ minos_candidate_edge_id.stdout }}"
+              - wget
+              - -S
+              - -O
+              - -
+              - --header
+              - "Host: minoshealth.pl"
+              - --header
+              - "Accept-Encoding: identity"
+              - http://127.0.0.1:8080/api/v1/provenance/rsk
+          register: minos_candidate_provenance_response
+          changed_when: false
+
+        - name: Require the exact provenance endpoint response
+          ansible.builtin.assert:
+            that:
+              - minos_candidate_provenance_response.rc == 0
+              - "'200 OK' in minos_candidate_provenance_response.stderr"
+            fail_msg: The production edge provenance endpoint failed unexpectedly.
+
+        - name: Revalidate a projection served by the production edge
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - exec
+              - --no-TTY
+              - watcher
+              - /app/.venv/bin/minos
+              - watcher
+              - validate-public-rsk
+              - --public-directory
+              - /var/lib/minos/public
+          register: public_projection_postactivation
+          changed_when: false
+
+        - name: Require the edge response to match the validated current projection
+          ansible.builtin.assert:
+            that:
+              - (public_projection_postactivation.stdout | from_json).status == 'valid'
+              - >-
+                minos_candidate_provenance_response.stdout | hash('sha256') ==
+                (public_projection_postactivation.stdout | from_json).sha256
+              - "'application/json' in minos_candidate_provenance_response.stderr"
+            fail_msg: The production edge provenance response differs from current storage.
 
       rescue:
         - name: Stop the rejected Minos candidate
@@ -1609,6 +2366,18 @@
             name: minos-compose.service
             state: stopped
           failed_when: false
+
+        - name: Preserve a migrated live database for explicit recovery
+          ansible.builtin.fail:
+            msg: >-
+              Candidate activation failed after a changed or indeterminate live
+              control migration; the candidate runtime and database were preserved
+              stopped because an older writer cannot be restarted safely.
+          when:
+            - watcher_live_migration_attempted | default(false) | bool
+            - >-
+              (not (watcher_live_migration_completed | default(false) | bool)) or
+              (watcher_live_schema_migrated | default(false) | bool)
 
         - name: Restore the prior cloudflared credential
           ansible.builtin.copy:
@@ -1655,67 +2424,92 @@
             fail_msg: Cloudflared credential rollback was incomplete.
           no_log: true
 
-        - name: Restore prior watcher secrets
+        - name: Restore prior AWS watcher credentials
           ansible.builtin.copy:
-            src: "{{ item.src }}"
-            dest: "{{ item.dest }}"
+            src: /opt/minos/rollback/secrets/aws/credentials
+            dest: /etc/minos/watcher/aws/credentials
             remote_src: true
             owner: root
             group: minos-watcher-secrets
             mode: "0440"
             unsafe_writes: false
-          loop:
-            - src: /opt/minos/rollback/secrets/aws/credentials
-              dest: /etc/minos/watcher/aws/credentials
-              existed: "{{ watcher_secret_preflight.results[0].stat.exists }}"
-            - src: /opt/minos/rollback/secrets/healthchecks/targets.json
-              dest: /etc/minos/watcher/healthchecks/targets.json
-              existed: "{{ watcher_secret_preflight.results[1].stat.exists }}"
-          when: item.existed | bool
+          when: watcher_aws_credentials_preflight.stat.exists
           failed_when: false
           no_log: true
 
-        - name: Remove rejected initial watcher secrets
+        - name: Restore prior Uptime Kuma watcher targets
+          ansible.builtin.copy:
+            src: /opt/minos/rollback/secrets/uptime-kuma/targets.json
+            dest: /etc/minos/watcher/uptime-kuma/targets.json
+            remote_src: true
+            owner: root
+            group: minos-watcher-secrets
+            mode: "0440"
+            unsafe_writes: false
+          when: watcher_uptime_kuma_targets_preflight.stat.exists
+          failed_when: false
+          no_log: true
+
+        - name: Remove rejected initial Uptime Kuma watcher targets
           ansible.builtin.file:
-            path: "{{ item.path }}"
+            path: /etc/minos/watcher/uptime-kuma/targets.json
             state: absent
-          loop:
-            - path: /etc/minos/watcher/aws/credentials
-              existed: "{{ watcher_secret_preflight.results[0].stat.exists }}"
-            - path: /etc/minos/watcher/healthchecks/targets.json
-              existed: "{{ watcher_secret_preflight.results[1].stat.exists }}"
-          when: not (item.existed | bool)
+          when: not watcher_uptime_kuma_targets_preflight.stat.exists
           failed_when: false
           no_log: true
 
-        - name: Inspect watcher secrets after rollback
+        - name: Inspect Uptime Kuma watcher targets after rollback
           ansible.builtin.stat:
-            path: "{{ item }}"
-          loop:
-            - /etc/minos/watcher/aws/credentials
-            - /etc/minos/watcher/healthchecks/targets.json
-          register: watcher_rolled_back_secrets
+            path: /etc/minos/watcher/uptime-kuma/targets.json
+          register: watcher_rolled_back_uptime_kuma_targets
           no_log: true
 
-        - name: Require complete watcher secret rollback
+        - name: Require complete Uptime Kuma watcher target rollback
           ansible.builtin.assert:
             that:
               - >-
-                ((item.existed | bool) and item.stat.exists and item.stat.isreg and
-                 item.stat.uid == 0 and item.stat.gid == watcher_secrets_gid and
-                 item.stat.mode == '0440' and
-                 item.stat.checksum == item.expected_checksum) or
-                ((not (item.existed | bool)) and (not item.stat.exists))
-            fail_msg: Watcher secret rollback was incomplete.
-          loop:
-            - stat: "{{ watcher_rolled_back_secrets.results[0].stat }}"
-              existed: "{{ watcher_secret_preflight.results[0].stat.exists }}"
-              expected_checksum: >-
-                {{ watcher_secret_preflight.results[0].stat.checksum | default('') }}
-            - stat: "{{ watcher_rolled_back_secrets.results[1].stat }}"
-              existed: "{{ watcher_secret_preflight.results[1].stat.exists }}"
-              expected_checksum: >-
-                {{ watcher_secret_preflight.results[1].stat.checksum | default('') }}
+                (watcher_uptime_kuma_targets_preflight.stat.exists and
+                 watcher_rolled_back_uptime_kuma_targets.stat.exists and
+                 watcher_rolled_back_uptime_kuma_targets.stat.isreg and
+                 watcher_rolled_back_uptime_kuma_targets.stat.uid == 0 and
+                 watcher_rolled_back_uptime_kuma_targets.stat.gid == watcher_secrets_gid and
+                 watcher_rolled_back_uptime_kuma_targets.stat.mode == '0440' and
+                 watcher_rolled_back_uptime_kuma_targets.stat.checksum ==
+                 watcher_uptime_kuma_targets_preflight.stat.checksum) or
+                ((not watcher_uptime_kuma_targets_preflight.stat.exists) and
+                 (not watcher_rolled_back_uptime_kuma_targets.stat.exists))
+            fail_msg: Uptime Kuma watcher target rollback was incomplete.
+          no_log: true
+
+        - name: Remove rejected initial AWS watcher credentials
+          ansible.builtin.file:
+            path: /etc/minos/watcher/aws/credentials
+            state: absent
+          when: not watcher_aws_credentials_preflight.stat.exists
+          failed_when: false
+          no_log: true
+
+        - name: Inspect AWS watcher credentials after rollback
+          ansible.builtin.stat:
+            path: /etc/minos/watcher/aws/credentials
+          register: watcher_rolled_back_aws_credentials
+          no_log: true
+
+        - name: Require complete AWS watcher credential rollback
+          ansible.builtin.assert:
+            that:
+              - >-
+                (watcher_aws_credentials_preflight.stat.exists and
+                 watcher_rolled_back_aws_credentials.stat.exists and
+                 watcher_rolled_back_aws_credentials.stat.isreg and
+                 watcher_rolled_back_aws_credentials.stat.uid == 0 and
+                 watcher_rolled_back_aws_credentials.stat.gid == watcher_secrets_gid and
+                 watcher_rolled_back_aws_credentials.stat.mode == '0440' and
+                 watcher_rolled_back_aws_credentials.stat.checksum ==
+                 watcher_aws_credentials_preflight.stat.checksum) or
+                ((not watcher_aws_credentials_preflight.stat.exists) and
+                 (not watcher_rolled_back_aws_credentials.stat.exists))
+            fail_msg: AWS watcher credential rollback was incomplete.
           no_log: true
 
         - name: Restore prior Minos runtime files and image reference
@@ -1774,13 +2568,56 @@
             - /opt/minos/compose.yaml
             - /opt/minos/edge/nginx.conf
             - /opt/minos/edge/index.html
+            - /opt/minos/edge/home.css
             - /opt/minos/edge/legal.css
             - /opt/minos/edge/plausible-init.js
             - /opt/minos/edge/privacy-policy.html
+            - /opt/minos/edge/sources.css
+            - /opt/minos/edge/sources.html
+            - /opt/minos/edge/sources.js
             - /opt/minos/edge/terms.html
             - /etc/minos/cloudflared/config.yml
             - /etc/systemd/system/minos-compose.service
           when: not watcher_prior_runtime_exists
+
+        - name: Restore prior optional edge page files
+          ansible.builtin.copy:
+            src: "/opt/minos/rollback/edge/{{ item.name }}"
+            dest: "/opt/minos/edge/{{ item.name }}"
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0644"
+            unsafe_writes: false
+          loop:
+            - name: home.css
+              existed: "{{ watcher_active_runtime_files.results[7].stat.exists }}"
+            - name: sources.css
+              existed: "{{ watcher_active_runtime_files.results[8].stat.exists }}"
+            - name: sources.html
+              existed: "{{ watcher_active_runtime_files.results[9].stat.exists }}"
+            - name: sources.js
+              existed: "{{ watcher_active_runtime_files.results[10].stat.exists }}"
+          when:
+            - watcher_prior_runtime_exists
+            - item.existed | bool
+
+        - name: Remove optional edge page files absent from the prior runtime
+          ansible.builtin.file:
+            path: "/opt/minos/edge/{{ item.name }}"
+            state: absent
+          loop:
+            - name: home.css
+              existed: "{{ watcher_active_runtime_files.results[7].stat.exists }}"
+            - name: sources.css
+              existed: "{{ watcher_active_runtime_files.results[8].stat.exists }}"
+            - name: sources.html
+              existed: "{{ watcher_active_runtime_files.results[9].stat.exists }}"
+            - name: sources.js
+              existed: "{{ watcher_active_runtime_files.results[10].stat.exists }}"
+          when:
+            - watcher_prior_runtime_exists
+            - not (item.existed | bool)
 
         - name: Reload systemd after rejecting an initial Minos runtime
           ansible.builtin.systemd_service:
@@ -1824,6 +2661,29 @@
       when: not ansible_check_mode
       no_log: true
 
+    - name: Inspect the installed Uptime Kuma watcher targets
+      ansible.builtin.stat:
+        path: /etc/minos/watcher/uptime-kuma/targets.json
+      register: watcher_uptime_kuma_targets_installed
+      when: not ansible_check_mode
+      no_log: true
+
+    - name: Require the installed Uptime Kuma watcher target security boundary
+      ansible.builtin.assert:
+        that:
+          - watcher_uptime_kuma_targets_installed.stat.exists
+          - watcher_uptime_kuma_targets_installed.stat.isreg
+          - watcher_uptime_kuma_targets_installed.stat.uid == 0
+          - watcher_uptime_kuma_targets_installed.stat.gid == watcher_secrets_gid
+          - watcher_uptime_kuma_targets_installed.stat.mode == '0440'
+          - >-
+            watcher_uptime_kuma_targets_installed.stat.checksum ==
+            watcher_uptime_kuma_targets_candidate.stat.checksum
+        fail_msg: >-
+          The installed Uptime Kuma watcher target differs from its validated candidate.
+      when: not ansible_check_mode
+      no_log: true
+
     - name: Read running Minos Compose services
       ansible.builtin.command:
         argv:
@@ -1856,6 +2716,7 @@
       loop:
         - edge
         - cloudflared
+        - uptime-kuma
         - watcher
       register: minos_container_ids
       changed_when: false
@@ -1867,7 +2728,7 @@
           - docker
           - inspect
           - --format
-          - "{{ '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.GroupAdd}}|{{.RestartCount}}' }}"
+          - "{{ '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.GroupAdd}}|{{.RestartCount}}|{{.Config.StopTimeout}}|{{json .Config.ExposedPorts}}' }}"
           - "{{ item.stdout }}"
       loop: "{{ minos_container_ids.results }}"
       register: minos_container_boundaries
@@ -1878,13 +2739,16 @@
       ansible.builtin.set_fact:
         minos_edge_boundary: "{{ minos_container_boundaries.results[0].stdout.split('|') }}"
         minos_cloudflared_boundary: "{{ minos_container_boundaries.results[1].stdout.split('|') }}"
-        minos_watcher_boundary: "{{ minos_container_boundaries.results[2].stdout.split('|') }}"
+        minos_uptime_kuma_boundary: "{{ minos_container_boundaries.results[2].stdout.split('|') }}"
+        minos_watcher_boundary: "{{ minos_container_boundaries.results[3].stdout.split('|') }}"
       when: not ansible_check_mode
 
     - name: Require the reviewed Minos runtime boundary
       ansible.builtin.assert:
         that:
-          - minos_running_services.stdout_lines | sort == ['cloudflared', 'edge', 'watcher']
+          - >-
+            minos_running_services.stdout_lines | sort ==
+            ['cloudflared', 'edge', 'uptime-kuma', 'watcher']
           - minos_edge_boundary[0] == "healthy"
           - minos_edge_boundary[1] == "{}"
           - minos_edge_boundary[2] == "docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972"
@@ -1902,20 +2766,30 @@
             {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
           - (minos_edge_boundary[13] | from_json).keys() | list == ['minos_edge']
           - minos_edge_boundary[14] | from_json | selectattr('RW', 'equalto', true) | list | length == 0
-          - minos_edge_boundary[14] | from_json | selectattr('Type', 'equalto', 'bind') | list | length == 6
+          - minos_edge_boundary[14] | from_json | selectattr('Type', 'equalto', 'bind') | list | length == 11
           - >-
             minos_edge_boundary[14] | from_json | map(attribute='Destination') | sort ==
-            ['/etc/nginx/nginx.conf', '/usr/share/nginx/html/index.html',
-             '/usr/share/nginx/html/legal.css', '/usr/share/nginx/html/plausible-init.js',
-             '/usr/share/nginx/html/privacy-policy.html', '/usr/share/nginx/html/terms.html']
+              ['/etc/nginx/nginx.conf', '/usr/share/nginx/html/home.css',
+                '/usr/share/nginx/html/index.html', '/usr/share/nginx/html/legal.css',
+                '/usr/share/nginx/html/plausible-init.js',
+               '/usr/share/nginx/html/privacy-policy.html', '/usr/share/nginx/html/sources.css',
+               '/usr/share/nginx/html/sources.html', '/usr/share/nginx/html/sources.js',
+               '/usr/share/nginx/html/terms.html',
+               '/var/lib/minos/public']
           - >-
             minos_edge_boundary[14] | from_json | map(attribute='Source') | sort ==
-            ['/opt/minos/edge/index.html', '/opt/minos/edge/legal.css',
-             '/opt/minos/edge/nginx.conf', '/opt/minos/edge/plausible-init.js',
-             '/opt/minos/edge/privacy-policy.html', '/opt/minos/edge/terms.html']
+              ['/opt/minos/edge/home.css', '/opt/minos/edge/index.html',
+                '/opt/minos/edge/legal.css', '/opt/minos/edge/nginx.conf',
+                '/opt/minos/edge/plausible-init.js',
+               '/opt/minos/edge/privacy-policy.html', '/opt/minos/edge/sources.css',
+               '/opt/minos/edge/sources.html', '/opt/minos/edge/sources.js',
+               '/opt/minos/edge/terms.html',
+               '/var/lib/minos/public']
           - >-
             minos_edge_boundary[15] | from_json ==
             {'/tmp': 'rw,noexec,nosuid,nodev,size=8m,uid=101,gid=101,mode=0700'}
+          - minos_edge_boundary[17] == "0"
+          - minos_edge_boundary[18] == "10"
           - minos_cloudflared_boundary[0] == "healthy"
           - minos_cloudflared_boundary[1] == "{}"
           - minos_cloudflared_boundary[2] == "docker.io/cloudflare/cloudflared@sha256:b269e8abd07a5bf6f3f4be65d5050b2174eca89c56a0241a8ff32a16aec454e4"
@@ -1931,7 +2805,9 @@
           - >-
             minos_cloudflared_boundary[12] | from_json ==
             {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
-          - (minos_cloudflared_boundary[13] | from_json).keys() | list | sort == ['minos_edge', 'minos_tunnel-egress']
+          - >-
+            (minos_cloudflared_boundary[13] | from_json).keys() | list | sort ==
+            ['minos_edge', 'minos_monitoring', 'minos_tunnel-egress']
           - minos_cloudflared_boundary[14] | from_json | selectattr('RW', 'equalto', true) | list | length == 0
           - minos_cloudflared_boundary[14] | from_json | selectattr('Type', 'equalto', 'bind') | list | length == 2
           - >-
@@ -1943,6 +2819,46 @@
           - >-
             minos_cloudflared_boundary[15] | from_json ==
             {'/tmp': 'rw,noexec,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0700'}
+          - minos_cloudflared_boundary[17] == "0"
+          - minos_cloudflared_boundary[18] == "20"
+          - minos_uptime_kuma_boundary[0] == "healthy"
+          - minos_uptime_kuma_boundary[1] == "{}"
+          - minos_uptime_kuma_boundary[2] == uptime_kuma_image_reference
+          - minos_uptime_kuma_boundary[3] == "minos_monitoring"
+          - minos_uptime_kuma_boundary[4] == "10003:10003"
+          - minos_uptime_kuma_boundary[5] == "true"
+          - minos_uptime_kuma_boundary[6] | from_json == ['ALL']
+          - minos_uptime_kuma_boundary[7] | from_json == ['no-new-privileges:true']
+          - minos_uptime_kuma_boundary[8] == "unless-stopped"
+          - minos_uptime_kuma_boundary[9] == "402653184"
+          - minos_uptime_kuma_boundary[10] == "500000000"
+          - minos_uptime_kuma_boundary[11] == "128"
+          - >-
+            minos_uptime_kuma_boundary[12] | from_json ==
+            {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
+          - >-
+            (minos_uptime_kuma_boundary[13] | from_json).keys() | list | sort ==
+            ['minos_monitoring', 'minos_uptime-kuma-egress']
+          - >-
+            minos_uptime_kuma_boundary[14] | from_json |
+            selectattr('RW', 'equalto', true) | list | length == 1
+          - >-
+            minos_uptime_kuma_boundary[14] | from_json |
+            selectattr('Type', 'equalto', 'bind') | list | length == 1
+          - >-
+            minos_uptime_kuma_boundary[14] | from_json |
+            map(attribute='Destination') | list == ['/app/data']
+          - >-
+            minos_uptime_kuma_boundary[14] | from_json |
+            map(attribute='Source') | list == ['/var/lib/minos/uptime-kuma']
+          - >-
+            minos_uptime_kuma_boundary[15] | from_json ==
+            {'/tmp': 'rw,noexec,nosuid,nodev,size=16m,uid=10003,gid=10003,mode=0700'}
+          - minos_uptime_kuma_boundary[16] == "null"
+          - minos_uptime_kuma_boundary[17] == "0"
+          - minos_uptime_kuma_boundary[18] == "30"
+          - >-
+            minos_uptime_kuma_boundary[19] | from_json == {'3001/tcp': {}}
           - minos_watcher_boundary[0] == "healthy"
           - minos_watcher_boundary[1] == "{}"
           - >-
@@ -1961,25 +2877,28 @@
             minos_watcher_boundary[12] | from_json ==
             {'Config': {'max-file': '3', 'max-size': '10m'}, 'Type': 'local'}
           - >-
-            (minos_watcher_boundary[13] | from_json).keys() | list ==
-            ['minos_watcher-egress']
+            (minos_watcher_boundary[13] | from_json).keys() | list | sort ==
+            ['minos_monitoring', 'minos_watcher-egress']
           - >-
             minos_watcher_boundary[14] | from_json |
-            selectattr('RW', 'equalto', true) | list | length == 3
+            selectattr('RW', 'equalto', true) | list | length == 4
           - >-
             minos_watcher_boundary[14] | from_json |
             selectattr('RW', 'equalto', false) | list | length == 2
           - >-
             minos_watcher_boundary[14] | from_json |
-            selectattr('Type', 'equalto', 'bind') | list | length == 5
+            selectattr('Type', 'equalto', 'bind') | list | length == 6
           - >-
             minos_watcher_boundary[14] | from_json | map(attribute='Destination') | sort ==
-            ['/run/secrets/aws-credentials', '/run/secrets/healthchecks-targets.json',
-             '/var/lib/minos/archive', '/var/lib/minos/control', '/var/lib/minos/staging']
+            ['/run/secrets/aws-credentials', '/run/secrets/uptime-kuma-targets.json',
+             '/var/lib/minos/archive',
+             '/var/lib/minos/control', '/var/lib/minos/public',
+             '/var/lib/minos/staging']
           - >-
             minos_watcher_boundary[14] | from_json | map(attribute='Source') | sort ==
             ['/etc/minos/watcher/aws/credentials',
-             '/etc/minos/watcher/healthchecks/targets.json',
+             '/etc/minos/watcher/uptime-kuma/targets.json',
+             '/var/lib/minos/public',
              '/var/lib/minos/watcher/archive', '/var/lib/minos/watcher/control',
              '/var/lib/minos/watcher/staging']
           - >-
@@ -1987,6 +2906,7 @@
             {'/tmp': 'rw,noexec,nosuid,nodev,size=16m,uid=10001,gid=10001,mode=0700'}
           - minos_watcher_boundary[16] | from_json == ['10002']
           - minos_watcher_boundary[17] == "0"
+          - minos_watcher_boundary[18] == "30"
         fail_msg: The Minos stack differs from the reviewed runtime boundary.
       when: not ansible_check_mode
 

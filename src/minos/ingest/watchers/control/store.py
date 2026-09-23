@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, tzinfo
 from hashlib import sha256
 from pathlib import Path
-from typing import Literal, Protocol, TypeIs, cast
+from typing import Protocol, TypeIs, cast
 from uuid import uuid4
 
 from minos.ingest.watchers.control.configuration import (
@@ -26,9 +26,15 @@ from minos.ingest.watchers.control.migrations import (
 )
 from minos.ingest.watchers.control.models import (
     BlobReceipt,
+    BootstrapResult,
     ChangeDraft,
     ClaimIdentity,
     ClaimRequest,
+    CommittedBlobEvidence,
+    CommittedObservation,
+    CommittedObservationHistory,
+    CommittedObservationRevision,
+    CommittedProductEvidence,
     CommittedRun,
     ConfiguredSource,
     IncidentDraft,
@@ -42,6 +48,7 @@ from minos.ingest.watchers.control.models import (
     RunClaim,
     RunMode,
     RunTransition,
+    ScheduledRunMode,
     ScheduledSource,
     ScheduleResult,
     SourceConfiguration,
@@ -56,8 +63,16 @@ _MAX_OBSERVATION_BLOBS_PER_COMMIT = 1024
 _MAX_CHANGES_PER_COMMIT = 256
 _MAX_INCIDENTS_PER_COMMIT = 256
 _MAX_RECONCILABLE_RUNS = 1000
-_MAX_SCHEDULED_SOURCES = 1000
+_MAX_PUBLIC_HISTORY_REVISIONS = 512
+_MAX_PUBLIC_HISTORY_INPUT_ROWS = 16_384
+_MAX_PUBLIC_HISTORY_INPUT_BYTES = 32 * 1024 * 1024
+_PUBLIC_HISTORY_PAGE_ROWS = 32
+_MAX_PUBLIC_PRODUCT_EVIDENCE = 512
+_MAX_PUBLIC_PRODUCT_BLOBS = 16
+_MAX_ENABLED_SOURCES = 1000
+_MAX_SCHEDULED_SOURCES = 2000
 _MAX_STALE_CLAIMS = 1000
+_MAX_DURABLE_RETRY_FAILURES = 31
 _MAX_BLOB_SIZE_BYTES = 512 * 1024 * 1024
 _MAX_CONTROL_DATABASE_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 _MAX_BACKUP_DURATION_SECONDS = 900.0
@@ -108,6 +123,10 @@ class BlobVerificationError(ControlValidationError):
 
 class SourceNotFoundError(ControlStoreError):
     """The requested watcher source does not exist."""
+
+
+class BootstrapConflictError(ControlStoreError):
+    """Existing source state differs from the explicit bootstrap contract."""
 
 
 class ClaimBlockedError(ControlStoreError):
@@ -423,6 +442,89 @@ class ControlStore:
                 True,
             )
 
+    def bootstrap_source(
+        self,
+        command: SourceConfiguration,
+        schedules: tuple[SourceSchedule, ...],
+    ) -> BootstrapResult:
+        self._require_open()
+        _validate_identifier(command.source_id, "source ID", 64)
+        _validate_identifier(command.watcher_type, "watcher type", 64)
+        if command.enabled is not True:
+            raise ControlValidationError("bootstrapped source must be enabled")
+        _reject_sensitive_configuration(command.configuration)
+        codec, validated_configuration = _validate_source_configuration(
+            command,
+            self._source_configuration_codecs,
+        )
+        configuration_json = _canonical_source_configuration_json(
+            validated_configuration
+        )
+        if (
+            configuration_json is None
+            or _codec_claim_timeout_ms(codec, configuration_json) is None
+        ):
+            raise ControlValidationError("source configuration is invalid")
+        configuration_sha256 = sha256(configuration_json.encode("utf-8")).hexdigest()
+        _validate_bootstrap_schedules(command.source_id, schedules)
+
+        with self._write_transaction() as now_ms:
+            current = self._read_source_configuration(command.source_id)
+            if current is not None:
+                self._require_matching_bootstrap(
+                    command,
+                    schedules,
+                    configuration_json,
+                    configuration_sha256,
+                    current,
+                )
+                return BootstrapResult(
+                    command.source_id,
+                    self._read_state_revision(),
+                    False,
+                )
+            if self._source_exists(command.source_id):
+                raise BootstrapConflictError(
+                    "existing source state differs from bootstrap contract"
+                )
+
+            self._insert_disabled_source(command, now_ms)
+            self._insert_configuration_revision(
+                command.source_id,
+                1,
+                configuration_sha256,
+                configuration_json,
+                now_ms,
+            )
+            _ = self._connection.execute(
+                """
+                UPDATE sources
+                SET enabled = 1, current_configuration_revision = 1,
+                    updated_at_ms = ?
+                WHERE source_id = ?
+                """,
+                (now_ms, command.source_id),
+            )
+            for schedule in schedules:
+                self._insert_schedule(
+                    schedule,
+                    _next_cron_fire_ms(schedule.cron_expression, now_ms),
+                    now_ms,
+                )
+            state_revision = self._advance_state_revision(now_ms)
+            self._insert_audit(
+                source_id=command.source_id,
+                run_id=None,
+                event_type="source_bootstrapped",
+                details={
+                    "configuration_revision": 1,
+                    "run_modes": [schedule.run_mode for schedule in schedules],
+                },
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return BootstrapResult(command.source_id, state_revision, True)
+
     def set_schedule(self, schedule: SourceSchedule) -> ScheduleResult:
         self._require_open()
         _validate_schedule(schedule)
@@ -442,9 +544,9 @@ class ControlStore:
                     SELECT cron_expression, next_due_at_ms, misfire_grace_seconds,
                            retry_max_attempts, retry_base_seconds, retry_max_seconds
                     FROM source_schedules
-                    WHERE source_id = ?
+                    WHERE source_id = ? AND run_mode = ?
                     """,
-                    (schedule.source_id,),
+                    (schedule.source_id, schedule.run_mode),
                 ).fetchone(),
             )
             if existing is not None and (existing[0], *existing[2:]) == values:
@@ -463,11 +565,11 @@ class ControlStore:
             _ = self._connection.execute(
                 """
                 INSERT INTO source_schedules (
-                    source_id, cron_expression, next_due_at_ms,
+                    source_id, run_mode, cron_expression, next_due_at_ms,
                     misfire_grace_seconds, retry_max_attempts,
                     retry_base_seconds, retry_max_seconds, updated_at_ms
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (source_id) DO UPDATE SET
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (source_id, run_mode) DO UPDATE SET
                     cron_expression = excluded.cron_expression,
                     next_due_at_ms = excluded.next_due_at_ms,
                     misfire_grace_seconds = excluded.misfire_grace_seconds,
@@ -478,6 +580,7 @@ class ControlStore:
                 """,
                 (
                     schedule.source_id,
+                    schedule.run_mode,
                     schedule.cron_expression,
                     next_due_at_ms,
                     schedule.misfire_grace_seconds,
@@ -511,47 +614,29 @@ class ControlStore:
         self._require_open()
         _validate_list_limit(limit, _MAX_SCHEDULED_SOURCES, "schedule")
         rows = cast(
-            list[tuple[str, str, str, int, int, int, float, float]],
+            list[tuple[str, str, str, str, int, int, int, float, float]],
             self._connection.execute(
                 """
-                SELECT s.source_id, s.watcher_type, ss.cron_expression,
+                 SELECT s.source_id, s.watcher_type, ss.run_mode,
+                        ss.cron_expression,
                        ss.next_due_at_ms, ss.misfire_grace_seconds,
                        ss.retry_max_attempts, ss.retry_base_seconds,
                        ss.retry_max_seconds
                 FROM source_schedules AS ss
                 JOIN sources AS s ON s.source_id = ss.source_id
                 WHERE s.enabled = 1
-                ORDER BY s.source_id
+                 ORDER BY s.source_id,
+                          CASE ss.run_mode
+                              WHEN 'weekly_verification' THEN 0
+                              ELSE 1
+                          END
                 LIMIT ?
                 """,
                 (limit + 1,),
             ).fetchall(),
         )
         _reject_truncated_rows(rows, limit, "scheduled source")
-        schedules = tuple(
-            ScheduledSource(
-                source_id,
-                watcher_type,
-                cron_expression,
-                next_due_at_ms,
-                misfire_grace_seconds,
-                RetryPolicy(
-                    retry_max_attempts,
-                    retry_base_seconds,
-                    retry_max_seconds,
-                ),
-            )
-            for (
-                source_id,
-                watcher_type,
-                cron_expression,
-                next_due_at_ms,
-                misfire_grace_seconds,
-                retry_max_attempts,
-                retry_base_seconds,
-                retry_max_seconds,
-            ) in rows
-        )
+        schedules = tuple(_scheduled_source_from_row(row) for row in rows)
         for schedule in schedules:
             _validate_scheduled_projection(schedule)
         return schedules
@@ -562,15 +647,14 @@ class ControlStore:
         limit: int = 100,
     ) -> None:
         self._require_open()
-        _validate_list_limit(limit, _MAX_SCHEDULED_SOURCES, "schedule")
+        _validate_list_limit(limit, _MAX_ENABLED_SOURCES, "schedule")
         rows = cast(
             list[tuple[str, str, str | None, str | None]],
             self._connection.execute(
                 """
                 SELECT s.source_id, s.watcher_type, c.configuration_json,
                        c.configuration_sha256
-                FROM source_schedules AS ss
-                JOIN sources AS s ON s.source_id = ss.source_id
+                FROM sources AS s
                 LEFT JOIN source_configuration_revisions AS c
                   ON c.source_id = s.source_id
                  AND c.configuration_revision = s.current_configuration_revision
@@ -593,18 +677,49 @@ class ControlStore:
                 self._source_configuration_codecs,
             )
 
-    def load_retry_policy(self, source_id: str) -> RetryPolicy | None:
+    def list_enabled_source_kinds(
+        self,
+        *,
+        limit: int = 100,
+    ) -> tuple[tuple[str, str], ...]:
+        self._require_open()
+        _validate_list_limit(limit, _MAX_ENABLED_SOURCES, "source")
+        rows = cast(
+            list[tuple[str, str]],
+            self._connection.execute(
+                """
+                SELECT source_id, watcher_type
+                FROM sources
+                WHERE enabled = 1
+                ORDER BY source_id
+                LIMIT ?
+                """,
+                (limit + 1,),
+            ).fetchall(),
+        )
+        _reject_truncated_rows(rows, limit, "enabled source")
+        for source_id, watcher_type in rows:
+            _validate_identifier(source_id, "stored source ID", 64)
+            _validate_identifier(watcher_type, "stored watcher type", 64)
+        return tuple(rows)
+
+    def load_retry_policy(
+        self,
+        source_id: str,
+        run_mode: ScheduledRunMode = "scheduled",
+    ) -> RetryPolicy | None:
         self._require_open()
         _validate_identifier(source_id, "source ID", 64)
+        _validate_scheduled_run_mode(run_mode)
         row = cast(
             tuple[int, float, float] | None,
             self._connection.execute(
                 """
                 SELECT retry_max_attempts, retry_base_seconds, retry_max_seconds
                 FROM source_schedules
-                WHERE source_id = ?
+                WHERE source_id = ? AND run_mode = ?
                 """,
-                (source_id,),
+                (source_id, run_mode),
             ).fetchone(),
         )
         if row is None:
@@ -660,17 +775,23 @@ class ControlStore:
             _validate_claim_timing(request, now_ms)
             return self._acquire_claim_in_transaction(request, now_ms)
 
-    def claim_named_due(self, source_id: str) -> RunClaim | None:
+    def claim_named_due(
+        self,
+        source_id: str,
+        run_mode: ScheduledRunMode = "scheduled",
+    ) -> RunClaim | None:
         self._require_open()
         _validate_identifier(source_id, "source ID", 64)
+        _validate_scheduled_run_mode(run_mode)
         with self._write_transaction() as now_ms:
-            due_at_ms = self._read_due_at(source_id, now_ms)
-            if due_at_ms is None:
+            obligation = self._read_due_obligation(source_id, run_mode, now_ms)
+            if obligation is None:
                 return None
+            due_at_ms, claim_run_mode = obligation
             request = self._due_claim_request(
                 source_id,
                 due_at_ms,
-                run_mode="scheduled",
+                run_mode=claim_run_mode,
             )
             return self._acquire_claim_in_transaction(request, now_ms)
 
@@ -678,17 +799,34 @@ class ControlStore:
         self._require_open()
         with self._write_transaction() as now_ms:
             row = cast(
-                tuple[str, str, int, str, str] | None,
+                tuple[str, str, str, int, str, str, str] | None,
                 self._connection.execute(
                     """
-                    SELECT s.source_id, s.watcher_type, ss.next_due_at_ms,
+                    SELECT s.source_id, s.watcher_type, ss.run_mode,
+                           CASE
+                               WHEN ss.pending_scheduled_at_ms IS NOT NULL
+                               THEN ss.pending_scheduled_at_ms
+                               ELSE ss.next_due_at_ms
+                           END,
+                           CASE
+                               WHEN ss.pending_run_mode IS NOT NULL
+                               THEN ss.pending_run_mode
+                               WHEN ss.run_mode = 'weekly_verification'
+                               THEN 'weekly_verification'
+                               ELSE 'catch_up'
+                           END,
                            c.configuration_json, c.configuration_sha256
                     FROM source_schedules AS ss
                     JOIN sources AS s ON s.source_id = ss.source_id
                     JOIN source_configuration_revisions AS c
                       ON c.source_id = s.source_id
                      AND c.configuration_revision = s.current_configuration_revision
-                    WHERE s.enabled = 1 AND ss.next_due_at_ms <= ?
+                    WHERE s.enabled = 1
+                      AND (
+                          (ss.pending_scheduled_at_ms IS NULL
+                              AND ss.next_due_at_ms <= ?)
+                          OR ss.retry_not_before_ms <= ?
+                      )
                       AND NOT EXISTS (
                           SELECT 1 FROM watcher_runs AS r
                           WHERE r.source_id = s.source_id
@@ -696,10 +834,20 @@ class ControlStore:
                                 'running', 'committed', 'heartbeat_pending'
                             )
                       )
-                    ORDER BY ss.next_due_at_ms, s.source_id
+                    ORDER BY
+                        CASE ss.run_mode
+                            WHEN 'weekly_verification' THEN 0
+                            ELSE 1
+                        END,
+                        CASE
+                            WHEN ss.retry_not_before_ms IS NOT NULL
+                            THEN ss.retry_not_before_ms
+                            ELSE ss.next_due_at_ms
+                        END,
+                        s.source_id
                     LIMIT 1
                     """,
-                    (now_ms,),
+                    (now_ms, now_ms),
                 ).fetchone(),
             )
             if row is None:
@@ -707,13 +855,19 @@ class ControlStore:
             (
                 source_id,
                 watcher_type,
+                scheduled_run_mode,
                 due_at_ms,
+                claim_run_mode,
                 configuration_json,
                 configuration_sha256,
             ) = row
+            if not _is_scheduled_run_mode(scheduled_run_mode):
+                raise ControlStorageError("stored scheduled run mode is invalid")
+            if not _is_run_mode(claim_run_mode) or claim_run_mode == "manual":
+                raise ControlStorageError("stored pending run mode is invalid")
             request = ClaimRequest(
                 source_id=source_id,
-                run_mode="catch_up",
+                run_mode=claim_run_mode,
                 scheduled_at_ms=due_at_ms,
                 deadline_after_ms=_read_operation_deadline_ms(
                     watcher_type,
@@ -873,7 +1027,11 @@ class ControlStore:
             request.scheduled_at_ms,
             now_ms,
             state_revision,
-            self.load_retry_policy(request.source_id) or RetryPolicy(1, 1.0, 1.0),
+            self.load_retry_policy(
+                request.source_id,
+                _scheduled_mode_for_claim(request.run_mode),
+            )
+            or RetryPolicy(1, 1.0, 1.0),
         )
 
     def fail_claim(
@@ -908,6 +1066,7 @@ class ControlStore:
                 ),
             )
             _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+            retry_not_before_ms = self._defer_claim_obligation(claim, now_ms)
             if incident is not None:
                 self._insert_incident(
                     incident,
@@ -925,6 +1084,7 @@ class ControlStore:
                     "incident_id": incident.incident_id
                     if incident is not None
                     else None,
+                    "retry_not_before_ms": retry_not_before_ms,
                 },
                 state_revision=state_revision,
                 now_ms=now_ms,
@@ -973,6 +1133,7 @@ class ControlStore:
                 ),
             )
             _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+            retry_not_before_ms = self._defer_claim_obligation(claim, now_ms)
             self._insert_incident(
                 incident,
                 source_id=claim.source_id,
@@ -987,6 +1148,7 @@ class ControlStore:
                 details={
                     "error_category": error_category,
                     "incident_id": incident.incident_id,
+                    "retry_not_before_ms": retry_not_before_ms,
                 },
                 state_revision=state_revision,
                 now_ms=now_ms,
@@ -1181,6 +1343,7 @@ class ControlStore:
             ),
         )
         _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+        retry_not_before_ms = self._defer_claim_obligation(claim, now_ms)
         self._insert_incident(
             incident,
             source_id=claim.source_id,
@@ -1192,7 +1355,10 @@ class ControlStore:
             source_id=claim.source_id,
             run_id=claim.run_id,
             event_type="run_expired",
-            details={"incident_id": incident.incident_id},
+            details={
+                "incident_id": incident.incident_id,
+                "retry_not_before_ms": retry_not_before_ms,
+            },
             state_revision=state_revision,
             now_ms=now_ms,
         )
@@ -1342,6 +1508,7 @@ class ControlStore:
                 ),
             )
             _require_one_updated(updated, StaleClaimError("watcher claim became stale"))
+            retry_not_before_ms = self._defer_claim_obligation(claim, now_ms)
             self._insert_incident(
                 incident,
                 source_id=claim.source_id,
@@ -1353,7 +1520,11 @@ class ControlStore:
                 source_id=claim.source_id,
                 run_id=claim.run_id,
                 event_type="blob_verification_failed",
-                details={"incident_id": incident.incident_id, "status": status},
+                details={
+                    "incident_id": incident.incident_id,
+                    "retry_not_before_ms": retry_not_before_ms,
+                    "status": status,
+                },
                 state_revision=state_revision,
                 now_ms=now_ms,
             )
@@ -1425,6 +1596,354 @@ class ControlStore:
             )
         return tuple(runs)
 
+    def latest_recovery_reconciled_run(self, source_id: str) -> CommittedRun | None:
+        self._require_open()
+        _validate_identifier(source_id, "source ID", 64)
+        row = cast(
+            tuple[str, str, int, int, str] | None,
+            self._connection.execute(
+                """
+                SELECT source_id, run_id, committed_state_revision,
+                       committed_at_ms, status
+                FROM watcher_runs
+                WHERE source_id = ? AND committed_state_revision IS NOT NULL
+                  AND status IN ('heartbeat_pending', 'successful')
+                ORDER BY committed_state_revision DESC, run_id DESC
+                LIMIT 1
+                """,
+                (source_id,),
+            ).fetchone(),
+        )
+        if row is None:
+            return None
+        stored_source_id, run_id, revision, committed_at_ms, status = row
+        if status == "successful":
+            return CommittedRun(
+                stored_source_id,
+                run_id,
+                revision,
+                committed_at_ms,
+                "heartbeat_pending",
+            )
+        if not _is_reconcilable_status(status):
+            raise ControlStorageError("stored committed run status is invalid")
+        return CommittedRun(
+            stored_source_id,
+            run_id,
+            revision,
+            committed_at_ms,
+            status,
+        )
+
+    def recovery_reconciled_run_at_revision(
+        self,
+        source_id: str,
+        state_revision: int,
+    ) -> CommittedRun:
+        self._require_open()
+        _validate_identifier(source_id, "source ID", 64)
+        _validate_positive(state_revision, "public rebuild revision")
+        row = cast(
+            tuple[str, str, int, int, str] | None,
+            self._connection.execute(
+                """
+                SELECT source_id, run_id, committed_state_revision,
+                       committed_at_ms, status
+                FROM watcher_runs
+                WHERE source_id = ? AND committed_state_revision = ?
+                  AND status IN ('heartbeat_pending', 'successful')
+                LIMIT 1
+                """,
+                (source_id, state_revision),
+            ).fetchone(),
+        )
+        if row is None:
+            raise ControlStorageError(
+                "public rebuild revision is not recovery reconciled"
+            )
+        stored_source_id, run_id, revision, committed_at_ms, _status = row
+        return CommittedRun(
+            stored_source_id,
+            run_id,
+            revision,
+            committed_at_ms,
+            "heartbeat_pending",
+        )
+
+    def load_committed_observation_history(
+        self,
+        source_id: str,
+        observation_kind: str,
+        *,
+        through_state_revision: int,
+        maximum_revisions: int = _MAX_PUBLIC_HISTORY_REVISIONS,
+    ) -> CommittedObservationHistory:
+        self._require_open()
+        _validate_identifier(source_id, "source ID", 64)
+        _validate_identifier(observation_kind, "observation kind", 64)
+        _validate_positive(through_state_revision, "history fence revision")
+        _validate_list_limit(
+            maximum_revisions,
+            _MAX_PUBLIC_HISTORY_REVISIONS,
+            "history revision",
+        )
+        product_evidence, input_rows, input_bytes = self._load_product_evidence(
+            source_id,
+            through_state_revision,
+        )
+        revision_rows = cast(
+            list[tuple[int, int]],
+            self._connection.execute(
+                """
+                SELECT committed_state_revision, committed_at_ms
+                FROM watcher_runs
+                WHERE source_id = ? AND committed_state_revision <= ?
+                  AND status IN ('committed', 'heartbeat_pending', 'successful')
+                  AND EXISTS (
+                      SELECT 1 FROM observations AS o
+                      WHERE o.run_id = watcher_runs.run_id
+                        AND o.source_id = watcher_runs.source_id
+                        AND o.state_revision = watcher_runs.committed_state_revision
+                        AND o.observation_kind = ?
+                  )
+                ORDER BY committed_state_revision DESC, run_id DESC
+                LIMIT ?
+                """,
+                (
+                    source_id,
+                    through_state_revision,
+                    observation_kind,
+                    maximum_revisions + 1,
+                ),
+            ).fetchall(),
+        )
+        older_revisions_exist = len(revision_rows) > maximum_revisions
+        selected_rows = revision_rows[:maximum_revisions]
+        if not selected_rows:
+            return CommittedObservationHistory(
+                source_id,
+                through_state_revision,
+                (),
+                False,
+                product_evidence,
+            )
+        revisions_newest_first: list[CommittedObservationRevision] = []
+        for revision, committed_at_ms in selected_rows:
+            loaded = self._load_committed_observation_revision(
+                source_id,
+                observation_kind,
+                revision,
+                committed_at_ms,
+                maximum_rows=_MAX_PUBLIC_HISTORY_INPUT_ROWS - input_rows,
+                maximum_bytes=_MAX_PUBLIC_HISTORY_INPUT_BYTES - input_bytes,
+            )
+            if loaded is None:
+                if not revisions_newest_first:
+                    raise ControlStorageError(
+                        "latest committed observation revision exceeds its input budget"
+                    )
+                older_revisions_exist = True
+                break
+            observations, revision_rows_used, revision_bytes = loaded
+            input_rows += revision_rows_used
+            input_bytes += revision_bytes
+            revisions_newest_first.append(
+                CommittedObservationRevision(
+                    revision,
+                    committed_at_ms,
+                    observations,
+                )
+            )
+        revisions = tuple(reversed(revisions_newest_first))
+        return CommittedObservationHistory(
+            source_id,
+            through_state_revision,
+            revisions,
+            older_revisions_exist,
+            product_evidence,
+        )
+
+    def _load_committed_observation_revision(
+        self,
+        source_id: str,
+        observation_kind: str,
+        revision: int,
+        expected_committed_at_ms: int,
+        *,
+        maximum_rows: int,
+        maximum_bytes: int,
+    ) -> tuple[tuple[CommittedObservation, ...], int, int] | None:
+        observations: list[CommittedObservation] = []
+        input_bytes = 0
+        after_observation_id = ""
+        while True:
+            rows = cast(
+                list[tuple[int, str, str, str, str, int, str]],
+                self._connection.execute(
+                    """
+                    SELECT r.committed_at_ms, o.observation_id,
+                           o.observation_kind, o.source_identity,
+                           o.response_sha256, o.observed_at_ms, o.metadata_json
+                    FROM observations AS o
+                    JOIN watcher_runs AS r
+                      ON r.run_id = o.run_id AND r.source_id = o.source_id
+                    WHERE o.source_id = ? AND o.observation_kind = ?
+                      AND o.state_revision = ? AND o.observation_id > ?
+                      AND r.committed_state_revision = o.state_revision
+                      AND r.status IN ('committed', 'heartbeat_pending', 'successful')
+                    ORDER BY o.observation_id
+                    LIMIT ?
+                    """,
+                    (
+                        source_id,
+                        observation_kind,
+                        revision,
+                        after_observation_id,
+                        _PUBLIC_HISTORY_PAGE_ROWS,
+                    ),
+                ).fetchall(),
+            )
+            if not rows:
+                break
+            for row in rows:
+                (
+                    committed_at_ms,
+                    observation_id,
+                    stored_kind,
+                    identity,
+                    digest,
+                    observed_at_ms,
+                    metadata_json,
+                ) = row
+                if committed_at_ms != expected_committed_at_ms:
+                    raise ControlStorageError(
+                        "committed observation fence is inconsistent"
+                    )
+                row_size_bytes = _public_history_row_size_bytes(row[1:])
+                if (
+                    len(observations) >= maximum_rows
+                    or input_bytes + row_size_bytes > maximum_bytes
+                ):
+                    return None
+                observations.append(
+                    CommittedObservation(
+                        observation_id,
+                        stored_kind,
+                        identity,
+                        digest,
+                        observed_at_ms,
+                        _decode_stored_json(metadata_json, "observation metadata"),
+                    )
+                )
+                input_bytes += row_size_bytes
+            after_observation_id = rows[-1][1]
+            if len(rows) < _PUBLIC_HISTORY_PAGE_ROWS:
+                break
+        if not observations:
+            raise ControlStorageError("committed observation revision is incomplete")
+        return tuple(observations), len(observations), input_bytes
+
+    def _load_product_evidence(
+        self,
+        source_id: str,
+        through_state_revision: int,
+    ) -> tuple[tuple[CommittedProductEvidence, ...], int, int]:
+        rows = cast(
+            list[tuple[int, str, str, str, int, str, int, str | None]],
+            self._connection.execute(
+                """
+                SELECT o.state_revision, o.observation_id, o.source_identity,
+                       o.response_sha256, o.observed_at_ms, o.metadata_json,
+                       response.size_bytes, response.media_type
+                FROM observations AS o
+                JOIN watcher_runs AS r
+                  ON r.run_id = o.run_id AND r.source_id = o.source_id
+                JOIN blobs AS response ON response.sha256 = o.response_sha256
+                WHERE o.source_id = ? AND o.observation_kind = 'rsk_product'
+                  AND o.state_revision <= ?
+                  AND length(o.metadata_json) <= 1024
+                  AND r.committed_state_revision = o.state_revision
+                  AND r.status IN ('committed', 'heartbeat_pending', 'successful')
+                ORDER BY o.state_revision DESC, o.observation_id DESC
+                LIMIT ?
+                """,
+                (source_id, through_state_revision, _MAX_PUBLIC_PRODUCT_EVIDENCE + 1),
+            ).fetchall(),
+        )
+        rows = rows[:_MAX_PUBLIC_PRODUCT_EVIDENCE]
+        evidence: list[CommittedProductEvidence] = []
+        input_rows = len(rows)
+        input_bytes = 0
+        for row in reversed(rows):
+            (
+                revision,
+                observation_id,
+                identity,
+                digest,
+                observed_at_ms,
+                metadata_json,
+                size_bytes,
+                media_type,
+            ) = row
+            blobs = self._load_product_blob_evidence(observation_id)
+            input_rows += len(blobs)
+            input_bytes += _public_history_row_size_bytes(row) + sum(
+                _public_history_row_size_bytes(
+                    (
+                        blob.blob_role,
+                        blob.ordinal,
+                        blob.sha256,
+                        blob.size_bytes,
+                        blob.media_type,
+                    )
+                )
+                for blob in blobs
+            )
+            evidence.append(
+                CommittedProductEvidence(
+                    revision,
+                    observation_id,
+                    identity,
+                    digest,
+                    observed_at_ms,
+                    _decode_stored_json(metadata_json, "product observation metadata"),
+                    size_bytes,
+                    media_type,
+                    blobs,
+                )
+            )
+        if (
+            input_rows > _MAX_PUBLIC_HISTORY_INPUT_ROWS
+            or input_bytes > _MAX_PUBLIC_HISTORY_INPUT_BYTES
+        ):
+            raise ControlStorageError(
+                "committed product evidence exceeds its input budget"
+            )
+        return tuple(evidence), input_rows, input_bytes
+
+    def _load_product_blob_evidence(
+        self,
+        observation_id: str,
+    ) -> tuple[CommittedBlobEvidence, ...]:
+        rows = cast(
+            list[tuple[str, int, str, int, str | None]],
+            self._connection.execute(
+                """
+                SELECT ob.blob_role, ob.ordinal, ob.sha256,
+                       b.size_bytes, b.media_type
+                FROM observation_blobs AS ob
+                JOIN blobs AS b ON b.sha256 = ob.sha256
+                WHERE ob.observation_id = ?
+                ORDER BY ob.blob_role, ob.ordinal
+                LIMIT ?
+                """,
+                (observation_id, _MAX_PUBLIC_PRODUCT_BLOBS + 1),
+            ).fetchall(),
+        )
+        if len(rows) > _MAX_PUBLIC_PRODUCT_BLOBS:
+            raise ControlStorageError("product blob evidence exceeds its bound")
+        return tuple(CommittedBlobEvidence(*row) for row in rows)
+
     def _reconcile_transition(
         self,
         run_id: str,
@@ -1439,10 +1958,11 @@ class ControlStore:
         _validate_positive(committed_state_revision, "committed state revision")
         with self._write_transaction() as now_ms:
             row = cast(
-                tuple[str, str, int, int | None] | None,
+                tuple[str, str, int, int | None, str, int] | None,
                 self._connection.execute(
                     """
-                    SELECT source_id, status, committed_state_revision, finished_at_ms
+                    SELECT source_id, status, committed_state_revision, finished_at_ms,
+                           run_mode, scheduled_at_ms
                     FROM watcher_runs
                     WHERE run_id = ?
                     """,
@@ -1451,7 +1971,16 @@ class ControlStore:
             )
             if row is None:
                 raise IllegalRunTransitionError("watcher run does not exist")
-            source_id, status, stored_revision, finished_at_ms = row
+            (
+                source_id,
+                status,
+                stored_revision,
+                finished_at_ms,
+                run_mode,
+                scheduled_at_ms,
+            ) = row
+            if not _is_run_mode(run_mode):
+                raise ControlStorageError("stored run mode is invalid")
             if stored_revision != committed_state_revision:
                 raise IllegalRunTransitionError(
                     "committed state revision does not match"
@@ -1504,6 +2033,13 @@ class ControlStore:
                 updated,
                 IllegalRunTransitionError("watcher run transition lost its guard"),
             )
+            if target_status == "successful":
+                self._complete_claim_obligation(
+                    source_id,
+                    run_mode,
+                    scheduled_at_ms,
+                    now_ms,
+                )
             self._insert_audit(
                 source_id=source_id,
                 run_id=run_id,
@@ -1610,6 +2146,59 @@ class ControlStore:
             bool(enabled),
         )
 
+    def _require_matching_bootstrap(
+        self,
+        command: SourceConfiguration,
+        schedules: tuple[SourceSchedule, ...],
+        configuration_json: str,
+        configuration_sha256: str,
+        current: tuple[str, int, str, str, bool],
+    ) -> None:
+        watcher_type, _revision, current_sha256, current_json, enabled = current
+        _ = _validate_stored_source_configuration(
+            watcher_type,
+            current_json,
+            current_sha256,
+            self._source_configuration_codecs,
+        )
+        if (
+            watcher_type != command.watcher_type
+            or not enabled
+            or current_sha256 != configuration_sha256
+            or current_json != configuration_json
+        ):
+            raise BootstrapConflictError(
+                "existing source state differs from bootstrap contract"
+            )
+        rows = cast(
+            list[tuple[str, str, int, int, float, float]],
+            self._connection.execute(
+                """
+                SELECT run_mode, cron_expression, misfire_grace_seconds,
+                       retry_max_attempts, retry_base_seconds, retry_max_seconds
+                FROM source_schedules
+                WHERE source_id = ?
+                ORDER BY run_mode
+                """,
+                (command.source_id,),
+            ).fetchall(),
+        )
+        expected = sorted(
+            (
+                schedule.run_mode,
+                schedule.cron_expression,
+                schedule.misfire_grace_seconds,
+                schedule.retry_max_attempts,
+                schedule.retry_base_seconds,
+                schedule.retry_max_seconds,
+            )
+            for schedule in schedules
+        )
+        if rows != expected:
+            raise BootstrapConflictError(
+                "existing source schedules differ from bootstrap contract"
+            )
+
     def _read_persisted_source_row(
         self,
         source_id: str,
@@ -1674,28 +2263,52 @@ class ControlStore:
             raise ClaimBlockedError("watcher source is disabled or unconfigured")
         return watcher_type, configuration_json, configuration_sha256
 
-    def _read_due_at(self, source_id: str, now_ms: int) -> int | None:
+    def _read_due_obligation(
+        self,
+        source_id: str,
+        run_mode: ScheduledRunMode,
+        now_ms: int,
+    ) -> tuple[int, RunMode] | None:
         row = cast(
-            tuple[int] | None,
+            tuple[int, str] | None,
             self._connection.execute(
                 """
-                SELECT ss.next_due_at_ms
+                SELECT
+                    CASE
+                        WHEN ss.pending_scheduled_at_ms IS NOT NULL
+                        THEN ss.pending_scheduled_at_ms
+                        ELSE ss.next_due_at_ms
+                    END,
+                    CASE
+                        WHEN ss.pending_run_mode IS NOT NULL
+                        THEN ss.pending_run_mode
+                        ELSE ss.run_mode
+                    END
                 FROM source_schedules AS ss
                 JOIN sources AS s ON s.source_id = ss.source_id
-                WHERE ss.source_id = ? AND s.enabled = 1
-                  AND ss.next_due_at_ms <= ?
+                WHERE ss.source_id = ? AND ss.run_mode = ? AND s.enabled = 1
+                  AND (
+                      (ss.pending_scheduled_at_ms IS NULL
+                          AND ss.next_due_at_ms <= ?)
+                      OR ss.retry_not_before_ms <= ?
+                  )
                 """,
-                (source_id, now_ms),
+                (source_id, run_mode, now_ms, now_ms),
             ).fetchone(),
         )
-        return None if row is None else row[0]
+        if row is None:
+            return None
+        due_at_ms, claim_run_mode = row
+        if not _is_run_mode(claim_run_mode) or claim_run_mode == "manual":
+            raise ControlStorageError("stored pending run mode is invalid")
+        return due_at_ms, claim_run_mode
 
     def _due_claim_request(
         self,
         source_id: str,
         due_at_ms: int,
         *,
-        run_mode: Literal["scheduled", "catch_up"],
+        run_mode: RunMode,
     ) -> ClaimRequest:
         (
             watcher_type,
@@ -1754,7 +2367,38 @@ class ControlStore:
             ),
         )
 
+    def _insert_schedule(
+        self,
+        schedule: SourceSchedule,
+        next_due_at_ms: int,
+        now_ms: int,
+    ) -> None:
+        _ = self._connection.execute(
+            """
+            INSERT INTO source_schedules (
+                source_id, run_mode, cron_expression, next_due_at_ms,
+                misfire_grace_seconds, retry_max_attempts,
+                retry_base_seconds, retry_max_seconds, updated_at_ms
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                schedule.source_id,
+                schedule.run_mode,
+                schedule.cron_expression,
+                next_due_at_ms,
+                schedule.misfire_grace_seconds,
+                schedule.retry_max_attempts,
+                schedule.retry_base_seconds,
+                schedule.retry_max_seconds,
+                now_ms,
+            ),
+        )
+
     def _require_source(self, source_id: str) -> None:
+        if not self._source_exists(source_id):
+            raise SourceNotFoundError("watcher source does not exist")
+
+    def _source_exists(self, source_id: str) -> bool:
         exists = cast(
             tuple[int] | None,
             self._connection.execute(
@@ -1762,8 +2406,7 @@ class ControlStore:
                 (source_id,),
             ).fetchone(),
         )
-        if exists is None:
-            raise SourceNotFoundError("watcher source does not exist")
+        return exists is not None
 
     def _reject_blocking_run(self, source_id: str) -> None:
         blocking = cast(
@@ -1783,40 +2426,184 @@ class ControlStore:
     def _advance_due_cursor(self, request: ClaimRequest, now_ms: int) -> None:
         if request.expected_due_at_ms is None:
             return
+        scheduled_run_mode = _scheduled_mode_for_claim(request.run_mode)
         schedule = cast(
-            tuple[str, int] | None,
+            tuple[str, int, int | None, str | None, int | None] | None,
             self._connection.execute(
                 """
-                SELECT cron_expression, next_due_at_ms
+                SELECT cron_expression, next_due_at_ms, pending_scheduled_at_ms,
+                       pending_run_mode, retry_not_before_ms
                 FROM source_schedules
-                WHERE source_id = ?
+                WHERE source_id = ? AND run_mode = ?
                 """,
-                (request.source_id,),
+                (request.source_id, scheduled_run_mode),
             ).fetchone(),
         )
-        if schedule is None or schedule[1] != request.expected_due_at_ms:
+        if schedule is None:
             raise ClaimBlockedError(
                 "durable schedule cursor changed before claim acquisition"
             )
-        next_due_at_ms = _next_cron_fire_ms(schedule[0], now_ms)
-        updated = self._connection.execute(
-            """
-            UPDATE source_schedules
-            SET next_due_at_ms = ?, updated_at_ms = ?
-            WHERE source_id = ? AND next_due_at_ms = ?
-            """,
-            (
-                next_due_at_ms,
-                now_ms,
-                request.source_id,
-                request.expected_due_at_ms,
-            ),
-        )
+        (
+            cron_expression,
+            next_due_at_ms,
+            pending_scheduled_at_ms,
+            pending_run_mode,
+            retry_not_before_ms,
+        ) = schedule
+        if pending_scheduled_at_ms is None:
+            if next_due_at_ms != request.expected_due_at_ms:
+                raise ClaimBlockedError(
+                    "durable schedule cursor changed before claim acquisition"
+                )
+            next_due_at_ms = _next_cron_fire_ms(cron_expression, now_ms)
+            updated = self._connection.execute(
+                """
+                UPDATE source_schedules
+                SET next_due_at_ms = ?, pending_scheduled_at_ms = ?,
+                    pending_run_mode = ?, retry_failure_count = 0,
+                    updated_at_ms = ?
+                WHERE source_id = ? AND run_mode = ? AND next_due_at_ms = ?
+                  AND pending_scheduled_at_ms IS NULL
+                """,
+                (
+                    next_due_at_ms,
+                    request.scheduled_at_ms,
+                    request.run_mode,
+                    now_ms,
+                    request.source_id,
+                    scheduled_run_mode,
+                    request.expected_due_at_ms,
+                ),
+            )
+        else:
+            if (
+                pending_scheduled_at_ms != request.expected_due_at_ms
+                or pending_run_mode != request.run_mode
+                or retry_not_before_ms is None
+                or retry_not_before_ms > now_ms
+            ):
+                raise ClaimBlockedError(
+                    "durable schedule retry changed before claim acquisition"
+                )
+            updated = self._connection.execute(
+                """
+                UPDATE source_schedules
+                SET retry_not_before_ms = NULL, updated_at_ms = ?
+                WHERE source_id = ? AND run_mode = ?
+                  AND pending_scheduled_at_ms = ? AND pending_run_mode = ?
+                  AND retry_not_before_ms = ?
+                """,
+                (
+                    now_ms,
+                    request.source_id,
+                    scheduled_run_mode,
+                    request.expected_due_at_ms,
+                    request.run_mode,
+                    retry_not_before_ms,
+                ),
+            )
         _require_one_updated(
             updated,
             ClaimBlockedError(
                 "durable schedule cursor changed before claim acquisition"
             ),
+        )
+
+    def _defer_claim_obligation(
+        self,
+        claim: ClaimIdentity,
+        now_ms: int,
+    ) -> int | None:
+        row = cast(
+            tuple[str, int, float, float, int, str | None] | None,
+            self._connection.execute(
+                """
+                SELECT r.run_mode, r.scheduled_at_ms, ss.retry_base_seconds,
+                       ss.retry_max_seconds, ss.retry_failure_count,
+                       ss.pending_run_mode
+                FROM watcher_runs AS r
+                LEFT JOIN source_schedules AS ss
+                  ON ss.source_id = r.source_id
+                 AND ss.run_mode = CASE
+                     WHEN r.run_mode = 'weekly_verification'
+                     THEN 'weekly_verification'
+                     ELSE 'scheduled'
+                 END
+                WHERE r.run_id = ? AND r.source_id = ?
+                """,
+                (claim.run_id, claim.source_id),
+            ).fetchone(),
+        )
+        if row is None:
+            raise ControlStorageError("failed watcher run is missing")
+        (
+            run_mode,
+            scheduled_at_ms,
+            retry_base_seconds,
+            retry_max_seconds,
+            failure_count,
+            pending_run_mode,
+        ) = row
+        if run_mode == "manual":
+            return None
+        if not _is_run_mode(run_mode) or pending_run_mode != run_mode:
+            raise ControlStorageError("durable schedule obligation is inconsistent")
+        next_failure_count = min(failure_count + 1, _MAX_DURABLE_RETRY_FAILURES)
+        delay_seconds = retry_base_seconds
+        for _failure in range(1, next_failure_count):
+            delay_seconds = min(delay_seconds * 2, retry_max_seconds)
+        retry_not_before_ms = now_ms + max(1, math.ceil(delay_seconds * 1000))
+        _validate_timestamp(retry_not_before_ms, "schedule retry time")
+        scheduled_mode = _scheduled_mode_for_claim(run_mode)
+        updated = self._connection.execute(
+            """
+            UPDATE source_schedules
+            SET retry_not_before_ms = ?, retry_failure_count = ?, updated_at_ms = ?
+            WHERE source_id = ? AND run_mode = ?
+              AND pending_scheduled_at_ms = ? AND pending_run_mode = ?
+              AND retry_not_before_ms IS NULL
+            """,
+            (
+                retry_not_before_ms,
+                next_failure_count,
+                now_ms,
+                claim.source_id,
+                scheduled_mode,
+                scheduled_at_ms,
+                run_mode,
+            ),
+        )
+        _require_one_updated(
+            updated,
+            ControlStorageError("durable schedule obligation could not be deferred"),
+        )
+        return retry_not_before_ms
+
+    def _complete_claim_obligation(
+        self,
+        source_id: str,
+        run_mode: RunMode,
+        scheduled_at_ms: int,
+        now_ms: int,
+    ) -> None:
+        if run_mode == "manual":
+            return
+        scheduled_mode = _scheduled_mode_for_claim(run_mode)
+        updated = self._connection.execute(
+            """
+            UPDATE source_schedules
+            SET pending_scheduled_at_ms = NULL, pending_run_mode = NULL,
+                retry_not_before_ms = NULL, retry_failure_count = 0,
+                updated_at_ms = ?
+            WHERE source_id = ? AND run_mode = ?
+              AND pending_scheduled_at_ms = ? AND pending_run_mode = ?
+              AND retry_not_before_ms IS NULL
+            """,
+            (now_ms, source_id, scheduled_mode, scheduled_at_ms, run_mode),
+        )
+        _require_one_updated(
+            updated,
+            ControlStorageError("durable schedule obligation could not be completed"),
         )
 
     def _require_live_claim(self, claim: ClaimIdentity, now_ms: int) -> None:
@@ -2179,6 +2966,7 @@ def _read_positive_pragma(connection: sqlite3.Connection, name: str) -> int:
 
 def _validate_schedule(schedule: SourceSchedule) -> None:
     _validate_identifier(schedule.source_id, "source ID", 64)
+    _validate_scheduled_run_mode(schedule.run_mode)
     _validate_identifier(
         schedule.cron_expression,
         "cron expression",
@@ -2199,6 +2987,22 @@ def _validate_schedule(schedule: SourceSchedule) -> None:
             schedule.retry_max_seconds,
         )
     )
+
+
+def _validate_bootstrap_schedules(
+    source_id: str,
+    schedules: tuple[SourceSchedule, ...],
+) -> None:
+    if len(schedules) < 1 or len(schedules) > 2:
+        raise ControlValidationError("bootstrap schedule count is unsupported")
+    run_modes: set[ScheduledRunMode] = set()
+    for schedule in schedules:
+        _validate_schedule(schedule)
+        if schedule.source_id != source_id:
+            raise ControlValidationError("bootstrap schedule source differs")
+        if schedule.run_mode in run_modes:
+            raise ControlValidationError("bootstrap schedule run mode is duplicated")
+        run_modes.add(schedule.run_mode)
 
 
 def _validate_retry_policy(policy: RetryPolicy) -> None:
@@ -2239,14 +3043,11 @@ def _validate_claim_request(request: ClaimRequest) -> None:
             "claim deadline duration is outside the supported range"
         )
     if (
-        request.run_mode in ("scheduled", "catch_up")
+        request.run_mode in ("scheduled", "weekly_verification", "catch_up")
         and request.expected_due_at_ms is None
     ):
         raise ControlValidationError("scheduled claims require a durable due cursor")
-    if (
-        request.run_mode in ("manual", "weekly_verification")
-        and request.expected_due_at_ms is not None
-    ):
+    if request.run_mode == "manual" and request.expected_due_at_ms is not None:
         raise ControlValidationError(
             "manual claims must not advance the durable due cursor"
         )
@@ -2711,13 +3512,53 @@ def _validate_scheduled_projection(schedule: ScheduledSource) -> None:
             schedule.retry_policy.max_attempts,
             schedule.retry_policy.base_seconds,
             schedule.retry_policy.max_seconds,
+            schedule.run_mode,
         )
+    )
+
+
+def _scheduled_source_from_row(
+    row: tuple[str, str, str, str, int, int, int, float, float],
+) -> ScheduledSource:
+    (
+        source_id,
+        watcher_type,
+        run_mode,
+        cron_expression,
+        next_due_at_ms,
+        misfire_grace_seconds,
+        retry_max_attempts,
+        retry_base_seconds,
+        retry_max_seconds,
+    ) = row
+    if not _is_scheduled_run_mode(run_mode):
+        raise ControlStorageError("stored scheduled run mode is invalid")
+    return ScheduledSource(
+        source_id,
+        watcher_type,
+        cron_expression,
+        next_due_at_ms,
+        misfire_grace_seconds,
+        RetryPolicy(
+            retry_max_attempts,
+            retry_base_seconds,
+            retry_max_seconds,
+        ),
+        run_mode,
     )
 
 
 def _validate_list_limit(limit: int, maximum: int, label: str) -> None:
     if not _is_strict_integer(limit) or limit < 1 or limit > maximum:
         raise ControlValidationError(f"{label} limit is outside the supported range")
+
+
+def _public_history_row_size_bytes(values: tuple[object, ...]) -> int:
+    size_bytes = 8 * len(values)
+    for value in values:
+        if isinstance(value, str):
+            size_bytes += len(value.encode("utf-8"))
+    return size_bytes
 
 
 def _reject_truncated_rows(rows: Sequence[object], limit: int, label: str) -> None:
@@ -2785,6 +3626,21 @@ def _is_real_number(value: object) -> TypeIs[int | float]:
 
 def _is_run_mode(value: object) -> TypeIs[RunMode]:
     return value in ("scheduled", "weekly_verification", "manual", "catch_up")
+
+
+def _is_scheduled_run_mode(value: object) -> TypeIs[ScheduledRunMode]:
+    return value in ("scheduled", "weekly_verification")
+
+
+def _validate_scheduled_run_mode(value: object) -> None:
+    if not _is_scheduled_run_mode(value):
+        raise ControlValidationError("scheduled run mode is unsupported")
+
+
+def _scheduled_mode_for_claim(run_mode: RunMode) -> ScheduledRunMode:
+    if run_mode == "weekly_verification":
+        return "weekly_verification"
+    return "scheduled"
 
 
 def _is_reconcilable_status(value: object) -> TypeIs[ReconcilableStatus]:

@@ -125,8 +125,36 @@ observations, artifact references, changes, incidents, and audit events. Exact
 source bytes live in private versioned S3. On startup the watcher reconciles
 `committed` and `heartbeat_pending` runs before reconstructing in-memory jobs;
 application-level due cursors coalesce downtime into one bounded catch-up run.
-GitHub Actions builds and tests the watcher image but does not schedule
-production collection.
+`heartbeat_pending` is retained as a compatibility name for durable local
+finalization after recovery-image verification, not for a monitoring request.
+Only after a run reaches a durable terminal state does the watcher make a
+best-effort up or down push to self-hosted Uptime Kuma. Push failure never
+blocks or changes watcher completion. GitHub Actions builds and tests the
+watcher image but does not schedule production collection.
+
+Operators inspect this state without a writer connection by running
+`minos watcher status [SOURCE_ID] [--database PATH] [--json]` in the watcher
+container. Bounded, privacy-safe lifecycle logs remain local under Docker's
+`local` log driver.
+
+### Uptime Kuma
+
+The same Mikr.us Compose host runs self-hosted Uptime Kuma 2.5.5 from the
+official MIT `slim-rootless` `linux/amd64` image pinned to
+`sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6`.
+It runs as `10003:10003`, has no Docker socket or host port, joins a private
+monitoring network shared with the watcher and `cloudflared`, and separately
+joins an outbound network for HTTP monitors and notifications. Its only
+persistent mount is `/var/lib/minos/uptime-kuma` at `/app/data`.
+
+The conditional Cloudflare route for `status.minoshealth.pl` defaults to false
+so the first-run setup cannot be taken over publicly. The public page exposes
+only coarse service state. Detailed schedules, runs, changes, incidents, and
+verified products stay in the private status command; issue #54 remains the
+future private detailed admin portal. This removes paid external monitoring
+SaaS, but Kuma shares the monitored host and therefore cannot detect or notify
+for a total Mikr.us host, network, or power outage. This same-host limitation is
+accepted for now.
 
 ## Target Repository Layout
 

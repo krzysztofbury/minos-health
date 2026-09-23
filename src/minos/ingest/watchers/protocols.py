@@ -12,6 +12,7 @@ from minos.ingest.watchers.control import (
     ObservationDraft,
     RecoveryReceipt,
     RunClaim,
+    ScheduledRunMode,
 )
 from minos.ingest.watchers.recovery import PublishedRecoveryImage, RecoveryClass
 
@@ -28,6 +29,10 @@ class CollectorNotRegisteredError(WatcherRuntimeError):
 
 class RetryableWatcherError(WatcherRuntimeError):
     """A pre-commit watcher operation may be attempted again safely."""
+
+
+class SourceDriftWatcherError(WatcherRuntimeError):
+    """An upstream response changed outside the collector's accepted contract."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +79,21 @@ class RecoveryPublisher(Protocol):
     ) -> PublishedRecoveryImage | None: ...
 
 
+class PublicProjectionPublisher(Protocol):
+    def publish(self, store: ControlStore, run: CommittedRun) -> None: ...
+
+    def restore(self, store: ControlStore) -> None: ...
+
+
+@final
+class NoopPublicProjectionPublisher:
+    def publish(self, store: ControlStore, run: CommittedRun) -> None:
+        _ = store, run
+
+    def restore(self, store: ControlStore) -> None:
+        _ = store
+
+
 class HeartbeatClient(Protocol):
     def start(self, source_id: str) -> None: ...
 
@@ -94,14 +114,33 @@ class PreflightProbe(Protocol):
 class CollectorRegistry:
     def __init__(self) -> None:
         self._collectors: dict[str, SourceCollector] = {}
+        self._required_schedule_modes: dict[str, tuple[ScheduledRunMode, ...]] = {}
 
-    def register(self, watcher_type: str, collector: SourceCollector) -> None:
+    def register(
+        self,
+        watcher_type: str,
+        collector: SourceCollector,
+        *,
+        required_schedule_modes: tuple[ScheduledRunMode, ...] = (),
+    ) -> None:
         _validate_watcher_type(watcher_type)
+        if len(required_schedule_modes) > 2 or len(set(required_schedule_modes)) != len(
+            required_schedule_modes
+        ):
+            raise WatcherRuntimeError("required schedule modes are invalid")
+        if any(
+            mode not in ("scheduled", "weekly_verification")
+            for mode in required_schedule_modes
+        ):
+            raise WatcherRuntimeError("required schedule mode is unsupported")
         if watcher_type in self._collectors:
             raise WatcherRuntimeError("watcher type is already registered")
         if len(self._collectors) >= _MAX_COLLECTORS:
             raise WatcherRuntimeError("collector registry exceeds its bound")
         self._collectors[watcher_type] = collector
+        self._required_schedule_modes[watcher_type] = tuple(
+            sorted(required_schedule_modes)
+        )
 
     def resolve(self, watcher_type: str) -> SourceCollector:
         _validate_watcher_type(watcher_type)
@@ -112,6 +151,13 @@ class CollectorRegistry:
 
     def registered_types(self) -> tuple[str, ...]:
         return tuple(sorted(self._collectors))
+
+    def required_schedule_modes(
+        self,
+        watcher_type: str,
+    ) -> tuple[ScheduledRunMode, ...]:
+        _ = self.resolve(watcher_type)
+        return self._required_schedule_modes[watcher_type]
 
 
 def _validate_watcher_type(watcher_type: object) -> None:

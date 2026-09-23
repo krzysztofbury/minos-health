@@ -104,6 +104,19 @@ def test_ci_scans_nonempty_git_history_for_secrets() -> None:
     assert history_hook["stages"] == ["manual"]
 
 
+def test_ci_bootstraps_and_preflights_a_clean_watcher_volume_before_start() -> None:
+    ci = (WORKFLOW_DIR / "ci.yml").read_text()
+    build = ci.index("docker build --platform linux/amd64 --target watcher")
+    bootstrap = ci.index("watcher-bootstrap-rsk", build)
+    preflight = ci.index("watcher-preflight", bootstrap)
+    start = ci.index("docker compose --file compose.yaml up --detach", preflight)
+
+    assert build < bootstrap < preflight < start
+    assert "--profile bootstrap run --rm --no-deps" in ci[build:preflight]
+    assert "--profile preflight run --rm --no-deps" in ci[bootstrap:start]
+    assert '"/var/lib/minos/public"' in ci[start:]
+
+
 def test_trivy_exception_is_narrow_and_expires() -> None:
     exception = (ROOT / ".trivyignore.yaml").read_text()
     assert "id: AVD-AWS-0132" in exception

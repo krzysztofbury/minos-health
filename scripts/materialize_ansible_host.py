@@ -50,7 +50,12 @@ def materialize(
 ) -> None:
     reader = read_secret or _read_secret
     derive = derive_public_key or _derive_public_key
-    values = {name: reader(reference) for name, reference in SECRET_REFERENCES.items()}
+    values: dict[str, str] = {}
+    for name, reference in SECRET_REFERENCES.items():
+        try:
+            values[name] = reader(reference)
+        except MaterializationError:
+            raise MaterializationError(f"1Password read failed for {name}") from None
     _reject_unresolved(values)
 
     host = _validate_host(values["ansible_host"])

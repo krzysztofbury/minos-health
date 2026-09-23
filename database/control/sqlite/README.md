@@ -32,7 +32,7 @@ callback for restoration.
 | `control_state` | Holds the singleton schema version and monotonic state revision. |
 | `sources` | Defines watcher sources, enablement, active configuration, and fencing epoch. |
 | `source_configuration_revisions` | Stores immutable, checksummed configuration revisions per source. |
-| `source_schedules` | Stores UTC cron policy, durable due cursors, and bounded retry settings. |
+| `source_schedules` | Stores source-neutral UTC cron obligations keyed by source and scheduled run mode, with independent due cursors, pending obligation identity, and bounded durable retry state. |
 | `watcher_runs` | Tracks fenced scheduled, catch-up, verification, and manual run lifecycles. |
 | `blobs` | Catalogs content-addressed archived bytes by SHA-256, size, and media type. |
 | `observations` | Records source observations committed by a run and their response blob. |
@@ -49,10 +49,17 @@ complete migration history, explicit transaction mode, foreign keys, WAL,
 `synchronous=FULL`, a bounded busy timeout, untrusted schema handling, and
 SQLite defensive mode before exposing transaction methods.
 
-Configuration documents use canonical JSON and reject secret-like keys. Every
+Configuration documents use canonical JSON and reject secret-like keys. The
+generic bootstrap transaction creates an absent source and all requested
+schedules atomically, is idempotent only for an exact match, and rejects
+disabled, customized, or partial existing state without writing. Every
 restorable mutation advances one monotonic state revision and appends an audit
-event in the same `BEGIN IMMEDIATE` transaction. Scheduled claims compare and
-advance the durable due cursor; manual claims leave it untouched. Collector
+event in the same `BEGIN IMMEDIATE` transaction. Scheduled and weekly
+verification claims compare and advance only their own durable due cursor while
+retaining the claimed scheduled time until reconciliation succeeds. A failed or
+expired obligation receives a persisted, bounded exponential retry delay and is
+eligible for one atomic re-claim only after that time; manual claims leave
+schedule state untouched. Collector
 commits require a live token-and-epoch fenced claim and structurally validated,
 digest-derived receipts emitted by the archive boundary, then atomically write
 observations, cursor, changes, incidents, audit, and the committed run state.
@@ -60,6 +67,12 @@ The archive implementation remains responsible for native checksum and byte
 verification. Reconciliation accepts a recovery receipt only when its image
 revision equals the current database revision and records its immutable key and
 digest before moving a run to `heartbeat_pending`.
+
+`heartbeat_pending` is a compatibility name retained in the durable schema. It
+means that recovery verification completed and local run finalization is still
+pending. It does not represent a monitoring request. The watcher sends the
+best-effort Uptime Kuma up or down signal only after the run reaches a durable
+terminal state; monitoring failure never blocks or changes watcher completion.
 
 ## Changing The Schema
 
@@ -80,6 +93,10 @@ migration.
 Down migrations are destructive test tools. Production rollback restores the
 verified pre-deploy SQLite recovery image while watcher dispatch is stopped. It
 does not execute down migrations against the live database.
+
+Each down migration must reject state its prior schema cannot represent before
+changing tables or migration history. Rejection occurs inside the migration
+transaction, leaving the schema version, migration checksums, and data intact.
 
 Retained older watcher binaries may open a newer database only when every
 migration they know has its exact checksum and every unknown higher migration

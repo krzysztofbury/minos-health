@@ -1,5 +1,6 @@
 """Immutable, integrity-checked control database recovery images."""
 
+from minos.ingest.watchers.recovery.filesystem import FilesystemRecoveryStore
 from minos.ingest.watchers.recovery.image import (
     RecoveryImageStagingArea,
     validate_recovery_image,
@@ -33,6 +34,7 @@ from minos.ingest.watchers.recovery.s3 import S3RecoveryStore, recovery_receipt
 __all__ = [
     "MAX_RECOVERY_IMAGE_SIZE_BYTES",
     "ListedRecoveryImage",
+    "FilesystemRecoveryStore",
     "PublishedRecoveryImage",
     "RecoveryClass",
     "RecoveryConflictError",

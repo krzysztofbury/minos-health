@@ -2,7 +2,7 @@ import hashlib
 import json
 from collections.abc import Iterator
 from io import BytesIO
-from typing import override
+from typing import cast, override
 from uuid import UUID
 
 import httpx
@@ -16,6 +16,7 @@ from minos.ingest.watchers.rsk.client import (
     RskProtocolError,
     RskSizeMismatchError,
     RskSourceDriftError,
+    create_rsk_client,
     download_rsk_file,
     get_default_rsk_role_catalog,
     get_rsk_catalog_basic_info,
@@ -62,6 +63,23 @@ class _SlowStream(httpx.SyncByteStream):
         yield b'version="1.0"?><root/>'
 
 
+class _TimeoutBeforeFirstByteStream(httpx.SyncByteStream, Iterator[bytes]):
+    @override
+    def __iter__(self) -> Iterator[bytes]:
+        return self
+
+    @override
+    def __next__(self) -> bytes:
+        raise httpx.ReadTimeout("simulated first-byte timeout")
+
+
+class _TimeoutBetweenChunksStream(httpx.SyncByteStream):
+    @override
+    def __iter__(self) -> Iterator[bytes]:
+        yield _XML_PREFIX
+        raise httpx.ReadTimeout("simulated between-chunk timeout")
+
+
 def _settings(**overrides: object) -> RskSettings:
     values: dict[str, object] = {
         "metadata_max_bytes": 1024,
@@ -93,6 +111,26 @@ def _observation(body: bytes) -> HttpObservation:
         body=body,
         headers=(("content-type", "application/json"),),
     )
+
+
+def test_live_client_disables_environment_and_implicit_authentication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    original_client = httpx.Client
+
+    def client_factory(**kwargs: object) -> httpx.Client:
+        captured.update(kwargs)
+        transport = httpx.MockTransport(lambda _: httpx.Response(200))
+        return original_client(transport=transport)
+
+    monkeypatch.setattr("minos.ingest.watchers.rsk.client.httpx.Client", client_factory)
+    with create_rsk_client(_settings()):
+        pass
+
+    assert captured["auth"] is None
+    assert captured["follow_redirects"] is False
+    assert captured["trust_env"] is False
 
 
 def _role_catalog_body(resource_count: int = 1) -> bytes:
@@ -135,6 +173,25 @@ def _basic_info_body(
         },
         separators=(",", ":"),
     ).encode()
+
+
+def _catalog_file(**overrides: object) -> dict[str, object]:
+    value: dict[str, object] = {
+        "uuid": str(_FILE_UUID),
+        "file": None,
+        "fileName": "synthetic.xml",
+        "sizeBytes": 1,
+        "creationDate": "2026-08-05T08:00:00Z",
+        "extension": "xml",
+        "extensionName": None,
+        "description": None,
+        "archived": False,
+        "version": None,
+        "archivizationDate": None,
+        "educationFile": False,
+    }
+    value.update(overrides)
+    return value
 
 
 def test_role_catalog_preserves_body_headers_and_parses_models() -> None:
@@ -183,7 +240,7 @@ def test_basic_info_rejects_identity_mismatch_and_duplicate_files() -> None:
             _observation(_basic_info_body("99CD11")), "00CD10"
         )
 
-    duplicate_file: dict[str, object] = {"uuid": str(_FILE_UUID)}
+    duplicate_file = _catalog_file()
     body = _basic_info_body(files=[duplicate_file, duplicate_file])
     with pytest.raises(RskSourceDriftError, match="duplicate file UUID"):
         _ = parse_rsk_catalog_basic_info(_observation(body), "00CD10")
@@ -261,6 +318,21 @@ def test_metadata_rejects_body_over_configured_bound() -> None:
             _ = get_default_rsk_role_catalog(client, settings)
 
 
+def test_metadata_rejects_oversized_archived_header() -> None:
+    body = _role_catalog_body()
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return _streaming_response(
+            body,
+            content_type="application/json",
+            etag='"' + ("x" * 512) + '"',
+        )
+
+    with _client(httpx.MockTransport(handler)) as client:
+        with pytest.raises(RskProtocolError, match="header is outside its bound"):
+            _ = get_default_rsk_role_catalog(client, _settings())
+
+
 def test_metadata_schema_failure_is_not_retried() -> None:
     request_count = 0
 
@@ -284,9 +356,10 @@ def test_metadata_retries_transient_status_and_honors_retry_after(
     request_count = 0
     delays: list[float] = []
 
-    def handler(_: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         nonlocal request_count
         request_count += 1
+        assert "range" not in request.headers
         if request_count == 1:
             return httpx.Response(503, headers={"Retry-After": "2"})
         return _streaming_response(
@@ -311,9 +384,10 @@ def test_metadata_ignores_malformed_retry_after(
     request_count = 0
     delays: list[float] = []
 
-    def handler(_: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         nonlocal request_count
         request_count += 1
+        assert "range" not in request.headers
         if request_count == 1:
             return httpx.Response(503, headers={"Retry-After": "NaN"})
         return _streaming_response(
@@ -376,6 +450,36 @@ def test_metadata_does_not_retry_non_transient_status(
     assert request_count == 1
 
 
+def test_metadata_applies_remaining_deadline_to_first_byte_read_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = [10.0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        timeout = cast(dict[str, float], request.extensions["timeout"])
+        assert timeout["connect"] == 2.0
+        assert timeout["read"] == 2.0
+        return httpx.Response(
+            200,
+            stream=_TimeoutBeforeFirstByteStream(),
+            headers={"Content-Type": "application/json"},
+        )
+
+    monkeypatch.setattr(
+        "minos.ingest.watchers.rsk.client._monotonic",
+        lambda: clock[0],
+    )
+    settings = _settings(
+        connect_timeout_seconds=5.0,
+        operation_deadline_seconds=2.0,
+        retry_max_attempts=1,
+        timeout_seconds=20.0,
+    )
+    with _client(httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ReadTimeout, match="first-byte"):
+            _ = get_default_rsk_role_catalog(client, settings)
+
+
 def test_download_streams_bytes_and_returns_digest() -> None:
     body = b'<?xml version="1.0"?><root/>'
     destination = BytesIO()
@@ -415,6 +519,31 @@ def test_download_rejects_content_length_that_differs_from_metadata() -> None:
                 _settings(),
                 _FILE_UUID,
                 expected_size_bytes=4,
+                expected_extension="xml",
+                destination=BytesIO(),
+            )
+
+
+@pytest.mark.parametrize("status_code", [204, 206])
+def test_download_rejects_non_200_success_and_partial_response(
+    status_code: int,
+) -> None:
+    body = b'<?xml version="1.0"?><root/>'
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            status_code,
+            content=body,
+            headers={"Content-Range": f"bytes 0-{len(body) - 1}/{len(body)}"},
+        )
+
+    with _client(httpx.MockTransport(handler)) as client:
+        with pytest.raises(RskProtocolError, match="unexpected"):
+            _ = download_rsk_file(
+                client,
+                _settings(),
+                _FILE_UUID,
+                expected_size_bytes=len(body),
                 expected_extension="xml",
                 destination=BytesIO(),
             )
@@ -509,15 +638,16 @@ def test_download_rejects_non_xml_bytes_and_extension() -> None:
                 expected_extension="xml",
                 destination=BytesIO(),
             )
-        with pytest.raises(RskProtocolError, match="not allowlisted"):
-            _ = download_rsk_file(
-                client,
-                _settings(),
-                _FILE_UUID,
-                expected_size_bytes=len(body),
-                expected_extension="zip",
-                destination=BytesIO(),
-            )
+        for extension in ("zip", "XML", ".XML"):
+            with pytest.raises(RskProtocolError, match="not allowlisted"):
+                _ = download_rsk_file(
+                    client,
+                    _settings(),
+                    _FILE_UUID,
+                    expected_size_bytes=len(body),
+                    expected_extension=extension,
+                    destination=BytesIO(),
+                )
 
     assert request_count == 1
 
@@ -551,9 +681,10 @@ def test_download_rolls_back_partial_bytes_before_retry(
     request_count = 0
     destination = BytesIO()
 
-    def handler(_: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         nonlocal request_count
         request_count += 1
+        assert "range" not in request.headers
         if request_count == 1:
             return httpx.Response(
                 200,
@@ -602,6 +733,46 @@ def test_download_clears_partial_bytes_after_final_failure(
             _ = download_rsk_file(
                 client,
                 _settings(retry_max_attempts=2),
+                _FILE_UUID,
+                expected_size_bytes=600,
+                expected_extension="xml",
+                destination=destination,
+            )
+
+    assert destination.getvalue() == b""
+
+
+def test_download_applies_remaining_deadline_between_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = [20.0]
+    destination = BytesIO()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        timeout = cast(dict[str, float], request.extensions["timeout"])
+        assert timeout["connect"] == 1.5
+        assert timeout["read"] == 1.5
+        return httpx.Response(
+            200,
+            stream=_TimeoutBetweenChunksStream(),
+            headers={"Content-Type": "application/octet-stream"},
+        )
+
+    monkeypatch.setattr(
+        "minos.ingest.watchers.rsk.client._monotonic",
+        lambda: clock[0],
+    )
+    settings = _settings(
+        connect_timeout_seconds=5.0,
+        operation_deadline_seconds=1.5,
+        retry_max_attempts=1,
+        timeout_seconds=20.0,
+    )
+    with _client(httpx.MockTransport(handler)) as client:
+        with pytest.raises(httpx.ReadTimeout, match="between-chunk"):
+            _ = download_rsk_file(
+                client,
+                settings,
                 _FILE_UUID,
                 expected_size_bytes=600,
                 expected_extension="xml",

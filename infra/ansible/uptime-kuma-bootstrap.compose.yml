@@ -1,0 +1,44 @@
+name: minos-kuma-bootstrap
+
+services:
+  uptime-kuma:
+    image: docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
+    pull_policy: missing
+    platform: linux/amd64
+    restart: unless-stopped
+    user: "10003:10003"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /var/lib/minos/uptime-kuma:/app/data:rw
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,uid=10003,gid=10003,mode=0700
+    networks:
+      - monitoring
+      - notification-egress
+    expose:
+      - "3001"
+    healthcheck:
+      test: [CMD, /app/extra/healthcheck]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    init: true
+    cpus: "0.50"
+    mem_limit: 384m
+    pids_limit: 128
+    stop_grace_period: 30s
+    logging:
+      driver: local
+      options:
+        max-file: "3"
+        max-size: 10m
+
+networks:
+  monitoring:
+    internal: true
+  notification-egress: {}

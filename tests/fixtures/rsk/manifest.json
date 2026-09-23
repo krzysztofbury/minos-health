@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "origin": "invented payload values using public RSK protocol identifiers and field shapes",
+  "files": [
+    {
+      "path": "basic-info-00CD10.json",
+      "sha256": "7a58ec6d5f7182b050bd6b2d2cd74cd59af8fb196328c07e8996a002d7568381",
+      "size_bytes": 1494
+    },
+    {
+      "path": "basic-info-99ZZ99.json",
+      "sha256": "e664246632d5ef2ff95f2516d91d08e01b968a8464fdc86751658af0a6a4c73f",
+      "size_bytes": 606
+    },
+    {
+      "path": "product-00CD10.xml",
+      "sha256": "c0c6ff9b330ede1f14c955e86295f9412946848c7efc56b981e884f8afb81461",
+      "size_bytes": 144
+    },
+    {
+      "path": "role-catalog.json",
+      "sha256": "42521c5e7a6f9cab4d37fc63e6cbc52190863a0f111747311e1304147de03b03",
+      "size_bytes": 435
+    }
+  ]
+}
