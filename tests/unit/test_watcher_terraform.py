@@ -171,7 +171,7 @@ def test_watcher_policy_has_no_key_delete_admin_or_operator_prefix_access() -> N
     )[0]
 
     assert 'resource "aws_iam_user" "watcher"' in watcher
-    assert "force_destroy = false" in watcher
+    assert re.search(r"\bforce_destroy\s*=\s*false\b", watcher)
     assert "aws_iam_access_key" not in iam
     assert 'actions = ["s3:PutObject"]' in watcher
     assert 'variable = "s3:if-none-match"' in watcher

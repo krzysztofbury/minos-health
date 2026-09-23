@@ -205,6 +205,7 @@ def test_production_apply_is_bound_to_the_reviewed_plan_digest() -> None:
         in (SCRIPTS / "aws-watcher-common.sh").read_text()
     )
     assert "sts get-caller-identity" in script
+    assert "assumed-role/minos-health-watcher-terraform-operator/" in script
     assert "watcher_terraform plan \\" in script
     assert (
         '-var="expected_aws_account_id=$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID"'

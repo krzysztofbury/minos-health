@@ -56,6 +56,22 @@ run "project_budget_scope" {
     condition     = aws_iam_policy.watcher_archive.name == "minos-health-watcher-archive"
     error_message = "The production watcher policy name must not duplicate the watcher suffix."
   }
+
+  assert {
+    condition = (
+      aws_iam_user.watcher.permissions_boundary ==
+      "arn:aws:iam::123456789012:policy/minos-health-watcher-boundary"
+    )
+    error_message = "The Mikr.us watcher IAM user must retain its fixed S3 boundary."
+  }
+
+  assert {
+    condition = (
+      aws_iam_role.github_archive_reader.permissions_boundary ==
+      "arn:aws:iam::123456789012:policy/minos-health-watcher-github-reader-boundary"
+    )
+    error_message = "The GitHub reader role must retain its fixed read-only boundary."
+  }
 }
 
 run "reject_budget_above_approved_ceiling" {
