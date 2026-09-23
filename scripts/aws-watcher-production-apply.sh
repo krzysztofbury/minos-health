@@ -85,6 +85,23 @@ actual_account="$(python3 -c \
   "$identity_path")"
 [[ "$actual_account" == "$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID" ]] || watcher_die \
   "STS did not resolve to the repository-owned production account"
+actual_arn="$(python3 -c \
+  'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["Arn"])' \
+  "$identity_path")"
+[[ "$actual_arn" =~ ^arn:aws:sts::${MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID}:assumed-role/minos-health-watcher-terraform-operator/[^/]+$ ]] || watcher_die \
+  "production watcher Terraform requires the dedicated scoped operator role"
+
+state_bucket_name="$(timeout "$WATCHER_TIMEOUT_SECONDS" aws \
+  --profile "$MINOS_AWS_PRODUCTION_PROFILE" \
+  --region "$MINOS_AWS_STATE_REGION" \
+  s3api list-objects-v2 \
+  --bucket "$MINOS_AWS_STATE_BUCKET" \
+  --prefix watcher/terraform.tfstate \
+  --max-keys 1 --no-paginate \
+  --expected-bucket-owner "$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID" \
+  --query Name --output text)"
+[[ "$state_bucket_name" == "$MINOS_AWS_STATE_BUCKET" ]] || watcher_die \
+  "the state bucket identity differs from the reviewed bucket"
 
 state_bucket_region="$(timeout "$WATCHER_TIMEOUT_SECONDS" aws \
   --profile "$MINOS_AWS_PRODUCTION_PROFILE" \

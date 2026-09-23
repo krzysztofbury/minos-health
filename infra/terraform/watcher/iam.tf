@@ -1,6 +1,7 @@
 resource "aws_iam_user" "watcher" {
-  name          = "minos-health-watcher"
-  force_destroy = false
+  name                 = "minos-health-watcher"
+  force_destroy        = false
+  permissions_boundary = local.watcher_boundary_arn
 }
 
 data "aws_iam_policy_document" "watcher_archive" {
@@ -104,6 +105,7 @@ resource "aws_iam_role" "github_archive_reader" {
   description          = "Read-only archive access from the reviewed protected GitHub ref."
   assume_role_policy   = data.aws_iam_policy_document.github_archive_assume_role.json
   max_session_duration = 3600
+  permissions_boundary = local.github_reader_boundary_arn
 }
 
 data "aws_iam_policy_document" "github_archive_reader" {

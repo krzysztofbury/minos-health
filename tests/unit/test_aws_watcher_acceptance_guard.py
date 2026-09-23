@@ -851,6 +851,21 @@ def _apply_plan() -> dict[str, Any]:
     }
     return {
         "prior_state": {"values": {"root_module": {"resources": []}}},
+        "configuration": {
+            "root_module": {
+                "resources": [
+                    {
+                        "address": "aws_iam_role.watcher",
+                        "expressions": {
+                            "name": {"constant_value": role_name},
+                            "permissions_boundary": {
+                                "constant_value": EXPECTED_PERMISSIONS_BOUNDARY_ARN
+                            },
+                        },
+                    }
+                ]
+            }
+        },
         "resource_changes": [
             {
                 "address": address,
@@ -890,6 +905,51 @@ def test_apply_plan_guard_requires_exact_known_create_targets() -> None:
         validate_apply_plan(changed, region=REGION, run_id=RUN_ID)
 
 
+def test_computed_iam_policy_inventory_requires_unconfigured_role_fields() -> None:
+    plan = _apply_plan()
+    role = _plan_change(plan, "aws_iam_role.watcher")
+    role["after"]["inline_policy"] = None
+    role["after"]["managed_policy_arns"] = None
+    role["after_unknown"] = {"inline_policy": True, "managed_policy_arns": True}
+
+    validate_apply_plan(plan, region=REGION, run_id=RUN_ID)
+
+    plan["configuration"]["root_module"]["resources"][0]["expressions"][
+        "inline_policy"
+    ] = {"constant_value": [{"name": "unexpected"}]}
+    with pytest.raises(GuardError, match="configures IAM policies"):
+        validate_apply_plan(plan, region=REGION, run_id=RUN_ID)
+
+
+def test_provider_normalized_empty_multipart_filter_is_unscoped() -> None:
+    plan = _apply_plan()
+    rules = _plan_change(plan, "aws_s3_bucket_lifecycle_configuration.snapshots")[
+        "after"
+    ]["rule"]
+    multipart = next(
+        rule for rule in rules if rule["id"] == "abort-incomplete-multipart-uploads"
+    )
+    multipart["filter"] = [
+        {
+            "and": [],
+            "tag": [],
+            "prefix": "",
+            "object_size_greater_than": None,
+            "object_size_less_than": None,
+        }
+    ]
+    validate_apply_plan(plan, region=REGION, run_id=RUN_ID)
+
+    multipart["filter"][0]["prefix"] = "blobs/sha256/"
+    with pytest.raises(GuardError, match="multipart filter"):
+        validate_apply_plan(plan, region=REGION, run_id=RUN_ID)
+
+    multipart["filter"][0]["prefix"] = ""
+    multipart["filter"][0]["tag"] = [{"key": "unexpected", "value": "true"}]
+    with pytest.raises(GuardError, match="multipart filter"):
+        validate_apply_plan(plan, region=REGION, run_id=RUN_ID)
+
+
 @pytest.mark.parametrize(
     "mutation",
     [
@@ -909,6 +969,7 @@ def test_apply_plan_guard_requires_exact_known_create_targets() -> None:
         "boundary-output",
         "inline-policy",
         "managed-policy",
+        "configured-managed-policy",
         "unknown-inline-policy",
         "unknown-managed-policy",
         "lifecycle",
@@ -975,6 +1036,10 @@ def test_apply_plan_guard_rejects_allowlisted_address_target_mutations(
         _plan_change(plan, "aws_iam_role.watcher")["after"]["managed_policy_arns"] = [
             "arn:aws:iam::aws:policy/AdministratorAccess"
         ]
+    elif mutation == "configured-managed-policy":
+        plan["configuration"]["root_module"]["resources"][0]["expressions"][
+            "managed_policy_arns"
+        ] = {"constant_value": ["arn:aws:iam::aws:policy/AdministratorAccess"]}
     elif mutation == "unknown-inline-policy":
         _plan_change(plan, "aws_iam_role.watcher")["after_unknown"] = {
             "inline_policy": [{"name": True}]

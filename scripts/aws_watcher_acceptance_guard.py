@@ -973,8 +973,34 @@ def validate_apply_plan(
         raise GuardError(
             f"apply plan allowlist mismatch: missing={missing}, unexpected={unexpected}"
         )
+    _validate_role_configuration(document)
     _validate_apply_targets(entries, region=region, run_id=run_id)
     _validate_apply_outputs(document, region=region, run_id=run_id)
+
+
+def _validate_role_configuration(document: Mapping[str, Any]) -> None:
+    configuration = document.get("configuration")
+    if not isinstance(configuration, Mapping):
+        raise GuardError("apply plan configuration is missing")
+    root_module = configuration.get("root_module")
+    if not isinstance(root_module, Mapping):
+        raise GuardError("apply plan root module is missing")
+    resources = root_module.get("resources")
+    if not isinstance(resources, Sequence) or isinstance(resources, str):
+        raise GuardError("apply plan configuration resources are invalid")
+    matches = [
+        resource
+        for resource in resources
+        if isinstance(resource, Mapping)
+        and resource.get("address") == "aws_iam_role.watcher"
+    ]
+    if len(matches) != 1:
+        raise GuardError("apply plan must configure exactly one watcher IAM role")
+    expressions = matches[0].get("expressions")
+    if not isinstance(expressions, Mapping):
+        raise GuardError("apply plan IAM role expressions are missing")
+    if "inline_policy" in expressions or "managed_policy_arns" in expressions:
+        raise GuardError("apply plan configures IAM policies on the role resource")
 
 
 def _validate_apply_targets(
@@ -1023,9 +1049,7 @@ def _validate_apply_targets(
         EXPECTED_PERMISSIONS_BOUNDARY_ARN,
     )
     for attribute in ("inline_policy", "managed_policy_arns"):
-        _require_planned_empty_collection(
-            after, entries, "aws_iam_role.watcher", attribute
-        )
+        _require_unconfigured_role_collection(after, entries, attribute)
     _require_planned_value(after, entries, "aws_iam_role.watcher", ("tags",), tags)
     _validate_planned_policy(
         after,
@@ -1089,12 +1113,12 @@ def _require_planned_value(
         )
 
 
-def _require_planned_empty_collection(
+def _require_unconfigured_role_collection(
     after_by_address: Mapping[str, Mapping[str, Any]],
     entries: Mapping[str, Mapping[str, Any]],
-    address: str,
     attribute: str,
 ) -> None:
+    address = "aws_iam_role.watcher"
     actual = after_by_address[address].get(attribute)
     change = entries[address]["change"]
     unknown = change.get("after_unknown") if isinstance(change, Mapping) else None
@@ -1105,6 +1129,7 @@ def _require_planned_empty_collection(
         and unknown_collection != ()
         and unknown_collection != []
         and unknown_collection != {}
+        and unknown_collection is not True
     ):
         raise GuardError(
             f"apply plan IAM role {attribute} is nonempty or may be unknown"
@@ -1368,9 +1393,44 @@ def _validate_planned_lifecycle(
         ("abort_incomplete_multipart_upload", 0, "days_after_initiation"),
         7,
     )
-    filter_value = _nested_value(multipart, ("filter", 0, "prefix"))
-    if filter_value is not None:
-        raise GuardError("apply plan multipart lifecycle prefix is mismatched")
+    _validate_multipart_filter(multipart, unknown, index)
+
+
+def _validate_multipart_filter(
+    multipart: Mapping[str, Any], unknown: object, index: int
+) -> None:
+    filters = multipart.get("filter")
+    if (
+        not isinstance(filters, Sequence)
+        or isinstance(filters, str)
+        or len(filters) != 1
+    ):
+        raise GuardError("apply plan multipart filter inventory is invalid")
+    selected = filters[0]
+    if not isinstance(selected, Mapping):
+        raise GuardError("apply plan multipart filter is invalid")
+    allowed = {
+        "prefix",
+        "and",
+        "tag",
+        "object_size_greater_than",
+        "object_size_less_than",
+    }
+    if set(selected) - allowed:
+        raise GuardError("apply plan multipart filter contains unsupported fields")
+    for key in allowed:
+        value = selected.get(key)
+        expected: tuple[object, ...] = (
+            (None, "")
+            if key == "prefix"
+            else (None, [], ())
+            if key in {"and", "tag"}
+            else (None,)
+        )
+        if value not in expected or _nested_unknown(
+            unknown, ("rule", index, "filter", 0, key)
+        ):
+            raise GuardError("apply plan multipart filter is narrowed or unknown")
 
 
 def _require_lifecycle_value(

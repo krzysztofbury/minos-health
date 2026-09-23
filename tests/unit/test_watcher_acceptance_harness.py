@@ -205,6 +205,7 @@ def test_production_apply_is_bound_to_the_reviewed_plan_digest() -> None:
         in (SCRIPTS / "aws-watcher-common.sh").read_text()
     )
     assert "sts get-caller-identity" in script
+    assert "assumed-role/minos-health-watcher-terraform-operator/" in script
     assert "watcher_terraform plan \\" in script
     assert (
         '-var="expected_aws_account_id=$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID"'
@@ -222,12 +223,16 @@ def test_production_backend_verifies_owner_and_uses_supported_account_guard() ->
     script = (SCRIPTS / "aws-watcher-production-apply.sh").read_text()
     readme = (ROOT / "infra" / "terraform" / "watcher" / "README.md").read_text()
 
-    assert "s3api head-bucket" in script
+    assert "s3api list-objects-v2" in script
     assert "--expected-bucket-owner" in script
-    assert script.index("s3api head-bucket") < script.index("watcher_terraform init")
+    assert script.index("s3api list-objects-v2") < script.index(
+        "watcher_terraform init"
+    )
+    assert "--prefix watcher/terraform.tfstate" in script
+    assert "--max-keys 1 --no-paginate" in script
     assert '-backend-config="allowed_account_ids=' in script
     assert '-backend-config="expected_bucket_owner=' not in script
-    assert "s3api head-bucket" in readme
+    assert "s3api list-objects-v2" in readme
     assert "allowed_account_ids" in readme
 
 
