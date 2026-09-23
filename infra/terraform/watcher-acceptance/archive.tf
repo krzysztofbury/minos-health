@@ -8,7 +8,7 @@ resource "aws_s3_bucket" "snapshots" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "snapshots" {
-  bucket = aws_s3_bucket.snapshots.id
+  bucket = local.bucket_name
 
   rule {
     object_ownership = "BucketOwnerEnforced"
@@ -18,7 +18,7 @@ resource "aws_s3_bucket_ownership_controls" "snapshots" {
 }
 
 resource "aws_s3_bucket_public_access_block" "snapshots" {
-  bucket = aws_s3_bucket.snapshots.id
+  bucket = local.bucket_name
 
   block_public_acls       = true
   block_public_policy     = true
@@ -29,7 +29,7 @@ resource "aws_s3_bucket_public_access_block" "snapshots" {
 }
 
 resource "aws_s3_bucket_versioning" "snapshots" {
-  bucket = aws_s3_bucket.snapshots.id
+  bucket = local.bucket_name
 
   versioning_configuration {
     status = "Enabled"
@@ -41,7 +41,7 @@ resource "aws_s3_bucket_versioning" "snapshots" {
 # SSE-S3 mirrors the accepted production recovery constraint without a KMS dependency.
 #trivy:ignore:AVD-AWS-0132:exp:2027-03-20
 resource "aws_s3_bucket_server_side_encryption_configuration" "snapshots" {
-  bucket = aws_s3_bucket.snapshots.id
+  bucket = local.bucket_name
 
   rule {
     apply_server_side_encryption_by_default {
@@ -178,7 +178,7 @@ data "aws_iam_policy_document" "snapshot_bucket" {
 }
 
 resource "aws_s3_bucket_policy" "snapshots" {
-  bucket = aws_s3_bucket.snapshots.id
+  bucket = local.bucket_name
   policy = data.aws_iam_policy_document.snapshot_bucket.json
 
   depends_on = [

@@ -75,6 +75,15 @@ and cannot contain role-inline policy blocks or attached managed policies; its
 one reviewed writer policy remains a separately managed inline policy resource
 so revocation is explicit.
 
+The pinned AWS provider can mark the role's computed `inline_policy` and
+`managed_policy_arns` collections unknown at plan time even when neither is
+configured on the role resource. The plan guard accepts that exact provider
+shape only when both attributes are absent from the role configuration and the
+separate writer-policy resource has its exact planned name, role, and policy.
+After apply, the live guard requires exactly that one inline policy and zero
+managed attachments. Unknown nested policy entries or a configured role policy
+block remain fail-closed.
+
 Because S3 bucket creation cannot be atomically conditioned on all object-style
 tags, the fixed bucket name pattern, exact reviewed plan, pre-apply target
 absence check, explicit parent dependencies, immediate post-apply validation,
