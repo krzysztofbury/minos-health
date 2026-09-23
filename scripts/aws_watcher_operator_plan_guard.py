@@ -428,18 +428,25 @@ def validate_read_preflight_update(document: object) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("usage: aws_watcher_operator_plan_guard.py PLAN_JSON", file=sys.stderr)
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "--mode"):
+        print(
+            "usage: aws_watcher_operator_plan_guard.py PLAN_JSON [--mode]",
+            file=sys.stderr,
+        )
         return 2
     try:
         path = Path(sys.argv[1])
         if path.stat().st_size > 2_000_000:
             raise PlanError("operator plan is oversized")
-        validate_plan(cast(object, json.loads(path.read_text())))
+        document = cast(object, json.loads(path.read_text()))
+        validate_plan(document)
     except (OSError, ValueError, TypeError, PlanError) as error:
         print(f"operator plan rejected: {error}", file=sys.stderr)
         return 1
-    print("Validated exact operator bootstrap or two-policy read preflight update.")
+    if len(sys.argv) == 3:
+        print("update" if is_read_preflight_update(document) else "bootstrap")
+    else:
+        print("Validated exact operator bootstrap or two-policy read preflight update.")
     return 0
 
 

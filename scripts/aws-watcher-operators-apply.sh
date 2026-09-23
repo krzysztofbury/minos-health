@@ -89,8 +89,13 @@ watcher_open_confirmed_plan \
   "$plan_path" \
   "APPLY-OPERATORS:$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID" \
   "$MINOS_AWS_OPERATORS_APPLY_CONFIRM"
-timeout "$WATCHER_TIMEOUT_SECONDS" uv run python -m \
-  scripts.aws_watcher_operator_preflight
+plan_mode="$(python3 "$SCRIPT_DIR/aws_watcher_operator_plan_guard.py" "$plan_json_path" --mode)"
+if [[ "$plan_mode" == "bootstrap" ]]; then
+  timeout "$WATCHER_TIMEOUT_SECONDS" uv run python -m \
+    scripts.aws_watcher_operator_preflight
+else
+  [[ "$plan_mode" == "update" ]] || watcher_die "operator plan mode is unknown"
+fi
 watcher_apply_opened_plan "$plan_path"
 
 [[ "$(watcher_terraform output -raw aws_account_id)" == "$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID" ]] || watcher_die \
