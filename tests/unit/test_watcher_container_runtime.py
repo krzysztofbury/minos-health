@@ -506,6 +506,12 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
         in playbook
     )
     assert "The watcher staging path is not a hardened disk-backed mount" in playbook
+    assert (
+        "{{if .Config.ExposedPorts}}{{json .Config.ExposedPorts}}{{else}}null{{end}}"
+        in playbook
+    )
+    assert 'minos_cloudflared_boundary[19] == "null"' in playbook
+    assert 'minos_watcher_boundary[19] == "null"' in playbook
     assert "watcher_archive_backend | default('') == 's3'" in playbook
     assert "watcher_s3_bucket | default('')" in playbook
     assert "watcher_s3_expected_bucket_owner | default('')" in playbook
