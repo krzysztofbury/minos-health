@@ -18,6 +18,7 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
 
 from scripts.aws_watcher_operator_plan_guard import (
     ACCOUNT,
+    is_production_provider_update,
     is_read_preflight_update,
     mapping,
     sequence,
@@ -108,6 +109,33 @@ READ_PREFLIGHT_SCENARIOS = (
         "acceptance_operator_boundary",
         "iam:DeleteRole",
         _ACCEPTANCE_ROLE,
+        "implicitDeny",
+    ),
+)
+
+PRODUCTION_PROVIDER_SCENARIOS = (
+    Scenario(
+        "production_operator_boundary",
+        "s3:GetBucketCORS",
+        _BUCKET,
+        "allowed",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "s3:GetBucketCORS",
+        "arn:aws:s3:::unrelated-bucket",
+        "implicitDeny",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "iam:ListAttachedRolePolicies",
+        f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-github-archive-reader",
+        "allowed",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "iam:ListAttachedRolePolicies",
+        f"arn:aws:iam::{ACCOUNT}:role/AdministratorAccess",
         "implicitDeny",
     ),
 )
@@ -387,8 +415,14 @@ def main() -> int:
                 ),
             ),
         )
-        scenarios = SCENARIOS + (
-            READ_PREFLIGHT_SCENARIOS if is_read_preflight_update(document) else ()
+        scenarios = (
+            SCENARIOS
+            + (READ_PREFLIGHT_SCENARIOS if is_read_preflight_update(document) else ())
+            + (
+                PRODUCTION_PROVIDER_SCENARIOS
+                if is_production_provider_update(document)
+                else ()
+            )
         )
         for scenario in scenarios:
             evaluate(client, policies, scenario)

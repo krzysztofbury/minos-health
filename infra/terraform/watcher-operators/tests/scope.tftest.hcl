@@ -60,7 +60,7 @@ run "fixed_principals_and_bounded_policy_documents" {
       sha256(local.acceptance_operator_policy) == "124dbccc1b978439d325130e7ae37cde0caa0be44363e939524e0f5247f73d86" &&
       sha256(local.acceptance_watcher_boundary_policy) == "91ab68d1b81b319c49134c39730361e3e4598aa7f6a5ac41014f0e6b38185d0b" &&
       sha256(local.github_reader_boundary_policy) == "73bcefd93a5886a60fc799194ac4c5568823fe7f86799257d7eb961da9930f80" &&
-      sha256(local.production_operator_policy) == "cf9beec199eb81a99b43434b60ebe93fd720688cc74e51f657e295203f121b19" &&
+      sha256(local.production_operator_policy) == "684745fd184c208c721f61843cbc0f6633b0588f80b0796cd46969f2f9ba0f7a" &&
       sha256(local.state_recovery_policy) == "4aee3685f6cb01246537c1202fd6a1d0ba4839d57aaf2f0ccbb8a6302672ed88" &&
       sha256(local.watcher_boundary_policy) == "f869bbd94ba056a2ea4641cba5f6f34d3173d798f760da0ab0d2f581409757ce"
     )

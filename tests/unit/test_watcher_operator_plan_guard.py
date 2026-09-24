@@ -260,6 +260,134 @@ def test_scoped_read_preflight_update_is_accepted(
     validate_plan(_read_update(monkeypatch))
 
 
+def _production_read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    bucket_actions = [
+        "s3:GetBucketLocation",
+        "s3:GetBucketTagging",
+        "s3:PutBucketTagging",
+    ]
+    role_actions = ["iam:GetRole", "iam:ListRoleTags", "iam:PutRolePolicy"]
+    bucket = "arn:aws:s3:::minos-health-snapshots-218375352108-eu-central-1"
+    role = f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-github-archive-reader"
+    previous = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "ConfigureOnlyReviewedSnapshotBucket",
+                "Effect": "Allow",
+                "Action": bucket_actions,
+                "Resource": bucket,
+            },
+            {
+                "Sid": "ManageOnlyGithubReaderPolicy",
+                "Effect": "Allow",
+                "Action": role_actions,
+                "Resource": role,
+            },
+        ],
+    }
+    updated = copy.deepcopy(previous)
+    statements = cast(list[dict[str, object]], updated["Statement"])
+    statements[0]["Action"] = bucket_actions + [
+        "s3:GetBucketCORS",
+        "s3:GetBucketWebsite",
+        "s3:GetBucketAccelerateConfiguration",
+        "s3:GetBucketRequestPayment",
+        "s3:GetBucketLogging",
+        "s3:GetBucketReplication",
+        "s3:GetBucketObjectLockConfiguration",
+    ]
+    statements[1]["Action"] = (
+        role_actions[:2]
+        + ["iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole"]
+        + role_actions[2:]
+    )
+    previous_json = json.dumps(previous)
+    updated_json = json.dumps(updated)
+    monkeypatch.setattr(
+        guard_module,
+        "PREVIOUS_PRODUCTION_OPERATOR_SHA256",
+        hashlib.sha256(previous_json.encode()).hexdigest(),
+    )
+    records: list[dict[str, object]] = []
+    for address, fields in (
+        (
+            "aws_iam_policy.production_operator_boundary",
+            {"name": "minos-health-watcher-terraform-operator-boundary"},
+        ),
+        (
+            "aws_iam_role_policy.production_operator",
+            {
+                "name": "minos-health-watcher-terraform-scoped",
+                "role": "minos-health-watcher-terraform-operator",
+            },
+        ),
+    ):
+        records.append(
+            {
+                "address": address,
+                "mode": "managed",
+                "change": {
+                    "actions": ["update"],
+                    "before": {**fields, "policy": previous_json},
+                    "after": {**fields, "policy": updated_json},
+                    "after_unknown": {},
+                },
+            }
+        )
+    return {"format_version": "1.2", "resource_changes": records}
+
+
+def test_scoped_production_provider_update_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validate_plan(_production_read_update(monkeypatch))
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [
+        "extra_action",
+        "wrong_bucket",
+        "unbounded_role",
+        "extra_resource",
+        "missing_inline",
+        "unknown_policy",
+    ],
+)
+def test_production_provider_update_rejects_scope_changes(
+    defect: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _production_read_update(monkeypatch)
+    records = cast(list[dict[str, object]], plan["resource_changes"])
+    change = cast(dict[str, object], records[0]["change"])
+    after = cast(dict[str, object], change["after"])
+    if defect in {"extra_action", "wrong_bucket", "unbounded_role"}:
+        policy = cast(dict[str, object], json.loads(cast(str, after["policy"])))
+        statements = cast(list[dict[str, object]], policy["Statement"])
+        if defect == "extra_action":
+            cast(list[str], statements[0]["Action"]).append("s3:DeleteBucket")
+        elif defect == "wrong_bucket":
+            statements[0]["Resource"] = "arn:aws:s3:::unrelated-bucket"
+        else:
+            statements[1]["Resource"] = "*"
+        after["policy"] = json.dumps(policy)
+    elif defect == "extra_resource":
+        records.append(
+            {
+                "mode": "managed",
+                "address": "aws_iam_access_key.watcher",
+                "change": {"actions": ["create"], "before": None, "after": {}},
+            }
+        )
+    elif defect == "missing_inline":
+        _ = records.pop()
+    else:
+        change["after_unknown"] = {"policy": True}
+    with pytest.raises(PlanError):
+        validate_plan(plan)
+
+
 @pytest.mark.parametrize(
     "defect",
     [

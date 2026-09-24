@@ -55,12 +55,15 @@ EXPECTED_POLICY_SHA256 = {
     "acceptance_operator_boundary": "124dbccc1b978439d325130e7ae37cde0caa0be44363e939524e0f5247f73d86",
     "acceptance_watcher_boundary": "91ab68d1b81b319c49134c39730361e3e4598aa7f6a5ac41014f0e6b38185d0b",
     "github_reader_boundary": "73bcefd93a5886a60fc799194ac4c5568823fe7f86799257d7eb961da9930f80",
-    "production_operator_boundary": "cf9beec199eb81a99b43434b60ebe93fd720688cc74e51f657e295203f121b19",
+    "production_operator_boundary": "684745fd184c208c721f61843cbc0f6633b0588f80b0796cd46969f2f9ba0f7a",
     "state_recovery_boundary": "4aee3685f6cb01246537c1202fd6a1d0ba4839d57aaf2f0ccbb8a6302672ed88",
     "watcher_boundary": "f869bbd94ba056a2ea4641cba5f6f34d3173d798f760da0ab0d2f581409757ce",
 }
 PREVIOUS_ACCEPTANCE_OPERATOR_SHA256 = (
     "c48b2378feb4cb75fbcf616c58884bed462fcad100c82e787e3225ffbdf64c14"
+)
+PREVIOUS_PRODUCTION_OPERATOR_SHA256 = (
+    "cf9beec199eb81a99b43434b60ebe93fd720688cc74e51f657e295203f121b19"
 )
 
 
@@ -298,7 +301,10 @@ def _validate_policy_semantics(policies: dict[str, dict[str, object]]) -> None:
 
 def validate_plan(document: object) -> None:
     if is_read_preflight_update(document):
-        validate_read_preflight_update(document)
+        if is_production_provider_update(document):
+            validate_production_provider_update(document)
+        else:
+            validate_read_preflight_update(document)
         return
     changes = _managed_changes(document)
     policies = _validate_boundaries(changes)
@@ -316,6 +322,161 @@ def is_read_preflight_update(document: object) -> bool:
         )
         == ["update"]
         for item in resources
+    )
+
+
+def is_production_provider_update(document: object) -> bool:
+    root = mapping(document, "plan root")
+    resources = sequence(root.get("resource_changes"), "resource changes")
+    return {
+        record.get("address")
+        for item in resources
+        for record in [mapping(item, "resource record")]
+        if record.get("mode") == "managed"
+        and mapping(record.get("change"), "resource change").get("actions") != ["no-op"]
+    } == {
+        "aws_iam_policy.production_operator_boundary",
+        "aws_iam_role_policy.production_operator",
+    }
+
+
+def validate_production_provider_update(document: object) -> None:
+    root = mapping(document, "plan root")
+    version = root.get("format_version")
+    require(
+        isinstance(version, str) and version.startswith("1."), "plan format unsupported"
+    )
+    resources = sequence(root.get("resource_changes"), "resource changes")
+    require(len(resources) <= 32, "resource count unsupported")
+    expected = {
+        "aws_iam_policy.production_operator_boundary",
+        "aws_iam_role_policy.production_operator",
+    }
+    changed: dict[str, tuple[dict[str, object], dict[str, object]]] = {}
+    for item in resources:
+        record = mapping(item, "resource record")
+        if record.get("mode") == "data":
+            continue
+        require(record.get("mode") == "managed", "resource mode unsupported")
+        address = record.get("address")
+        if not isinstance(address, str) or address not in EXPECTED:
+            raise PlanError("unknown operator resource")
+        change = mapping(record.get("change"), "resource change")
+        if change.get("actions") == ["no-op"]:
+            require(
+                change.get("before") == change.get("after"), "unexpected no-op values"
+            )
+            continue
+        require(
+            address in expected
+            and address not in changed
+            and change.get("actions") == ["update"],
+            "unexpected operator update",
+        )
+        before = mapping(change.get("before"), "previous resource")
+        after = mapping(change.get("after"), "updated resource")
+        require(change.get("after_unknown", {}) == {}, "unknown updated fields")
+        require(before.keys() == after.keys(), "updated resource fields differ")
+        require(
+            all(before[key] == after[key] for key in before if key != "policy"),
+            "update changed fields other than policy",
+        )
+        changed[address] = before, after
+    require(
+        set(changed) == expected,
+        "production read update must change exactly two policies",
+    )
+    boundary_before, boundary_after = changed[
+        "aws_iam_policy.production_operator_boundary"
+    ]
+    inline_before, inline_after = changed["aws_iam_role_policy.production_operator"]
+    require(
+        boundary_before.get("name") == POLICY_NAMES["production_operator_boundary"],
+        "production boundary identity changed",
+    )
+    require(
+        inline_before.get("name") == INLINE_POLICY_NAMES["production_operator"]
+        and inline_before.get("role") == ROLE_NAMES["production_operator"],
+        "production inline identity changed",
+    )
+    previous = boundary_before.get("policy")
+    if not isinstance(previous, str):
+        raise PlanError("previous production boundary unavailable")
+    require(
+        hashlib.sha256(previous.encode()).hexdigest()
+        == PREVIOUS_PRODUCTION_OPERATOR_SHA256,
+        "previous production boundary differs from reviewed baseline",
+    )
+    old_policy = decode_policy(previous, "previous production boundary")
+    require(
+        decode_policy(inline_before.get("policy"), "previous production inline")
+        == old_policy,
+        "previous production inline differs from boundary",
+    )
+    statements = policy_statements(old_policy)
+    buckets = [
+        statement
+        for statement in statements
+        if statement.get("Sid") == "ConfigureOnlyReviewedSnapshotBucket"
+    ]
+    roles = [
+        statement
+        for statement in statements
+        if statement.get("Sid") == "ManageOnlyGithubReaderPolicy"
+    ]
+    require(
+        len(buckets) == len(roles) == 1, "reviewed production read statements missing"
+    )
+    bucket = buckets[0]
+    role = roles[0]
+    require(
+        bucket.get("Resource")
+        == f"arn:aws:s3:::minos-health-snapshots-{ACCOUNT}-eu-central-1",
+        "production bucket read scope changed",
+    )
+    require(
+        role.get("Resource")
+        == f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-github-archive-reader",
+        "GitHub role read scope changed",
+    )
+    bucket_actions = statement_actions(bucket)
+    role_actions = statement_actions(role)
+    require(
+        bucket_actions[:3]
+        == ["s3:GetBucketLocation", "s3:GetBucketTagging", "s3:PutBucketTagging"],
+        "production bucket action baseline changed",
+    )
+    require(
+        role_actions[:2] == ["iam:GetRole", "iam:ListRoleTags"],
+        "GitHub role action baseline changed",
+    )
+    bucket["Action"] = (
+        bucket_actions[:3]
+        + [
+            "s3:GetBucketCORS",
+            "s3:GetBucketWebsite",
+            "s3:GetBucketAccelerateConfiguration",
+            "s3:GetBucketRequestPayment",
+            "s3:GetBucketLogging",
+            "s3:GetBucketReplication",
+            "s3:GetBucketObjectLockConfiguration",
+        ]
+        + bucket_actions[3:]
+    )
+    role["Action"] = (
+        role_actions[:2]
+        + ["iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole"]
+        + role_actions[2:]
+    )
+    updated = decode_policy(boundary_after.get("policy"), "updated production boundary")
+    require(
+        updated == old_policy,
+        "production boundary adds permissions beyond scoped reads",
+    )
+    require(
+        decode_policy(inline_after.get("policy"), "updated production inline")
+        == updated,
+        "updated production inline differs from boundary",
     )
 
 
