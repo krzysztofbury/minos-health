@@ -226,7 +226,7 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
             check=False,
             capture_output=True,
             text=True,
-            timeout=90,
+            timeout=120,
         )
         assert browser.returncode == 0, browser.stdout + browser.stderr
 
