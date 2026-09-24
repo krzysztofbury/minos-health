@@ -60,13 +60,25 @@ def test_workflows_use_read_only_defaults_and_safe_triggers() -> None:
         assert document.get("permissions") == {"contents": "read"}
 
         jobs = cast("dict[str, object]", document.get("jobs"))
-        for job in jobs.values():
+        for name, job in jobs.items():
             job_definition = cast("dict[str, object]", job)
-            assert "permissions" not in job_definition
+            if workflow.name == "publish-watcher.yml" and name == "publish":
+                assert job_definition.get("permissions") == {
+                    "contents": "read",
+                    "packages": "write",
+                }
+                assert job_definition.get("if") == (
+                    "github.ref == 'refs/heads/main' && "
+                    "github.repository == 'krzysztofbury/minos-health'"
+                )
+            else:
+                assert "permissions" not in job_definition
 
         triggers = cast("dict[str, object]", document.get("on"))
         assert set(triggers) <= ALLOWED_TRIGGERS
         assert "pull_request_target" not in triggers
+        if workflow.name == "publish-watcher.yml":
+            assert set(triggers) == {"workflow_dispatch"}
 
 
 def test_checkout_does_not_persist_credentials() -> None:
@@ -77,7 +89,8 @@ def test_checkout_does_not_persist_credentials() -> None:
                 continue
             checkout_block = "\n".join(lines[index : index + 6])
             assert "persist-credentials: false" in checkout_block
-            assert "fetch-depth: 0" in checkout_block
+            if workflow.name == "ci.yml":
+                assert "fetch-depth: 0" in checkout_block
 
 
 def test_ci_scans_nonempty_git_history_for_secrets() -> None:

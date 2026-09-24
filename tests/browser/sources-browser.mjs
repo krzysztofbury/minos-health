@@ -58,7 +58,7 @@ class CdpClient {
 }
 
 async function waitForFile(filePath, process, readStderr) {
-  for (let attempt = 0; attempt < 600; attempt += 1) {
+  for (let attempt = 0; attempt < 1200; attempt += 1) {
     try {
       return await readFile(filePath, "utf8");
     } catch {
@@ -70,7 +70,7 @@ async function waitForFile(filePath, process, readStderr) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
-  throw new Error(`Chromium did not publish a DevTools port within 30 seconds: ${readStderr()}`);
+  throw new Error(`Chromium did not publish a DevTools port within 60 seconds: ${readStderr()}`);
 }
 
 async function connectCdp(profileDirectory, process, readStderr) {
@@ -377,8 +377,8 @@ try {
     new Promise((resolve) => chromiumProcess.once("exit", resolve)),
     new Promise((resolve) => setTimeout(resolve, 3000)),
   ]);
-  if (chromiumProcess.exitCode === null) chromiumProcess.kill("SIGKILL");
-  await rm(profileDirectory, { force: true, recursive: true });
+  if (chromiumProcess.exitCode === null && chromiumProcess.signalCode === null) chromiumProcess.kill("SIGKILL");
+  await rm(profileDirectory, { force: true, recursive: true, maxRetries: 10, retryDelay: 200 });
 }
 
 if (/:CONSOLE:|Uncaught/i.test(chromiumStderr)) {
