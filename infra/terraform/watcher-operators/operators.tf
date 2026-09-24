@@ -47,8 +47,8 @@ locals {
         Action = [
           "s3:GetBucketLocation", "s3:GetBucketTagging", "s3:PutBucketTagging",
           "s3:GetBucketCORS", "s3:GetBucketWebsite",
-          "s3:GetBucketAccelerateConfiguration", "s3:GetBucketRequestPayment",
-          "s3:GetBucketLogging", "s3:GetBucketReplication",
+          "s3:GetAccelerateConfiguration", "s3:GetBucketRequestPayment",
+          "s3:GetBucketLogging", "s3:GetReplicationConfiguration",
           "s3:GetBucketObjectLockConfiguration",
           "s3:GetBucketVersioning", "s3:PutBucketVersioning",
           "s3:GetBucketPolicy", "s3:PutBucketPolicy",
@@ -131,7 +131,7 @@ locals {
       {
         Sid      = "ManageOnlyMinosBudget"
         Effect   = "Allow"
-        Action   = ["budgets:CreateBudget", "budgets:DescribeBudget", "budgets:DescribeBudgets", "budgets:DescribeNotificationsForBudget", "budgets:UpdateBudget", "budgets:TagResource", "budgets:ListTagsForResource"]
+        Action   = ["budgets:CreateBudget", "budgets:ModifyBudget", "budgets:ViewBudget", "budgets:DescribeBudget", "budgets:DescribeBudgets", "budgets:DescribeNotificationsForBudget", "budgets:UpdateBudget", "budgets:TagResource", "budgets:ListTagsForResource"]
         Resource = "arn:aws:budgets::${local.account_id}:budget/minos-health-watcher-monthly"
       },
       {
@@ -141,9 +141,18 @@ locals {
         Resource = "arn:aws:sns:${local.region}:${local.account_id}:minos-health-watcher-budget-alerts"
       },
       {
+        Sid      = "ReadSubscriptionAttributesInWatcherRegion"
+        Effect   = "Allow"
+        Action   = "sns:GetSubscriptionAttributes"
+        Resource = "*"
+        Condition = { StringEquals = {
+          "aws:RequestedRegion" = local.region
+        } }
+      },
+      {
         Sid      = "ReadOnlyMinosBudgetSubscription"
         Effect   = "Allow"
-        Action   = ["sns:GetSubscriptionAttributes", "sns:ListTagsForResource"]
+        Action   = ["sns:ListTagsForResource"]
         Resource = "arn:aws:sns:${local.region}:${local.account_id}:minos-health-watcher-budget-alerts:*"
       },
       {

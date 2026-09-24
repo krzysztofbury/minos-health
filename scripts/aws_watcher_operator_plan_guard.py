@@ -55,7 +55,7 @@ EXPECTED_POLICY_SHA256 = {
     "acceptance_operator_boundary": "124dbccc1b978439d325130e7ae37cde0caa0be44363e939524e0f5247f73d86",
     "acceptance_watcher_boundary": "91ab68d1b81b319c49134c39730361e3e4598aa7f6a5ac41014f0e6b38185d0b",
     "github_reader_boundary": "73bcefd93a5886a60fc799194ac4c5568823fe7f86799257d7eb961da9930f80",
-    "production_operator_boundary": "684745fd184c208c721f61843cbc0f6633b0588f80b0796cd46969f2f9ba0f7a",
+    "production_operator_boundary": "f13c1342409b8bd4d9e68c53e6485447871d1fa769bed14a0c2588f0f40b431b",
     "state_recovery_boundary": "4aee3685f6cb01246537c1202fd6a1d0ba4839d57aaf2f0ccbb8a6302672ed88",
     "watcher_boundary": "f869bbd94ba056a2ea4641cba5f6f34d3173d798f760da0ab0d2f581409757ce",
 }
@@ -63,7 +63,7 @@ PREVIOUS_ACCEPTANCE_OPERATOR_SHA256 = (
     "c48b2378feb4cb75fbcf616c58884bed462fcad100c82e787e3225ffbdf64c14"
 )
 PREVIOUS_PRODUCTION_OPERATOR_SHA256 = (
-    "cf9beec199eb81a99b43434b60ebe93fd720688cc74e51f657e295203f121b19"
+    "684745fd184c208c721f61843cbc0f6633b0588f80b0796cd46969f2f9ba0f7a"
 )
 
 
@@ -419,55 +419,92 @@ def validate_production_provider_update(document: object) -> None:
         for statement in statements
         if statement.get("Sid") == "ConfigureOnlyReviewedSnapshotBucket"
     ]
-    roles = [
+    budgets = [
         statement
         for statement in statements
-        if statement.get("Sid") == "ManageOnlyGithubReaderPolicy"
+        if statement.get("Sid") == "ManageOnlyMinosBudget"
+    ]
+    topics = [
+        statement
+        for statement in statements
+        if statement.get("Sid") == "ManageOnlyMinosBudgetTopic"
+    ]
+    subscriptions = [
+        statement
+        for statement in statements
+        if statement.get("Sid") == "ReadOnlyMinosBudgetSubscription"
     ]
     require(
-        len(buckets) == len(roles) == 1, "reviewed production read statements missing"
+        len(buckets) == len(budgets) == len(topics) == len(subscriptions) == 1,
+        "reviewed production statements missing",
     )
     bucket = buckets[0]
-    role = roles[0]
+    budget = budgets[0]
+    topic = topics[0]
+    subscription = subscriptions[0]
     require(
         bucket.get("Resource")
         == f"arn:aws:s3:::minos-health-snapshots-{ACCOUNT}-eu-central-1",
         "production bucket read scope changed",
     )
     require(
-        role.get("Resource")
-        == f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-github-archive-reader",
-        "GitHub role read scope changed",
+        budget.get("Resource")
+        == f"arn:aws:budgets::{ACCOUNT}:budget/minos-health-watcher-monthly",
+        "production budget scope changed",
+    )
+    topic_arn = f"arn:aws:sns:eu-central-1:{ACCOUNT}:minos-health-watcher-budget-alerts"
+    require(
+        topic.get("Resource") == topic_arn
+        and subscription.get("Resource") == f"{topic_arn}:*",
+        "production SNS scope changed",
     )
     bucket_actions = statement_actions(bucket)
-    role_actions = statement_actions(role)
+    budget_actions = statement_actions(budget)
+    topic_actions = statement_actions(topic)
+    subscription_actions = statement_actions(subscription)
     require(
-        bucket_actions[:3]
-        == ["s3:GetBucketLocation", "s3:GetBucketTagging", "s3:PutBucketTagging"],
-        "production bucket action baseline changed",
+        bucket_actions.count("s3:GetBucketAccelerateConfiguration") == 1
+        and bucket_actions.count("s3:GetBucketReplication") == 1,
+        "previous S3 action mapping differs",
     )
     require(
-        role_actions[:2] == ["iam:GetRole", "iam:ListRoleTags"],
-        "GitHub role action baseline changed",
+        budget_actions[:2] == ["budgets:CreateBudget", "budgets:DescribeBudget"],
+        "budget action baseline changed",
     )
-    bucket["Action"] = (
-        bucket_actions[:3]
-        + [
-            "s3:GetBucketCORS",
-            "s3:GetBucketWebsite",
-            "s3:GetBucketAccelerateConfiguration",
-            "s3:GetBucketRequestPayment",
-            "s3:GetBucketLogging",
-            "s3:GetBucketReplication",
-            "s3:GetBucketObjectLockConfiguration",
-        ]
-        + bucket_actions[3:]
+    require(
+        topic_actions[:2] == ["sns:CreateTopic", "sns:GetTopicAttributes"],
+        "topic action baseline changed",
     )
-    role["Action"] = (
-        role_actions[:2]
-        + ["iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole"]
-        + role_actions[2:]
+    require(
+        subscription_actions
+        == ["sns:GetSubscriptionAttributes", "sns:ListTagsForResource"],
+        "subscription action baseline changed",
     )
+    bucket["Action"] = [
+        "s3:GetAccelerateConfiguration"
+        if action == "s3:GetBucketAccelerateConfiguration"
+        else "s3:GetReplicationConfiguration"
+        if action == "s3:GetBucketReplication"
+        else action
+        for action in bucket_actions
+    ]
+    budget["Action"] = (
+        budget_actions[:1]
+        + ["budgets:ModifyBudget", "budgets:ViewBudget"]
+        + budget_actions[1:]
+    )
+    subscription["Action"] = ["sns:ListTagsForResource"]
+    statements.insert(
+        statements.index(subscription),
+        {
+            "Sid": "ReadSubscriptionAttributesInWatcherRegion",
+            "Effect": "Allow",
+            "Action": "sns:GetSubscriptionAttributes",
+            "Resource": "*",
+            "Condition": {"StringEquals": {"aws:RequestedRegion": "eu-central-1"}},
+        },
+    )
+    old_policy["Statement"] = statements
     updated = decode_policy(boundary_after.get("policy"), "updated production boundary")
     require(
         updated == old_policy,
