@@ -1,0 +1,52 @@
+name: Publish watcher image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-watcher-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish pinned watcher release
+    if: github.ref == 'refs/heads/main' && github.repository == 'krzysztofbury/minos-health'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write # Publish the private watcher image with the short-lived GitHub token.
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Authenticate to private GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and publish immutable watcher release
+        run: |
+          set -euo pipefail
+          image="ghcr.io/krzysztofbury/minos-health-watcher"
+          tag="run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker buildx build --platform linux/amd64 --target watcher \
+            --provenance=false --build-arg "VCS_REF=$GITHUB_SHA" \
+            --tag "$image:$tag" \
+            --metadata-file "$RUNNER_TEMP/watcher-image.json" --push .
+          digest="$(python3 -c 'import json,os,re; p=os.path.join(os.environ["RUNNER_TEMP"],"watcher-image.json"); value=json.load(open(p,encoding="utf-8"))["containerimage.digest"]; assert re.fullmatch(r"sha256:[a-f0-9]{64}",value); print(value)')"
+          reference="$image@$digest"
+          docker pull "$reference"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$reference")" = linux/amd64
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$reference")" = "$GITHUB_SHA"
+          docker run --rm --network none --read-only --user 10001:10001 \
+            --cap-drop ALL --security-opt no-new-privileges "$reference" --version
+          printf 'Watcher image: `%s`\nSource revision: `%s`\n' \
+            "$reference" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
