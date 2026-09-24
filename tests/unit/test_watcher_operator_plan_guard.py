@@ -265,10 +265,14 @@ def _production_read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object
         "s3:GetBucketLocation",
         "s3:GetBucketTagging",
         "s3:PutBucketTagging",
+        "s3:GetBucketAccelerateConfiguration",
+        "s3:GetBucketReplication",
     ]
     role_actions = ["iam:GetRole", "iam:ListRoleTags", "iam:PutRolePolicy"]
     bucket = "arn:aws:s3:::minos-health-snapshots-218375352108-eu-central-1"
     role = f"arn:aws:iam::{ACCOUNT}:role/minos-health-watcher-github-archive-reader"
+    budget = f"arn:aws:budgets::{ACCOUNT}:budget/minos-health-watcher-monthly"
+    topic = f"arn:aws:sns:eu-central-1:{ACCOUNT}:minos-health-watcher-budget-alerts"
     previous = {
         "Version": "2012-10-17",
         "Statement": [
@@ -284,23 +288,48 @@ def _production_read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object
                 "Action": role_actions,
                 "Resource": role,
             },
+            {
+                "Sid": "ManageOnlyMinosBudget",
+                "Effect": "Allow",
+                "Action": ["budgets:CreateBudget", "budgets:DescribeBudget"],
+                "Resource": budget,
+            },
+            {
+                "Sid": "ManageOnlyMinosBudgetTopic",
+                "Effect": "Allow",
+                "Action": ["sns:CreateTopic", "sns:GetTopicAttributes"],
+                "Resource": topic,
+            },
+            {
+                "Sid": "ReadOnlyMinosBudgetSubscription",
+                "Effect": "Allow",
+                "Action": ["sns:GetSubscriptionAttributes", "sns:ListTagsForResource"],
+                "Resource": f"{topic}:*",
+            },
         ],
     }
     updated = copy.deepcopy(previous)
     statements = cast(list[dict[str, object]], updated["Statement"])
-    statements[0]["Action"] = bucket_actions + [
-        "s3:GetBucketCORS",
-        "s3:GetBucketWebsite",
-        "s3:GetBucketAccelerateConfiguration",
-        "s3:GetBucketRequestPayment",
-        "s3:GetBucketLogging",
-        "s3:GetBucketReplication",
-        "s3:GetBucketObjectLockConfiguration",
+    statements[0]["Action"] = bucket_actions[:3] + [
+        "s3:GetAccelerateConfiguration",
+        "s3:GetReplicationConfiguration",
     ]
-    statements[1]["Action"] = (
-        role_actions[:2]
-        + ["iam:ListAttachedRolePolicies", "iam:ListInstanceProfilesForRole"]
-        + role_actions[2:]
+    statements[2]["Action"] = [
+        "budgets:CreateBudget",
+        "budgets:ModifyBudget",
+        "budgets:ViewBudget",
+        "budgets:DescribeBudget",
+    ]
+    statements[4]["Action"] = ["sns:ListTagsForResource"]
+    statements.insert(
+        4,
+        {
+            "Sid": "ReadSubscriptionAttributesInWatcherRegion",
+            "Effect": "Allow",
+            "Action": "sns:GetSubscriptionAttributes",
+            "Resource": "*",
+            "Condition": {"StringEquals": {"aws:RequestedRegion": "eu-central-1"}},
+        },
     )
     previous_json = json.dumps(previous)
     updated_json = json.dumps(updated)
@@ -350,6 +379,9 @@ def test_scoped_production_provider_update_is_accepted(
         "extra_action",
         "wrong_bucket",
         "unbounded_role",
+        "unbounded_budget",
+        "wrong_topic",
+        "subscription_write",
         "extra_resource",
         "missing_inline",
         "unknown_policy",
@@ -362,15 +394,30 @@ def test_production_provider_update_rejects_scope_changes(
     records = cast(list[dict[str, object]], plan["resource_changes"])
     change = cast(dict[str, object], records[0]["change"])
     after = cast(dict[str, object], change["after"])
-    if defect in {"extra_action", "wrong_bucket", "unbounded_role"}:
+    if defect in {
+        "extra_action",
+        "wrong_bucket",
+        "unbounded_role",
+        "unbounded_budget",
+        "wrong_topic",
+        "subscription_write",
+    }:
         policy = cast(dict[str, object], json.loads(cast(str, after["policy"])))
         statements = cast(list[dict[str, object]], policy["Statement"])
         if defect == "extra_action":
             cast(list[str], statements[0]["Action"]).append("s3:DeleteBucket")
         elif defect == "wrong_bucket":
             statements[0]["Resource"] = "arn:aws:s3:::unrelated-bucket"
-        else:
+        elif defect == "unbounded_role":
             statements[1]["Resource"] = "*"
+        elif defect == "unbounded_budget":
+            statements[2]["Resource"] = "*"
+        elif defect == "wrong_topic":
+            statements[3]["Resource"] = (
+                "arn:aws:sns:eu-central-1:218375352108:other-topic"
+            )
+        else:
+            statements[5]["Action"] = ["sns:Unsubscribe"]
         after["policy"] = json.dumps(policy)
     elif defect == "extra_resource":
         records.append(

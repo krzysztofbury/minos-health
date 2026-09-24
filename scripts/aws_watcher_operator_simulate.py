@@ -116,6 +116,50 @@ READ_PREFLIGHT_SCENARIOS = (
 PRODUCTION_PROVIDER_SCENARIOS = (
     Scenario(
         "production_operator_boundary",
+        "s3:GetAccelerateConfiguration",
+        _BUCKET,
+        "allowed",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "s3:GetReplicationConfiguration",
+        _BUCKET,
+        "allowed",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "s3:GetAccelerateConfiguration",
+        "arn:aws:s3:::unrelated-bucket",
+        "implicitDeny",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "budgets:ModifyBudget",
+        f"arn:aws:budgets::{ACCOUNT}:budget/minos-health-watcher-monthly",
+        "allowed",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "budgets:ViewBudget",
+        f"arn:aws:budgets::{ACCOUNT}:budget/minos-health-watcher-monthly",
+        "allowed",
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "sns:GetSubscriptionAttributes",
+        "*",
+        "allowed",
+        (("aws:RequestedRegion", "eu-central-1"),),
+    ),
+    Scenario(
+        "production_operator_boundary",
+        "sns:GetSubscriptionAttributes",
+        "*",
+        "implicitDeny",
+        (("aws:RequestedRegion", "us-east-1"),),
+    ),
+    Scenario(
+        "production_operator_boundary",
         "s3:GetBucketCORS",
         _BUCKET,
         "allowed",
