@@ -7,28 +7,39 @@ import stat
 import subprocess
 import sys
 import uuid
+from ipaddress import IPv4Address, IPv4Network, ip_address
 from pathlib import Path
 
 SSH_CONFIG = Path("/etc/ssh/sshd_config")
-EXCEPTION = (
-    b"# BEGIN MINOS TEMP KUMA SETUP\n"
-    b"Match User root\n"
-    b"    AllowTcpForwarding local\n"
-    b"    PermitOpen 172.21.0.2:3001\n"
-    b"# END MINOS TEMP KUMA SETUP\n"
-)
-_EXPIRY_ERRORS = (OSError, RuntimeError, subprocess.SubprocessError)
+_MONITORING_SUBNET = IPv4Network("172.16.0.0/12")
+_EXPIRY_ERRORS = (OSError, RuntimeError, ValueError, subprocess.SubprocessError)
 
 
-def without_exception(content: bytes) -> bytes:
+def exception_for(private_ip: str) -> bytes:
+    address = ip_address(private_ip)
+    if not isinstance(address, IPv4Address) or address not in _MONITORING_SUBNET:
+        raise ValueError("Kuma address must be a private Docker IPv4 address")
+    return (
+        b"# BEGIN MINOS TEMP KUMA SETUP\n"
+        + b"Match User root\n"
+        + b"    AllowTcpForwarding local\n"
+        + f"    PermitOpen {address}:3001\n".encode()
+        + b"# END MINOS TEMP KUMA SETUP\n"
+    )
+
+
+EXCEPTION = exception_for("172.21.0.2")
+
+
+def without_exception(content: bytes, expected: bytes = EXCEPTION) -> bytes:
     if content.count(b"# BEGIN MINOS TEMP KUMA SETUP") != 1:
         raise RuntimeError("Kuma SSH exception marker is missing or duplicated")
-    if not content.endswith(EXCEPTION):
+    if not content.endswith(expected):
         raise RuntimeError("Kuma SSH exception differs from the reviewed tail")
-    return content[: -len(EXCEPTION)]
+    return content[: -len(expected)]
 
 
-def expire(path: Path = SSH_CONFIG) -> bool:
+def expire(path: Path = SSH_CONFIG, *, expected: bytes = EXCEPTION) -> bool:
     original_stat = path.lstat()
     if not stat.S_ISREG(original_stat.st_mode) or original_stat.st_uid != 0:
         raise RuntimeError("SSH configuration ownership is unsafe")
@@ -37,7 +48,7 @@ def expire(path: Path = SSH_CONFIG) -> bool:
         if b"# END MINOS TEMP KUMA SETUP" in content:
             raise RuntimeError("Kuma SSH exception has an orphaned end marker")
         return False
-    restored = without_exception(content)
+    restored = without_exception(content, expected)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
     descriptor = os.open(
         temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
@@ -73,8 +84,12 @@ def expire(path: Path = SSH_CONFIG) -> bool:
 
 
 def main() -> int:
+    if len(sys.argv) > 2:
+        print("usage: expire_kuma_ssh_setup.py [private-container-ip]", file=sys.stderr)
+        return 2
     try:
-        changed = expire()
+        expected = exception_for(sys.argv[1]) if len(sys.argv) == 2 else EXCEPTION
+        changed = expire(expected=expected)
     except _EXPIRY_ERRORS:
         print("Kuma SSH exception expiry failed; inspect SSH config", file=sys.stderr)
         return 1
