@@ -1402,7 +1402,12 @@
           - run
       register: cloudflared_candidate_credential_load
       changed_when: false
-      failed_when: cloudflared_candidate_credential_load.rc != 124
+      failed_when: >-
+        cloudflared_candidate_credential_load.rc != 124 and not
+        (cloudflared_candidate_credential_load.rc == 1 and
+         'Starting tunnel' in cloudflared_candidate_credential_load.stderr and
+         'Could not lookup srv records' in cloudflared_candidate_credential_load.stderr and
+         'connect: network is unreachable' in cloudflared_candidate_credential_load.stderr)
       when: not ansible_check_mode
       no_log: true
 

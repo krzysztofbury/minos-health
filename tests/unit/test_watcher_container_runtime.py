@@ -472,6 +472,15 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "remount,bind,rw,noexec,nosuid,nodev" in playbook
     assert "watcher_staging_mountpoint.rc not in [0, 32]" in playbook
     assert "watcher_staging_mountpoint.rc == 32" in playbook
+    assert "cloudflared_candidate_credential_load.rc != 124 and not" in playbook
+    assert "cloudflared_candidate_credential_load.rc == 1 and" in playbook
+    assert (
+        "'Starting tunnel' in cloudflared_candidate_credential_load.stderr" in playbook
+    )
+    assert (
+        "'Could not lookup srv records' in cloudflared_candidate_credential_load.stderr"
+        in playbook
+    )
     assert "The watcher staging path is not a hardened disk-backed mount" in playbook
     assert "watcher_archive_backend | default('') == 's3'" in playbook
     assert "watcher_s3_bucket | default('')" in playbook
