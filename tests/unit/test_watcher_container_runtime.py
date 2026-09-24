@@ -262,6 +262,7 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "health",
     ]
     assert healthcheck["retries"] == 3
+    assert healthcheck["timeout"] == "30s"
     assert healthcheck["start_period"] == "6400s"
     assert "ports" not in watcher
     assert "expose" not in watcher

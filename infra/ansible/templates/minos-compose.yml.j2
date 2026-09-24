@@ -61,7 +61,7 @@ x-watcher-runtime: &watcher-runtime
   healthcheck:
     test: [CMD, /app/.venv/bin/minos, watcher, health]
     interval: 5s
-    timeout: 5s
+    timeout: 30s
     retries: 3
     start_period: 6400s
 
