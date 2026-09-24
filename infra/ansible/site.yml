@@ -2868,7 +2868,7 @@
           - >-
             minos_watcher_boundary[2] ==
             watcher_image_repository + '@' + watcher_runtime_image_digest
-          - minos_watcher_boundary[3] == "minos_watcher-egress"
+          - minos_watcher_boundary[3] in ['minos_monitoring', 'minos_watcher-egress']
           - minos_watcher_boundary[4] == "10001:10001"
           - minos_watcher_boundary[5] == "true"
           - minos_watcher_boundary[6] | from_json == ['ALL']

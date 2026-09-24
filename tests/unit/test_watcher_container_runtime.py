@@ -521,6 +521,13 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     )
     assert 'minos_cloudflared_boundary[19] == "null"' in playbook
     assert 'minos_watcher_boundary[19] == "null"' in playbook
+    assert (
+        "minos_watcher_boundary[3] in ['minos_monitoring', 'minos_watcher-egress']"
+        in playbook
+    )
+    assert (
+        "(minos_watcher_boundary[13] | from_json).keys() | list | sort ==" in playbook
+    )
     assert "watcher_archive_backend | default('') == 's3'" in playbook
     assert "watcher_s3_bucket | default('')" in playbook
     assert "watcher_s3_expected_bucket_owner | default('')" in playbook
