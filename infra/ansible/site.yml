@@ -966,7 +966,7 @@
         argv: [mountpoint, --quiet, /var/lib/minos/watcher/staging]
       register: watcher_staging_mountpoint
       changed_when: false
-      failed_when: watcher_staging_mountpoint.rc not in [0, 1]
+      failed_when: watcher_staging_mountpoint.rc not in [0, 32]
       when: not ansible_check_mode
 
     - name: Create the disk-backed watcher staging bind mount
@@ -978,7 +978,7 @@
           - /var/lib/minos/watcher/staging
       when:
         - not ansible_check_mode
-        - watcher_staging_mountpoint.rc == 1
+        - watcher_staging_mountpoint.rc == 32
       changed_when: true
 
     - name: Enforce watcher staging mount restrictions
