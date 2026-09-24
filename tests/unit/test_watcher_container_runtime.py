@@ -443,6 +443,29 @@ def test_rendered_production_compose_validates_with_bootstrap_profile(
     assert completed.returncode == 0, completed.stderr
 
 
+def test_production_edge_smokes_use_wget_stdout_not_a_null_filename() -> None:
+    play = mapping(cast(object, yaml.safe_load(source("infra/ansible/site.yml"))[0]))
+    tasks = cast(list[dict[str, object]], play["tasks"])
+    activation = next(
+        task
+        for task in tasks
+        if task.get("name")
+        == "Activate the validated Minos candidate with runtime rollback"
+    )
+    steps = cast(list[dict[str, object]], activation["block"])
+    names = {
+        "Smoke the exact Sources page through the production edge",
+        "Smoke exact stylesheet and script assets through the production edge",
+        "Probe the exact provenance endpoint through the production edge",
+    }
+    smoke_steps = [step for step in steps if step.get("name") in names]
+    assert len(smoke_steps) == len(names)
+    for step in smoke_steps:
+        arguments = cast(list[object], mapping(step["ansible.builtin.command"])["argv"])
+        assert arguments[arguments.index("-O") + 1] == "-"
+        assert None not in arguments
+
+
 def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> None:
     playbook = source("infra/ansible/site.yml")
     deployment_readme = source("infra/ansible/README.md")

@@ -2261,7 +2261,7 @@
               - wget
               - -S
               - -O
-              - -
+              - "-"
               - --header
               - "Host: minoshealth.pl"
               - http://127.0.0.1:8080/zrodla
@@ -2287,7 +2287,7 @@
               - wget
               - -q
               - -O
-              - -
+              - "-"
               - --header
               - "Host: minoshealth.pl"
               - "http://127.0.0.1:8080{{ item.path }}"
@@ -2317,7 +2317,7 @@
               - wget
               - -S
               - -O
-              - -
+              - "-"
               - --header
               - "Host: minoshealth.pl"
               - --header
