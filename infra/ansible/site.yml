@@ -1157,10 +1157,8 @@
       ansible.builtin.command:
         argv:
           - docker
-          - buildx
-          - imagetools
+          - manifest
           - inspect
-          - --raw
           - "{{ watcher_image_repository }}@{{ watcher_expected_image_digest }}"
       register: watcher_candidate_registry_manifest
       changed_when: false
