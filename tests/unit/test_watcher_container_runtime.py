@@ -506,9 +506,18 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
         in playbook
     )
     assert "The watcher staging path is not a hardened disk-backed mount" in playbook
+    tasks = cast(list[dict[str, object]], yaml.safe_load(playbook)[0]["tasks"])
+    inspection = next(
+        task
+        for task in tasks
+        if task.get("name") == "Inspect the Minos container runtime boundaries"
+    )
+    inspect_format = cast(
+        list[str], mapping(inspection["ansible.builtin.command"])["argv"]
+    )[3]
     assert (
-        "{{if .Config.ExposedPorts}}{{json .Config.ExposedPorts}}{{else}}null{{end}}"
-        in playbook
+        '{{if (index .Config "ExposedPorts")}}{{json (index .Config "ExposedPorts")}}{{else}}null{{end}}'
+        in inspect_format
     )
     assert 'minos_cloudflared_boundary[19] == "null"' in playbook
     assert 'minos_watcher_boundary[19] == "null"' in playbook

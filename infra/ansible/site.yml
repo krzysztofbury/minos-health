@@ -2731,7 +2731,7 @@
           - docker
           - inspect
           - --format
-          - "{{ '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.GroupAdd}}|{{.RestartCount}}|{{.Config.StopTimeout}}|{{if .Config.ExposedPorts}}{{json .Config.ExposedPorts}}{{else}}null{{end}}' }}"
+          - "{{ '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.GroupAdd}}|{{.RestartCount}}|{{.Config.StopTimeout}}|{{if (index .Config \"ExposedPorts\")}}{{json (index .Config \"ExposedPorts\")}}{{else}}null{{end}}' }}"
           - "{{ item.stdout }}"
       loop: "{{ minos_container_ids.results }}"
       register: minos_container_boundaries
