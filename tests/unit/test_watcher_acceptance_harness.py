@@ -224,6 +224,7 @@ def test_production_backend_verifies_owner_and_uses_supported_account_guard() ->
     readme = (ROOT / "infra" / "terraform" / "watcher" / "README.md").read_text()
 
     assert "s3api list-objects-v2" in script
+    assert "s3api head-bucket" not in script
     assert "--expected-bucket-owner" in script
     assert script.index("s3api list-objects-v2") < script.index(
         "watcher_terraform init"

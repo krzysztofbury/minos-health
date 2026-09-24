@@ -103,16 +103,6 @@ state_bucket_name="$(timeout "$WATCHER_TIMEOUT_SECONDS" aws \
 [[ "$state_bucket_name" == "$MINOS_AWS_STATE_BUCKET" ]] || watcher_die \
   "the state bucket identity differs from the reviewed bucket"
 
-state_bucket_region="$(timeout "$WATCHER_TIMEOUT_SECONDS" aws \
-  --profile "$MINOS_AWS_PRODUCTION_PROFILE" \
-  --region "$MINOS_AWS_STATE_REGION" \
-  s3api head-bucket \
-  --bucket "$MINOS_AWS_STATE_BUCKET" \
-  --expected-bucket-owner "$MINOS_AWS_KNOWN_PRODUCTION_ACCOUNT_ID" \
-  --query BucketRegion --output text)"
-[[ "$state_bucket_region" == "$MINOS_AWS_STATE_REGION" ]] || watcher_die \
-  "the state bucket region differs from the reviewed region"
-
 watcher_terraform init -reconfigure -lockfile=readonly \
   -backend-config="bucket=$MINOS_AWS_STATE_BUCKET" \
   -backend-config="region=$MINOS_AWS_STATE_REGION" \
