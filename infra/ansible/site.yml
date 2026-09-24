@@ -2731,7 +2731,7 @@
           - docker
           - inspect
           - --format
-          - "{{ '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.GroupAdd}}|{{.RestartCount}}|{{.Config.StopTimeout}}|{{json .Config.ExposedPorts}}' }}"
+          - "{{ '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}|{{json .HostConfig.PortBindings}}|{{.Config.Image}}|{{.HostConfig.NetworkMode}}|{{.Config.User}}|{{.HostConfig.ReadonlyRootfs}}|{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.RestartPolicy.Name}}|{{.HostConfig.Memory}}|{{.HostConfig.NanoCpus}}|{{.HostConfig.PidsLimit}}|{{json .HostConfig.LogConfig}}|{{json .NetworkSettings.Networks}}|{{json .Mounts}}|{{json .HostConfig.Tmpfs}}|{{json .HostConfig.GroupAdd}}|{{.RestartCount}}|{{.Config.StopTimeout}}|{{if .Config.ExposedPorts}}{{json .Config.ExposedPorts}}{{else}}null{{end}}' }}"
           - "{{ item.stdout }}"
       loop: "{{ minos_container_ids.results }}"
       register: minos_container_boundaries
@@ -2824,6 +2824,7 @@
             {'/tmp': 'rw,noexec,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0700'}
           - minos_cloudflared_boundary[17] == "0"
           - minos_cloudflared_boundary[18] == "20"
+          - minos_cloudflared_boundary[19] == "null"
           - minos_uptime_kuma_boundary[0] == "healthy"
           - minos_uptime_kuma_boundary[1] == "{}"
           - minos_uptime_kuma_boundary[2] == uptime_kuma_image_reference
@@ -2910,6 +2911,7 @@
           - minos_watcher_boundary[16] | from_json == ['10002']
           - minos_watcher_boundary[17] == "0"
           - minos_watcher_boundary[18] == "30"
+          - minos_watcher_boundary[19] == "null"
         fail_msg: The Minos stack differs from the reviewed runtime boundary.
       when: not ansible_check_mode
 
