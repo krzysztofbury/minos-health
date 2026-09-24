@@ -82,6 +82,12 @@ def _capture_transport(
 ) -> httpx.MockTransport:
     basic_00_requests = 0
 
+    def respond(body: bytes, media_type: str) -> httpx.Response:
+        response = _response(body, media_type)
+        if set_cookie:
+            response.headers["Set-Cookie"] = "synthetic=never-send"
+        return response
+
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal basic_00_requests
         requests.append(request.url.path)
@@ -91,11 +97,9 @@ def _capture_transport(
         assert "proxy-authorization" not in request.headers
         assert "cookie" not in request.headers
         assert "range" not in request.headers
-        if set_cookie:
-            return httpx.Response(200, headers={"Set-Cookie": "forbidden=1"})
         path = request.url.path
         if path == "/api/rsk/resource/role/UZYNLG":
-            return _response(_fixture("role-catalog.json"), "application/json")
+            return respond(_fixture("role-catalog.json"), "application/json")
         if path == "/api/rsk/resource/basic-info/00CD10":
             basic_00_requests += 1
             body = _fixture("basic-info-00CD10.json")
@@ -103,11 +107,11 @@ def _capture_transport(
                 parsed = cast(dict[str, object], json.loads(body))
                 parsed["version"] = "SYN-ROTATED"
                 body = json.dumps(parsed, separators=(",", ":")).encode()
-            return _response(body, "application/json")
+            return respond(body, "application/json")
         if path == "/api/rsk/resource/basic-info/99ZZ99":
-            return _response(_fixture("basic-info-99ZZ99.json"), "application/json")
+            return respond(_fixture("basic-info-99ZZ99.json"), "application/json")
         if path == f"/api/rsk/file/get/{_XML_UUID}":
-            return _response(_fixture("product-00CD10.xml"), "application/xml")
+            return respond(_fixture("product-00CD10.xml"), "application/xml")
         raise AssertionError("capture attempted a nonallowlisted request")
 
     return httpx.MockTransport(handler)
@@ -251,14 +255,20 @@ def test_capture_accepts_fixed_time_only_with_mock_transport(
     assert not capture_base.exists()
 
 
-def test_hardened_client_rejects_cookie_state(capture_base: Path) -> None:
-    with pytest.raises(RskProtocolError, match="cookie"):
-        _ = capture_private_rsk(
-            transport=_capture_transport([], set_cookie=True),
-            captured_at=_CAPTURE_TIME,
-        )
-    quarantines = list(capture_base.glob("*.quarantine"))
-    assert len(quarantines) == 1
+def test_capture_ignores_cookie_state_without_archiving_it(capture_base: Path) -> None:
+    requests: list[str] = []
+    captured = capture_private_rsk(
+        transport=_capture_transport(requests, set_cookie=True),
+        captured_at=_CAPTURE_TIME,
+    )
+    records = cast(list[dict[str, object]], _read_manifest(captured.path)["records"])
+    assert records
+    assert all(
+        "set-cookie" not in cast(dict[str, object], record["headers"])
+        for record in records
+    )
+    assert len(requests) >= 4
+    assert not list(capture_base.glob("*.quarantine"))
 
 
 def test_capture_permissions_public_privacy_and_stream_validator(

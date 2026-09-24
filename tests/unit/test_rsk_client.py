@@ -211,6 +211,49 @@ def test_role_catalog_preserves_body_headers_and_parses_models() -> None:
     assert observation.header_map()["etag"] == '"catalog"'
 
 
+def test_anonymous_client_discards_response_cookies_before_the_next_request() -> None:
+    paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "cookie" not in request.headers
+        assert "authorization" not in request.headers
+        paths.append(request.url.path)
+        body = (
+            _role_catalog_body()
+            if request.url.path.endswith("/role/UZYNLG")
+            else _basic_info_body("00CD10")
+        )
+        return httpx.Response(
+            200,
+            stream=httpx.ByteStream(body),
+            headers=[
+                ("Content-Type", "application/json"),
+                ("Content-Length", str(len(body))),
+                ("Set-Cookie", "__Host-JSESSIONID=never-archive; Secure; HttpOnly"),
+                ("Set-Cookie", "TS011fe684=never-send; Secure"),
+            ],
+        )
+
+    settings = _settings()
+    with create_rsk_client(settings, transport=httpx.MockTransport(handler)) as client:
+        catalog = get_default_rsk_role_catalog(client, settings)
+        metadata = get_rsk_catalog_basic_info(client, settings, "00CD10")
+        assert len(client.cookies) == 0
+        with pytest.raises(RskProtocolError, match="forbidden state"):
+            _ = client.get(
+                str(settings.role_catalog_url), headers={"Cookie": "reject-me"}
+            )
+
+    assert parse_rsk_role_catalog(catalog)[0].hcd == "00CD10"
+    assert parse_rsk_catalog_basic_info(metadata, "00CD10").hcd == "00CD10"
+    assert "set-cookie" not in catalog.header_map()
+    assert "set-cookie" not in metadata.header_map()
+    assert paths == [
+        "/api/rsk/resource/role/UZYNLG",
+        "/api/rsk/resource/basic-info/00CD10",
+    ]
+
+
 def test_basic_info_preserves_body_and_validates_identity() -> None:
     resource = "00CD10"
     body = _basic_info_body(resource)

@@ -73,8 +73,8 @@ class _AnonymousRskTransport(httpx.BaseTransport):
             raise RskProtocolError("RSK anonymous request contains forbidden state")
         response = self._transport.handle_request(request)
         if "set-cookie" in response.headers:
-            response.close()
-            raise RskProtocolError("RSK anonymous response attempted to set a cookie")
+            # Remove publisher state before HTTPX can persist it in the client jar.
+            del response.headers["set-cookie"]
         return response
 
     @override
