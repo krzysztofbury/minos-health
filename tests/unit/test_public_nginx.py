@@ -28,6 +28,9 @@ def test_nginx_exposes_only_the_exact_public_projection_endpoint() -> None:
     assert "location = /api/v1/provenance/rsk {" in configuration
     assert "root /var/lib/minos/public;" in configuration
     assert "try_files /current/api/v1/provenance/rsk.json =404;" in configuration
+    assert "location = /api/v1/provenance/baw {" in configuration
+    assert "root /var/lib/minos/public/baw;" in configuration
+    assert "try_files /current/api/v1/provenance/baw.json =404;" in configuration
     assert "default_type application/json;" in configuration
     assert 'add_header Cache-Control "no-store" always;' in configuration
     assert (
@@ -55,6 +58,7 @@ def test_nginx_artifact_namespace_is_unconditionally_denied() -> None:
     assert 'if ($request_uri ~ "(^|/)\\.(/|$)") {' in configuration
     assert 'if ($request_uri ~* "^/api/v1/artifacts") {' in configuration
     assert 'if ($request_uri != "/api/v1/provenance/rsk") {' in configuration
+    assert 'if ($request_uri != "/api/v1/provenance/baw") {' in configuration
 
 
 def test_pinned_nginx_serves_only_canonical_public_route(tmp_path: Path) -> None:
@@ -84,6 +88,28 @@ def test_pinned_nginx_serves_only_canonical_public_route(tmp_path: Path) -> None
             "manifest.json": manifest,
             "api/v1/provenance/rsk.json": projection,
         },
+    )
+    baw_root = public_root / "baw"
+    prepare_public_root(baw_root)
+    baw_projection = b'{"source":"BAW"}'
+    baw_digest = hashlib.sha256(baw_projection).hexdigest()
+    baw_manifest = json.dumps(
+        {
+            "projection_path": "api/v1/provenance/baw.json",
+            "projection_sha256": baw_digest,
+            "projection_size_bytes": len(baw_projection),
+            "redistribution": {"artifacts": [], "schema_version": 1},
+            "schema_version": 1,
+            "source": "BAW",
+            "state_revision": 2,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode()
+    _ = ImmutableGenerationPublisher(baw_root, source="BAW").publish(
+        2,
+        baw_digest,
+        {"manifest.json": baw_manifest, "api/v1/provenance/baw.json": baw_projection},
     )
     container = f"minos-public-nginx-test-{uuid4().hex}"
     try:
@@ -126,9 +152,14 @@ def test_pinned_nginx_serves_only_canonical_public_route(tmp_path: Path) -> None
         assert "cache-control: no-store" in lowered
         assert "cross-origin-opener-policy: same-origin" in lowered
         assert "x-content-type-options: nosniff" in lowered
+        assert _curl(port, "/api/v1/provenance/baw", "minoshealth.pl").endswith(
+            '{"source":"BAW"}\nSTATUS:200'
+        )
 
         rejected = (
             "/api/v1/provenance/rsk.json",
+            "/api/v1/provenance/baw.json",
+            "/api/v1/provenance/baw?alias=1",
             "/api/v1/./provenance/rsk",
             "/api/v1/provenance/./rsk",
             "/api/v1/provenance/rsk/.",

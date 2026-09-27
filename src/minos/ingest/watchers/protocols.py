@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Protocol, final
@@ -92,6 +93,21 @@ class NoopPublicProjectionPublisher:
 
     def restore(self, store: ControlStore) -> None:
         _ = store
+
+
+@final
+class SourcePublicProjectionPublisher:
+    def __init__(self, publishers: Mapping[str, PublicProjectionPublisher]) -> None:
+        self._publishers = dict(publishers)
+
+    def publish(self, store: ControlStore, run: CommittedRun) -> None:
+        publisher = self._publishers.get(run.source_id)
+        if publisher is not None:
+            publisher.publish(store, run)
+
+    def restore(self, store: ControlStore) -> None:
+        for source_id in sorted(self._publishers):
+            self._publishers[source_id].restore(store)
 
 
 class HeartbeatClient(Protocol):

@@ -12,6 +12,7 @@ from minos.ingest.watchers.archive import BlobStagingArea, FilesystemBlobArchive
 from minos.ingest.watchers.baw.client import create_baw_client
 from minos.ingest.watchers.baw.collector import BawSourceCollector
 from minos.ingest.watchers.baw.models import BawSourceError
+from minos.ingest.watchers.baw.publication import BawPublicProjectionPublisher
 from minos.ingest.watchers.config import WATCHER_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
     CommittedRun,
@@ -21,6 +22,10 @@ from minos.ingest.watchers.control import (
 )
 from minos.ingest.watchers.orchestrator import WatcherOrchestrator
 from minos.ingest.watchers.protocols import CollectorRegistry
+from minos.ingest.watchers.publication import (
+    ImmutableGenerationPublisher,
+    prepare_public_root,
+)
 from minos.ingest.watchers.recovery import PublishedRecoveryImage, RecoveryClass
 
 
@@ -70,7 +75,8 @@ class _Heartbeat:
 def _zip_file() -> bytes:
     data = io.BytesIO()
     with zipfile.ZipFile(data, "w") as archive:
-        archive.writestr("document.xml", "<act />")
+        entry = zipfile.ZipInfo("document.xml", date_time=(2026, 1, 1, 0, 0, 0))
+        archive.writestr(entry, "<act />")
     return data.getvalue()
 
 
@@ -237,12 +243,17 @@ def _setup(
             client_factory=client_factory,
         ),
     )
+    prepare_public_root(tmp_path / "public")
+    prepare_public_root(tmp_path / "public" / "baw")
     orchestrator = WatcherOrchestrator(
         store=store,
         archive=FilesystemBlobArchive(tmp_path / "archive"),
         collectors=collectors,
         recovery_publisher=_Recovery(),
         heartbeat=_Heartbeat(),
+        public_projection_publisher=BawPublicProjectionPublisher(
+            ImmutableGenerationPublisher(tmp_path / "public" / "baw", source="BAW")
+        ),
     )
     return store, orchestrator, calls, database
 
@@ -277,6 +288,33 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
         )
         assert metadata["entry_into_force"] == "2026-07-24T00:00:00"
         assert metadata["service_applicability_date"] is None
+        public = cast(
+            dict[str, object],
+            json.loads(
+                (
+                    tmp_path
+                    / "public"
+                    / "baw"
+                    / "current"
+                    / "api"
+                    / "v1"
+                    / "provenance"
+                    / "baw.json"
+                ).read_text()
+            ),
+        )
+        assert public["source"] == "BAW"
+        redistribution = cast(dict[str, object], public["redistribution"])
+        public_documents = cast(list[dict[str, object]], public["documents"])
+        assert redistribution["artifacts"] == []
+        assert len(public_documents) == 3
+        assert (
+            sum(len(cast(list[object], item["files"])) for item in public_documents)
+            == 9
+        )
+        assert all(
+            item["service_applicability_date"] is None for item in public_documents
+        )
 
         second = store.claim_manual("baw")
         _ = orchestrator.run_claim(second, second.retry_policy)
@@ -301,6 +339,7 @@ def test_baw_invalid_source_cannot_advance(
             _ = orchestrator.run_claim(claim, claim.retry_policy)
         assert store.load_source_state("baw").cursor == {}
         assert _query(database, "SELECT COUNT(*) FROM observations") == [(0,)]
+        assert not (tmp_path / "public" / "baw" / "current").exists()
     finally:
         store.close()
 

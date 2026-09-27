@@ -197,3 +197,54 @@ test("classifies current, stale, severe, and future-clock projections", () => {
   assert.equal(sources.classifyFreshness("2026-09-18T12:00:00Z", now).kind, "severe");
   assert.equal(sources.classifyFreshness("2026-09-22T13:00:00.001Z", now).kind, "future");
 });
+
+function bawProjection(overrides = {}) {
+  return {
+    schema_version: 1,
+    source: "BAW",
+    through_state_revision: 2,
+    observed_at: "2026-09-21T12:00:00Z",
+    redistribution: { schema_version: 1, artifacts: [] },
+    documents: [{
+      document_id: 43943,
+      act_number: "46/2026/DSOZ",
+      act_date: "2026-07-23",
+      published_date: null,
+      entry_into_force: "2026-07-24",
+      service_applicability_date: null,
+      valid_to: null,
+      legal_status: "Obowiązujący",
+      observed_at: "2026-09-21T11:00:00Z",
+      metadata_sha256: DIGEST,
+      source_url: "https://baw.nfz.gov.pl/NFZ/document/43943",
+      files: [{ file_id: 30983, name: "Zalacznik1a.xlsx", size_bytes: 304191, sha256: DIGEST }],
+    }],
+    ...overrides,
+  };
+}
+
+test("accepts private BAW provenance but never a Minos download", () => {
+  const verified = sources.validateBawProjection(bawProjection());
+  assert.equal(verified.documents[0].files[0].name, "Zalacznik1a.xlsx");
+  assert.deepEqual(verified.redistribution.artifacts, []);
+});
+
+test("rejects unrelated BAW hosts, invalid dates, duplicate files, and redistribution", () => {
+  const valid = bawProjection();
+  for (const mutation of [
+    { ...valid.documents[0], source_url: "https://evil.invalid/NFZ/document/43943" },
+    { ...valid.documents[0], entry_into_force: "2026-02-30" },
+    { ...valid.documents[0], files: [valid.documents[0].files[0], valid.documents[0].files[0]] },
+  ]) {
+    assert.throws(() => sources.validateBawProjection(bawProjection({ documents: [mutation] })));
+  }
+  assert.throws(() => sources.validateBawProjection(bawProjection({
+    redistribution: { schema_version: 1, artifacts: ["public-baw.xlsx"] },
+  })));
+});
+
+test("local catalog search normalizes ICD punctuation and Polish diacritics", () => {
+  assert.equal(sources.normalizeSearch("ICD-10"), sources.normalizeSearch("ICD10"));
+  assert.equal(sources.normalizeSearch("państwa"), sources.normalizeSearch("panstwa"));
+  assert.equal(sources.normalizeSearch("Załącznik 9"), "zalacznik9");
+});

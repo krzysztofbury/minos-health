@@ -2297,7 +2297,7 @@
             - path: /sources.css
               marker: "--paper: #f2f0e9"
             - path: /sources.js
-              marker: 'var PROVENANCE_PATH = "/api/v1/provenance/rsk"'
+              marker: 'var RSK_PATH = "/api/v1/provenance/rsk"'
           register: minos_candidate_edge_assets
           changed_when: false
 
