@@ -1,4 +1,4 @@
-from typing import ClassVar, Self, cast, final
+from typing import Annotated, ClassVar, Self, cast, final
 
 from pydantic import (
     AnyHttpUrl,
@@ -47,6 +47,23 @@ class RskConfiguration(BaseModel):
     @model_validator(mode="after")
     def validate_source_urls(self) -> Self:
         _validate_source_urls(self)
+        return self
+
+
+class BawConfiguration(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+
+    document_ids: Annotated[list[int], Field(min_length=1, max_length=8)] = Field(
+        default_factory=lambda: [43868]
+    )
+    operation_deadline_seconds: int = Field(default=1800, ge=60, le=3600)
+
+    @model_validator(mode="after")
+    def validate_document_ids(self) -> Self:
+        if any(type(value) is not int or value < 1 for value in self.document_ids):
+            raise ValueError("BAW document IDs must be positive integers")
+        if len(set(self.document_ids)) != len(self.document_ids):
+            raise ValueError("BAW document IDs must be unique")
         return self
 
 
@@ -149,6 +166,32 @@ class RskSourceConfigurationCodec:
         )
 
 
+@final
+class BawSourceConfigurationCodec:
+    def canonicalize(self, configuration: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        try:
+            validated = BawConfiguration.model_validate(configuration)
+        except ValidationError:
+            raise SourceConfigurationCodecError(
+                "BAW source configuration is invalid"
+            ) from None
+        return cast(dict[str, JsonValue], validated.model_dump(mode="json"))
+
+    def claim_timeout_ms(self, canonical_configuration_json: str) -> int:
+        try:
+            validated = BawConfiguration.model_validate_json(
+                canonical_configuration_json
+            )
+        except ValidationError:
+            raise SourceConfigurationCodecError(
+                "stored BAW configuration is invalid"
+            ) from None
+        return validated.operation_deadline_seconds * 1000
+
+
 RSK_SOURCE_CONFIGURATION_CODECS = SourceConfigurationCodecRegistry(
     {"rsk": RskSourceConfigurationCodec()}
+)
+WATCHER_SOURCE_CONFIGURATION_CODECS = SourceConfigurationCodecRegistry(
+    {"rsk": RskSourceConfigurationCodec(), "baw": BawSourceConfigurationCodec()}
 )

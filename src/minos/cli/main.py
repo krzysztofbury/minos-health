@@ -67,6 +67,9 @@ def build_parser() -> ArgumentParser:
         "bootstrap-rsk",
         help="Create the canonical RSK source and durable schedules if absent.",
     )
+    bootstrap_baw = watcher_commands.add_parser(
+        "bootstrap-baw", help="Create the BAW source and daily schedule if absent."
+    )
     migrate_control = watcher_commands.add_parser(
         "migrate-control-database",
         help="Migrate the quiesced live watcher control database.",
@@ -111,6 +114,7 @@ def build_parser() -> ArgumentParser:
         run_once,
         health,
         bootstrap_rsk,
+        bootstrap_baw,
         migrate_control,
         rebuild_public_rsk,
     ):
@@ -234,6 +238,8 @@ def main(
             watcher_command.health()
         elif watcher_arguments.command == "bootstrap-rsk":
             watcher_command.bootstrap_rsk()
+        elif watcher_arguments.command == "bootstrap-baw":
+            watcher_command.bootstrap_baw()
         elif watcher_arguments.command == "migrate-control-database":
             prior_version, schema_version = watcher_command.migrate_control_database()
             print(

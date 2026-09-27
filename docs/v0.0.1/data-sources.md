@@ -119,6 +119,11 @@ optional subject of a separate task only after ordinary HTTP fails and captured
 evidence shows browser automation succeeds from the affected environment. It is
 not a default dependency or an assumed solution to runner-IP blocking.
 
+On 2026-09-27, the live `GetAmendments/43868` response also listed amendment
+`102/2026/DSOZ` (`44041`) and its consolidated document (`44042`). The IDs
+above are historical anchors, not a complete current graph. The watcher must
+follow the returned relations rather than hard-code a fixed amendment list.
+
 ## NFZ Grouper Algorithm And Operational Guidance
 
 The dedicated Komunikaty JGP page is:

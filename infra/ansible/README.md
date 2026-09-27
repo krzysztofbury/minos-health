@@ -399,8 +399,19 @@ docker compose --project-name minos --file /opt/minos/compose.yaml \
 docker compose --project-name minos --file /opt/minos/compose.yaml \
   exec --no-TTY watcher /app/.venv/bin/minos watcher status rsk --json
 docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher status baw --json
+docker compose --project-name minos --file /opt/minos/compose.yaml \
   logs --since 24h --tail 500 --timestamps watcher
 ```
+
+BAW uses the same watcher, archive, and read-only status contract as RSK. After
+the reviewed watcher image is installed, configure a separate BAW Push monitor
+in Kuma and add its token under `sources.baw` in the existing protected targets
+file before enabling BAW. Then run `minos watcher bootstrap-baw` once against
+the live control database with dispatch quiesced; `minos watcher run-once baw`
+performs the initial bounded collection. The public Kuma status page must be
+updated by the operator to include BAW if BAW state is intended to be visible
+there. The `/zrodla` provenance page remains RSK-only.
 
 These commands require access to the host and therefore do not detect a complete
 Mikr.us host, network, or power outage from outside its fault domain.
