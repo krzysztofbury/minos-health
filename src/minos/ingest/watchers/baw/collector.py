@@ -17,13 +17,15 @@ from minos.ingest.watchers.archive import BlobStagingArea, StagedBlob
 from minos.ingest.watchers.archive.files import open_verified_staged_blob
 from minos.ingest.watchers.baw.client import (
     MAX_FILE_BYTES,
+    BawRetryableError,
+    create_baw_client,
+    get_json,
+)
+from minos.ingest.watchers.baw.models import (
     BawDocument,
     BawRelation,
     BawResponse,
-    BawRetryableError,
     BawSourceError,
-    create_baw_client,
-    get_json,
     parse_document,
     parse_relations,
 )

@@ -9,8 +9,9 @@ import httpx
 import pytest
 
 from minos.ingest.watchers.archive import BlobStagingArea, FilesystemBlobArchive
-from minos.ingest.watchers.baw.client import BawSourceError, create_baw_client
+from minos.ingest.watchers.baw.client import create_baw_client
 from minos.ingest.watchers.baw.collector import BawSourceCollector
+from minos.ingest.watchers.baw.models import BawSourceError
 from minos.ingest.watchers.config import WATCHER_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
     CommittedRun,
