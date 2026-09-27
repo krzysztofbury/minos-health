@@ -21,11 +21,13 @@ performance regression for developer convenience.
 ## Work Rhythm
 
 - Work in small, coherent chunks with explicit acceptance criteria.
-- After each chunk, run the relevant unit, documented mutation or fault-
-  injection, integration, static, and container checks; show the diff and
-  evidence before continuing.
-- Use the `pair-programmer` skill for a TigerStyle review of every chunk before
-  presenting it for user review.
+- After each chunk, run checks relevant to its changed boundary and show the
+  diff and evidence. Run the full repository checks before submitting code.
+  Reserve fault injection, container, cloud, and host checks for changes to
+  those boundaries; verify real behavior there before claiming success.
+- Use the `pair-programmer` skill for TigerStyle review of substantial or
+  safety-sensitive changes, not every small edit. Pause for user review at
+  decisions and risk boundaries.
 - Keep one reviewable purpose per commit and use short imperative subjects.
 - Never modify or discard user changes outside the agreed chunk.
 
@@ -50,7 +52,8 @@ performance regression for developer convenience.
 - Unit tests isolate deterministic behavior and failure cases without network
   or cloud access.
 - Mutation tests target safety-critical decisions and invariants, not trivial
-  accessors or generated models.
+  accessors or generated models. No test-count or coverage-percentage target
+  substitutes for evidence at the changed boundary.
 - Integration tests exercise real component boundaries with bounded fixtures.
 - Docker Compose exercises the same application artifacts and commands used on
   the Mikr.us production host. S3-specific semantics still require a disposable

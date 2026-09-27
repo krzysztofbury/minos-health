@@ -229,12 +229,15 @@ independent of transport, persistence, and serialization libraries.
 Dependencies enter the lockfile only with working code, a defined boundary,
 and a licence review.
 
-Testing uses unit, targeted mutation, and integration layers. Mutation testing
-focuses on safety-critical decisions and starts only after the selected tool is
-proven compatible with Python 3.14; documented manual mutation or
-fault-injection cases are required until then. Each coherent implementation
-chunk receives a pair-programmer TigerStyle review and user-visible diff before
-the next chunk.
+Testing uses unit, targeted mutation, and integration layers where the changed
+boundary warrants them. Mutation testing focuses on safety-critical decisions
+and starts only after the selected tool is proven compatible with Python 3.14;
+documented manual mutation or fault-injection cases cover changed critical
+invariants until then. Each coherent implementation chunk has a user-visible
+diff and relevant evidence. Substantial or safety-sensitive changes receive a
+pair-programmer TigerStyle review; full repository checks run before submitting
+code. Test-count and coverage-percentage targets do not replace boundary
+evidence.
 
 ### Bitemporal Versioning
 

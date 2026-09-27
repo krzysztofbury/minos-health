@@ -108,13 +108,17 @@ uv run pre-commit install
 
 ## Before submitting a change
 
-Every behavior change needs unit tests and relevant integration tests. Mutation
-testing targets safety-critical decisions such as source validation, archive
-state transitions, and ruleset selection. The mutation runner will be selected
-only after Python 3.14 compatibility is demonstrated; until then, documented
-manual mutation or fault-injection cases are the required evidence.
+Test observable behavior at the boundary changed. Use unit tests for decisions
+and failure paths, integration tests when component interactions change, and
+targeted fault injection for safety-critical transitions such as source
+validation, archive commits, and ruleset selection. The mutation runner will
+be selected only after Python 3.14 compatibility is demonstrated; until then,
+use documented manual mutation or fault-injection cases where those invariants
+change. Do not optimize for a test-count or coverage percentage; a passing
+suite is not evidence for an untested production boundary.
 
-Run the complete pre-commit suite and the explicit Python checks:
+Before submitting code, run the complete pre-commit suite and explicit Python
+checks:
 
 ```sh
 uv run pre-commit run --all-files
@@ -133,8 +137,11 @@ rather than allowing implementation details to override them silently.
 ## Commit and pull request guidance
 
 - Work in small, coherent chunks. After each chunk, run the relevant checks,
-  perform a `pair-programmer` TigerStyle review, show the diff and evidence,
-  and pause for review before continuing.
+  show the diff and evidence, and pause where a decision or risk boundary needs
+  review. Run the full checks at submission; use a `pair-programmer` TigerStyle
+  review for substantial or safety-sensitive changes rather than every small
+  edit. Test cloud, container, and host behavior at the matching boundary
+  before claiming it works there.
 - Use short, imperative commit subjects.
 - Explain the user-visible behavior and important tradeoffs in the pull request.
 - Do not commit upstream source data (RSK, NFZ, AOTMiT), generated databases,

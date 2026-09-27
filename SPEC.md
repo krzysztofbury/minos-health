@@ -381,10 +381,15 @@ S3, narrow IAM, budgets, and Terraform state. See
 
 ## Remaining Gates
 
-- Stand up phase 0 watchers and the raw archive (upstream history is being
-  lost now).
-- Provision the dedicated Mikr.us `3.0` host and validate complete Compose
-  memory, disk, recovery, and load budgets.
+- Continue phase 0 beyond the deployed RSK watcher: verify remaining source
+  collectors and their scoped archives before depending on upstream history.
+- Validate complete Compose memory, disk, recovery, and representative load
+  budgets on the dedicated Mikr.us `3.0` host; the RSK production observation
+  alone does not satisfy these gates.
+- Seek complete, independently checkable public JGP cases and use explicitly
+  synthetic rule fixtures where cases are unavailable. Neither practitioner
+  recollections nor generated cases establish real-world workflow validation;
+  do not claim that validation without evidence from actual users.
 - Inspect and fixture the actual RSK XML, NFZ XLSX, and komunikat DOCX
   structures.
 - Formal legal opinion: Art. 4 status of zarządzenie appendices for a
