@@ -47,7 +47,7 @@ class CdpClient {
 
 async function connect(profile, process) {
   let port;
-  for (let attempt = 0; attempt < 200; attempt++) {
+  for (let attempt = 0; attempt < 1200; attempt++) {
     try { port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; }
     catch {
       if (process.exitCode !== null) throw new Error("Chromium exited before starting CDP");

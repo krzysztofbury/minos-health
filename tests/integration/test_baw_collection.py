@@ -75,7 +75,8 @@ class _Heartbeat:
 def _zip_file() -> bytes:
     data = io.BytesIO()
     with zipfile.ZipFile(data, "w") as archive:
-        archive.writestr("document.xml", "<act />")
+        entry = zipfile.ZipInfo("document.xml", date_time=(2026, 1, 1, 0, 0, 0))
+        archive.writestr(entry, "<act />")
     return data.getvalue()
 
 
