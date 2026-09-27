@@ -405,6 +405,9 @@ def test_cloudflared_status_route_is_explicit_and_precedes_terminal_404(
     document = mapping(cast(object, yaml.safe_load(rendered)))
     ingress = cast(list[dict[str, str]], document["ingress"])
     assert ingress[-1] == {"service": "http_status:404"}
+    assert [
+        route for route in ingress if route.get("hostname") == "www.minoshealth.com"
+    ] == [{"hostname": "www.minoshealth.com", "service": "http://edge:8080"}]
     status_routes = [
         route for route in ingress if route.get("hostname") == "status.minoshealth.pl"
     ]

@@ -8,6 +8,8 @@ ingress:
     service: http://edge:8080
   - hostname: minoshealth.com
     service: http://edge:8080
+  - hostname: www.minoshealth.com
+    service: http://edge:8080
 {% if uptime_kuma_public_status_enabled | bool %}
   - hostname: status.minoshealth.pl
     service: http://uptime-kuma:3001
