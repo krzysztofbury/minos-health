@@ -33,6 +33,7 @@ def test_nginx_exposes_only_the_exact_public_projection_endpoint() -> None:
     assert "try_files /current/api/v1/provenance/baw.json =404;" in configuration
     assert "default_type application/json;" in configuration
     assert 'add_header Cache-Control "no-store" always;' in configuration
+    assert "img-src 'self' data:" in configuration
     assert (
         'add_header Cross-Origin-Opener-Policy "same-origin" always;' in configuration
     )
@@ -152,6 +153,14 @@ def test_pinned_nginx_serves_only_canonical_public_route(tmp_path: Path) -> None
         assert "cache-control: no-store" in lowered
         assert "cross-origin-opener-policy: same-origin" in lowered
         assert "x-content-type-options: nosniff" in lowered
+        icon = _curl(port, "/favicon.svg", "minoshealth.pl")
+        assert icon.endswith("</svg>\nSTATUS:200")
+        assert "content-type: image/svg+xml" in icon.lower()
+        favicon_fallback = _curl(port, "/favicon.ico", "minoshealth.pl")
+        assert favicon_fallback.endswith("STATUS:308")
+        assert (
+            "location: https://minoshealth.pl/favicon.svg" in favicon_fallback.lower()
+        )
         assert _curl(port, "/api/v1/provenance/baw", "minoshealth.pl").endswith(
             '{"source":"BAW"}\nSTATUS:200'
         )
@@ -160,6 +169,8 @@ def test_pinned_nginx_serves_only_canonical_public_route(tmp_path: Path) -> None
             "/api/v1/provenance/rsk.json",
             "/api/v1/provenance/baw.json",
             "/api/v1/provenance/baw?alias=1",
+            "/favicon.svg?alias=1",
+            "/favicon.ico?alias=1",
             "/api/v1/./provenance/rsk",
             "/api/v1/provenance/./rsk",
             "/api/v1/provenance/rsk/.",
