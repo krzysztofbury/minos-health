@@ -19,8 +19,9 @@ from minos.ingest.watchers.archive import (
     FilesystemBlobArchive,
     S3BlobArchive,
 )
+from minos.ingest.watchers.baw.collector import BawSourceCollector
 from minos.ingest.watchers.config import (
-    RSK_SOURCE_CONFIGURATION_CODECS,
+    WATCHER_SOURCE_CONFIGURATION_CODECS,
     RskSettings,
 )
 from minos.ingest.watchers.control import (
@@ -81,8 +82,10 @@ _DEPLOYMENT_COPY_TIMEOUT_SECONDS = 240.0
 # Production mounts /tmp as a private mode-0700 container tmpfs.
 _DEFAULT_READINESS_FILE = Path("/tmp/minos-watcher-ready.json")  # nosec B108
 _RSK_SOURCE_ID = "rsk"
+_BAW_SOURCE_ID = "baw"
 _RSK_DAILY_CRON = "0 3 * * *"
 _RSK_WEEKLY_VERIFICATION_CRON = "0 4 * * 0"
+_BAW_DAILY_CRON = "0 5 * * *"
 type RskClientFactory = Callable[[RskSettings], AbstractContextManager[httpx.Client]]
 
 
@@ -151,6 +154,8 @@ class WatcherCommand(Protocol):
     def health(self) -> None: ...
 
     def bootstrap_rsk(self) -> None: ...
+
+    def bootstrap_baw(self) -> None: ...
 
     def migrate_control_database(self) -> tuple[int, int]: ...
 
@@ -352,6 +357,23 @@ class WatcherCliAdapter:
                     _ = store.bootstrap_source(
                         SourceConfiguration(_RSK_SOURCE_ID, "rsk", {}, True),
                         _rsk_schedules(),
+                    )
+
+    def bootstrap_baw(self) -> None:
+        with self._manage_resources():
+            self._prepare_directories()
+            with WatcherProcessLock(self._paths.process_lock):
+                with ControlStore.open(
+                    self._paths.database,
+                    source_configuration_codecs=self._source_configuration_codecs,
+                ) as store:
+                    _ = store.bootstrap_source(
+                        SourceConfiguration(_BAW_SOURCE_ID, "baw", {}, True),
+                        (
+                            SourceSchedule(
+                                _BAW_SOURCE_ID, _BAW_DAILY_CRON, 3600, 3, 0.5, 30.0
+                            ),
+                        ),
                     )
 
     def migrate_control_database(self) -> tuple[int, int]:
@@ -568,7 +590,7 @@ def create_watcher_command(
             capacity_limits=limits,
             scheduling_paused=settings.scheduler_paused,
             readiness_file=settings.readiness_file,
-            source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+            source_configuration_codecs=WATCHER_SOURCE_CONFIGURATION_CODECS,
         )
     return _create_s3_watcher_command(
         arguments,
@@ -659,7 +681,7 @@ def _create_s3_watcher_command(
         capacity_limits=limits,
         scheduling_paused=settings.scheduler_paused,
         readiness_file=settings.readiness_file,
-        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+        source_configuration_codecs=WATCHER_SOURCE_CONFIGURATION_CODECS,
         heartbeat_source_validator=heartbeat_source_validator,
         close=close,
     )
@@ -685,6 +707,9 @@ def create_runtime_collectors(
         "rsk",
         collector,
         required_schedule_modes=("scheduled", "weekly_verification"),
+    )
+    registry.register(
+        "baw", BawSourceCollector(staging), required_schedule_modes=("scheduled",)
     )
     return registry
 
@@ -752,7 +777,7 @@ def _create_production_preflight(
         control_database=ControlDatabaseCopyProbe(
             paths.database,
             paths.recovery_staging_directory,
-            source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+            source_configuration_codecs=WATCHER_SOURCE_CONFIGURATION_CODECS,
         ),
         s3_checksum=S3ChecksumProbe.create(
             bucket=bucket,

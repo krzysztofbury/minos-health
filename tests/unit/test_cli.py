@@ -64,6 +64,9 @@ class _WatcherCommand:
     def bootstrap_rsk(self) -> None:
         self.calls.append("bootstrap-rsk")
 
+    def bootstrap_baw(self) -> None:
+        self.calls.append("bootstrap-baw")
+
     def migrate_control_database(self) -> tuple[int, int]:
         self.calls.append("migrate-control-database")
         return 3, 3
@@ -107,6 +110,7 @@ def test_watcher_cli_commands_use_the_adapter_seam(tmp_path: Path) -> None:
     main(["watcher", "run-once", "rsk", *common], watcher_factory=factory)
     main(["watcher", "health", *common], watcher_factory=factory)
     main(["watcher", "bootstrap-rsk", *common], watcher_factory=factory)
+    main(["watcher", "bootstrap-baw", *common], watcher_factory=factory)
     main(["watcher", "migrate-control-database", *common], watcher_factory=factory)
     current_digest = "a" * 64
     target_digest = "b" * 64
@@ -133,6 +137,7 @@ def test_watcher_cli_commands_use_the_adapter_seam(tmp_path: Path) -> None:
         "run-once:rsk",
         "health",
         "bootstrap-rsk",
+        "bootstrap-baw",
         "migrate-control-database",
         f"rebuild-public-rsk:2:{current_digest}:1:{target_digest}",
     ]
@@ -142,6 +147,7 @@ def test_watcher_cli_commands_use_the_adapter_seam(tmp_path: Path) -> None:
         "run-once",
         "health",
         "bootstrap-rsk",
+        "bootstrap-baw",
         "migrate-control-database",
         "rebuild-public-rsk",
     ]
