@@ -26,6 +26,7 @@ from minos.ingest.watchers.baw.models import (
     BawRelation,
     BawResponse,
     BawSourceError,
+    document_identity,
     parse_document,
     parse_relations,
 )
@@ -197,8 +198,9 @@ class BawSourceCollector:
                 document = parse_document(response, document_id)
                 details[document_id] = response.body
                 selected.extend(_selected_files(document, links_for_files))
-                document_digests[str(document_id)] = self._archive_metadata(
-                    context, response, digests
+                raw_digest = self._archive_metadata(context, response, digests)
+                document_digests[str(document_id)] = document_identity(
+                    response, document_id
                 )
                 observations.append(
                     _observation(
@@ -206,7 +208,7 @@ class BawSourceCollector:
                         "baw_document",
                         str(document_id),
                         response.body,
-                        document_digests[str(document_id)],
+                        raw_digest,
                         {
                             "act_number": document.ActNumber,
                             "act_date": document.ActDate,
@@ -266,7 +268,10 @@ class BawSourceCollector:
                 refetch = get_json(
                     client, f"/api/documents/4/details/{document_id}/null"
                 )
-                if refetch.body != details[document_id]:
+                if (
+                    document_identity(refetch, document_id)
+                    != document_digests[str(document_id)]
+                ):
                     raise BawSourceError("BAW document changed during file collection")
             for seed_id in settings.document_ids if downloaded_document_ids else ():
                 self._require_deadline(context)
