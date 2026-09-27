@@ -347,6 +347,7 @@ def _assert_exact_routes(port: int) -> None:
     home_stylesheet = _curl(port, "/home.css", "minoshealth.pl")
     javascript = _curl(port, "/sources.js", "minoshealth.pl")
     redirect = _curl(port, "/zrodla", "minoshealth.com")
+    www_redirect = _curl(port, "/zrodla", "www.minoshealth.com")
     assert stylesheet.endswith("STATUS:200")
     assert "content-type: text/css" in stylesheet.lower()
     assert home_stylesheet.endswith("STATUS:200")
@@ -355,6 +356,8 @@ def _assert_exact_routes(port: int) -> None:
     assert "content-type: application/javascript" in javascript.lower()
     assert redirect.endswith("STATUS:308")
     assert "location: https://minoshealth.pl/zrodla" in redirect.lower()
+    assert www_redirect.endswith("STATUS:308")
+    assert "location: https://minoshealth.pl/zrodla" in www_redirect.lower()
     for path in (
         "/zrodla/",
         "/zrodla?alias=1",
@@ -367,6 +370,15 @@ def _assert_exact_routes(port: int) -> None:
     ):
         assert _curl(port, path, "minoshealth.pl").endswith("STATUS:404")
     assert _curl(port, "/zrodla?alias=1", "minoshealth.com").endswith("STATUS:404")
+    assert _curl(port, "/zrodla?alias=1", "www.minoshealth.com").endswith("STATUS:404")
+    assert _curl(port, "/", "www.minoshealth.com").endswith("STATUS:308")
+    root_with_query = _curl(port, "/?audit-probe=1", "www.minoshealth.com")
+    assert root_with_query.endswith("STATUS:308")
+    assert (
+        root_with_query.lower().split("location: ", 1)[1].splitlines()[0]
+        == "https://minoshealth.pl/"
+    )
+    assert _curl(port, "/unknown", "www.minoshealth.com").endswith("STATUS:404")
 
 
 def _curl(port: int, path: str, host: str) -> str:

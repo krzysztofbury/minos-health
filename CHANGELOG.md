@@ -18,6 +18,8 @@ release.
   about what visitors can use before the terminology search ships.
 - A compact navy, paper, and cobalt Minos favicon shared by the homepage and
   sources directory, with a canonical fallback for favicon.ico requests.
+- A bounded tunnel ingress for `www.minoshealth.com` that uses the existing
+  allowlisted, query-safe Minos `.com` redirects instead of returning 404.
 - Python 3.14 and uv development environment with Ruff, BasedPyright, mypy,
   pytest, a runnable `minos` command, and terminal/Neovim setup guidance.
 - Initial project documentation and development configuration.
