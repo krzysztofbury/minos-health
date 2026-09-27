@@ -65,7 +65,10 @@ def _projection() -> dict[str, object]:
         "entries": [
             _entry(0, "current"),
             _entry(1, "historical"),
-            _entry(2, "missing"),
+            {
+                **_entry(2, "missing"),
+                "resource_name": '<img src=x onerror="alert(1)">',
+            },
         ],
         "history_truncated": True,
         "included_revisions": [10, 11, 12],
@@ -106,9 +109,10 @@ def test_sources_page_uses_only_reviewed_dom_and_network_boundaries() -> None:
         assert forbidden not in javascript
     assert "createElement" in javascript
     assert "textContent" in javascript
-    assert "metadane ICD-9, ICD-10 i ICD-11" in html
-    assert "jawnie dozwolony plik XML ICD-10" in html
-    assert 'var PROVENANCE_PATH = "/api/v1/provenance/rsk";' in javascript
+    assert 'data-source="rsk"' in html
+    assert 'data-source="baw"' in html
+    assert 'var RSK_PATH = "/api/v1/provenance/rsk";' in javascript
+    assert 'var BAW_PATH = "/api/v1/provenance/baw";' in javascript
     assert "/api/v1/artifacts" not in javascript
     assert "amazonaws" not in javascript.lower()
     plausible = (STATIC_ROOT / "plausible-init.js").read_text()
@@ -124,28 +128,20 @@ def test_sources_page_uses_only_reviewed_dom_and_network_boundaries() -> None:
     assert 'href="/sources.css"' in html
     assert "<style" not in home
     assert 'href="/home.css"' in home
+    assert 'class="hero-cta" href="/zrodla"' in home
     assert "'unsafe-inline'" not in (STATIC_ROOT / "edge-nginx.conf").read_text()
 
 
 def test_normal_text_color_tokens_meet_wcag_aa_contrast() -> None:
     sources_css = (STATIC_ROOT / "sources.css").read_text()
-    legal_css = (STATIC_ROOT / "legal.css").read_text()
     paper = _css_color_token(sources_css, "paper")
-    red_text = _css_color_token(sources_css, "red-text")
+    navy = _css_color_token(sources_css, "navy")
+    cobalt = _css_color_token(sources_css, "cobalt")
     muted = _css_color_token(sources_css, "muted")
 
-    assert _contrast_ratio(red_text, paper) >= 4.5
+    assert _contrast_ratio(navy, paper) >= 4.5
+    assert _contrast_ratio(cobalt, paper) >= 4.5
     assert _contrast_ratio(muted, paper) >= 4.5
-    assert _css_color_token(legal_css, "red-text") == red_text
-    assert _css_color_token(legal_css, "paper") == paper
-    assert ".note-number {\n  margin: 0;\n  color: var(--red-text);" in sources_css
-    assert (
-        ".search-field input::placeholder {\n  color: var(--muted);\n  opacity: 1;"
-    ) in sources_css
-    assert "a:hover {\n  color: var(--red-text);" in sources_css
-    assert "a:hover {\n  color: var(--red-text);" in legal_css
-    assert "background: var(--red);" in sources_css
-    assert "background: var(--red);" in legal_css
 
 
 def test_pinned_nginx_and_installed_browser_render_sources_page(
@@ -168,11 +164,53 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
     fixture_file = projection_path / "rsk.json"
     _ = fixture_file.write_text(json.dumps(_projection(), ensure_ascii=False))
     (public_root / "current").symlink_to("generations/fixture")
+    baw_path = (
+        public_root / "baw" / "generations" / "fixture" / "api" / "v1" / "provenance"
+    )
+    baw_path.mkdir(parents=True)
+    baw_fixture = baw_path / "baw.json"
+    _ = baw_fixture.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "source": "BAW",
+                "through_state_revision": 13,
+                "observed_at": "2026-09-22T08:30:00Z",
+                "redistribution": {"schema_version": 1, "artifacts": []},
+                "documents": [
+                    {
+                        "document_id": 43943,
+                        "act_number": "46/2026/DSOZ",
+                        "act_date": "2026-07-23",
+                        "published_date": None,
+                        "entry_into_force": "2026-07-24",
+                        "service_applicability_date": None,
+                        "valid_to": None,
+                        "legal_status": "Obowiązujący",
+                        "observed_at": "2026-09-22T08:20:00Z",
+                        "metadata_sha256": "b" * 64,
+                        "source_url": "https://baw.nfz.gov.pl/NFZ/document/43943",
+                        "files": [
+                            {
+                                "file_id": 30983,
+                                "name": "Zalacznik1a.xlsx",
+                                "size_bytes": 304191,
+                                "sha256": "c" * 64,
+                            }
+                        ],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
+    (public_root / "baw" / "current").symlink_to("generations/fixture")
     OUTPUT_ROOT.mkdir(exist_ok=True)
 
     container = f"minos-sources-browser-{uuid4().hex}"
     volumes = [
         f"{STATIC_ROOT / 'edge-nginx.conf'}:/etc/nginx/nginx.conf:ro",
+        f"{STATIC_ROOT / 'maintenance-index.html'}:/usr/share/nginx/html/index.html:ro",
         f"{STATIC_ROOT / 'home.css'}:/usr/share/nginx/html/home.css:ro",
         f"{STATIC_ROOT / 'sources.html'}:/usr/share/nginx/html/sources.html:ro",
         f"{STATIC_ROOT / 'sources.css'}:/usr/share/nginx/html/sources.css:ro",
@@ -220,6 +258,7 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
                 str(required["chromium"]),
                 f"http://minoshealth.pl:{port}/zrodla",
                 str(fixture_file),
+                str(baw_fixture),
                 str(OUTPUT_ROOT),
             ],
             cwd=ROOT,
@@ -234,6 +273,7 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
         assert (OUTPUT_ROOT / "sources-desktop.png").stat().st_size > 10_000
         assert (OUTPUT_ROOT / "sources-mobile.png").stat().st_size > 10_000
         assert (OUTPUT_ROOT / "sources-mobile-320.png").stat().st_size > 10_000
+        assert (OUTPUT_ROOT / "home-mobile.png").stat().st_size > 10_000
     finally:
         _ = subprocess.run(
             [str(required["docker"]), "stop", container],
@@ -292,6 +332,12 @@ def _assert_exact_routes(port: int) -> None:
     assert "style-src 'self'" in lowered
     assert "unsafe-inline" not in lowered
     assert "x-content-type-options: nosniff" in lowered
+    assert _curl(port, "/api/v1/provenance/rsk", "minoshealth.pl").endswith(
+        "STATUS:200"
+    )
+    assert _curl(port, "/api/v1/provenance/baw", "minoshealth.pl").endswith(
+        "STATUS:200"
+    )
     stylesheet = _curl(port, "/sources.css", "minoshealth.pl")
     home_stylesheet = _curl(port, "/home.css", "minoshealth.pl")
     javascript = _curl(port, "/sources.js", "minoshealth.pl")
@@ -311,6 +357,8 @@ def _assert_exact_routes(port: int) -> None:
         "/sources.css?alias=1",
         "/home.css?alias=1",
         "/sources.js/",
+        "/api/v1/provenance/baw?alias=1",
+        "/api/v1/provenance/baw.json",
     ):
         assert _curl(port, path, "minoshealth.pl").endswith("STATUS:404")
     assert _curl(port, "/zrodla?alias=1", "minoshealth.com").endswith("STATUS:404")

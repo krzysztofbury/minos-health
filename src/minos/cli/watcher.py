@@ -20,6 +20,7 @@ from minos.ingest.watchers.archive import (
     S3BlobArchive,
 )
 from minos.ingest.watchers.baw.collector import BawSourceCollector
+from minos.ingest.watchers.baw.publication import BawPublicProjectionPublisher
 from minos.ingest.watchers.config import (
     WATCHER_SOURCE_CONFIGURATION_CODECS,
     RskSettings,
@@ -53,6 +54,7 @@ from minos.ingest.watchers.protocols import (
     CollectorRegistry,
     HeartbeatClient,
     RecoveryPublisher,
+    SourcePublicProjectionPublisher,
     WatcherRuntimeError,
 )
 from minos.ingest.watchers.publication import (
@@ -429,8 +431,17 @@ class WatcherCliAdapter:
             collectors=self._collectors,
             recovery_publisher=self._recovery_publisher,
             heartbeat=self._heartbeat,
-            public_projection_publisher=RskPublicProjectionPublisher(
-                ImmutableGenerationPublisher(self._public_directory())
+            public_projection_publisher=SourcePublicProjectionPublisher(
+                {
+                    "rsk": RskPublicProjectionPublisher(
+                        ImmutableGenerationPublisher(self._public_directory())
+                    ),
+                    "baw": BawPublicProjectionPublisher(
+                        ImmutableGenerationPublisher(
+                            self._public_directory() / "baw", source="BAW"
+                        )
+                    ),
+                }
             ),
         )
         return WatcherService(
@@ -450,6 +461,7 @@ class WatcherCliAdapter:
         ):
             _prepare_private_directory(directory)
         prepare_public_root(self._public_directory())
+        prepare_public_root(self._public_directory() / "baw")
         BlobStagingArea(
             self._paths.staging_directory,
             maximum_size_bytes=self._capacity_limits.maximum_download_size_bytes,

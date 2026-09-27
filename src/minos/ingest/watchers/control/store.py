@@ -1677,10 +1677,12 @@ class ControlStore:
         *,
         through_state_revision: int,
         maximum_revisions: int = _MAX_PUBLIC_HISTORY_REVISIONS,
+        product_kind: str = "rsk_product",
     ) -> CommittedObservationHistory:
         self._require_open()
         _validate_identifier(source_id, "source ID", 64)
         _validate_identifier(observation_kind, "observation kind", 64)
+        _validate_identifier(product_kind, "product kind", 64)
         _validate_positive(through_state_revision, "history fence revision")
         _validate_list_limit(
             maximum_revisions,
@@ -1690,6 +1692,7 @@ class ControlStore:
         product_evidence, input_rows, input_bytes = self._load_product_evidence(
             source_id,
             through_state_revision,
+            product_kind,
         )
         revision_rows = cast(
             list[tuple[int, int]],
@@ -1847,6 +1850,7 @@ class ControlStore:
         self,
         source_id: str,
         through_state_revision: int,
+        product_kind: str,
     ) -> tuple[tuple[CommittedProductEvidence, ...], int, int]:
         rows = cast(
             list[tuple[int, str, str, str, int, str, int, str | None]],
@@ -1859,7 +1863,7 @@ class ControlStore:
                 JOIN watcher_runs AS r
                   ON r.run_id = o.run_id AND r.source_id = o.source_id
                 JOIN blobs AS response ON response.sha256 = o.response_sha256
-                WHERE o.source_id = ? AND o.observation_kind = 'rsk_product'
+                WHERE o.source_id = ? AND o.observation_kind = ?
                   AND o.state_revision <= ?
                   AND length(o.metadata_json) <= 1024
                   AND r.committed_state_revision = o.state_revision
@@ -1867,7 +1871,12 @@ class ControlStore:
                 ORDER BY o.state_revision DESC, o.observation_id DESC
                 LIMIT ?
                 """,
-                (source_id, through_state_revision, _MAX_PUBLIC_PRODUCT_EVIDENCE + 1),
+                (
+                    source_id,
+                    product_kind,
+                    through_state_revision,
+                    _MAX_PUBLIC_PRODUCT_EVIDENCE + 1,
+                ),
             ).fetchall(),
         )
         rows = rows[:_MAX_PUBLIC_PRODUCT_EVIDENCE]

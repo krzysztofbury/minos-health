@@ -296,6 +296,17 @@ empty artifact allowlist. Therefore every provenance entry has
 streaming remains deferred until an approved digest allowlist and application
 endpoint exist.
 
+The BAW watcher separately publishes a bounded document and selected-file
+summary under `/api/v1/provenance/baw`. It uses its own immutable generation
+under the same watcher-writable, edge-read-only public directory. The summary
+contains only document IDs, act labels and dates, publisher legal status,
+official BAW document links, selected file names and sizes, and verified
+checksums. Generated source UUIDs, raw legal responses, private S3 addresses,
+control records, and downloadable Minos artifact URLs are not published.
+Service applicability stays unknown until reviewed from the governing act.
+The `/zrodla` directory can search across BAW and RSK without mixing their
+publisher roles or treating observation time as source validity.
+
 ## NFZ Statistics API
 
 <https://api.nfz.gov.pl/app-stat-api-jgp/> provides JSON:API hospitalization

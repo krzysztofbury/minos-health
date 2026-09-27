@@ -411,7 +411,8 @@ file before enabling BAW. Then run `minos watcher bootstrap-baw` once against
 the live control database with dispatch quiesced; `minos watcher run-once baw`
 performs the initial bounded collection. The public Kuma status page must be
 updated by the operator to include BAW if BAW state is intended to be visible
-there. The `/zrodla` provenance page remains RSK-only.
+there. The `/zrodla` directory reads only the sanitized public RSK and BAW
+projections. Neither endpoint serves archived source files.
 
 These commands require access to the host and therefore do not detect a complete
 Mikr.us host, network, or power outage from outside its fault domain.

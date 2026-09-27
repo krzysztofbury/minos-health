@@ -17,14 +17,7 @@ _MAX_GENERATIONS = 1024
 _MAX_STALE_DIRECTORIES = 128
 _MAX_PROJECTION_BYTES = 8 * 1024 * 1024
 _MAX_MANIFEST_BYTES = 64 * 1024
-_PROJECTION_PATH = "api/v1/provenance/rsk.json"
-_EXPECTED_FILES = ("manifest.json", _PROJECTION_PATH)
-_TREE_LAYOUT: dict[str, dict[str, str]] = {
-    "": {"manifest.json": "file", "api": "directory"},
-    "api": {"v1": "directory"},
-    "api/v1": {"provenance": "directory"},
-    "api/v1/provenance": {"rsk.json": "file"},
-}
+_SOURCES = {"RSK": "rsk.json", "BAW": "baw.json"}
 
 
 class PublicPublicationError(RuntimeError):
@@ -58,12 +51,24 @@ class ImmutableGenerationPublisher:
         self,
         root: Path,
         *,
+        source: str = "RSK",
         retained_generations: int = 3,
         fault: Callable[[str], None] | None = None,
     ) -> None:
         if retained_generations < 1 or retained_generations > 16:
             raise PublicPublicationError("generation retention is unsupported")
+        if source not in _SOURCES:
+            raise PublicPublicationError("public generation source is unsupported")
         self._root = root
+        self._source = source
+        self._filename = _SOURCES[source]
+        self._projection_path = f"api/v1/provenance/{self._filename}"
+        self._tree_layout: dict[str, dict[str, str]] = {
+            "": {"manifest.json": "file", "api": "directory"},
+            "api": {"v1": "directory"},
+            "api/v1": {"provenance": "directory"},
+            "api/v1/provenance": {self._filename: "file"},
+        }
         self._retained_generations = retained_generations
         self._fault = fault or _no_publication_fault
 
@@ -209,9 +214,11 @@ class ImmutableGenerationPublisher:
         if type(state_revision) is not int or state_revision < 1:
             raise PublicPublicationError("public state revision is invalid")
         self._validate_digest(projection_sha256)
-        if tuple(sorted(files)) != tuple(sorted(_EXPECTED_FILES)):
+        if tuple(sorted(files)) != tuple(
+            sorted(("manifest.json", self._projection_path))
+        ):
             raise PublicPublicationError("public generation file set is invalid")
-        projection = files[_PROJECTION_PATH]
+        projection = files[self._projection_path]
         manifest = files["manifest.json"]
         if len(projection) < 1 or len(projection) > _MAX_PROJECTION_BYTES:
             raise PublicPublicationError("public projection size is invalid")
@@ -239,12 +246,12 @@ class ImmutableGenerationPublisher:
             raise PublicPublicationError("public manifest size is invalid")
         document = _decode_json_object(content)
         expected: dict[str, object] = {
-            "projection_path": _PROJECTION_PATH,
+            "projection_path": self._projection_path,
             "projection_sha256": projection_sha256,
             "projection_size_bytes": projection_size_bytes,
             "redistribution": {"artifacts": [], "schema_version": 1},
             "schema_version": 1,
-            "source": "RSK",
+            "source": self._source,
             "state_revision": state_revision,
         }
         if document != expected or content != _canonical_bytes(document):
@@ -451,8 +458,8 @@ class ImmutableGenerationPublisher:
             )
             self._write_file(
                 provenance_descriptor,
-                "rsk.json",
-                files[_PROJECTION_PATH],
+                self._filename,
+                files[self._projection_path],
             )
             for descriptor in (
                 provenance_descriptor,
@@ -610,7 +617,7 @@ class ImmutableGenerationPublisher:
                         )
                         projection = self._read_file(
                             provenance_descriptor,
-                            "rsk.json",
+                            self._filename,
                             _MAX_PROJECTION_BYTES,
                         )
                     finally:
@@ -626,14 +633,16 @@ class ImmutableGenerationPublisher:
         if hashlib.sha256(projection).hexdigest() != digest:
             raise PublicPublicationError("stored public projection digest differs")
         self._validate_manifest(manifest, revision, digest, len(projection))
-        return {"manifest.json": manifest, _PROJECTION_PATH: projection}
+        return {"manifest.json": manifest, self._projection_path: projection}
 
     def _require_tree_layout(
         self,
         directory_descriptor: int,
         relative_path: str,
     ) -> None:
-        if set(os.listdir(directory_descriptor)) != set(_TREE_LAYOUT[relative_path]):
+        if set(os.listdir(directory_descriptor)) != set(
+            self._tree_layout[relative_path]
+        ):
             raise PublicPublicationError("public generation tree layout differs")
 
     def _read_file(
@@ -750,7 +759,7 @@ class ImmutableGenerationPublisher:
         descriptor = self._open_directory_any_mode(parent_descriptor, name)
         try:
             entries = set(os.listdir(descriptor))
-            allowed = _TREE_LAYOUT[relative_path]
+            allowed = self._tree_layout[relative_path]
             if not entries.issubset(allowed):
                 raise PublicPublicationError(
                     "refusing to remove an unexpected public generation"
