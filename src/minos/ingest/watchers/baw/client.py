@@ -44,7 +44,8 @@ def create_baw_client(*, transport: httpx.BaseTransport | None = None) -> httpx.
         cookies={},
         follow_redirects=False,
         trust_env=False,
-        timeout=httpx.Timeout(25.0, connect=5.0),
+        # The original act's metadata has taken over 25 seconds on Mikr.us.
+        timeout=httpx.Timeout(60.0, connect=5.0),
         headers={
             "Accept-Encoding": "identity",
             "User-Agent": "minos-health/0.0.1 baw-watcher",
