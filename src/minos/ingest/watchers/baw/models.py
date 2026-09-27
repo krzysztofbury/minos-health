@@ -1,8 +1,10 @@
 """Validated BAW response shapes and source relationships."""
 
+import hashlib
 import json
 from dataclasses import dataclass
 from typing import Annotated, ClassVar, Literal, cast
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -56,6 +58,57 @@ def parse_document(response: BawResponse, document_id: int) -> BawDocument:
     if document.IsPrivate or document.IsRemoved or not document.WasEverPublished:
         raise BawSourceError("BAW document is not a public issued source")
     return document
+
+
+def document_identity(response: BawResponse, document_id: int) -> str:
+    """Ignore only BAW's generated legal-basis UUIDs, not legal or file facts."""
+    _ = parse_document(response, document_id)
+    payload = cast(object, json.loads(response.body))
+    if not isinstance(payload, dict):
+        raise BawSourceError("BAW document is not an object")
+    document = cast(dict[str, object], payload)
+    bases = document.get("LegalBasisActs")
+    if bases is not None:
+        if not isinstance(bases, list):
+            raise BawSourceError("BAW legal basis structure is invalid")
+        basis_items = cast(list[object], bases)
+        if len(basis_items) > 128:
+            raise BawSourceError("BAW legal basis structure is invalid")
+        for basis in basis_items:
+            if not isinstance(basis, dict):
+                raise BawSourceError("BAW legal basis is invalid")
+            basis_fields = cast(dict[str, object], basis)
+            _discard_generated_identifier(basis_fields)
+            rules = basis_fields.get("LegalActRegulations")
+            if rules is None:
+                continue
+            if not isinstance(rules, list):
+                raise BawSourceError("BAW legal regulations are invalid")
+            rule_items = cast(list[object], rules)
+            if len(rule_items) > 512:
+                raise BawSourceError("BAW legal regulations are invalid")
+            for rule in rule_items:
+                if not isinstance(rule, dict):
+                    raise BawSourceError("BAW legal regulation is invalid")
+                _discard_generated_identifier(cast(dict[str, object], rule))
+    encoded = json.dumps(
+        document, sort_keys=True, ensure_ascii=True, separators=(",", ":")
+    ).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _discard_generated_identifier(fields: dict[str, object]) -> None:
+    value = fields.get("ObjectIdentifier")
+    if value is None:
+        return
+    if not isinstance(value, str) or len(value) != 36:
+        raise BawSourceError("BAW generated identifier is invalid")
+    try:
+        if str(UUID(value)) != value:
+            raise ValueError("non-canonical UUID")
+    except ValueError:
+        raise BawSourceError("BAW generated identifier is invalid") from None
+    del fields["ObjectIdentifier"]
 
 
 def parse_relations(response: BawResponse) -> tuple[BawRelation, ...]:

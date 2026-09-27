@@ -74,7 +74,7 @@ def _zip_file() -> bytes:
     return data.getvalue()
 
 
-def _document(document_id: int, *, amendment: bool = False) -> bytes:
+def _document(document_id: int, *, amendment: bool = False, generated_id: str) -> bytes:
     def file(
         file_id: int, name: str, parent: int | None, children: list[dict[str, object]]
     ) -> dict[str, object]:
@@ -102,6 +102,14 @@ def _document(document_id: int, *, amendment: bool = False) -> bytes:
         "ValidFrom": "2026-07-24T00:00:00",
         "ValidTo": None,
         "LegalActStatus": {"Name": "Obowiązujący"},
+        "LegalBasisActs": [
+            {
+                "ObjectIdentifier": generated_id,
+                "LegalActRegulations": [
+                    {"ObjectIdentifier": generated_id, "Section": "unchanged"}
+                ],
+            }
+        ],
         "Files": [
             file(
                 root,
@@ -135,7 +143,11 @@ def _relations() -> bytes:
 
 
 def _setup(
-    tmp_path: Path, *, rotate: bool = False, invalid_zip: bool = False
+    tmp_path: Path,
+    *,
+    rotate: bool = False,
+    invalid_zip: bool = False,
+    volatile_identifiers: bool = False,
 ) -> tuple[ControlStore, WatcherOrchestrator, list[str], Path]:
     database = tmp_path / "control.sqlite3"
     calls: list[str] = []
@@ -147,11 +159,20 @@ def _setup(
         calls.append(path)
         if "/details/" in path:
             document_id = int(path.split("/")[-2])
-            body = _document(document_id, amendment=document_id == 43942)
-            if rotate and document_id == 43868:
+            if document_id == 43868:
                 read_count += 1
-                if read_count == 2:
-                    body = body.replace(b"2026-07-23", b"2026-07-24")
+            generated_id = (
+                "00000000-0000-4000-8000-000000000002"
+                if volatile_identifiers and document_id == 43868 and read_count % 2 == 0
+                else "00000000-0000-4000-8000-000000000001"
+            )
+            body = _document(
+                document_id,
+                amendment=document_id == 43942,
+                generated_id=generated_id,
+            )
+            if rotate and document_id == 43868 and read_count == 2:
+                body = body.replace(b"2026-07-23", b"2026-07-24")
             return httpx.Response(
                 200, content=body, headers={"content-type": "application/json"}
             )
@@ -229,7 +250,7 @@ def _setup(
 def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
     tmp_path: Path,
 ) -> None:
-    store, orchestrator, calls, database = _setup(tmp_path)
+    store, orchestrator, calls, database = _setup(tmp_path, volatile_identifiers=True)
     try:
         first = store.claim_manual("baw")
         _ = orchestrator.run_claim(first, first.retry_policy)
