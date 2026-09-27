@@ -126,6 +126,9 @@ def test_sources_page_uses_only_reviewed_dom_and_network_boundaries() -> None:
     assert "<script>" not in html
     assert 'src="/sources.js"' in html
     assert 'href="/sources.css"' in html
+    title = re.search(r"<title>[^<]+</title>", html)
+    assert title is not None
+    assert title.group() in (ROOT / "infra" / "ansible" / "site.yml").read_text()
     assert "<style" not in home
     assert 'href="/home.css"' in home
     assert 'class="hero-cta" href="/zrodla"' in home

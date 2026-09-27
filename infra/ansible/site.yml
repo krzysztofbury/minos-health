@@ -2271,7 +2271,7 @@
         - name: Require the Sources page and strict CSP from the production edge
           ansible.builtin.assert:
             that:
-              - "'<title>Źródła danych - Minos Health</title>' in minos_candidate_sources_page.stdout"
+              - "'<title>Źródła danych medycznych - Minos Health</title>' in minos_candidate_sources_page.stdout"
               - "\"style-src 'self'\" in minos_candidate_sources_page.stderr"
               - "\"connect-src 'self' https://plausible.io\" in minos_candidate_sources_page.stderr"
               - "'unsafe-inline' not in minos_candidate_sources_page.stderr"
