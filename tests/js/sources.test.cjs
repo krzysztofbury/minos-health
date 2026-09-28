@@ -216,7 +216,7 @@ function bawProjection(overrides = {}) {
       legal_status: "Obowiązujący",
       observed_at: "2026-09-21T11:00:00Z",
       metadata_sha256: DIGEST,
-      source_url: "https://baw.nfz.gov.pl/NFZ/document/43943",
+      source_url: "https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ",
       files: [{ file_id: 30983, name: "Zalacznik1a.xlsx", size_bytes: 304191, sha256: DIGEST }],
     }],
     ...overrides,
@@ -232,7 +232,9 @@ test("accepts private BAW provenance but never a Minos download", () => {
 test("rejects unrelated BAW hosts, invalid dates, duplicate files, and redistribution", () => {
   const valid = bawProjection();
   for (const mutation of [
-    { ...valid.documents[0], source_url: "https://evil.invalid/NFZ/document/43943" },
+    { ...valid.documents[0], source_url: "https://evil.invalid/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ" },
+    { ...valid.documents[0], source_url: "https://baw.nfz.gov.pl/NFZ/document/43943" },
+    { ...valid.documents[0], source_url: "https://baw.nfz.gov.pl/NFZ/document/43943/not-the-title" },
     { ...valid.documents[0], entry_into_force: "2026-02-30" },
     { ...valid.documents[0], files: [valid.documents[0].files[0], valid.documents[0].files[0]] },
   ]) {
@@ -241,6 +243,9 @@ test("rejects unrelated BAW hosts, invalid dates, duplicate files, and redistrib
   assert.throws(() => sources.validateBawProjection(bawProjection({
     redistribution: { schema_version: 1, artifacts: ["public-baw.xlsx"] },
   })));
+  assert.equal(sources.validateBawProjection(bawProjection({
+    documents: [{ ...valid.documents[0], source_url: null }],
+  })).documents[0].source_url, null);
 });
 
 test("local catalog search normalizes ICD punctuation and Polish diacritics", () => {

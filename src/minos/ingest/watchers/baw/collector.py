@@ -211,6 +211,7 @@ class BawSourceCollector:
                         raw_digest,
                         {
                             "act_number": document.ActNumber,
+                            "legal_act_type": document.LegalActTypeDescription,
                             "act_date": document.ActDate,
                             "baw_published_date": document.PublishedDate,
                             "entry_into_force": document.ValidFrom,
