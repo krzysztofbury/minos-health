@@ -2,6 +2,7 @@ import io
 import json
 import sqlite3
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 from typing import cast, final
 
@@ -12,7 +13,10 @@ from minos.ingest.watchers.archive import BlobStagingArea, FilesystemBlobArchive
 from minos.ingest.watchers.baw.client import create_baw_client
 from minos.ingest.watchers.baw.collector import BawSourceCollector
 from minos.ingest.watchers.baw.models import BawSourceError
-from minos.ingest.watchers.baw.publication import BawPublicProjectionPublisher
+from minos.ingest.watchers.baw.publication import (
+    BawPublicProjectionPublisher,
+    build_baw_projection,
+)
 from minos.ingest.watchers.config import WATCHER_SOURCE_CONFIGURATION_CODECS
 from minos.ingest.watchers.control import (
     CommittedRun,
@@ -80,7 +84,12 @@ def _zip_file() -> bytes:
     return data.getvalue()
 
 
-def _document(document_id: int, *, amendment: bool = False, generated_id: str) -> bytes:
+def _document(
+    document_id: int,
+    *,
+    amendment: bool = False,
+    generated_id: str,
+) -> bytes:
     def file(
         file_id: int, name: str, parent: int | None, children: list[dict[str, object]]
     ) -> dict[str, object]:
@@ -326,6 +335,57 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
         second = store.claim_manual("baw")
         _ = orchestrator.run_claim(second, second.retry_policy)
         assert _query(database, "SELECT COUNT(*) FROM source_changes") == [(1,)]
+    finally:
+        store.close()
+
+
+def test_legacy_baw_observation_restores_immutable_public_generation(
+    tmp_path: Path,
+) -> None:
+    store, orchestrator, _, _ = _setup(tmp_path)
+    try:
+        claim = store.claim_manual("baw")
+        _ = orchestrator.run_claim(claim, claim.retry_policy)
+        latest = store.latest_recovery_reconciled_run("baw")
+        assert latest is not None
+        history = store.load_committed_observation_history(
+            "baw",
+            "baw_document",
+            through_state_revision=latest.committed_state_revision,
+            product_kind="baw_file",
+        )
+        assert len(history.revisions) == 1
+        revision = history.revisions[0]
+        legacy = replace(
+            history,
+            revisions=(
+                replace(
+                    revision,
+                    observations=tuple(
+                        replace(
+                            observation,
+                            metadata={
+                                key: value
+                                for key, value in observation.metadata.items()
+                                if key != "legal_act_type"
+                            },
+                        )
+                        for observation in revision.observations
+                    ),
+                ),
+            ),
+        )
+        before = build_baw_projection(legacy)
+        public = cast(dict[str, object], json.loads(before))
+        documents = cast(list[dict[str, object]], public["documents"])
+        assert {item["source_url"] for item in documents} == {
+            f"https://baw.nfz.gov.pl/NFZ/document/{document_id}"
+            for document_id in (43868, 43942, 43943)
+        }
+        current = (
+            tmp_path / "public/baw/current/api/v1/provenance/baw.json"
+        ).read_bytes()
+        assert before != current
     finally:
         store.close()
 

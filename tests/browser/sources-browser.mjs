@@ -148,10 +148,20 @@ try {
     cards: 2, hostname: "minoshealth.pl", textSafe: true,
     injectedImages: 0, noDownloadLinks: true, collapsed: true, overflow: false,
   });
+  assert.equal(await evaluate(client, `document.querySelector('a[href="https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ"]') !== null`), true);
   const tree = await client.send("Accessibility.getFullAXTree");
   assert.ok(tree.nodes.some((node) => node.role?.value === "tablist"));
   assert.ok(tree.nodes.some((node) => node.role?.value === "tabpanel"));
   await screenshot(client, "sources-desktop.png");
+
+  await writeFile(bawFixture, JSON.stringify({
+    ...baw, documents: baw.documents.map((doc) => ({
+      ...doc, source_url: `https://baw.nfz.gov.pl/NFZ/document/${doc.document_id}`,
+    })),
+  }));
+  await navigate(client, 1440, 900, "is-ready");
+  assert.equal(await evaluate(client, `document.querySelector('a[href*="baw.nfz.gov.pl/NFZ/document/"]') === null`), true);
+  await writeFile(bawFixture, JSON.stringify(baw));
 
   const search = await evaluate(client, `(() => {
     const input = document.getElementById("source-search");

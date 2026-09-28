@@ -167,7 +167,9 @@
       doc.observed_at = expectTimestamp(doc.observed_at, "odczyt dokumentu");
       expectPattern(doc.metadata_sha256, DIGEST_PATTERN, "suma metadanych", 64);
       var officialUrl = "https://baw.nfz.gov.pl/NFZ/document/" + doc.document_id + "/Zarzadzenie-" + doc.act_number.replace(/\//g, "_");
-      if (doc.source_url !== null && (!/^[1-9]\d{0,3}\/20\d{2}\/DSOZ$/.test(doc.act_number) || doc.source_url !== officialUrl)) fail("adres BAW");
+      var legacyUrl = "https://baw.nfz.gov.pl/NFZ/document/" + doc.document_id;
+      if (doc.source_url !== null && doc.source_url !== legacyUrl && (!/^[1-9]\d{0,3}\/20\d{2}\/DSOZ$/.test(doc.act_number) || doc.source_url !== officialUrl)) fail("adres BAW");
+      if (doc.source_url === legacyUrl) doc.source_url = null;
       expectArray(doc.files, "pliki BAW", 0, 128);
       var files = new Set();
       doc.files.forEach(function (file) {

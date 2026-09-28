@@ -101,8 +101,12 @@ def build_baw_projection(history: CommittedObservationHistory) -> bytes:
         ) or not isinstance(metadata["act_number"], str):
             raise WatcherRuntimeError("BAW public document metadata is invalid")
         act_number = _text(metadata["act_number"])
-        source_url = _source_url(
-            int(document_id), act_number, metadata.get("legal_act_type")
+        # Already published generations are immutable. Legacy observations must
+        # render byte-for-byte as before until a new observation is committed.
+        source_url = (
+            f"https://baw.nfz.gov.pl/NFZ/document/{document_id}"
+            if "legal_act_type" not in metadata
+            else _source_url(int(document_id), act_number, metadata["legal_act_type"])
         )
         files = _document_files(int(document_id), products)
         documents.append(
