@@ -11,6 +11,9 @@ release.
 
 ### Added
 
+- Publisher-shaped BAW document links derived from a validated legal-act type
+  and act number, with legacy or unsupported links withheld rather than sending
+  visitors to the BAW application shell.
 - Source-specific, bounded BAW provenance as an independent immutable public
   generation with deny-all artifact redistribution; a compact RSK and BAW
   sources directory with shared local search and source tabs.

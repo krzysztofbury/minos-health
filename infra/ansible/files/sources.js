@@ -166,7 +166,8 @@
       ["act_date", "published_date", "entry_into_force", "service_applicability_date", "valid_to"].forEach(function (name) { expectBawDate(doc[name], name); });
       doc.observed_at = expectTimestamp(doc.observed_at, "odczyt dokumentu");
       expectPattern(doc.metadata_sha256, DIGEST_PATTERN, "suma metadanych", 64);
-      if (doc.source_url !== "https://baw.nfz.gov.pl/NFZ/document/" + doc.document_id) fail("adres BAW");
+      var officialUrl = "https://baw.nfz.gov.pl/NFZ/document/" + doc.document_id + "/Zarzadzenie-" + doc.act_number.replace(/\//g, "_");
+      if (doc.source_url !== null && (!/^[1-9]\d{0,3}\/20\d{2}\/DSOZ$/.test(doc.act_number) || doc.source_url !== officialUrl)) fail("adres BAW");
       expectArray(doc.files, "pliki BAW", 0, 128);
       var files = new Set();
       doc.files.forEach(function (file) {
@@ -320,7 +321,7 @@
     }
     details.append(element("span", "technical", "Odczyt (UTC): " + card.observed + " · SHA-256 odpowiedzi metadanych: " + card.metadataSha256));
     article.append(details);
-    if (card.source === "baw") {
+    if (card.source === "baw" && card.document.source_url !== null) {
       var sourceLink = element("a", "card-link", "Otwórz dokument w BAW NFZ");
       sourceLink.href = card.document.source_url;
       sourceLink.rel = "noopener noreferrer";

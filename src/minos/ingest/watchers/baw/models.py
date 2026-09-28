@@ -34,6 +34,7 @@ class BawDocument(BaseModel):
     IsRemoved: bool
     WasEverPublished: bool
     ActNumber: Annotated[str, Field(min_length=1, max_length=128)]
+    LegalActTypeDescription: str | None = None
     ActDate: str | None = None
     PublishedDate: str | None = None
     ValidFrom: str | None = None

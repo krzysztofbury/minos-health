@@ -95,15 +95,22 @@ def build_baw_projection(history: CommittedObservationHistory) -> bytes:
             "valid_to",
             "legal_status",
         }
-        if set(metadata) != expected or not isinstance(metadata["act_number"], str):
+        if set(metadata) not in (
+            expected,
+            expected | {"legal_act_type"},
+        ) or not isinstance(metadata["act_number"], str):
             raise WatcherRuntimeError("BAW public document metadata is invalid")
+        act_number = _text(metadata["act_number"])
+        source_url = _source_url(
+            int(document_id), act_number, metadata.get("legal_act_type")
+        )
         files = _document_files(int(document_id), products)
         documents.append(
             cast(
                 dict[str, JsonValue],
                 {
                     "document_id": int(document_id),
-                    "act_number": _text(metadata["act_number"]),
+                    "act_number": act_number,
                     "act_date": _date(metadata["act_date"]),
                     "published_date": _date(metadata["baw_published_date"]),
                     "entry_into_force": _date(metadata["entry_into_force"]),
@@ -114,7 +121,7 @@ def build_baw_projection(history: CommittedObservationHistory) -> bytes:
                     "legal_status": _text(metadata["legal_status"]),
                     "observed_at": _timestamp(observation.observed_at_ms),
                     "metadata_sha256": _digest(observation.response_sha256),
-                    "source_url": f"https://baw.nfz.gov.pl/NFZ/document/{document_id}",
+                    "source_url": source_url,
                     "files": files,
                 },
             )
@@ -132,6 +139,19 @@ def build_baw_projection(history: CommittedObservationHistory) -> bytes:
     if len(result) > _MAX_PUBLIC_BYTES:
         raise WatcherRuntimeError("BAW public projection exceeds its size bound")
     return result
+
+
+def _source_url(
+    document_id: int, act_number: str, legal_act_type: object
+) -> str | None:
+    # BAW's BuildDocumentUrl uses the legal-act type and slash-separated number.
+    # Publish no link for legacy observations or types outside this reviewed form.
+    if (
+        legal_act_type != "Zarządzenie"
+        or re.fullmatch(r"[1-9]\d{0,3}/20\d{2}/DSOZ", act_number) is None
+    ):
+        return None
+    return f"https://baw.nfz.gov.pl/NFZ/document/{document_id}/Zarzadzenie-{act_number.replace('/', '_')}"
 
 
 def _document_files(

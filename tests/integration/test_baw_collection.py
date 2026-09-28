@@ -103,6 +103,7 @@ def _document(document_id: int, *, amendment: bool = False, generated_id: str) -
         "IsRemoved": False,
         "WasEverPublished": True,
         "ActNumber": "74/2026/DSOZ" if amendment else "46/2026/DSOZ",
+        "LegalActTypeDescription": "Zarządzenie",
         "ActDate": "2026-07-23T00:00:00",
         "PublishedDate": None,
         "ValidFrom": "2026-07-24T00:00:00",
@@ -287,6 +288,7 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
             ),
         )
         assert metadata["entry_into_force"] == "2026-07-24T00:00:00"
+        assert metadata["legal_act_type"] == "Zarządzenie"
         assert metadata["service_applicability_date"] is None
         public = cast(
             dict[str, object],
@@ -315,6 +317,11 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
         assert all(
             item["service_applicability_date"] is None for item in public_documents
         )
+        assert {item["source_url"] for item in public_documents} == {
+            "https://baw.nfz.gov.pl/NFZ/document/43868/Zarzadzenie-46_2026_DSOZ",
+            "https://baw.nfz.gov.pl/NFZ/document/43942/Zarzadzenie-74_2026_DSOZ",
+            "https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ",
+        }
 
         second = store.claim_manual("baw")
         _ = orchestrator.run_claim(second, second.retry_policy)
