@@ -250,6 +250,17 @@ test("rejects unrelated BAW hosts, invalid dates, duplicate files, and redistrib
   })).documents[0].source_url, null);
 });
 
+test("BAW applicability requires evidence and remains independent of entry into force", () => {
+  const document = bawProjection().documents[0];
+  const reviewed = { ...document, service_applicability_date: "2026-07-01", service_applicability_evidence: "BAW NFZ section 4" };
+  assert.equal(sources.validateBawProjection(bawProjection({ documents: [reviewed] })).documents[0].entry_into_force, "2026-07-24");
+  const { service_applicability_evidence: _evidence, ...missing } = reviewed;
+  assert.throws(() => sources.validateBawProjection(bawProjection({ documents: [missing] })));
+  assert.throws(() => sources.validateBawProjection(bawProjection({
+    documents: [{ ...document, service_applicability_evidence: "BAW NFZ section 4" }],
+  })));
+});
+
 test("local catalog search normalizes ICD punctuation and Polish diacritics", () => {
   assert.equal(sources.normalizeSearch("ICD-10"), sources.normalizeSearch("ICD10"));
   assert.equal(sources.normalizeSearch("państwa"), sources.normalizeSearch("panstwa"));

@@ -157,13 +157,17 @@
     expectArray(value.documents, "dokumenty BAW", 1, 32);
     var ids = new Set();
     value.documents.forEach(function (doc) {
-      expectKeys(doc, ["document_id", "act_number", "act_date", "published_date", "entry_into_force", "service_applicability_date", "valid_to", "legal_status", "observed_at", "metadata_sha256", "source_url", "files"], "dokument BAW");
+      var expectedKeys = ["document_id", "act_number", "act_date", "published_date", "entry_into_force", "service_applicability_date", "valid_to", "legal_status", "observed_at", "metadata_sha256", "source_url", "files"];
+      if (Object.hasOwn(doc, "service_applicability_evidence")) expectedKeys.push("service_applicability_evidence");
+      expectKeys(doc, expectedKeys, "dokument BAW");
       expectInteger(doc.document_id, "ID BAW", 1, Number.MAX_SAFE_INTEGER);
       if (ids.has(doc.document_id)) fail("powtórzony ID BAW");
       ids.add(doc.document_id);
       expectString(doc.act_number, "numer aktu", MAX_TEXT_LENGTH);
       expectString(doc.legal_status, "status aktu", MAX_TEXT_LENGTH);
       ["act_date", "published_date", "entry_into_force", "service_applicability_date", "valid_to"].forEach(function (name) { expectBawDate(doc[name], name); });
+      if ((doc.service_applicability_date === null) !== !Object.hasOwn(doc, "service_applicability_evidence")) fail("dowód okresu stosowania");
+      if (doc.service_applicability_date !== null) expectString(doc.service_applicability_evidence, "dowód okresu stosowania", MAX_TEXT_LENGTH);
       doc.observed_at = expectTimestamp(doc.observed_at, "odczyt dokumentu");
       expectPattern(doc.metadata_sha256, DIGEST_PATTERN, "suma metadanych", 64);
       var officialUrl = "https://baw.nfz.gov.pl/NFZ/document/" + doc.document_id + "/Zarzadzenie-" + doc.act_number.replace(/\//g, "_");
@@ -308,9 +312,12 @@
     fact(facts, "Ostatni odczyt Minos", formatDate(card.observed));
     fact(facts, "Obecność w obserwacji", card.status === "current" || card.status === "observed" ? "W ostatnim odczycie" : card.status === "missing" ? "Nieobecny w ostatnim odczycie" : "Historyczny");
     fact(facts, "Ważność według wydawcy", card.validity === null ? "Daty końcowej nie podano" : "Do " + formatDate(card.validity), card.validity !== null && Date.parse(card.validity) < Date.now() ? "is-expired" : "");
+    if (card.source === "baw" && card.document.service_applicability_date !== null) {
+      fact(facts, "Stosowanie do rozliczeń według aktu", "Od " + formatDate(card.document.service_applicability_date));
+    }
     article.append(facts);
     if (card.source === "baw") {
-      article.append(element("p", "card-notice", "Okres stosowania do świadczeń nie został jeszcze niezależnie ustalony. Archiwum Minos nie udostępnia tych plików do pobrania."));
+      article.append(element("p", "card-notice", card.document.service_applicability_date === null ? "Okres stosowania do świadczeń nie został jeszcze niezależnie ustalony. Archiwum Minos nie udostępnia tych plików do pobrania." : "Archiwum Minos nie udostępnia tych plików do pobrania."));
     }
     var details = element("details");
     details.append(element("summary", "", "Pliki (" + card.files.length + ") i pochodzenie"));
@@ -322,6 +329,7 @@
       details.append(element("p", "card-notice", "Komunikaty źródła:"), notices);
     }
     details.append(element("span", "technical", "Odczyt (UTC): " + card.observed + " · SHA-256 odpowiedzi metadanych: " + card.metadataSha256));
+    if (card.source === "baw" && card.document.service_applicability_evidence) details.append(element("span", "technical", "Podstawa daty stosowania: " + card.document.service_applicability_evidence));
     article.append(details);
     if (card.source === "baw" && card.document.source_url !== null) {
       var sourceLink = element("a", "card-link", "Otwórz dokument w BAW NFZ");
