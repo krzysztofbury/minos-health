@@ -198,6 +198,27 @@ try {
   await screenshot(client, "sources-mobile-320.png");
 
   bawUnavailable = true;
+  await evaluate(client, `document.getElementById("retry-button").click()`);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await evaluate(client, `document.getElementById("load-state").classList.contains("is-error")`)) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const retry = await evaluate(client, `(() => ({
+    cards: document.querySelectorAll(".source-card").length,
+    cached: document.getElementById("source-summary").textContent.includes("może być nieaktualny"),
+    named: document.getElementById("load-state").textContent.includes("BAW"),
+  }))()`);
+  assert.deepEqual(retry, { cards: 2, cached: true, named: true });
+  await screenshot(client, "sources-retry-failure.png");
+  bawUnavailable = false;
+  await evaluate(client, `document.getElementById("retry-button").click()`);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await evaluate(client, `document.getElementById("load-state").classList.contains("is-ready")`)) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(await evaluate(client, `document.getElementById("source-summary").textContent.includes("może być nieaktualny")`), false);
+  assert.equal(await evaluate(client, `document.querySelectorAll(".source-card").length`), 2);
+  bawUnavailable = true;
   await navigate(client, 390, 844, "is-error");
   assert.equal(await evaluate(client, `document.querySelectorAll(".source-card").length`), 1);
   assert.match(await evaluate(client, `document.getElementById("load-state").textContent`), /BAW/);
