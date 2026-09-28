@@ -298,7 +298,8 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
         )
         assert metadata["entry_into_force"] == "2026-07-24T00:00:00"
         assert metadata["legal_act_type"] == "Zarządzenie"
-        assert metadata["service_applicability_date"] is None
+        assert metadata["service_applicability_date"] == "2026-07-01"
+        assert "section 4" in cast(str, metadata["service_applicability_evidence"])
         public = cast(
             dict[str, object],
             json.loads(
@@ -323,9 +324,16 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
             sum(len(cast(list[object], item["files"])) for item in public_documents)
             == 9
         )
-        assert all(
-            item["service_applicability_date"] is None for item in public_documents
+        assert [
+            item["document_id"]
+            for item in public_documents
+            if item["service_applicability_date"] is not None
+        ] == [43942]
+        reviewed = next(
+            item for item in public_documents if item["document_id"] == 43942
         )
+        assert reviewed["service_applicability_date"] == "2026-07-01"
+        assert "section 4" in cast(str, reviewed["service_applicability_evidence"])
         assert {item["source_url"] for item in public_documents} == {
             "https://baw.nfz.gov.pl/NFZ/document/43868/Zarzadzenie-46_2026_DSOZ",
             "https://baw.nfz.gov.pl/NFZ/document/43942/Zarzadzenie-74_2026_DSOZ",

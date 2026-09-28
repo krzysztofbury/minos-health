@@ -109,27 +109,34 @@ def build_baw_projection(history: CommittedObservationHistory) -> bytes:
             else _source_url(int(document_id), act_number, metadata["legal_act_type"])
         )
         files = _document_files(int(document_id), products)
-        documents.append(
-            cast(
-                dict[str, JsonValue],
-                {
-                    "document_id": int(document_id),
-                    "act_number": act_number,
-                    "act_date": _date(metadata["act_date"]),
-                    "published_date": _date(metadata["baw_published_date"]),
-                    "entry_into_force": _date(metadata["entry_into_force"]),
-                    "service_applicability_date": _date(
-                        metadata["service_applicability_date"]
-                    ),
-                    "valid_to": _date(metadata["valid_to"]),
-                    "legal_status": _text(metadata["legal_status"]),
-                    "observed_at": _timestamp(observation.observed_at_ms),
-                    "metadata_sha256": _digest(observation.response_sha256),
-                    "source_url": source_url,
-                    "files": files,
-                },
-            )
+        if (metadata["service_applicability_date"] is None) != (
+            metadata["service_applicability_evidence"] is None
+        ):
+            raise WatcherRuntimeError("BAW applicability evidence is incomplete")
+        document = cast(
+            dict[str, JsonValue],
+            {
+                "document_id": int(document_id),
+                "act_number": act_number,
+                "act_date": _date(metadata["act_date"]),
+                "published_date": _date(metadata["baw_published_date"]),
+                "entry_into_force": _date(metadata["entry_into_force"]),
+                "service_applicability_date": _date(
+                    metadata["service_applicability_date"]
+                ),
+                "valid_to": _date(metadata["valid_to"]),
+                "legal_status": _text(metadata["legal_status"]),
+                "observed_at": _timestamp(observation.observed_at_ms),
+                "metadata_sha256": _digest(observation.response_sha256),
+                "source_url": source_url,
+                "files": files,
+            },
         )
+        if metadata["service_applicability_evidence"] is not None:
+            document["service_applicability_evidence"] = _text(
+                metadata["service_applicability_evidence"]
+            )
+        documents.append(document)
     result = _canonical(
         {
             "schema_version": 1,

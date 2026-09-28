@@ -50,6 +50,14 @@ _MAX_DEPTH = 8
 _MAX_ZIP_ENTRIES = 2048
 _MAX_UNCOMPRESSED_BYTES = 1024 * 1024 * 1024
 _RETRYABLE_HTTP = frozenset({408, 429, 500, 502, 503, 504})
+_REVIEWED_APPLICABILITY = {
+    (43942, "74/2026/DSOZ"): (
+        "2026-07-01",
+        "BAW NFZ document 43942, section 4; rendered act SHA-256 "
+        + "5d4db704d6fc442d3b3afc93b2faac0d93c009d89c2ff85f468eb501fdf583a4; "
+        + "independently confirmed 2026-09-28 in issue 8",
+    ),
+}
 
 
 class _Cursor(BaseModel):
@@ -202,6 +210,9 @@ class BawSourceCollector:
                 document_digests[str(document_id)] = document_identity(
                     response, document_id
                 )
+                reviewed_applicability = _REVIEWED_APPLICABILITY.get(
+                    (document.Id, document.ActNumber), (None, None)
+                )
                 observations.append(
                     _observation(
                         context,
@@ -215,8 +226,8 @@ class BawSourceCollector:
                             "act_date": document.ActDate,
                             "baw_published_date": document.PublishedDate,
                             "entry_into_force": document.ValidFrom,
-                            "service_applicability_date": None,
-                            "service_applicability_evidence": None,
+                            "service_applicability_date": reviewed_applicability[0],
+                            "service_applicability_evidence": reviewed_applicability[1],
                             "valid_to": document.ValidTo,
                             "legal_status": cast(
                                 JsonValue, document.LegalActStatus.get("Name")
