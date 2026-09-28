@@ -233,7 +233,6 @@ test("rejects unrelated BAW hosts, invalid dates, duplicate files, and redistrib
   const valid = bawProjection();
   for (const mutation of [
     { ...valid.documents[0], source_url: "https://evil.invalid/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ" },
-    { ...valid.documents[0], source_url: "https://baw.nfz.gov.pl/NFZ/document/43943" },
     { ...valid.documents[0], source_url: "https://baw.nfz.gov.pl/NFZ/document/43943/not-the-title" },
     { ...valid.documents[0], entry_into_force: "2026-02-30" },
     { ...valid.documents[0], files: [valid.documents[0].files[0], valid.documents[0].files[0]] },
@@ -245,6 +244,9 @@ test("rejects unrelated BAW hosts, invalid dates, duplicate files, and redistrib
   })));
   assert.equal(sources.validateBawProjection(bawProjection({
     documents: [{ ...valid.documents[0], source_url: null }],
+  })).documents[0].source_url, null);
+  assert.equal(sources.validateBawProjection(bawProjection({
+    documents: [{ ...valid.documents[0], source_url: "https://baw.nfz.gov.pl/NFZ/document/43943" }],
   })).documents[0].source_url, null);
 });
 
