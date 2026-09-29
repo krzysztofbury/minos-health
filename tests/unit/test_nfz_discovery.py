@@ -1,3 +1,5 @@
+import gzip
+
 import httpx
 import pytest
 
@@ -134,6 +136,17 @@ def test_fetch_listing_rejects_html_challenge_and_external_redirect() -> None:
 
     with httpx.Client(transport=httpx.MockTransport(redirect)) as client:
         with pytest.raises(NfzListingError):
+            _ = fetch_hospital_listing(client)
+
+    def compressed(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/html", "Content-Encoding": "gzip"},
+            content=gzip.compress(b"<html>compressed</html>"),
+        )
+
+    with create_nfz_client(transport=httpx.MockTransport(compressed)) as client:
+        with pytest.raises(NfzListingError, match="encoding"):
             _ = fetch_hospital_listing(client)
 
 

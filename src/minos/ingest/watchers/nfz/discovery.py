@@ -125,6 +125,9 @@ def _fetch_html(client: httpx.Client, url: str, limit_bytes: int) -> bytes:
         media = cast(str, response.headers.get("content-type", ""))
         if media.split(";", 1)[0].lower() != "text/html":
             raise NfzListingError("NFZ listing is not HTML")
+        encoding = cast(str, response.headers.get("content-encoding", ""))
+        if encoding.lower() not in ("", "identity"):
+            raise NfzListingError("NFZ HTML response encoding is not identity")
         length = cast(str | None, response.headers.get("content-length"))
         if length is not None and (
             not length.isascii() or not length.isdigit() or int(length) > limit_bytes
