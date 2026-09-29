@@ -1,12 +1,15 @@
 import httpx
 import pytest
 
+from minos.ingest.watchers.baw.models import BawResponse
 from minos.ingest.watchers.nfz.discovery import (
     NfzListingError,
     create_nfz_client,
     fetch_hospital_listing,
+    fetch_order_detail,
     parse_hospital_listing,
     resolve_baw_document_id,
+    verify_baw_candidate,
 )
 
 
@@ -198,3 +201,77 @@ def test_detail_resolves_only_the_matching_canonical_baw_document() -> None:
             page.replace(b"/44041/Zarzadzenie-102_2026_DSOZ", b"/44041"),
             candidate,
         )
+
+
+def test_candidate_requires_matching_issued_baw_metadata() -> None:
+    import json
+
+    candidate = parse_hospital_listing(
+        _item(
+            "102/2026/DSOZ",
+            "/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/zarzadzenie-nr-1022026dsoz,7982.html",
+            _HOSPITAL,
+        ).encode()
+    )[0]
+    metadata: dict[str, object] = {
+        "Id": 44041,
+        "InstitutionId": 4,
+        "IsPrivate": False,
+        "IsRemoved": False,
+        "WasEverPublished": True,
+        "ActNumber": "102/2026/DSOZ",
+        "LegalActTypeDescription": "Zarządzenie",
+        "PublishedDate": "2026-09-23T00:00:00",
+        "LegalActStatus": {"Name": "Obowiązujący"},
+        "Files": [],
+    }
+
+    def response() -> BawResponse:
+        return BawResponse(json.dumps(metadata).encode(), "application/json")
+
+    assert verify_baw_candidate(response(), candidate, 44041).Id == 44041
+    for field, wrong in (
+        ("ActNumber", "104/2026/DSOZ"),
+        ("PublishedDate", "2026-09-24T00:00:00"),
+        ("LegalActTypeDescription", "Projekt"),
+        ("WasEverPublished", False),
+    ):
+        metadata[field] = wrong
+        with pytest.raises(NfzListingError):
+            _ = verify_baw_candidate(response(), candidate, 44041)
+        metadata[field] = {
+            "ActNumber": "102/2026/DSOZ",
+            "PublishedDate": "2026-09-23T00:00:00",
+            "LegalActTypeDescription": "Zarządzenie",
+            "WasEverPublished": True,
+        }[field]
+
+
+def test_detail_fetch_preserves_bytes_and_rejects_redirects() -> None:
+    candidate = parse_hospital_listing(
+        _item(
+            "102/2026/DSOZ",
+            "/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/zarzadzenie-nr-1022026dsoz,7982.html",
+            _HOSPITAL,
+        ).encode()
+    )[0]
+    body = (
+        '<a href="https://baw.nfz.gov.pl/NFZ/document/44041/'
+        'Zarzadzenie-102_2026_DSOZ">Zarządzenie 102/2026/DSOZ</a>'
+    ).encode()
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == candidate.url
+        return httpx.Response(200, headers={"Content-Type": "text/html"}, content=body)
+
+    with create_nfz_client(transport=httpx.MockTransport(respond)) as client:
+        observed, document_id = fetch_order_detail(client, candidate)
+    assert observed == body
+    assert document_id == 44041
+
+    def redirect(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"Location": "https://attacker.example"})
+
+    with create_nfz_client(transport=httpx.MockTransport(redirect)) as client:
+        with pytest.raises(NfzListingError):
+            _ = fetch_order_detail(client, candidate)

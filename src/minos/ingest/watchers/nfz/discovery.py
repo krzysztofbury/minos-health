@@ -9,6 +9,13 @@ from typing import ClassVar, cast, final, override
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
 
+from minos.ingest.watchers.baw.models import (
+    BawDocument,
+    BawResponse,
+    BawSourceError,
+    parse_document,
+)
+
 _MAX_LISTING_BYTES = 256 * 1024
 _MAX_DETAIL_BYTES = 256 * 1024
 _MAX_LISTING_ITEMS = 128
@@ -85,7 +92,30 @@ def create_nfz_client(*, transport: httpx.BaseTransport | None = None) -> httpx.
 def fetch_hospital_listing(
     client: httpx.Client,
 ) -> tuple[bytes, tuple[HospitalOrderCandidate, ...]]:
-    request = client.build_request("GET", _LISTING_ENDPOINT)
+    body = _fetch_html(client, _LISTING_ENDPOINT, _MAX_LISTING_BYTES)
+    return body, parse_hospital_listing(body)
+
+
+def fetch_order_detail(
+    client: httpx.Client, candidate: HospitalOrderCandidate
+) -> tuple[bytes, int]:
+    if re.fullmatch(r"[1-9][0-9]{0,3}/20[0-9]{2}/DSOZ", candidate.act_number) is None:
+        raise NfzListingError("NFZ order number is invalid")
+    expected_url = (
+        "https://www.nfz.gov.pl"
+        + _LISTING_URL
+        + "zarzadzenie-nr-"
+        + candidate.act_number.replace("/", "").lower()
+        + f",{candidate.listing_id}.html"
+    )
+    if candidate.url != expected_url:
+        raise NfzListingError("NFZ order URL is not allowlisted")
+    body = _fetch_html(client, candidate.url, _MAX_DETAIL_BYTES)
+    return body, resolve_baw_document_id(body, candidate)
+
+
+def _fetch_html(client: httpx.Client, url: str, limit_bytes: int) -> bytes:
+    request = client.build_request("GET", url)
     if "cookie" in request.headers or "authorization" in request.headers:
         raise NfzListingError("NFZ listing request contains credentials")
     response = client.send(request, stream=True, follow_redirects=False)
@@ -97,24 +127,21 @@ def fetch_hospital_listing(
             raise NfzListingError("NFZ listing is not HTML")
         length = cast(str | None, response.headers.get("content-length"))
         if length is not None and (
-            not length.isascii()
-            or not length.isdigit()
-            or int(length) > _MAX_LISTING_BYTES
+            not length.isascii() or not length.isdigit() or int(length) > limit_bytes
         ):
             raise NfzListingError("NFZ listing content length is invalid")
         parts: list[bytes] = []
         size_bytes = 0
         for part in response.iter_bytes(64 * 1024):
             size_bytes += len(part)
-            if size_bytes > _MAX_LISTING_BYTES:
+            if size_bytes > limit_bytes:
                 raise NfzListingError("NFZ listing exceeds its byte ceiling")
             parts.append(part)
         if length is not None and size_bytes != int(length):
             raise NfzListingError("NFZ listing body is truncated")
     finally:
         response.close()
-    body = b"".join(parts)
-    return body, parse_hospital_listing(body)
+    return b"".join(parts)
 
 
 @final
@@ -304,6 +331,28 @@ def resolve_baw_document_id(body: bytes, candidate: HospitalOrderCandidate) -> i
     if match is None or candidate.act_number not in label:
         raise NfzListingError("NFZ detail and BAW document identities conflict")
     return int(match.group(1))
+
+
+def verify_baw_candidate(
+    response: BawResponse, candidate: HospitalOrderCandidate, document_id: int
+) -> BawDocument:
+    try:
+        document = parse_document(response, document_id)
+    except BawSourceError:
+        raise NfzListingError("BAW has no matching public issued document") from None
+    if (
+        document.ActNumber != candidate.act_number
+        or document.LegalActTypeDescription != "Zarządzenie"
+        or document.PublishedDate is None
+        or re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}",
+            document.PublishedDate,
+        )
+        is None
+        or document.PublishedDate[:10] != candidate.published_date
+    ):
+        raise NfzListingError("NFZ listing and BAW metadata disagree")
+    return document
 
 
 def _normalize(value: str) -> str:
