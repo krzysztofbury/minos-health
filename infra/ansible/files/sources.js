@@ -358,7 +358,8 @@
     var summary = document.getElementById("source-summary");
     summary.replaceChildren();
     [["RSK", state.rsk], ["BAW NFZ", state.baw]].forEach(function (pair) {
-      var text = pair[1] ? "Odczyt " + formatDate(pair[1].projected_at || pair[1].observed_at) : "Brak dostępnej obserwacji";
+      var unavailable = state.errors.includes(pair[0] === "BAW NFZ" ? "BAW" : pair[0]);
+      var text = pair[1] ? (unavailable ? "Poprzednio wczytany odczyt (może być nieaktualny): " : "Odczyt ") + formatDate(pair[1].projected_at || pair[1].observed_at) : "Brak dostępnej obserwacji";
       var node = element("p");
       node.append(element("strong", "", pair[0] + ": "), document.createTextNode(text));
       summary.append(node);
@@ -384,12 +385,12 @@
       loadOne(RSK_PATH, validateProjection),
       loadOne(BAW_PATH, validateBawProjection),
     ]);
-    state.rsk = responses[0].status === "fulfilled" ? responses[0].value : null;
-    state.baw = responses[1].status === "fulfilled" ? responses[1].value : null;
+    if (responses[0].status === "fulfilled") state.rsk = responses[0].value;
+    if (responses[1].status === "fulfilled") state.baw = responses[1].value;
     state.errors = responses.map(function (response, index) { return response.status === "rejected" ? (index === 0 ? "RSK" : "BAW") : null; }).filter(Boolean);
     document.getElementById("retry-button").hidden = state.errors.length === 0;
     if (state.errors.length) {
-      setLoadState("error", "Nie udało się wczytać: " + state.errors.join(", ") + ". Pozostałe źródła nadal są dostępne.");
+      setLoadState("error", "Nie udało się wczytać: " + state.errors.join(", ") + ". Poprzednio wczytane dane mogą być nieaktualne; pozostałe źródła nadal są dostępne.");
     } else {
       setLoadState("ready", "Wczytano publiczne obserwacje RSK i BAW. Sumy i metadane nie oznaczają zatwierdzenia treści.");
     }
