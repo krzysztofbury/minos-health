@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import cast
 
 _STATUS_FORMAT_VERSION = 1
-_CONTROL_SCHEMA_VERSION = 3
+_CONTROL_SCHEMA_VERSION = 4
 _MAX_SOURCES = 128
 _MAX_SCHEDULES_PER_SOURCE = 2
 _MAX_RECENT_CHANGES_PER_SOURCE = 10
@@ -46,6 +46,13 @@ _EXPECTED_MIGRATIONS: tuple[tuple[int, str, str, str, int], ...] = (
         "05acc0a63711bc39b2921d30e882548cca3a5c42c6943886fa3ff3ce6a57a075",
         "9431ca930c74c5d8a61652fde7b93eee46f50b2000857d99cbe3db2a09ef4a90",
         3,
+    ),
+    (
+        4,
+        "baw_dispatch_outbox",
+        "dadacbe0259f8b3156bf67fb88f44a767d0ba9856d7925356b87c61f1d64cc91",
+        "ea5f5712689f677c573a3001644c9b1271aa6eb3061182198bcd40edfb45ecec",
+        4,
     ),
 )
 

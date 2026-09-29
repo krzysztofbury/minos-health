@@ -459,6 +459,15 @@ During private bootstrap, `{"version":1,"sources":{}}` is valid only with
 mode-`0600` file outside the repository. Ansible installs it as a root-owned,
 watcher-secret-group file and Compose mounts it read-only only into the watcher.
 
+NFZ discovery activation is opt-in with `watcher_nfz_activation_enabled=true`.
+Before enabling it, create a separate NFZ push monitor in the private Uptime
+Kuma instance and add its token alongside the existing BAW target in the
+host-managed target document. The deployment preflight requires both `nfz` and
+`baw` targets and `watcher_uptime_kuma_required=true`; it rejects activation
+before changing watcher registration if either is absent. The existing BAW
+source must already be enabled and scheduled. Without the opt-in, deployment
+does not bootstrap NFZ or change the active source set.
+
 The private GHCR package-read token is separate host-side deployment material.
 It belongs in the root-owned Docker credential store and is never mounted into
 an application container.

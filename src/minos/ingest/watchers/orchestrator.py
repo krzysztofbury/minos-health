@@ -263,6 +263,12 @@ class WatcherOrchestrator:
                         source.cursor,
                         claim,
                         collection_archive,
+                        self._store.list_pending_baw_dispatches()
+                        if source.watcher_type == "baw"
+                        else (),
+                        self._store.list_retained_baw_roots()
+                        if source.watcher_type == "baw"
+                        else (),
                     )
                     with collector.collect(context) as collected:
                         receipts = collection_archive.seal()
@@ -276,6 +282,9 @@ class WatcherOrchestrator:
                             collected.cursor,
                             collected.changes,
                             collected.incidents,
+                            collected.baw_dispatches,
+                            collected.delivered_baw_ids,
+                            collected.retained_baw_roots,
                         ),
                     )
                     break
@@ -511,6 +520,9 @@ def _validate_collected_run(
     )
     _validate_count(len(collected.changes), 0, _MAX_CHANGES, "collected changes")
     _validate_count(len(collected.incidents), 0, _MAX_INCIDENTS, "incidents")
+    _validate_count(len(collected.baw_dispatches), 0, 8, "BAW dispatches")
+    _validate_count(len(collected.delivered_baw_ids), 0, 8, "BAW deliveries")
+    _validate_count(len(collected.retained_baw_roots), 0, 8, "BAW roots")
     digest_set = {receipt.sha256 for receipt in receipts}
     for observation in collected.observations:
         if observation.response_sha256 not in digest_set:

@@ -1914,14 +1914,14 @@ def test_deployment_copy_rejects_schema_mismatch_and_preserves_evidence(
             INSERT INTO control_schema_migrations (
                 version, name, up_sha256, down_sha256,
                 minimum_reader_version, applied_at_ms
-            ) VALUES (4, 'future_schema', ?, ?, 4, 1)
+            ) VALUES (5, 'future_schema', ?, ?, 5, 1)
             """,
             ("a" * 64, "b" * 64),
         )
         _ = connection.execute(
-            "UPDATE control_state SET schema_version = 4 WHERE singleton_id = 1"
+            "UPDATE control_state SET schema_version = 5 WHERE singleton_id = 1"
         )
-        _ = connection.execute("PRAGMA user_version = 4")
+        _ = connection.execute("PRAGMA user_version = 5")
     finally:
         connection.close()
     source_before = source.read_bytes()
@@ -1939,7 +1939,7 @@ def test_deployment_copy_rejects_schema_mismatch_and_preserves_evidence(
     evidence = sqlite3.connect(destination)
     try:
         assert evidence.execute("PRAGMA integrity_check").fetchone() == ("ok",)
-        assert evidence.execute("PRAGMA user_version").fetchone() == (4,)
+        assert evidence.execute("PRAGMA user_version").fetchone() == (5,)
     finally:
         evidence.close()
 
@@ -1968,12 +1968,12 @@ def test_deployment_copy_migrates_supported_live_schema_on_disposable_evidence(
         deadline_monotonic=time.monotonic() + 5,
     )
 
-    assert migrated_version == 3
+    assert migrated_version == 4
     assert _query(source, "PRAGMA user_version") == [(live_schema_version,)]
     evidence = sqlite3.connect(destination, isolation_level=None)
     try:
         identity = validate_control_database(evidence)
-        assert identity.schema_version == 3
+        assert identity.schema_version == 4
         assert evidence.execute("PRAGMA integrity_check").fetchone() == ("ok",)
     finally:
         evidence.close()

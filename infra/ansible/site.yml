@@ -31,6 +31,7 @@
     uptime_kuma_image_reference: docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
     uptime_kuma_public_status_enabled: false
     watcher_uptime_kuma_required: false
+    watcher_nfz_activation_enabled: false
     watcher_image_repository: ghcr.io/krzysztofbury/minos-health-watcher
     watcher_aws_region: eu-central-1
     cloudflared_credential_path: "/etc/minos/cloudflared/{{ cloudflared_tunnel_id }}.json"
@@ -49,6 +50,8 @@
             'docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6'
           - uptime_kuma_public_status_enabled is boolean
           - watcher_uptime_kuma_required is boolean
+          - watcher_nfz_activation_enabled is boolean
+          - (not watcher_nfz_activation_enabled) or watcher_uptime_kuma_required
           - >-
             (not uptime_kuma_public_status_enabled) or
             watcher_uptime_kuma_required
@@ -377,6 +380,12 @@
           - >-
             (not watcher_uptime_kuma_required) or
             ('rsk' in watcher_uptime_kuma_targets_candidate_document.sources)
+          - >-
+            (not watcher_nfz_activation_enabled) or
+            ('nfz' in watcher_uptime_kuma_targets_candidate_document.sources)
+          - >-
+            (not watcher_nfz_activation_enabled) or
+            ('baw' in watcher_uptime_kuma_targets_candidate_document.sources)
         fail_msg: The Uptime Kuma watcher target candidate has an invalid schema.
       when: not ansible_check_mode
       no_log: true
@@ -2069,12 +2078,12 @@
                 (watcher_live_migration.stdout | from_json).keys() | list | sort ==
                 ['from_version', 'migrated', 'schema_version']
               - (watcher_live_migration.stdout | from_json).from_version is integer
-              - (watcher_live_migration.stdout | from_json).from_version in [0, 1, 2, 3]
+              - (watcher_live_migration.stdout | from_json).from_version in [0, 1, 2, 3, 4]
               - (watcher_live_migration.stdout | from_json).migrated is boolean
-              - (watcher_live_migration.stdout | from_json).schema_version == 3
+              - (watcher_live_migration.stdout | from_json).schema_version == 4
               - >-
                 (watcher_live_migration.stdout | from_json).migrated ==
-                ((watcher_live_migration.stdout | from_json).from_version != 3)
+                ((watcher_live_migration.stdout | from_json).from_version != 4)
             fail_msg: The live watcher migration result is invalid.
 
         - name: Record the exact live watcher migration outcome
@@ -2099,6 +2108,26 @@
               - --no-deps
               - watcher-bootstrap-rsk
           changed_when: true
+
+        - name: Bootstrap NFZ discovery only after independent monitor validation
+          ansible.builtin.command:
+            argv:
+              - docker
+              - compose
+              - --project-name
+              - minos
+              - --file
+              - /opt/minos/compose.yaml
+              - --profile
+              - preflight
+              - run
+              - --rm
+              - --no-deps
+              - watcher-preflight
+              - watcher
+              - bootstrap-nfz
+          changed_when: true
+          when: watcher_nfz_activation_enabled
 
         - name: Validate the existing public RSK projection without collection
           ansible.builtin.command:

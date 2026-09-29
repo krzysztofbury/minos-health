@@ -68,7 +68,7 @@ def test_status_json_is_read_only_bounded_deterministic_and_private(
     snapshot = _decode_json_object(output)
     assert output == json.dumps(snapshot, sort_keys=True, separators=(",", ":")) + "\n"
     assert snapshot["format_version"] == 1
-    assert snapshot["schema_version"] == 3
+    assert snapshot["schema_version"] == 4
     assert snapshot["state_revision"] == 99
     assert snapshot["updated_at"] == "2023-11-14T22:13:20.123Z"
     assert snapshot["open_incidents_truncated"] is False
@@ -407,7 +407,7 @@ def test_status_accepts_exact_maximum_sources_and_rejects_one_more(
 
 @pytest.mark.parametrize(
     ("user_version", "state_version"),
-    [(2, 2), (3, 2), (4, 4)],
+    [(2, 2), (4, 3), (5, 5)],
 )
 def test_status_rejects_unsupported_or_inconsistent_schema(
     status_database: Path,
@@ -485,7 +485,7 @@ def test_status_rejects_extra_migration_history(status_database: Path) -> None:
             INSERT INTO control_schema_migrations (
                 version, name, up_sha256, down_sha256,
                 minimum_reader_version, applied_at_ms
-            ) VALUES (4, 'unexpected_migration', ?, ?, 4, ?)
+            ) VALUES (5, 'unexpected_migration', ?, ?, 5, ?)
             """,
             ("0" * 64, "1" * 64, _NOW_MS),
         )

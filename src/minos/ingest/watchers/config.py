@@ -189,9 +189,42 @@ class BawSourceConfigurationCodec:
         return validated.operation_deadline_seconds * 1000
 
 
+class NfzConfiguration(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+
+    operation_deadline_seconds: int = Field(default=600, ge=60, le=900)
+
+
+@final
+class NfzSourceConfigurationCodec:
+    def canonicalize(self, configuration: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        try:
+            validated = NfzConfiguration.model_validate(configuration)
+        except ValidationError:
+            raise SourceConfigurationCodecError(
+                "NFZ source configuration is invalid"
+            ) from None
+        return cast(dict[str, JsonValue], validated.model_dump(mode="json"))
+
+    def claim_timeout_ms(self, canonical_configuration_json: str) -> int:
+        try:
+            validated = NfzConfiguration.model_validate_json(
+                canonical_configuration_json
+            )
+        except ValidationError:
+            raise SourceConfigurationCodecError(
+                "stored NFZ configuration is invalid"
+            ) from None
+        return validated.operation_deadline_seconds * 1000
+
+
 RSK_SOURCE_CONFIGURATION_CODECS = SourceConfigurationCodecRegistry(
     {"rsk": RskSourceConfigurationCodec()}
 )
 WATCHER_SOURCE_CONFIGURATION_CODECS = SourceConfigurationCodecRegistry(
-    {"rsk": RskSourceConfigurationCodec(), "baw": BawSourceConfigurationCodec()}
+    {
+        "rsk": RskSourceConfigurationCodec(),
+        "baw": BawSourceConfigurationCodec(),
+        "nfz": NfzSourceConfigurationCodec(),
+    }
 )

@@ -865,7 +865,7 @@ def test_live_schema_validation_rejects_image_only_metadata(
             connection = sqlite3.connect(image.path, isolation_level=None)
             try:
                 migration_result = apply_control_migrations(connection)
-                assert migration_result.schema_version == 3
+                assert migration_result.schema_version == 4
                 assert migration_result.forward_compatible is False
                 with pytest.raises(MigrationError, match="schema differs"):
                     _ = validate_control_database(connection)

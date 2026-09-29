@@ -44,7 +44,7 @@ must not be merged:
 
 ```text
 101/2025/DSOZ -> 1/2026 -> 14/2026 -> 32/2026 -> repealed
-46/2026/DSOZ  -> 74/2026 -> current consolidated document 43943
+46/2026/DSOZ  -> 74/2026 -> 102/2026 -> current consolidated document 44042
 ```
 
 Amendment `74/2026/DSOZ` is BAW document `43942`. It was signed and published
@@ -57,6 +57,12 @@ settlement rules to services delivered from 2026-07-01. Store at least:
 - service applicability date and its evidence;
 - valid-to date;
 - observed legal status.
+
+The subsequent issued amendment `102/2026/DSOZ` is BAW document `44041`;
+its consolidated document is `44042`. Its reporting-period exceptions are
+described under JGP Tariff Modifiers below. Keep both amendment observations
+and their distinct consolidated snapshots; do not replace a historical
+service-date binding simply because the latest consolidated document changed.
 
 Attachment `1a` is the JGP catalog workbook. After `74/2026`, that workbook has
 separate worksheets `1a - katalog grup` and `1ae - katalog grup`. `1ae` is a
@@ -110,7 +116,9 @@ documents recursively until no unseen document ID remains. Current anchors are:
 | Repealed base `101/2025` | `43718` | historical lineage |
 | Original base `46/2026` | `43868` | `1a=29620`, `9=29652` |
 | Amendment `74/2026` | `43942` | replacement `1=30968`, `9=30976` |
-| Consolidated `46/2026` | `43943` | root ZIPX `30979`, `1a=30983`, `9=31015` |
+| Consolidated after `74/2026` | `43943` | root ZIPX `30979`, `1a=30983`, `9=31015` |
+| Amendment `102/2026` | `44041` | root ZIPX `32981` |
+| Consolidated after `102/2026` | `44042` | root ZIPX `32990` |
 
 The amendment replacements are byte-identical to the corresponding current
 consolidated attachments. Archive content-addressed blobs and preserve both
@@ -161,9 +169,15 @@ with XML. A syntactically valid direct request for a missing version can return
 HTTP 200 with header `XML_STATUS: NO_CONTENT`, which is an error, not an empty
 dictionary.
 
-Current ICD-9 PL is `5.89`, generation `92`, published and announced
+On 2026-09-14 ICD-9 PL was `5.89`, generation `92`, published and announced
 2026-09-01:
 <https://www.nfz.gov.pl/aktualnosci/aktualnosci-centrali/opublikowano-nowa-wersje-slownika-icd-9-pl-cm-w-wersji-5-89,9006.html>.
+This is a historical baseline, not a current-version pin. On 2026-09-29,
+anonymous `getListSlowniki` selected generation `93`, and its pinned XML
+identified ICD-9 PL `5.90` with SHA-256
+`e3c744634e68f23d5ecbfecb50ece831140eb8533ab72b8a1b3ee54594024b1b`.
+The watcher records the discovered generation and exact pinned bytes rather than
+hard-coding either historical version.
 The NFZ XLSX page is a useful human-readable cross-check but is not a complete
 version archive. CZS exposes more historical semantic versions.
 
@@ -192,15 +206,43 @@ version page: https://slowniki.nfz.gov.pl/ModyfikatoryTaryfyJgp/SlownikModyfikat
 ```
 
 The XML timestamps contain no timezone offset and are not effective dates.
+On 2026-09-29, anonymous `getListSlowniki` selected 2026 SZP generation `102`;
+its pinned XML had SHA-256
+`22595df09b3aac1af31a2db5450267fc9c352e7f30672079ab767e78f78611c1`.
+The official version-info page
+<https://slowniki.nfz.gov.pl/WersjeSlownikow/Index/7364?kod=MODTAR>
+explicitly links display version `202664` to technical generation `102`,
+publication date `2026-09-24`, and dictionary validity start `2026-09-24`.
+The earlier version-info page
+<https://slowniki.nfz.gov.pl/WersjeSlownikow/Index/7297?kod=MODTAR>
+explicitly links display version `202662` to technical generation `100` and
+validity start `2026-08-20`. These are dictionary validity dates, not by
+themselves reviewed reporting-month or NFZ catalog applicability dates.
+
+The newer issued amendment `102/2026/DSOZ` (BAW document `44041`, signed
+2026-09-23, valid from 2026-09-24) and its consolidated act (BAW document
+`44042`) supersede the `74/2026`-only snapshot for current legal review.
+Section 4(1) of `102/2026` applies the amendment to settlement of services
+provided from 2026-07-01, with explicit exceptions: section 4(3) retains the
+prior coefficients from section 17(3), (4), (8), (19), and (20) during the
+quality-indicator transition; section 4(4) applies the new section 17(6a)
+from 2026-10-01; and section 4(5) defers specified catalog rows until
+2027-01-01. Its section 5 makes the act effective the day after signing.
+The matching CZS dictionary validity start of 2026-09-24 therefore cannot be
+used as the applicability date of every row. In particular, the XML still
+cites some section 17 provisions that the amendment repeals but temporarily
+preserves for settlement. The watcher archives this evidence and never binds
+MODTAR generation `102` to a reporting-month ruleset automatically. That
+binding belongs to reviewed rule ingestion, with each exception assessed
+against the governing act and its relevant catalog row.
 
 The XML maps a modifier symbol and cited legal clause to status, month range,
 coefficient, and one or more JGP group codes. This is required for complete
 tariff determination and must be pinned in each applicable `ruleset_release`.
-The inspected outputs do not directly link display version `202662` to
-generation `100` or state an effective date. Store both observations, but bind
-a generation to a reporting-month ruleset only after reviewing legal and
-applicability evidence; the presence of `mies_od="7"` and `mies_do="12"` rows
-alone does not establish a 2026-07 effective date.
+The version-info pages provide the display-label and generation link and
+dictionary validity dates. The amendment supplies several distinct service
+applicability dates. The presence of `mies_od="7"` and `mies_do="12"` rows
+alone does not establish that every modifier applied from 2026-07-01.
 The governing NFZ act remains controlling for eligibility, combination rules,
 and legal applicability; disagreement between the act and `MODTAR` blocks the
 release for review rather than selecting either silently.

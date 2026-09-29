@@ -469,6 +469,59 @@ def test_production_edge_smokes_use_wget_stdout_not_a_null_filename() -> None:
         assert None not in arguments
 
 
+def test_nfz_activation_requires_private_independent_monitor() -> None:
+    plays = cast(list[object], yaml.safe_load(source("infra/ansible/site.yml")))
+    play = mapping(plays[0])
+    variables = mapping(play["vars"])
+    assert variables["watcher_nfz_activation_enabled"] is False
+    pre_tasks = cast(list[object], play["pre_tasks"])
+    deployment_assertions = mapping(mapping(pre_tasks[0])["ansible.builtin.assert"])
+    assert (
+        "(not watcher_nfz_activation_enabled) or watcher_uptime_kuma_required"
+        in cast(list[str], deployment_assertions["that"])
+    )
+    tasks = cast(list[object], play["tasks"])
+    target_guard = next(
+        mapping(item)
+        for item in pre_tasks
+        if mapping(item).get("name")
+        == "Require the exact Uptime Kuma watcher target document schema"
+    )
+    requirements = cast(
+        list[str], mapping(target_guard["ansible.builtin.assert"])["that"]
+    )
+    assert any(
+        "'nfz' in watcher_uptime_kuma_targets_candidate_document.sources" in item
+        for item in requirements
+    )
+    assert any(
+        "'baw' in watcher_uptime_kuma_targets_candidate_document.sources" in item
+        for item in requirements
+    )
+    pending = [mapping(item) for item in tasks]
+    bootstrap: dict[str, object] | None = None
+    while pending:
+        item = pending.pop()
+        if (
+            item.get("name")
+            == "Bootstrap NFZ discovery only after independent monitor validation"
+        ):
+            bootstrap = item
+            break
+        for name in ("block", "rescue", "always"):
+            children = item.get(name)
+            if isinstance(children, list):
+                pending.extend(mapping(child) for child in cast(list[object], children))
+    assert bootstrap is not None
+    assert bootstrap["when"] == "watcher_nfz_activation_enabled"
+    assert cast(list[str], mapping(bootstrap["ansible.builtin.command"])["argv"])[
+        -2:
+    ] == [
+        "watcher",
+        "bootstrap-nfz",
+    ]
+
+
 def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> None:
     playbook = source("infra/ansible/site.yml")
     deployment_readme = source("infra/ansible/README.md")

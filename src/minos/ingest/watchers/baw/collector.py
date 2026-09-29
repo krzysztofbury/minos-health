@@ -127,12 +127,35 @@ class BawSourceCollector:
         selected: list[_File] = []
         downloaded_document_ids: set[int] = set()
         details: dict[int, bytes] = {}
+        dispatched_ids = {item.document_id for item in context.pending_baw_dispatches}
+        if len(dispatched_ids) != len(context.pending_baw_dispatches):
+            raise BawSourceError("BAW dispatch queue contains duplicate document IDs")
+        if len(context.retained_baw_roots) != len(set(context.retained_baw_roots)):
+            raise BawSourceError("BAW retained roots contain duplicate document IDs")
+        if len(context.retained_baw_roots) + len(dispatched_ids) > _MAX_DOCUMENTS:
+            raise BawSourceError("BAW extra roots exceed the document graph bound")
         relations: dict[int, bytes] = {}
         attachments: dict[int, bytes] = {}
         pending = list(settings.document_ids)
         all_links: dict[int, BawRelation] = {}
+        new_roots: set[int] = set()
         with self._client_factory() as client:
-            for seed_id in settings.document_ids:
+            seeds = list(settings.document_ids)
+            queued_roots = sorted(set(context.retained_baw_roots) | dispatched_ids)
+            while seeds or queued_roots:
+                if seeds:
+                    seed_id = seeds.pop(0)
+                else:
+                    seed_id = queued_roots.pop(0)
+                    if seed_id in all_links:
+                        continue
+                    if (
+                        seed_id in dispatched_ids
+                        and seed_id not in context.retained_baw_roots
+                    ):
+                        new_roots.add(seed_id)
+                if seed_id in relations:
+                    continue
                 self._require_deadline(context)
                 relation = get_json(
                     client, f"/api/documents/GetAmendments/{seed_id}", optional=True
@@ -147,8 +170,13 @@ class BawSourceCollector:
                     raise BawSourceError(
                         "BAW source document has no legal relationships"
                     )
+                for link in links:
+                    if link.IsProject and link.Id == seed_id:
+                        raise BawSourceError("BAW root is a project, not an issued act")
                 relations[seed_id] = relation.body
                 attachments[seed_id] = attachment.body
+                if seed_id not in pending:
+                    pending.append(seed_id)
                 relation_digests[str(seed_id)] = self._archive_metadata(
                     context, relation, digests
                 )
@@ -235,6 +263,10 @@ class BawSourceCollector:
                         },
                     )
                 )
+            if not dispatched_ids.issubset(details):
+                raise BawSourceError(
+                    "discovered BAW document is outside the configured legal graph"
+                )
             selected.sort(key=lambda item: (item.document_id, item.file_id))
             if len(selected) > _MAX_DOCUMENTS * 4:
                 raise BawSourceError("BAW selected file count exceeds its bound")
@@ -285,7 +317,7 @@ class BawSourceCollector:
                     != document_digests[str(document_id)]
                 ):
                     raise BawSourceError("BAW document changed during file collection")
-            for seed_id in settings.document_ids if downloaded_document_ids else ():
+            for seed_id in relations if downloaded_document_ids else ():
                 self._require_deadline(context)
                 refetch_links = get_json(
                     client, f"/api/documents/GetAmendments/{seed_id}", optional=True
@@ -345,6 +377,8 @@ class BawSourceCollector:
             tuple(observations),
             cast(dict[str, JsonValue], cursor.model_dump(mode="json")),
             changes,
+            delivered_baw_ids=tuple(sorted(dispatched_ids)),
+            retained_baw_roots=tuple(sorted(new_roots)),
         )
 
     def _archive_metadata(
