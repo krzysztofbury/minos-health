@@ -3220,9 +3220,6 @@
           changed_when: false
           when: ssh_hardening.changed
 
-        - name: Drop the multiplexed SSH connection after validation
-          ansible.builtin.meta: reset_connection
-
       rescue:
         - name: Restore the prior SSH drop-in
           ansible.builtin.copy:
@@ -3263,6 +3260,10 @@
         - name: Stop after restoring the prior SSH configuration
           ansible.builtin.fail:
             msg: Rejected the candidate SSH boundary and restored the prior configuration.
+
+    # reset_connection ignores inherited block conditions, so keep it outside.
+    - name: Drop the multiplexed SSH connection after validation
+      ansible.builtin.meta: reset_connection
 
     - name: Detect a required reboot
       ansible.builtin.stat:
