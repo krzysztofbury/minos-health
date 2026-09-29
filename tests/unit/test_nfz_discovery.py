@@ -98,6 +98,16 @@ def test_listing_rejects_duplicate_id_and_oversized_body() -> None:
         _ = parse_hospital_listing(b"x" * (256 * 1024 + 1))
 
 
+def test_listing_rejects_a_populated_search_without_the_hospital_subject() -> None:
+    unrelated = _item(
+        "104/2026/DSOZ",
+        "/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/zarzadzenie-nr-1042026dsoz,7984.html",
+        "zmieniające zarządzenie w rodzaju leczenie szpitalne - świadczenia kompleksowe",
+    )
+    with pytest.raises(NfzListingError, match="hospital"):
+        _ = parse_hospital_listing(unrelated.encode())
+
+
 def test_fetch_listing_rejects_html_challenge_and_external_redirect() -> None:
     def challenge(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(

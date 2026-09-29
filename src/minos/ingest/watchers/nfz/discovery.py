@@ -269,6 +269,8 @@ def parse_hospital_listing(body: bytes) -> tuple[HospitalOrderCandidate, ...]:
                 url="https://www.nfz.gov.pl" + path,
             )
         )
+    if not candidates:
+        raise NfzListingError("NFZ listing has no hospital orders")
     return tuple(candidates)
 
 
