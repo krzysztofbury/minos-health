@@ -5,6 +5,8 @@ from typing import Protocol, final
 
 from minos.ingest.watchers.archive import BlobArchive
 from minos.ingest.watchers.control import (
+    BawDispatchDraft,
+    BawDispatchRequest,
     ChangeDraft,
     CommittedRun,
     ControlStore,
@@ -43,6 +45,8 @@ class CollectionContext:
     cursor: dict[str, JsonValue]
     run: RunClaim
     archive: BlobArchive
+    pending_baw_dispatches: tuple[BawDispatchRequest, ...] = ()
+    retained_baw_roots: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +55,9 @@ class CollectedRun:
     cursor: dict[str, JsonValue]
     changes: tuple[ChangeDraft, ...] = ()
     incidents: tuple[IncidentDraft, ...] = ()
+    baw_dispatches: tuple[BawDispatchDraft, ...] = ()
+    delivered_baw_ids: tuple[int, ...] = ()
+    retained_baw_roots: tuple[int, ...] = ()
 
 
 class SourceCollector(Protocol):

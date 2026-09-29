@@ -2,6 +2,7 @@
 
 import re
 import unicodedata
+from dataclasses import dataclass
 from datetime import datetime
 from html.parser import HTMLParser
 from typing import ClassVar, cast, final, override
@@ -37,6 +38,16 @@ _HOSPITAL_SUBJECT = (
 
 class NfzListingError(RuntimeError):
     """The NFZ listing cannot safely identify issued hospital orders."""
+
+
+class NfzRetryableError(RuntimeError):
+    """The NFZ listing or detail page is temporarily unavailable."""
+
+
+@dataclass(frozen=True, slots=True)
+class NfzHtmlResponse:
+    body: bytes
+    headers: dict[str, str]
 
 
 class HospitalOrderCandidate(BaseModel):
@@ -92,13 +103,27 @@ def create_nfz_client(*, transport: httpx.BaseTransport | None = None) -> httpx.
 def fetch_hospital_listing(
     client: httpx.Client,
 ) -> tuple[bytes, tuple[HospitalOrderCandidate, ...]]:
-    body = _fetch_html(client, _LISTING_ENDPOINT, _MAX_LISTING_BYTES)
-    return body, parse_hospital_listing(body)
+    response, candidates = fetch_hospital_listing_evidence(client)
+    return response.body, candidates
+
+
+def fetch_hospital_listing_evidence(
+    client: httpx.Client,
+) -> tuple[NfzHtmlResponse, tuple[HospitalOrderCandidate, ...]]:
+    response = _fetch_html(client, _LISTING_ENDPOINT, _MAX_LISTING_BYTES)
+    return response, parse_hospital_listing(response.body)
 
 
 def fetch_order_detail(
     client: httpx.Client, candidate: HospitalOrderCandidate
 ) -> tuple[bytes, int]:
+    response, document_id = fetch_order_detail_evidence(client, candidate)
+    return response.body, document_id
+
+
+def fetch_order_detail_evidence(
+    client: httpx.Client, candidate: HospitalOrderCandidate
+) -> tuple[NfzHtmlResponse, int]:
     if re.fullmatch(r"[1-9][0-9]{0,3}/20[0-9]{2}/DSOZ", candidate.act_number) is None:
         raise NfzListingError("NFZ order number is invalid")
     expected_url = (
@@ -110,17 +135,23 @@ def fetch_order_detail(
     )
     if candidate.url != expected_url:
         raise NfzListingError("NFZ order URL is not allowlisted")
-    body = _fetch_html(client, candidate.url, _MAX_DETAIL_BYTES)
-    return body, resolve_baw_document_id(body, candidate)
+    response = _fetch_html(client, candidate.url, _MAX_DETAIL_BYTES)
+    return response, resolve_baw_document_id(response.body, candidate)
 
 
-def _fetch_html(client: httpx.Client, url: str, limit_bytes: int) -> bytes:
+def fetch_nfz_html(client: httpx.Client, url: str, limit_bytes: int) -> NfzHtmlResponse:
+    return _fetch_html(client, url, limit_bytes)
+
+
+def _fetch_html(client: httpx.Client, url: str, limit_bytes: int) -> NfzHtmlResponse:
     request = client.build_request("GET", url)
     if "cookie" in request.headers or "authorization" in request.headers:
         raise NfzListingError("NFZ listing request contains credentials")
     response = client.send(request, stream=True, follow_redirects=False)
     try:
         if response.status_code != 200:
+            if response.status_code in (408, 429, 500, 502, 503, 504):
+                raise NfzRetryableError("NFZ publication request temporarily failed")
             raise NfzListingError("NFZ listing request was rejected")
         media = cast(str, response.headers.get("content-type", ""))
         if media.split(";", 1)[0].lower() != "text/html":
@@ -142,9 +173,25 @@ def _fetch_html(client: httpx.Client, url: str, limit_bytes: int) -> bytes:
             parts.append(part)
         if length is not None and size_bytes != int(length):
             raise NfzListingError("NFZ listing body is truncated")
+        selected_headers: dict[str, str] = {}
+        for name in (
+            "content-type",
+            "content-length",
+            "last-modified",
+            "etag",
+            "cache-control",
+        ):
+            value = cast(str | None, response.headers.get(name))
+            if value is None:
+                continue
+            if len(value) > 256 or any(
+                ord(char) < 32 or ord(char) == 127 for char in value
+            ):
+                raise NfzListingError("NFZ selected response header is invalid")
+            selected_headers[name] = value
     finally:
         response.close()
-    return b"".join(parts)
+    return NfzHtmlResponse(b"".join(parts), selected_headers)
 
 
 @final
@@ -216,7 +263,7 @@ class _NewsParser(HTMLParser):
                 self.item = None
 
 
-def parse_hospital_listing(body: bytes) -> tuple[HospitalOrderCandidate, ...]:
+def parse_listing_cards(body: bytes) -> tuple[dict[str, str], ...]:
     if not 1 <= len(body) <= _MAX_LISTING_BYTES:
         raise NfzListingError("NFZ listing byte count is invalid")
     try:
@@ -227,11 +274,15 @@ def parse_hospital_listing(body: bytes) -> tuple[HospitalOrderCandidate, ...]:
     parser.feed(text)
     parser.close()
     if parser.depth != 0 or not parser.items:
-        raise NfzListingError("NFZ listing has no complete issued orders")
+        raise NfzListingError("NFZ listing has no complete cards")
+    return tuple(parser.items)
+
+
+def parse_hospital_listing(body: bytes) -> tuple[HospitalOrderCandidate, ...]:
     candidates: list[HospitalOrderCandidate] = []
     seen_ids: set[int] = set()
     seen_numbers: set[str] = set()
-    for item in parser.items:
+    for item in parse_listing_cards(body):
         title = " ".join(item.get("title", "").split())
         match = _ACT_NUMBER.fullmatch(title)
         if match is None:

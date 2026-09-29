@@ -16,6 +16,8 @@ from minos.ingest.watchers.config import (
     RskSourceConfigurationCodec,
 )
 from minos.ingest.watchers.control import (
+    BawDispatchDraft,
+    BawDispatchRequest,
     BlobReceipt,
     BlobVerificationError,
     ChangeDraft,
@@ -28,6 +30,7 @@ from minos.ingest.watchers.control import (
     IllegalRunTransitionError,
     IncidentDraft,
     JsonValue,
+    MigrationError,
     ObservationBlob,
     ObservationCommit,
     ObservationDraft,
@@ -42,6 +45,9 @@ from minos.ingest.watchers.control import (
     SourceSchedule,
     StaleClaimError,
     UncertainControlOutcomeError,
+)
+from minos.ingest.watchers.control.migrations import (
+    rollback_control_migrations_for_testing,
 )
 
 _NOW_MS = 1_800_000_000_000
@@ -988,6 +994,134 @@ def test_observation_commit_advances_all_state_atomically(
     ) == [(_INCIDENT_ID, 3)]
     with pytest.raises(ClaimBlockedError):
         _ = store.acquire_claim(_manual_claim_request(_NOW_MS))
+
+
+def test_baw_dispatch_survives_retry_and_only_acknowledges_committed_evidence(
+    database_path: Path, clock: _TestClock
+) -> None:
+    _ = clock
+    url = (
+        "https://www.nfz.gov.pl/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/"
+        "zarzadzenie-nr-1022026dsoz,7982.html"
+    )
+    codecs = SourceConfigurationCodecRegistry(
+        {"nfz": _FixtureConfigurationCodec(), "baw": _FixtureConfigurationCodec()}
+    )
+    with ControlStore.open(database_path, source_configuration_codecs=codecs) as store:
+        for source_id in ("nfz", "baw"):
+            _ = store.configure_source(
+                SourceConfiguration(source_id, source_id, {}, True)
+            )
+        source_commit = replace(
+            _observation_commit(),
+            observations=(
+                replace(
+                    _observation_commit().observations[0],
+                    observation_kind="nfz_order_detail",
+                    source_identity=url,
+                ),
+            ),
+            changes=(),
+            incidents=(),
+            baw_dispatches=(BawDispatchDraft(44041, url, _OBSERVATION_ID),),
+        )
+        claim = store.claim_manual("nfz")
+        committed = store.commit_observations(claim.identity, source_commit)
+        assert store.list_pending_baw_dispatches() == (
+            BawDispatchRequest("nfz", 44041, url, _SHA256, _NOW_MS),
+        )
+        assert _query(
+            database_path,
+            "SELECT discovery_run_id, observation_id, delivered_run_id FROM baw_dispatch_outbox",
+        ) == [(committed.run_id, _OBSERVATION_ID, None)]
+
+        _ = store.mark_heartbeat_pending(
+            committed.run_id,
+            committed_state_revision=committed.committed_state_revision,
+            recovery_receipt=_recovery_receipt(committed),
+        )
+        _ = store.mark_successful(
+            committed.run_id,
+            committed_state_revision=committed.committed_state_revision,
+        )
+        repeated = replace(
+            source_commit,
+            observations=(
+                replace(
+                    source_commit.observations[0],
+                    observation_id="observation-0000000002",
+                ),
+            ),
+            baw_dispatches=(BawDispatchDraft(44041, url, "observation-0000000002"),),
+        )
+        second = store.claim_manual("nfz")
+        with pytest.raises(ControlValidationError, match="batch exceeds its bound"):
+            _ = store.commit_observations(
+                second.identity,
+                replace(repeated, baw_dispatches=repeated.baw_dispatches * 9),
+            )
+        assert _query(database_path, "SELECT count(*) FROM baw_dispatch_outbox") == [
+            (1,)
+        ]
+        _ = store.commit_observations(second.identity, repeated)
+        assert store.list_pending_baw_dispatches() == (
+            BawDispatchRequest("nfz", 44041, url, _SHA256, _NOW_MS),
+        )
+
+        baw_claim = store.claim_manual("baw")
+        delivery = replace(
+            _observation_commit(),
+            observations=(
+                replace(
+                    _observation_commit().observations[0],
+                    observation_id="baw-observation-0001",
+                    observation_kind="baw_document",
+                    source_identity="44041",
+                ),
+            ),
+            changes=(),
+            incidents=(),
+            delivered_baw_ids=(44041,),
+            retained_baw_roots=(44041,),
+        )
+        with pytest.raises(ControlValidationError, match="lacks its document"):
+            _ = store.commit_observations(
+                baw_claim.identity,
+                replace(
+                    delivery,
+                    observations=(
+                        replace(delivery.observations[0], source_identity="99999"),
+                    ),
+                ),
+            )
+        assert store.list_pending_baw_dispatches()[0].document_id == 44041
+        delivered = store.commit_observations(baw_claim.identity, delivery)
+        assert store.list_pending_baw_dispatches()[0].document_id == 44041
+        assert store.list_retained_baw_roots() == ()
+        _ = store.mark_heartbeat_pending(
+            delivered.run_id,
+            committed_state_revision=delivered.committed_state_revision,
+            recovery_receipt=_recovery_receipt(delivered),
+        )
+        assert store.list_pending_baw_dispatches()[0].document_id == 44041
+        _ = store.mark_successful(
+            delivered.run_id,
+            committed_state_revision=delivered.committed_state_revision,
+        )
+        assert store.list_pending_baw_dispatches() == ()
+        assert store.list_retained_baw_roots() == (44041,)
+        assert _query(
+            database_path,
+            "SELECT delivered_run_id, delivered_observation_id FROM baw_dispatch_outbox",
+        ) == [(delivered.run_id, "baw-observation-0001")]
+
+    with sqlite3.connect(database_path, isolation_level=None) as connection:
+        with pytest.raises(MigrationError, match="rollback failed and was rolled back"):
+            _ = rollback_control_migrations_for_testing(connection, 3)
+        assert connection.execute("PRAGMA user_version").fetchone() == (4,)
+        assert connection.execute(
+            "SELECT count(*) FROM baw_dispatch_outbox"
+        ).fetchone() == (1,)
 
 
 def test_committed_history_is_revision_fenced_and_truncates_complete_runs(

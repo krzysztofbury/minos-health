@@ -14,6 +14,7 @@ dependencies = [
   "apscheduler>=3.11,<3.12",
   "boto3>=1.40,<2",
   "botocore>=1.40,<2",
+  "defusedxml>=0.7.1,<1",
 ]
 
 [project.scripts]
@@ -31,6 +32,7 @@ dev = [
     "pytest>=8.4",
     "pyyaml>=6,<7",
     "ruff>=0.12",
+    "types-defusedxml>=0.7.0.20260504",
     "types-pyyaml>=6,<7",
     "zizmor>=1.30,<2",
 ]
