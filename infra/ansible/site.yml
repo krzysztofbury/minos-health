@@ -3220,9 +3220,8 @@
           changed_when: false
           when: ssh_hardening.changed
 
-        - name: Drop the pre-reload multiplexed SSH connection
+        - name: Drop the multiplexed SSH connection after validation
           ansible.builtin.meta: reset_connection
-          when: ssh_hardening.changed
 
       rescue:
         - name: Restore the prior SSH drop-in
