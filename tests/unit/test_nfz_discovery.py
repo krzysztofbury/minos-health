@@ -108,6 +108,17 @@ def test_listing_rejects_a_populated_search_without_the_hospital_subject() -> No
         _ = parse_hospital_listing(unrelated.encode())
 
 
+def test_listing_rejects_one_act_number_with_conflicting_listing_ids() -> None:
+    first = _item(
+        "102/2026/DSOZ",
+        "/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/zarzadzenie-nr-1022026dsoz,7982.html",
+        _HOSPITAL,
+    )
+    second = first.replace(",7982.html", ",7999.html")
+    with pytest.raises(NfzListingError, match="duplicate"):
+        _ = parse_hospital_listing((first + second).encode())
+
+
 def test_fetch_listing_rejects_html_challenge_and_external_redirect() -> None:
     def challenge(_request: httpx.Request) -> httpx.Response:
         return httpx.Response(

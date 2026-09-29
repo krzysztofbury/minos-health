@@ -227,6 +227,7 @@ def parse_hospital_listing(body: bytes) -> tuple[HospitalOrderCandidate, ...]:
         raise NfzListingError("NFZ listing has no complete issued orders")
     candidates: list[HospitalOrderCandidate] = []
     seen_ids: set[int] = set()
+    seen_numbers: set[str] = set()
     for item in parser.items:
         title = " ".join(item.get("title", "").split())
         match = _ACT_NUMBER.fullmatch(title)
@@ -255,6 +256,9 @@ def parse_hospital_listing(body: bytes) -> tuple[HospitalOrderCandidate, ...]:
         if listing_id in seen_ids:
             raise NfzListingError("NFZ listing contains a duplicate order ID")
         seen_ids.add(listing_id)
+        if act_number in seen_numbers:
+            raise NfzListingError("NFZ listing contains a duplicate act number")
+        seen_numbers.add(act_number)
         subject = " ".join(item.get("subject", "").split())
         if not subject or len(subject) > _MAX_FIELD_LENGTH:
             raise NfzListingError("NFZ listing subject is invalid")
