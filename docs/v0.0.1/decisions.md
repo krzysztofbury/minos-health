@@ -255,14 +255,23 @@ period (per § 10 of the base act).
 
 ### Search Storage
 
-With vector search cut from scope, the engine spike shrinks: the default
-candidate is plain SQLite with FTS5 through the pinned Python runtime and
-database driver. The spike verifies local read-only operation, standalone CLI
-packaging, deterministic `linux/amd64` container operation, Polish search, and
-FTS5.
+The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with
+FTS5 through the pinned Python runtime and standard driver remains the default
+candidate. Verify runtime identity, FTS5, read-only operation, determinism and
+representative build/query measurements against the actual artifact. #14 owns
+Polish search precedence and standalone CLI packaging; deterministic
+`linux/amd64` container search remains a runtime acceptance gate.
 Normalized B-tree search remains the portable fallback. Semantic
 neighbours are deferred entirely and would require their own safety gates to
 return.
+
+The source contract review accepts one generic release-scoped node/relation
+graph for classifications, including uncoded text and structural containers.
+Concepts and multilingual descriptions link to source nodes, not duplicated
+ICD-specific trees. Relations distinguish source containment from classification
+semantics. Repeated dotted suffixes retain raw values and an explicit contextual
+lookup conversion; single-digit modifiers remain non-concept nodes until their
+semantics are separately reviewed. No conversion infers billability.
 
 ### Ingestion Model
 
@@ -421,6 +430,7 @@ Terraform state, or an image.
 - Inspection and fixturing of complete RSK XML, NFZ XLSX, and komunikat DOCX
   structures.
 - Launch SLOs, cost budget, and benchmark thresholds.
-- Pinned embedded database engine after the reduced-scope spike.
+- Pinned embedded database engine from actual reference-artifact evidence,
+  followed by standalone CLI and container search acceptance.
 - Grouper correctness validation protocol with real ward cases (before
   `v0.0.2` ships).

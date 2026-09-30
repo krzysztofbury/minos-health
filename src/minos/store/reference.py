@@ -1,0 +1,236 @@
+"""Verified read-only reference access with typed, bounded hierarchy queries."""
+
+import os
+import sqlite3
+import stat
+import time
+from collections.abc import Generator
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Literal, cast, final
+
+from pydantic import ValidationError
+
+from minos.domain.normalization import NORMALIZATION_VERSION
+from minos.domain.reference import (
+    ArtifactError,
+    Concept,
+    ConceptDescription,
+    HierarchyNode,
+    NodeKind,
+    QueryLimitError,
+    RelationType,
+)
+from minos.store.artifact import (
+    ARTIFACT_MANIFEST_NAME,
+    DATABASE_NAME,
+    MAX_MANIFEST_BYTES,
+    REVIEW_SUMMARY_NAME,
+    ArtifactManifest,
+    canonical_json,
+    file_identity,
+)
+from minos.store.reference_build import (
+    REFERENCE_APPLICATION_ID,
+    REFERENCE_SCHEMA_VERSION,
+    TABLES,
+    reference_sql,
+    schema_checksum,
+)
+
+
+def read_artifact_manifest(bundle: Path) -> ArtifactManifest:
+    try:
+        descriptor = os.open(
+            bundle / ARTIFACT_MANIFEST_NAME, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        )
+        with os.fdopen(descriptor, "rb") as source:
+            if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                raise ArtifactError("reference manifest is not a regular file")
+            content = source.read(MAX_MANIFEST_BYTES + 1)
+        if len(content) > MAX_MANIFEST_BYTES:
+            raise ArtifactError("reference manifest exceeds size limit")
+        manifest = ArtifactManifest.model_validate_json(content)
+        if content != canonical_json(manifest):
+            raise ArtifactError("reference manifest is not canonical")
+        if manifest.schema_sha256 != schema_checksum():
+            raise ArtifactError("incompatible reference schema checksum")
+        if set(manifest.row_counts) != set(TABLES):
+            raise ArtifactError("invalid reference table counts")
+        summary_sha256, _ = file_identity(
+            bundle / REVIEW_SUMMARY_NAME, max_bytes=MAX_MANIFEST_BYTES
+        )
+        if summary_sha256 != manifest.review_summary_sha256:
+            raise ArtifactError("reference review summary checksum does not match")
+        return manifest
+    except (OSError, ValidationError) as error:
+        raise ArtifactError("reference manifest cannot be read or validated") from error
+
+
+@contextmanager
+def open_reference_connection(bundle: Path) -> Generator[sqlite3.Connection]:
+    """Low-level read-only access for reference queries and local diagnostics."""
+    manifest = read_artifact_manifest(bundle)
+    database = bundle / DATABASE_NAME
+    try:
+        identity = file_identity(database, max_bytes=manifest.database_size_bytes)
+        if identity != (manifest.database_sha256, manifest.database_size_bytes):
+            raise ArtifactError(
+                "reference database checksum or byte count does not match"
+            )
+        connection = sqlite3.connect(
+            database.resolve().as_uri() + "?mode=ro&immutable=1",
+            uri=True,
+            autocommit=True,
+        )
+        try:
+            _ = connection.execute("PRAGMA query_only = ON")
+            _ = connection.execute("PRAGMA trusted_schema = OFF")
+            _ = connection.execute("PRAGMA foreign_keys = ON")
+            _ = connection.execute("PRAGMA mmap_size = 0")
+            _validate_database_header(connection)
+            yield connection
+        finally:
+            connection.close()
+    except (sqlite3.Error, OSError) as error:
+        raise ArtifactError("reference database read failed") from error
+
+
+def _validate_database_header(connection: sqlite3.Connection) -> None:
+    if connection.execute("PRAGMA application_id").fetchone() != (
+        REFERENCE_APPLICATION_ID,
+    ):
+        raise ArtifactError("not a Minos reference database")
+    if connection.execute("PRAGMA user_version").fetchone() != (
+        REFERENCE_SCHEMA_VERSION,
+    ):
+        raise ArtifactError("incompatible reference schema version")
+    if connection.execute(
+        "SELECT version, sha256 FROM schema_migration"
+    ).fetchall() != [(1, schema_checksum())]:
+        raise ArtifactError("incompatible reference migration checksum")
+    normalization = cast(
+        tuple[str] | None,
+        connection.execute(
+            "SELECT value FROM build_metadata WHERE key = 'normalization_version'"
+        ).fetchone(),
+    )
+    if normalization != (NORMALIZATION_VERSION,):
+        raise ArtifactError("incompatible normalization version")
+
+
+@contextmanager
+def open_reference(bundle: Path) -> Generator[ReferenceReader]:
+    with open_reference_connection(bundle) as connection:
+        yield ReferenceReader(connection)
+
+
+@final
+class ReferenceReader:
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._connection = connection
+
+    def concept(self, release_id: str, lookup_code: str) -> Concept | None:
+        if (
+            not release_id
+            or len(release_id) > 80
+            or not lookup_code
+            or len(lookup_code) > 256
+        ):
+            raise ValueError("invalid concept lookup identity")
+        row = cast(
+            tuple[str, int, str, str] | None,
+            self._connection.execute(
+                """SELECT release.system, concept.node_ordinal, node.source_code, node.kind
+            FROM concept JOIN source_release AS release ON release.id = concept.source_release_id
+            JOIN reference_node AS node ON node.source_release_id = concept.source_release_id
+            AND node.ordinal = concept.node_ordinal
+            WHERE concept.source_release_id = ? AND concept.lookup_code = ?""",
+                (release_id, lookup_code),
+            ).fetchone(),
+        )
+        if row is None:
+            return None
+        descriptions = cast(
+            list[tuple[str, str, str, str]],
+            self._connection.execute(
+                """SELECT language, description_type, source_text, normalized_text FROM concept_description
+            WHERE source_release_id = ? AND node_ordinal = ? ORDER BY language, description_type""",
+                (release_id, row[1]),
+            ).fetchall(),
+        )
+        return Concept(
+            release_id,
+            row[0],
+            row[1],
+            row[2],
+            lookup_code,
+            _node_kind(row[3]),
+            tuple(ConceptDescription(*description) for description in descriptions),
+        )
+
+    def hierarchy(
+        self,
+        release_id: str,
+        ordinal: int,
+        *,
+        direction: Literal["ancestors", "descendants"] = "descendants",
+        relation_type: RelationType = "contains",
+        max_depth: int = 32,
+        max_nodes: int = 1000,
+    ) -> tuple[HierarchyNode, ...]:
+        if str(direction) not in ("ancestors", "descendants") or str(
+            relation_type
+        ) not in ("contains", "is_a"):
+            raise ValueError("unsupported hierarchy traversal")
+        if not release_id or len(release_id) > 80 or not 1 <= ordinal <= 100_000:
+            raise ValueError("invalid hierarchy identity")
+        if not 1 <= max_depth <= 64 or not 1 <= max_nodes <= 10_000:
+            raise ValueError("invalid hierarchy limits")
+        sql = reference_sql(f"queries/{direction}.sql")
+        deadline = time.monotonic() + 0.25
+        steps = 0
+
+        def interrupted() -> int:
+            nonlocal steps
+            steps += 1000
+            return int(steps > 2_000_000 or time.monotonic() > deadline)
+
+        self._connection.set_progress_handler(interrupted, 1000)
+        try:
+            rows = cast(
+                list[tuple[int, int, str, str, str]],
+                self._connection.execute(
+                    sql,
+                    {
+                        "release_id": release_id,
+                        "ordinal": ordinal,
+                        "relation_type": relation_type,
+                        "max_depth": max_depth,
+                        "row_limit": max_nodes + 1,
+                    },
+                ).fetchall(),
+            )
+        except sqlite3.OperationalError as error:
+            if error.sqlite_errorcode == sqlite3.SQLITE_INTERRUPT:
+                raise QueryLimitError(
+                    "hierarchy query exceeded execution limit"
+                ) from error
+            raise ArtifactError("hierarchy query failed") from error
+        finally:
+            self._connection.set_progress_handler(None, 0)
+        if len(rows) > max_nodes or any(row[1] > max_depth for row in rows):
+            raise QueryLimitError("hierarchy exceeds depth or result limit")
+        return tuple(
+            HierarchyNode(row[0], row[1], row[2], row[3], _node_kind(row[4]))
+            for row in rows
+        )
+
+
+def _node_kind(value: str) -> NodeKind:
+    kinds: frozenset[str] = frozenset(
+        ("classification", "range", "modifier", "text", "container")
+    )
+    if value not in kinds:
+        raise ArtifactError("invalid reference node kind")
+    return cast(NodeKind, value)

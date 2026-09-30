@@ -248,9 +248,10 @@ day-to-day order.
 - [ ] Implement raw numbered SQLite migrations with transactional application,
       an applied-migration checksum table, and fresh-database build tests. The
       runtime must only validate and open the reference artifact read-only.
-- [ ] Reduced engine spike: pin Python and SQLite versions with FTS5; verify
-      read-only operation, deterministic Polish search, standalone CLI
-      packaging, and deterministic `linux/amd64` container operation.
+- [ ] Real #11-#13 artifact gates replacing #10's disposable spike: pin runtime
+      identity and verify FTS5, read-only operation, determinism and measured
+      build/query behavior. #14 retains search and standalone packaging;
+      container search acceptance remains a runtime gate.
 - [ ] Add Ruff, BasedPyright, mypy, pytest, dependency policy, and package
       metadata; select an automated mutation runner only after proving Python
       3.14 compatibility and bounded runtime.
@@ -263,13 +264,33 @@ day-to-day order.
 
 ## Data Ingestion
 
+### ICD-10 Reference Foundation (#11-#13)
+
+- [x] Inspect checksum-verified archived RSK XML and record its actual node,
+      relative-code, modifier and description semantics.
+- [x] Add synthetic schema-faithful fixtures, bounded streaming and typed
+      source-preserving records without redistributing licensed source bytes.
+- [x] Build a generic release-scoped hierarchy linked to concepts/descriptions,
+      with transactional integrity, FTS5, deterministic bytes, provenance,
+      checksums, read-only opening and bounded recursive CTEs.
+- [x] Exercise the full archived source and installed wheel; record local
+      artifact and query measurements plus targeted failure evidence.
+- [ ] Complete #14 product search precedence and standalone packaging, #15
+      private full-source CI and container search/runtime acceptance. The #10
+      disposable spike is superseded, not completed or waived.
+
+### Remaining Dataset And Product Gates
+
 - [ ] Download and fixture the RSK ICD-10 XML (HCD `00CD10`), the NFZ ICD-9 PL
       XLSX/XML, załącznik 1a (katalog JGP), załącznik 9 (charakterystyka JGP),
       CZS MODTAR XML, and the komunikat algorithm DOCX plus rank tables.
 - [ ] Record source identity for every file: URL or UUID, byte size, computed
       SHA-256, upstream timestamps, publisher, and disclaimers, without
       inventing publication dates.
-- [ ] Define terminology, concept, description, relation, group, condition,
+- [ ] Define a generic release-scoped source-node/relation graph linked to
+      concepts and multilingual descriptions, preserving uncoded containers,
+      annotations and modifiers without inventing diagnosis codes.
+- [ ] Define terminology, concept, description, group, condition,
       tariff, source-release, and ruleset-release tables with bitemporal
       fields.
 - [ ] Implement streaming XML parsing with explicit validation errors; reject

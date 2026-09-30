@@ -46,6 +46,7 @@ packages = ["src/minos"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "database/control/sqlite" = "minos/database/control/sqlite"
+"database/reference/sqlite" = "minos/database/reference/sqlite"
 
 [tool.basedpyright]
 include = ["src", "tests"]

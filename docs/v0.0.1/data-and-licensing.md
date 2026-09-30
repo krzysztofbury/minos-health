@@ -178,7 +178,8 @@ not modified in place.
 At minimum, a complete build verifies:
 
 - exactly one ruleset release per reporting period in scope;
-- unique concept identity within each source release;
+- unique canonical concept lookup identity within each source release and
+  terminology system, distinct from repeated raw suffix labels;
 - non-empty source code and preferred description;
 - all hierarchy references resolve or match a documented source root rule;
 - all condition list references resolve to known concepts;
@@ -205,6 +206,16 @@ Normalization supports lookup without rewriting the source:
 - Any optional accent-insensitive key is additional and tested for collisions.
 - Codes use a source-aware canonical comparison rather than unrestricted text
   cleanup.
+
+The reviewed RSK conversion expands dotted suffix labels only under an explicit
+three-character category parent, removes trailing dagger/asterisk markers from
+lookup keys only, and gives range lookup keys an ASCII hyphen. Exact source
+codes and markers remain on source nodes. Single-digit modifiers and uncoded
+descriptive nodes retain hierarchy identity without becoming invented diagnosis
+codes. Polish names are preferred descriptions; nonempty `EN` values are English
+translations. Annotations and uncoded descriptions are not automatically
+synonyms. These rules are versioned, covered by synthetic fixtures and included
+in the artifact modification notice.
 
 Normalization versions are part of artifact provenance because changing them
 can change search results.

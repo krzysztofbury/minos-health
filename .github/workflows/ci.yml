@@ -170,6 +170,13 @@ jobs:
           "$smoke_dir/venv/bin/minos" --version
           "$smoke_dir/venv/bin/python" - <<'PY'
           import sqlite3
+          import tempfile
+          from pathlib import Path
+
+          from minos.ingest.icd10 import parse_icd10
+          from minos.ingest.reference_artifact import build_reference_artifact
+          from minos.ingest.reference_manifest import DatasetManifest
+          from minos.store.reference import open_reference
 
           from minos.ingest.watchers.control import (
               CONTROL_SCHEMA_VERSION,
@@ -180,6 +187,23 @@ jobs:
           result = apply_control_migrations(connection)
           assert result.schema_version == CONTROL_SCHEMA_VERSION
           assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+          connection.close()
+
+          manifest = DatasetManifest.model_validate_json(
+              Path("manifests/sources/icd10-synthetic.json").read_bytes()
+          )
+          with tempfile.TemporaryDirectory() as temporary:
+              root = Path(temporary)
+              blob = root / "blobs" / "sha256" / manifest.sources[0].sha256
+              blob.parent.mkdir(parents=True)
+              blob.write_bytes(Path("tests/fixtures/icd10-pl/minimal.xml").read_bytes())
+              with blob.open("rb") as source:
+                  assert len(tuple(parse_icd10(source))) == 18
+              result = build_reference_artifact(manifest, root, root / "bundle")
+              assert result.row_counts["reference_node"] == 10
+              with open_reference(root / "bundle") as reader:
+                  assert reader.concept(manifest.sources[0].release_id, "E11.0") is not None
+                  assert len(reader.hierarchy(manifest.sources[0].release_id, 3)) == 4
           PY
 
       - name: Build and exercise the watcher container and Compose runtime

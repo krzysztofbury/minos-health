@@ -279,6 +279,36 @@ found on `dane.gov.pl`.
 
 ## ICD-10 PL And RSK
 
+### Archived XML Structure
+
+The checksum-verified #6 capture inspected for #11 contains a UTF-8 `hcd`
+document in namespace `http://rsk.rejestrymedyczne.csioz.gov.pl`, not an NFZ
+`komunikat`. Root attributes are `hcd`, `visible`, `closed`, `version`,
+`applicationdate`, `registrationdate` and `maxchars`. XML `version="7"` is
+distinct from catalog resource version `013`. Root scalar fields are
+`expirationreason`, `name`, `common_name`, `codesformat`, `charset`,
+`minreusetime`, `languages` and `link`, followed by `nodes`.
+
+Each `node` has one `code` attribute and a `name`, then optional `attributes`
+and optional nested `nodes`. Attributes are named text values: `EN`,
+`annotationPL` and `annotationEN`. Hierarchy is physical containment, not an
+explicit parent-code reference. Preserve it using release-local node identity
+and preorder, including empty structural containers and uncoded descriptions.
+
+The 12,738,027-byte pinned XML contains 24,040 nodes: 12,936 coded and 11,104
+uncoded. There are 593 unnamed uncoded containers. Maximum node depth is 9;
+maximum XML element depth is 21. Of the coded nodes, 1,054 have dotted relative
+labels under category nodes, 565 have single-digit modifier labels, and 296
+have range labels. Do not concatenate digit modifiers into diagnosis codes or
+infer billability from hierarchy position. Repeated raw suffixes are valid
+source labels, not globally unique codes. Annotations and uncoded descriptive
+text are not automatically alternate concept descriptions.
+
+See [pipeline evidence](../validation/icd10-reference-pipeline.md) for the
+source checksum, fixture policy and parser/store acceptance boundaries.
+
+### Catalog And Capture
+
 The anonymous catalog is:
 <https://rsk3.ezdrowie.gov.pl/api/rsk/resource/role/UZYNLG>. On 2026-08-21 it
 returned eight HCDs: `99ICD1`, `99CD11`, `00CD10`, `00CD09`, `99CD1A`,
