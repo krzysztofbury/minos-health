@@ -23,7 +23,7 @@ Schema 2, Python 3.14.7, SQLite 3.53.1:
 | Vocabulary / literal token postings | 21,716 / 189,259 |
 | Release/language-scoped lemma mappings | 30,525 |
 | Database bytes | 68,558,848 |
-| Database SHA-256 | `7721c42a92fd5f74cb1a2a6475719b8cacbce75b30f0681119d9e81377b7d696` |
+| Benchmark database SHA-256 | `7721c42a92fd5f74cb1a2a6475719b8cacbce75b30f0681119d9e81377b7d696` |
 | Build duration / process-image peak RSS | 3.74 s / 101,632 KiB |
 
 The schema adds language-specific documents, source-graph attribution, token
@@ -179,7 +179,21 @@ Chromium's output pipes. A local probe emitting 1 MiB before launching the real
 browser reproduced the same timeout. Draining both pipes immediately made that
 probe and the normal full browser assertions pass. Startup failure diagnostics
 are bounded to 8 KiB and sanitize local paths/control characters; they are only
-reported before navigating to fixture pages. Remote CI confirmation is pending.
+reported before navigating to fixture pages.
+
+PR run `36762897843` confirmed that the browser/pre-commit gate now passes.
+It then rejected developer-only virtualenv 21.7.10 for PYSEC-2026-4011 through
+PYSEC-2026-4014. Updating only virtualenv to the minimum fully fixed 21.7.13 made
+the local audit pass without exceptions; application requirements and hashes
+remain identical. Both source manifests now pin root lock SHA-256
+`50932f2d8d31431fb873b673686c19fa89a246a0ee7395690346b1d78b0405b9`.
+This changes database build metadata, not source/search content. Repeated
+checkout, installed-wheel and network-disabled frozen full-source builds agree
+on final database SHA-256
+`63081089ac6947de2e594d0d234dee7bf838a6caf08b68383b7b0c4bd98789ba`.
+Counts and size remain the same; the updated checkout build took 3.71 s with
+102,032 KiB process-image peak RSS. The latency table above remains attributed
+to the benchmark hash, rather than being relabelled as a new measurement.
 
 Remaining gates: remote PR CI must pass for the final head; no merge
 gate is enforced on the current private GitHub plan; deployed API/container
