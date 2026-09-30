@@ -174,7 +174,14 @@ commands, bounds, license boundaries and output. The full-source build additiona
 uses the reviewed manifest and the ignored pinned archive documented by the
 pipeline validation. Private results remain outside Git.
 
-Remaining gates: remote PR CI has not run for this working-tree chunk; no merge
+The first PR #96 run failed before CDP startup; the browser harness did not drain
+Chromium's output pipes. A local probe emitting 1 MiB before launching the real
+browser reproduced the same timeout. Draining both pipes immediately made that
+probe and the normal full browser assertions pass. Startup failure diagnostics
+are bounded to 8 KiB and sanitize local paths/control characters; they are only
+reported before navigating to fixture pages. Remote CI confirmation is pending.
+
+Remaining gates: remote PR CI must pass for the final head; no merge
 gate is enforced on the current private GitHub plan; deployed API/container
 search, representative concurrent host load, signed #41 promotion and public
 redistribution are not established. This standalone acceptance does not replace

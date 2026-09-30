@@ -104,9 +104,22 @@ const browser = spawn(chromium, [
   "--no-first-run", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
   "about:blank",
 ], { stdio: ["ignore", "pipe", "pipe"] });
+// Drain both pipes immediately: a noisy runner must not block Chromium on write.
+browser.stdout.resume();
+let startupDiagnostics = Buffer.alloc(0);
+browser.stderr.on("data", (chunk) => {
+  startupDiagnostics = Buffer.concat([startupDiagnostics, chunk]).subarray(-8192);
+});
 
 try {
-  const client = await connect(profile, browser);
+  let client;
+  try {
+    client = await connect(profile, browser);
+  } catch (error) {
+    // Only pre-navigation diagnostics are exposed, without local paths/controls.
+    const safeDiagnostics = startupDiagnostics.toString("utf8").replace(/\/[\w./+-]+/g, "[path]").replace(/\p{C}/gu, " ");
+    throw new Error(`${error.message}\nChromium startup diagnostics:\n${safeDiagnostics}`, { cause: error });
+  }
   const errors = [];
   const requests = [];
   const requestBodies = [];
