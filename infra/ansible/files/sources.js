@@ -148,7 +148,7 @@
   }
   function validateBawProjection(value) {
     expectKeys(value, ["schema_version", "source", "through_state_revision", "observed_at", "documents", "redistribution"], "BAW");
-    if (value.schema_version !== 1 || value.source !== "BAW") fail("wersja BAW");
+    if (![1, 2].includes(value.schema_version) || value.source !== "BAW") fail("wersja BAW");
     expectInteger(value.through_state_revision, "rewizja BAW", 1, Number.MAX_SAFE_INTEGER);
     value.observed_at = expectTimestamp(value.observed_at, "odczyt BAW");
     expectKeys(value.redistribution, ["schema_version", "artifacts"], "redystrybucja BAW");
@@ -158,6 +158,7 @@
     var ids = new Set();
     value.documents.forEach(function (doc) {
       var expectedKeys = ["document_id", "act_number", "act_date", "published_date", "entry_into_force", "service_applicability_date", "valid_to", "legal_status", "observed_at", "metadata_sha256", "source_url", "files"];
+      if (value.schema_version === 2) expectedKeys.push("lineage");
       if (Object.hasOwn(doc, "service_applicability_evidence")) expectedKeys.push("service_applicability_evidence");
       expectKeys(doc, expectedKeys, "dokument BAW");
       expectInteger(doc.document_id, "ID BAW", 1, Number.MAX_SAFE_INTEGER);
@@ -186,7 +187,32 @@
         expectPattern(file.sha256, DIGEST_PATTERN, "SHA-256 pliku", 64);
       });
     });
+    if (value.schema_version === 2) validateBawLineage(value.documents);
     return value;
+  }
+
+  function validateBawLineage(documents) {
+    var byId = new Map(documents.map(function (doc) { return [doc.document_id, doc]; }));
+    documents.forEach(function (doc) {
+      var link = doc.lineage;
+      expectKeys(link, ["automatic_type", "source_document_id", "introductory_document_id"], "relacje BAW");
+      if (![1, 3, 4, 5, 6].includes(link.automatic_type)) fail("rodzaj dokumentu BAW");
+      [link.source_document_id, link.introductory_document_id].forEach(function (id) {
+        if (id !== null) expectInteger(id, "relacja BAW", 1, Number.MAX_SAFE_INTEGER);
+      });
+      if (link.automatic_type === 1) {
+        if (link.source_document_id !== null || link.introductory_document_id !== null) fail("akt pierwotny BAW");
+        return;
+      }
+      var source = byId.get(link.source_document_id);
+      if (link.source_document_id !== null && (!source || source.lineage.automatic_type !== 1)) fail("akt źródłowy BAW");
+      if (link.automatic_type === 6) {
+        if (link.introductory_document_id !== null) fail("akt zmieniający BAW");
+        return;
+      }
+      var introductory = byId.get(link.introductory_document_id);
+      if (!source || doc.act_number !== source.act_number || !introductory || introductory.lineage.automatic_type !== 6 || introductory.lineage.source_document_id !== source.document_id) fail("historia BAW");
+    });
   }
 
   async function readBoundedJson(response) {
@@ -265,86 +291,177 @@
         source: "rsk", id: latest.hcd, title: latest.resource_name,
         subtitle: latest.publisher_name || "Wydawca niepodany w RSK",
         version: latest.resource_version, observed: latest.last_observed_at,
-        validity: latest.valid_to, status: latest.status, files: files,
+         validity: latest.valid_to, validFrom: latest.valid_from, status: latest.status, files: files,
         metadataSha256: latest.metadata_observation_sha256, notices: notices,
         search: normalizeSearch([latest.hcd, latest.resource_name, latest.resource_short_name, latest.publisher_name, latest.publisher_short_name, latest.resource_version, files.map(function (file) { return [file.file_name, file.extension, file.type_label].join(" "); }).join(" ")].join(" ")),
       };
     });
   }
   function bawDatasets(projection) {
-    return projection.documents.map(function (doc) {
+    var groups = new Map();
+    var byId = new Map(projection.documents.map(function (doc) { return [doc.document_id, doc]; }));
+    projection.documents.forEach(function (doc) {
+      var id = doc.lineage && [3, 4, 5].includes(doc.lineage.automatic_type) ? doc.lineage.source_document_id : doc.document_id;
+      if (!groups.has(id)) groups.set(id, []);
+      groups.get(id).push(doc);
+    });
+    return Array.from(groups, function (pair) {
+      var original = byId.get(pair[0]);
+      var documents = pair[1].slice().sort(function (left, right) {
+        return (right.act_date || "").localeCompare(left.act_date || "") || left.document_id - right.document_id;
+      });
+      var doc = documents.find(function (item) { return item.lineage && item.lineage.automatic_type === 3; }) || original;
+      var parent = original.lineage ? byId.get(original.lineage.source_document_id) : null;
       return {
-        source: "baw", id: String(doc.document_id), title: "Zarządzenie " + doc.act_number,
-        subtitle: "Baza Aktów Własnych / Narodowy Fundusz Zdrowia",
+        source: "baw", id: String(original.document_id), title: "Zarządzenie " + original.act_number,
+        subtitle: parent ? "Zmienia zarządzenie " + parent.act_number : "Narodowy Fundusz Zdrowia",
         version: doc.legal_status, observed: doc.observed_at,
         validity: doc.valid_to, status: "observed", files: doc.files, document: doc,
+        original: original, documents: documents, byId: byId,
         metadataSha256: doc.metadata_sha256,
-        search: normalizeSearch([doc.document_id, doc.act_number, doc.legal_status, "BAW NFZ Narodowy Fundusz Zdrowia", doc.files.map(function (file) { return file.name; }).join(" ")].join(" ")),
+        search: normalizeSearch(documents.map(function (item) {
+          return [item.document_id, item.act_number, item.legal_status, "BAW NFZ Narodowy Fundusz Zdrowia", item.files.map(function (file) { return file.name; }).join(" ")].join(" ");
+        }).join(" ") + " " + (parent ? parent.act_number : "")),
       };
     });
+  }
+  function externalLink(url, label, className) {
+    var link = element("a", className || "card-link", label);
+    link.href = url;
+    link.rel = "noopener noreferrer";
+    link.target = "_blank";
+    return link;
   }
   function fileList(card) {
     var list = element("ul", "file-list");
     card.files.forEach(function (file) {
-      var row = element("li");
-      row.append(element("strong", "", file.file_name || file.name || "Plik bez nazwy"));
-      row.append(element("small", "", formatSize(file.size_bytes) + " · " + (card.source === "rsk" ? (file.extension || "format niepodany") : "zapisany prywatnie")));
-      var digest = card.source === "rsk" ? file.product_sha256 : file.sha256;
-      if (digest) row.append(element("span", "technical", "SHA-256: " + digest));
+      var row = element("li", "file-row");
+      var name = file.file_name || file.name || "Plik bez nazwy";
+      row.append(element("strong", "file-name", name));
       if (card.source === "rsk") {
-        var link = element("a", "card-link", "Otwórz " + (file.file_name || "plik") + " w RSK");
-        link.href = officialOriginUrl(file.file_uuid);
-        link.rel = "noopener noreferrer";
-        link.target = "_blank";
-        row.append(link);
+        var action = externalLink(officialOriginUrl(file.file_uuid), "↗", "file-action");
+        action.setAttribute("aria-label", "Otwórz " + name + " w RSK (nowa karta)");
+        action.title = "Otwórz w RSK (nowa karta)";
+        row.append(action);
       }
+      row.append(element("small", "file-size", formatSize(file.size_bytes) + " · " + (card.source === "rsk" ? (file.extension || "format niepodany") : name.split(".").pop().toLowerCase())));
       list.append(row);
     });
     return list;
   }
+  function technicalDetails(doc, files, source) {
+    var details = element("details", "technical-details");
+    details.append(element("summary", "", "Szczegóły techniczne"));
+    if (doc.document_id) details.append(element("span", "technical", "Identyfikator BAW: " + doc.document_id));
+    details.append(element("span", "technical", "Sprawdzono (UTC): " + (doc.observed_at || doc.observed) + " · SHA-256 metadanych: " + (doc.metadata_sha256 || doc.metadataSha256)));
+    files.forEach(function (file) {
+      var digest = source === "rsk" ? file.product_sha256 : file.sha256;
+      if (digest) details.append(element("span", "technical", (file.file_name || file.name) + " · SHA-256: " + digest));
+    });
+    if (doc.service_applicability_evidence) details.append(element("span", "technical", "Podstawa daty stosowania: " + doc.service_applicability_evidence));
+    return details;
+  }
+  function bawHistory(card) {
+    var history = element("details", "act-history");
+    var summary = element("summary");
+    history.append(summary);
+    if (!card.original.lineage) history.append(element("p", "card-notice", "Starszy zapis bez rozpoznanego rodzaju dokumentu. Historia będzie dostępna po kolejnym sprawdzeniu źródła."));
+    var states = new Map();
+    card.documents.forEach(function (doc) {
+      var id = doc.lineage ? (doc.lineage.introductory_document_id || doc.document_id) : doc.document_id;
+      if (!states.has(id)) states.set(id, []);
+      states.get(id).push(doc);
+    });
+    var count = states.size;
+    summary.textContent = "Historia (" + count + (count === 1 ? " wersja" : count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14) ? " wersje" : " wersji") + ")";
+    states.forEach(function (documents, id) {
+      var amendment = card.byId.get(id);
+      var section = element("section", "act-state");
+      var isAmendment = amendment && amendment.lineage && amendment.lineage.automatic_type === 6 && id !== card.original.document_id;
+      section.append(element("h4", "", isAmendment ? "Po zmianie " + amendment.act_number + " z " + formatDate(amendment.act_date) : "Dokument pierwotny z " + formatDate(card.original.act_date)));
+      if (isAmendment && amendment.source_url) section.append(externalLink(amendment.source_url, "Zarządzenie zmieniające ↗"));
+      documents.sort(function (left, right) { return (left.lineage ? left.lineage.automatic_type : 0) - (right.lineage ? right.lineage.automatic_type : 0); });
+      documents.forEach(function (doc) { section.append(bawVariant(doc)); });
+      history.append(section);
+    });
+    var otherAmendments = Array.from(card.byId.values()).filter(function (doc) {
+      return doc.lineage && doc.lineage.automatic_type === 6 && doc.lineage.source_document_id === card.original.document_id && !states.has(doc.document_id);
+    });
+    if (otherAmendments.length) {
+      var additional = element("section", "additional-amendments");
+      additional.append(element("h4", "", "Pozostałe zarządzenia zmieniające"), element("p", "card-notice", "W tym zapisie BAW nie ma osobnego tekstu po tych zmianach. Sprawdź treść zarządzenia zmieniającego."));
+      otherAmendments.sort(function (left, right) { return (right.act_date || "").localeCompare(left.act_date || "") || left.document_id - right.document_id; });
+      otherAmendments.forEach(function (doc) {
+        if (doc.source_url) additional.append(externalLink(doc.source_url, doc.act_number + " z " + formatDate(doc.act_date) + " ↗"));
+        else additional.append(element("p", "card-notice", doc.act_number + " z " + formatDate(doc.act_date)));
+      });
+      history.append(additional);
+    }
+    return history;
+  }
+  function bawVariant(doc) {
+    var labels = { 1: "Akt pierwotny", 3: "Tekst po zmianach", 4: "Porównanie zmian", 5: "Skrócone porównanie zmian", 6: "Akt zmieniający" };
+    var details = element("details", "act-variant");
+    details.append(element("summary", "", doc.lineage ? labels[doc.lineage.automatic_type] : "Dokument BAW " + doc.document_id));
+    var facts = element("dl", "card-facts");
+    fact(facts, "Data dokumentu", formatDate(doc.act_date));
+    fact(facts, "Publikacja w BAW", formatDate(doc.published_date));
+    fact(facts, "Wejście w życie wg BAW", formatDate(doc.entry_into_force));
+    fact(facts, "Status w BAW", doc.legal_status);
+    if (doc.service_applicability_date) fact(facts, "Dotyczy świadczeń od", formatDate(doc.service_applicability_date));
+    details.append(facts);
+    details.append(element("p", "card-notice", doc.files.length ? "Kopia dokumentu zachowana przez Minos. Pliki otworzysz w oficjalnej bazie NFZ." : "Minos nie ma kopii plików z tego zapisu. Sprawdź ich dostępność w bazie NFZ."));
+    if (doc.files.length) details.append(fileList({ source: "baw", files: doc.files }));
+    if (doc.source_url) details.append(externalLink(doc.source_url, "Otwórz w bazie NFZ ↗"));
+    details.append(technicalDetails(doc, doc.files, "baw"));
+    return details;
+  }
   function renderCard(card) {
     var article = element("article", "source-card");
     var overline = element("div", "card-overline");
-    overline.append(element("span", "source-tag", card.source.toUpperCase()), element("span", "", card.source === "rsk" ? "Zasób " + card.id : "Dokument " + card.id));
+    overline.append(element("span", "source-tag", card.source === "rsk" ? "RSK" : "NFZ"));
     article.append(overline, element("h3", "", card.title), element("p", "card-lead", card.subtitle));
     var facts = element("dl", "card-facts");
-    fact(facts, card.source === "rsk" ? "Wersja według RSK" : "Stan aktu w BAW", card.version);
-    fact(facts, "Ostatni odczyt Minos", formatDate(card.observed));
-    fact(facts, "Obecność w obserwacji", card.status === "current" || card.status === "observed" ? "W ostatnim odczycie" : card.status === "missing" ? "Nieobecny w ostatnim odczycie" : "Historyczny");
-    fact(facts, "Ważność według wydawcy", card.validity === null ? "Daty końcowej nie podano" : "Do " + formatDate(card.validity), card.validity !== null && Date.parse(card.validity) < Date.now() ? "is-expired" : "");
+    fact(facts, card.source === "rsk" ? "Wersja w RSK" : "Status w bazie NFZ", card.version);
+    fact(facts, "Ostatnio sprawdzono", formatDate(card.observed));
+    if (card.source === "rsk") fact(facts, "Wersja ważna od wg RSK", formatDate(card.validFrom));
+    else fact(facts, "Data aktu pierwotnego", formatDate(card.original.act_date));
+    fact(facts, "Ważność wg źródła", card.validity === null ? "Nie podano daty końcowej" : "Do " + formatDate(card.validity), card.validity !== null && Date.parse(card.validity) < Date.now() ? "is-expired" : "");
     if (card.source === "baw" && card.document.service_applicability_date !== null) {
-      fact(facts, "Stosowanie do rozliczeń według aktu", "Od " + formatDate(card.document.service_applicability_date));
+      fact(facts, "Dotyczy świadczeń od", formatDate(card.document.service_applicability_date));
     }
     article.append(facts);
     if (card.source === "baw") {
-      article.append(element("p", "card-notice", card.document.service_applicability_date === null ? "Okres stosowania do świadczeń nie został jeszcze niezależnie ustalony. Archiwum Minos nie udostępnia tych plików do pobrania." : "Archiwum Minos nie udostępnia tych plików do pobrania."));
+      if (card.document.service_applicability_date === null) article.append(element("p", "card-notice", "Nie potwierdziliśmy jeszcze, za jaki okres świadczeń można stosować ten dokument do rozliczeń."));
+      article.append(bawHistory(card));
+      if (card.document.source_url) article.append(externalLink(card.document.source_url, card.document.lineage && card.document.lineage.automatic_type === 3 ? "Najnowszy tekst po zmianach ↗" : "Otwórz zarządzenie w bazie NFZ ↗"));
+      return article;
     }
+    if (card.status === "missing") article.append(element("p", "card-notice", "Nie znaleziono w ostatnim sprawdzeniu RSK. Pokazujemy poprzedni zapis."));
     var details = element("details");
-    details.append(element("summary", "", "Pliki (" + card.files.length + ") i pochodzenie"));
+    details.append(element("summary", "", "Pliki w RSK (" + card.files.length + ")"));
     if (card.files.length) details.append(fileList(card));
-    else details.append(element("p", "card-notice", "Brak osobno archiwizowanych plików dla tego dokumentu."));
+    else details.append(element("p", "card-notice", "Źródło nie podało plików."));
     if (card.notices && card.notices.length) {
       var notices = element("ul", "file-list");
       card.notices.forEach(function (notice) { notices.append(element("li", "", notice)); });
       details.append(element("p", "card-notice", "Komunikaty źródła:"), notices);
     }
-    details.append(element("span", "technical", "Odczyt (UTC): " + card.observed + " · SHA-256 odpowiedzi metadanych: " + card.metadataSha256));
-    if (card.source === "baw" && card.document.service_applicability_evidence) details.append(element("span", "technical", "Podstawa daty stosowania: " + card.document.service_applicability_evidence));
+    details.append(technicalDetails(card, card.files, "rsk"));
     article.append(details);
-    if (card.source === "baw" && card.document.source_url !== null) {
-      var sourceLink = element("a", "card-link", "Otwórz dokument w BAW NFZ");
-      sourceLink.href = card.document.source_url;
-      sourceLink.rel = "noopener noreferrer";
-      sourceLink.target = "_blank";
-      article.append(sourceLink);
-    }
     return article;
   }
   function allCards() {
     var cards = [];
     if (state.rsk) cards.push.apply(cards, rskDatasets(state.rsk));
     if (state.baw) cards.push.apply(cards, bawDatasets(state.baw));
-    return cards.sort(function (left, right) { return left.title.localeCompare(right.title, "pl-PL"); });
+    function priority(card) {
+      if (card.id === "00CD10") return 0;
+      if (card.id === "00CD09") return 1;
+      if (card.source === "baw") return card.original.lineage && card.original.lineage.automatic_type === 6 ? 3 : 2;
+      return 4;
+    }
+    return cards.sort(function (left, right) { return priority(left) - priority(right) || left.title.localeCompare(right.title, "pl-PL"); });
   }
   function render() {
     var cards = allCards().filter(function (card) {
@@ -359,7 +476,7 @@
     summary.replaceChildren();
     [["RSK", state.rsk], ["BAW NFZ", state.baw]].forEach(function (pair) {
       var unavailable = state.errors.includes(pair[0] === "BAW NFZ" ? "BAW" : pair[0]);
-      var text = pair[1] ? (unavailable ? "Poprzednio wczytany odczyt (może być nieaktualny): " : "Odczyt ") + formatDate(pair[1].projected_at || pair[1].observed_at) : "Brak dostępnej obserwacji";
+      var text = pair[1] ? (unavailable ? "Poprzedni zapis (może być nieaktualny): " : "Sprawdzono ") + formatDate(pair[1].projected_at || pair[1].observed_at) : "Dane niedostępne";
       var node = element("p");
       node.append(element("strong", "", pair[0] + ": "), document.createTextNode(text));
       summary.append(node);
@@ -380,7 +497,7 @@
     return validator(await readBoundedJson(response));
   }
   async function loadAll() {
-    setLoadState("loading", "Pobieranie obserwacji źródeł...");
+    setLoadState("loading", "Wczytywanie słowników i zarządzeń...");
     var responses = await Promise.allSettled([
       loadOne(RSK_PATH, validateProjection),
       loadOne(BAW_PATH, validateBawProjection),
@@ -392,7 +509,7 @@
     if (state.errors.length) {
       setLoadState("error", "Nie udało się wczytać: " + state.errors.join(", ") + ". Poprzednio wczytane dane mogą być nieaktualne; pozostałe źródła nadal są dostępne.");
     } else {
-      setLoadState("ready", "Wczytano publiczne obserwacje RSK i BAW. Sumy i metadane nie oznaczają zatwierdzenia treści.");
+      setLoadState("ready", "Katalog gotowy. Pliki otworzysz w oficjalnym źródle.");
     }
     render();
   }
