@@ -92,10 +92,21 @@ the provider console available and prove a fresh, non-multiplexed key-only
 session:
 
 ```sh
-ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
-  uvx --from ansible-core==2.21.4 ansible minos-production \
-  --module-name ansible.builtin.raw --args true
+ssh -o ControlMaster=no -o ControlPath=none -o BatchMode=yes \
+  -o StrictHostKeyChecking=yes \
+  -o UserKnownHostsFile=infra/ansible/known_hosts \
+  -o GlobalKnownHostsFile=/dev/null -o HostKeyAlgorithms=ssh-ed25519 \
+  -o IdentitiesOnly=yes -o PreferredAuthentications=publickey \
+  -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+  -i ~/.ssh/minos_mikrus_ed25519 -p <reviewed-port> \
+  root@<reviewed-host> /usr/bin/true
 ```
+
+The normal playbook reuses SSH connections for speed, with control sockets in
+the operator's mode-`0700` `~/.ssh` directory. If the SSH drop-in changes, it
+checks a separate fresh, pinned-host-key login before closing the old connection.
+Keep the fresh-session preflight above for first activation and host recovery;
+an Ansible ping through an existing control socket does not prove new logins work.
 
 Before the first apply, retrieve the tunnel credential and watcher AWS
 credentials to mode-`0600` temporary files outside the repository. Obtain the

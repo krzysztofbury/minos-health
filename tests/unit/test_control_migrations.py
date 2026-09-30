@@ -35,14 +35,14 @@ def test_fresh_apply_and_reopen_validate_exact_migration_history(
     first = apply_control_migrations(connection, _SQL_ROOT)
     second = apply_control_migrations(connection, _SQL_ROOT)
 
-    assert first.schema_version == 3
-    assert first.applied_versions == (1, 2, 3)
+    assert first.schema_version == 4
+    assert first.applied_versions == (1, 2, 3, 4)
     assert first.forward_compatible is False
     assert second.applied_versions == ()
-    assert connection.execute("PRAGMA user_version").fetchone() == (3,)
+    assert connection.execute("PRAGMA user_version").fetchone() == (4,)
     assert connection.execute(
         "SELECT state_revision, schema_version FROM control_state"
-    ).fetchall() == [(0, 3)]
+    ).fetchall() == [(0, 4)]
 
     expected = load_control_migrations(_SQL_ROOT)
     assert connection.execute(
@@ -72,7 +72,7 @@ def test_migration_validation_is_independent_of_row_factory(
     first = apply_control_migrations(connection, _SQL_ROOT)
     second = apply_control_migrations(connection, _SQL_ROOT)
 
-    assert first.applied_versions == (1, 2, 3)
+    assert first.applied_versions == (1, 2, 3, 4)
     assert second.applied_versions == ()
 
 
@@ -86,6 +86,7 @@ def test_v1_daily_schedule_upgrades_without_losing_due_cursor(
     for migration_name in (
         "0002_durable_schedule_obligations",
         "0003_retryable_schedule_obligations",
+        "0004_baw_dispatch_outbox",
     ):
         for direction in ("up", "down"):
             migration_root.joinpath(f"{migration_name}.{direction}.sql").unlink()
@@ -160,6 +161,7 @@ def test_v2_in_flight_claim_upgrades_with_its_pending_obligation(
         migration_root.joinpath(
             f"0003_retryable_schedule_obligations.{direction}.sql"
         ).unlink()
+        migration_root.joinpath(f"0004_baw_dispatch_outbox.{direction}.sql").unlink()
     monkeypatch.setattr(
         _MIGRATION_MANIFEST,
         (
@@ -242,8 +244,8 @@ def test_canonical_ddl_matches_the_full_migration_chain() -> None:
         )
 
         assert _schema_objects(migrated) == _schema_objects(canonical)
-        assert migrated.execute("PRAGMA user_version").fetchone() == (3,)
-        assert canonical.execute("PRAGMA user_version").fetchone() == (3,)
+        assert migrated.execute("PRAGMA user_version").fetchone() == (4,)
+        assert canonical.execute("PRAGMA user_version").fetchone() == (4,)
         assert _control_state(migrated) == _control_state(canonical)
         assert _migration_identities(migrated) == _migration_identities(canonical)
         assert canonical.execute("PRAGMA foreign_key_check").fetchall() == []
@@ -271,17 +273,18 @@ def test_all_pending_migrations_roll_back_as_one_transaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sql_root = _copy_sql_root(tmp_path)
-    _add_failing_fourth_migration(sql_root)
+    _add_failing_fifth_migration(sql_root)
     monkeypatch.setattr(
         _MIGRATION_MANIFEST,
         (
             (1, "initial_control_schema", 1),
             (2, "durable_schedule_obligations", 2),
             (3, "retryable_schedule_obligations", 3),
-            (4, "failing_probe", 3),
+            (4, "baw_dispatch_outbox", 4),
+            (5, "failing_probe", 4),
         ),
     )
-    monkeypatch.setattr(_SCHEMA_VERSION, 4)
+    monkeypatch.setattr(_SCHEMA_VERSION, 5)
 
     with pytest.raises(MigrationError, match="failed and were rolled back"):
         _ = apply_control_migrations(connection, sql_root)
@@ -307,17 +310,18 @@ def test_sqlite_authorizer_blocks_migration_boundary_bypasses(
     forbidden_sql: str,
 ) -> None:
     sql_root = _copy_sql_root(tmp_path)
-    _add_forbidden_fourth_migration(sql_root, name, forbidden_sql)
+    _add_forbidden_fifth_migration(sql_root, name, forbidden_sql)
     monkeypatch.setattr(
         _MIGRATION_MANIFEST,
         (
             (1, "initial_control_schema", 1),
             (2, "durable_schedule_obligations", 2),
             (3, "retryable_schedule_obligations", 3),
-            (4, name, 3),
+            (4, "baw_dispatch_outbox", 4),
+            (5, name, 4),
         ),
     )
-    monkeypatch.setattr(_SCHEMA_VERSION, 4)
+    monkeypatch.setattr(_SCHEMA_VERSION, 5)
 
     with pytest.raises(MigrationError, match="failed and were rolled back"):
         _ = apply_control_migrations(connection, sql_root)
@@ -345,9 +349,30 @@ def test_testing_rollback_returns_the_database_to_empty(
     result = rollback_control_migrations_for_testing(connection, 0, _SQL_ROOT)
 
     assert result.schema_version == 0
-    assert result.applied_versions == (3, 2, 1)
+    assert result.applied_versions == (4, 3, 2, 1)
     assert connection.execute("PRAGMA user_version").fetchone() == (0,)
     assert _schema_objects(connection) == []
+
+
+def test_v3_control_state_upgrades_to_baw_dispatch_schema_without_losing_schedules(
+    connection: sqlite3.Connection,
+) -> None:
+    _ = apply_control_migrations(connection, _SQL_ROOT)
+    _ = rollback_control_migrations_for_testing(connection, 3, _SQL_ROOT)
+    _insert_source(connection, "rsk")
+    _insert_schedule(connection, "scheduled")
+
+    migrated = apply_control_migrations(connection, _SQL_ROOT)
+
+    assert migrated.applied_versions == (4,)
+    assert connection.execute("PRAGMA user_version").fetchone() == (4,)
+    assert connection.execute(
+        "SELECT source_id, run_mode FROM source_schedules"
+    ).fetchall() == [("rsk", "scheduled")]
+    assert connection.execute(
+        "SELECT count(*) FROM baw_dispatch_outbox"
+    ).fetchone() == (0,)
+    assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
 def test_schedule_migrations_round_trip_representable_state_through_v1(
@@ -373,14 +398,14 @@ def test_schedule_migrations_round_trip_representable_state_through_v1(
     ).fetchall()
     reapplied = apply_control_migrations(connection, _SQL_ROOT)
 
-    assert first.applied_versions == (1, 2, 3)
-    assert rolled_back.applied_versions == (3, 2)
+    assert first.applied_versions == (1, 2, 3, 4)
+    assert rolled_back.applied_versions == (4, 3, 2)
     assert rolled_back_version == (1,)
     assert v1_schedule == [
         ("rsk", "0 3 * * *", _NOW_MS + 60_000, 300, 3, 0.5, 30.0, _NOW_MS)
     ]
-    assert connection.execute("PRAGMA user_version").fetchone() == (3,)
-    assert reapplied.applied_versions == (2, 3)
+    assert connection.execute("PRAGMA user_version").fetchone() == (4,)
+    assert reapplied.applied_versions == (2, 3, 4)
     assert connection.execute(
         """
         SELECT source_id, run_mode, cron_expression, next_due_at_ms,
@@ -485,7 +510,7 @@ def test_older_reader_accepts_only_explicitly_compatible_newer_schema(
 
     result = apply_control_migrations(connection, _SQL_ROOT)
 
-    assert result.schema_version == 4
+    assert result.schema_version == 5
     assert result.applied_versions == ()
     assert result.forward_compatible is True
     assert connection.execute("PRAGMA query_only").fetchone()[0] == 1
@@ -495,7 +520,7 @@ def test_older_reader_rejects_incompatible_newer_schema(
     connection: sqlite3.Connection,
 ) -> None:
     _ = apply_control_migrations(connection, _SQL_ROOT)
-    _install_unknown_additive_migration(connection, minimum_reader_version=4)
+    _install_unknown_additive_migration(connection, minimum_reader_version=5)
 
     with pytest.raises(MigrationError, match="not forward-readable"):
         _ = apply_control_migrations(connection, _SQL_ROOT)
@@ -673,47 +698,47 @@ def _dictionary_row_factory(
     }
 
 
-def _add_failing_fourth_migration(sql_root: Path) -> None:
+def _add_failing_fifth_migration(sql_root: Path) -> None:
     migration_root = sql_root / "migrations"
-    _ = migration_root.joinpath("0004_failing_probe.up.sql").write_text(
+    _ = migration_root.joinpath("0005_failing_probe.up.sql").write_text(
         """
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 CREATE TABLE migration_probe (value INTEGER) STRICT;
-UPDATE control_state SET schema_version = 4 WHERE singleton_id = 1;
+UPDATE control_state SET schema_version = 5 WHERE singleton_id = 1;
 INSERT INTO table_that_does_not_exist (value) VALUES (1);
 """.lstrip(),
         encoding="utf-8",
     )
-    _ = migration_root.joinpath("0004_failing_probe.down.sql").write_text(
+    _ = migration_root.joinpath("0005_failing_probe.down.sql").write_text(
         """
 DROP TABLE migration_probe;
-UPDATE control_state SET schema_version = 3 WHERE singleton_id = 1;
-PRAGMA user_version = 3;
+UPDATE control_state SET schema_version = 4 WHERE singleton_id = 1;
+PRAGMA user_version = 4;
 """.lstrip(),
         encoding="utf-8",
     )
 
 
-def _add_forbidden_fourth_migration(
+def _add_forbidden_fifth_migration(
     sql_root: Path,
     name: str,
     forbidden_sql: str,
 ) -> None:
     migration_root = sql_root / "migrations"
-    _ = migration_root.joinpath(f"0004_{name}.up.sql").write_text(
+    _ = migration_root.joinpath(f"0005_{name}.up.sql").write_text(
         f"""
-PRAGMA user_version = 4;
+PRAGMA user_version = 5;
 CREATE TABLE committed_probe (value INTEGER) STRICT;
 {forbidden_sql}
 INSERT INTO table_that_does_not_exist (value) VALUES (1);
 """.lstrip(),
         encoding="utf-8",
     )
-    _ = migration_root.joinpath(f"0004_{name}.down.sql").write_text(
+    _ = migration_root.joinpath(f"0005_{name}.down.sql").write_text(
         """
 DROP TABLE committed_probe;
-UPDATE control_state SET schema_version = 3 WHERE singleton_id = 1;
-PRAGMA user_version = 3;
+UPDATE control_state SET schema_version = 4 WHERE singleton_id = 1;
+PRAGMA user_version = 4;
 """.lstrip(),
         encoding="utf-8",
     )
@@ -725,16 +750,16 @@ def _install_unknown_additive_migration(
 ) -> None:
     _ = connection.execute("BEGIN IMMEDIATE")
     _ = connection.execute("CREATE TABLE additive_probe (value INTEGER) STRICT")
-    _ = connection.execute("PRAGMA user_version = 4")
+    _ = connection.execute("PRAGMA user_version = 5")
     _ = connection.execute(
-        "UPDATE control_state SET schema_version = 4 WHERE singleton_id = 1"
+        "UPDATE control_state SET schema_version = 5 WHERE singleton_id = 1"
     )
     _ = connection.execute(
         """
         INSERT INTO control_schema_migrations (
             version, name, up_sha256, down_sha256,
             minimum_reader_version, applied_at_ms
-        ) VALUES (4, 'additive_probe', ?, ?, ?, ?)
+        ) VALUES (5, 'additive_probe', ?, ?, ?, ?)
         """,
         ("1" * 64, "2" * 64, minimum_reader_version, _NOW_MS),
     )

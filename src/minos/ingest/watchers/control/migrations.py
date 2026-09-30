@@ -16,6 +16,7 @@ _MIGRATION_SPECS: tuple[tuple[int, str, int], ...] = (
     (1, "initial_control_schema", 1),
     (2, "durable_schedule_obligations", 2),
     (3, "retryable_schedule_obligations", 3),
+    (4, "baw_dispatch_outbox", 4),
 )
 CONTROL_SCHEMA_VERSION = _MIGRATION_SPECS[-1][0]
 _FORBIDDEN_SQL_KEYWORDS = frozenset(

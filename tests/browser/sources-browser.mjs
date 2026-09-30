@@ -148,10 +148,20 @@ try {
     cards: 2, hostname: "minoshealth.pl", textSafe: true,
     injectedImages: 0, noDownloadLinks: true, collapsed: true, overflow: false,
   });
+  assert.equal(await evaluate(client, `document.querySelector('a[href="https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ"]') !== null`), true);
   const tree = await client.send("Accessibility.getFullAXTree");
   assert.ok(tree.nodes.some((node) => node.role?.value === "tablist"));
   assert.ok(tree.nodes.some((node) => node.role?.value === "tabpanel"));
   await screenshot(client, "sources-desktop.png");
+
+  await writeFile(bawFixture, JSON.stringify({
+    ...baw, documents: baw.documents.map((doc) => ({
+      ...doc, source_url: `https://baw.nfz.gov.pl/NFZ/document/${doc.document_id}`,
+    })),
+  }));
+  await navigate(client, 1440, 900, "is-ready");
+  assert.equal(await evaluate(client, `document.querySelector('a[href*="baw.nfz.gov.pl/NFZ/document/"]') === null`), true);
+  await writeFile(bawFixture, JSON.stringify(baw));
 
   const search = await evaluate(client, `(() => {
     const input = document.getElementById("source-search");
@@ -187,6 +197,27 @@ try {
   assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
   await screenshot(client, "sources-mobile-320.png");
 
+  bawUnavailable = true;
+  await evaluate(client, `document.getElementById("retry-button").click()`);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await evaluate(client, `document.getElementById("load-state").classList.contains("is-error")`)) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  const retry = await evaluate(client, `(() => ({
+    cards: document.querySelectorAll(".source-card").length,
+    cached: document.getElementById("source-summary").textContent.includes("może być nieaktualny"),
+    named: document.getElementById("load-state").textContent.includes("BAW"),
+  }))()`);
+  assert.deepEqual(retry, { cards: 2, cached: true, named: true });
+  await screenshot(client, "sources-retry-failure.png");
+  bawUnavailable = false;
+  await evaluate(client, `document.getElementById("retry-button").click()`);
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await evaluate(client, `document.getElementById("load-state").classList.contains("is-ready")`)) break;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  assert.equal(await evaluate(client, `document.getElementById("source-summary").textContent.includes("może być nieaktualny")`), false);
+  assert.equal(await evaluate(client, `document.querySelectorAll(".source-card").length`), 2);
   bawUnavailable = true;
   await navigate(client, 390, 844, "is-error");
   assert.equal(await evaluate(client, `document.querySelectorAll(".source-card").length`), 1);

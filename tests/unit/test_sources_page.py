@@ -194,7 +194,7 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
                         "legal_status": "Obowiązujący",
                         "observed_at": "2026-09-22T08:20:00Z",
                         "metadata_sha256": "b" * 64,
-                        "source_url": "https://baw.nfz.gov.pl/NFZ/document/43943",
+                        "source_url": "https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ",
                         "files": [
                             {
                                 "file_id": 30983,
