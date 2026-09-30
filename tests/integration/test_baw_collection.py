@@ -1,8 +1,10 @@
 import io
 import json
 import sqlite3
+import time
 import zipfile
 from dataclasses import replace
+from itertools import count
 from pathlib import Path
 from typing import cast, final
 
@@ -473,8 +475,16 @@ def _setup(
 
 @pytest.mark.parametrize("document_id", [43942, 45000])
 def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
-    tmp_path: Path, document_id: int
+    tmp_path: Path, document_id: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    zip_seconds = count(1_767_225_600, 2)
+
+    def advancing_zip_timestamp(_seconds: float | None = None) -> time.struct_time:
+        return time.gmtime(next(zip_seconds))
+
+    # Every regenerated ZIP crosses its two-second timestamp boundary. Only the
+    # explicit content revision below may change a fixture's archived bytes.
+    monkeypatch.setattr(time, "localtime", advancing_zip_timestamp)
     url = (
         "https://www.nfz.gov.pl/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/"
         "zarzadzenie-nr-742026dsoz,7850.html"
@@ -532,9 +542,12 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
     def jgp_docx(*, changed: bool) -> bytes:
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w") as document:
-            document.writestr("[Content_Types].xml", "<Types/>")
             document.writestr(
-                "word/document.xml",
+                zipfile.ZipInfo("[Content_Types].xml", date_time=(2026, 1, 1, 0, 0, 0)),
+                "<Types/>",
+            )
+            document.writestr(
+                zipfile.ZipInfo("word/document.xml", date_time=(2026, 1, 1, 0, 0, 0)),
                 "<document>revised</document>" if changed else "<document/>",
             )
         return output.getvalue()
@@ -594,8 +607,16 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         elif path == icd9_file_path:
             workbook = io.BytesIO()
             with zipfile.ZipFile(workbook, "w") as document:
-                document.writestr("[Content_Types].xml", "<Types/>")
-                document.writestr("xl/workbook.xml", "<workbook/>")
+                document.writestr(
+                    zipfile.ZipInfo(
+                        "[Content_Types].xml", date_time=(2026, 1, 1, 0, 0, 0)
+                    ),
+                    "<Types/>",
+                )
+                document.writestr(
+                    zipfile.ZipInfo("xl/workbook.xml", date_time=(2026, 1, 1, 0, 0, 0)),
+                    "<workbook/>",
+                )
             return httpx.Response(
                 200,
                 content=workbook.getvalue(),
