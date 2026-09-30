@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "transform_version": "icd10-reference-v1-synthetic",
+  "lockfile_sha256": "fdbc68319f7e3512dffe0d6b2dd15cbc304885ff022138d77fb0a3b57602591a",
+  "sources": [
+    {
+      "release_id": "icd10-synthetic-v1",
+      "system": "icd10-pl",
+      "origin": "rsk",
+      "source_version": "synthetic",
+      "source_file_id": "synthetic-minimal-xml",
+      "source_url": "https://example.invalid/synthetic-source",
+      "publisher": "Synthetic fixture, not RSK content",
+      "fetched_at": "2026-09-30T00:00:00Z",
+      "source_created_at": null,
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "c464529162540dbfd7aecc1a31b2506fdc2085f4267118c447bbedb02dd5d952",
+      "size_bytes": 2538,
+      "license": "Apache-2.0 OR MIT (synthetic fixture only)",
+      "notices": ["Invented labels for tests, not medical reference content."],
+      "expected": {"nodes": 10, "relations": 7, "concepts": 6, "descriptions": 12}
+    }
+  ]
+}

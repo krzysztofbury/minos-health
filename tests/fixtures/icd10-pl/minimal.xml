@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hcd xmlns="http://rsk.rejestrymedyczne.csioz.gov.pl" hcd="00CD10" visible="true" closed="2" version="7" applicationdate="2017-04-24" registrationdate="2017-06-22" maxchars="100">
+  <expirationreason>synthetic</expirationreason>
+  <name>Synthetic ICD-10</name>
+  <common_name>ICD10</common_name>
+  <codesformat>X99.99</codesformat>
+  <charset>ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.</charset>
+  <minreusetime>100</minreusetime>
+  <languages>PL/en</languages>
+  <link>https://example.invalid/synthetic-source</link>
+  <nodes>
+    <node code="E00&#8211;E99">
+      <name>Rozdział próbny</name>
+      <attributes><attribute name="EN">Synthetic chapter</attribute></attributes>
+      <nodes>
+        <node code="">
+          <name></name>
+          <nodes>
+            <node code="E11">
+              <name>  Próbna etykieta Łódź  </name>
+              <attributes><attribute name="EN">Synthetic category</attribute></attributes>
+              <nodes>
+                <node code=".0">
+                  <name>Wariant zerowy</name>
+                  <attributes><attribute name="EN">Synthetic zero variant</attribute></attributes>
+                  <nodes>
+                    <node code=""><name>Przykład opisowy</name><attributes><attribute name="EN">Descriptive example</attribute></attributes></node>
+                    <node code=""><name>Przykład opisowy</name><attributes><attribute name="EN"></attribute></attributes></node>
+                  </nodes>
+                </node>
+                <node code=".2†">
+                  <name>Wariant z oznaczeniem</name>
+                  <attributes>
+                    <attribute name="EN">Marked synthetic variant</attribute>
+                    <attribute name="annotationPL">Notatka próbna</attribute>
+                    <attribute name="annotationEN">Synthetic note</attribute>
+                  </attributes>
+                </node>
+              </nodes>
+            </node>
+          </nodes>
+        </node>
+      </nodes>
+    </node>
+    <node code="M00">
+      <name>Druga kategoria próbna</name>
+      <attributes><attribute name="EN">Second synthetic category</attribute></attributes>
+      <nodes>
+        <node code="0"><name>Próbny modyfikator</name><attributes><attribute name="EN">Synthetic modifier</attribute></attributes></node>
+      </nodes>
+    </node>
+    <node code="U99.9"><name>Żółć próbna</name><attributes><attribute name="EN">Synthetic standalone label</attribute></attributes></node>
+  </nodes>
+</hcd>

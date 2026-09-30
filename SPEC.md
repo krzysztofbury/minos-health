@@ -131,12 +131,13 @@ ingestion transactions. Lookup must work against a local database without
 network access.
 
 With vector search removed from scope, the default engine candidate is plain
-SQLite with FTS5 through Python's pinned runtime and database driver. A short
-implementation spike pins the Python and SQLite versions and verifies local
-read-only operation, deterministic Polish search, FTS5 availability, packaged
-CLI operation, deterministic container operation, and compatibility with the
-pinned `linux/amd64` runtime before the physical schema is accepted. Portable
-normalized B-tree search remains the required fallback.
+SQLite with FTS5 through Python's pinned runtime and database driver. The
+accepted #11-#13 pipeline replaces #10's disposable spike: runtime identity,
+FTS5, determinism, read-only operation and measured artifact behavior are
+checked against the real schema. #14 retains Polish search precedence and
+standalone CLI packaging, with container search acceptance at the runtime
+boundary. These remain gates, not completed work. Portable normalized B-tree
+search remains the required fallback.
 
 ### Grouper (v0.0.2)
 
@@ -209,7 +210,12 @@ The physical schema may evolve, but it must represent these concepts:
 - `concept`: source code, status, source order, and release identity;
 - `concept_description`: preferred and alternate source descriptions plus
   normalized search values;
-- `concept_relation`: parent/child relations with explicit relation type;
+- `reference_node`: release-local source hierarchy identity and source order,
+  including coded nodes, uncoded descriptions, modifiers and containers;
+- `reference_relation`: generic parent/child edges with explicit relation type
+  and release-scoped references, queried using bounded recursive CTEs;
+- concepts link to source nodes; code identity is scoped to system and release.
+  Source containment does not automatically assert `is_a` or billability;
 - `group_definition`: JGP group identity, product code, and point values by
   settlement mode;
 - `group_condition`: typed grouping conditions (directional diagnosis and
@@ -401,6 +407,7 @@ S3, narrow IAM, budgets, and Terraform state. See
 - Decide on premium `minos.health` after counsel review.
 - Define launch service-level objectives and budget thresholds before load
   tests.
-- Pin the embedded database engine after the reduced-scope spike.
+- Pin the embedded database engine with evidence from the real reference
+  pipeline; retain standalone and container acceptance gates.
 - Validate grouper correctness strategy with real ward cases before `v0.0.2`
   release.
