@@ -7,7 +7,7 @@ from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from email.message import Message
 from pathlib import PurePosixPath
-from typing import BinaryIO, ClassVar, cast, final
+from typing import BinaryIO, ClassVar, Literal, cast, final
 from urllib.parse import unquote_to_bytes
 
 import httpx
@@ -23,12 +23,14 @@ from minos.ingest.watchers.baw.client import (
 )
 from minos.ingest.watchers.baw.models import (
     BawDocument,
+    BawLineage,
     BawRelation,
     BawResponse,
     BawSourceError,
     document_identity,
     parse_document,
     parse_relations,
+    validate_lineage,
 )
 from minos.ingest.watchers.config import BawConfiguration
 from minos.ingest.watchers.control import (
@@ -138,6 +140,7 @@ class BawSourceCollector:
         attachments: dict[int, bytes] = {}
         pending = list(settings.document_ids)
         all_links: dict[int, BawRelation] = {}
+        act_numbers: dict[int, str] = {}
         new_roots: set[int] = set()
         with self._client_factory() as client:
             seeds = list(settings.document_ids)
@@ -232,8 +235,11 @@ class BawSourceCollector:
                     client, f"/api/documents/4/details/{document_id}/null"
                 )
                 document = parse_document(response, document_id)
+                act_numbers[document_id] = document.ActNumber
                 details[document_id] = response.body
-                selected.extend(_selected_files(document, links_for_files))
+                document_files = _selected_files(document, links_for_files)
+                selected.extend(document_files)
+                link = all_links[document_id]
                 raw_digest = self._archive_metadata(context, response, digests)
                 document_digests[str(document_id)] = document_identity(
                     response, document_id
@@ -260,9 +266,31 @@ class BawSourceCollector:
                             "legal_status": cast(
                                 JsonValue, document.LegalActStatus.get("Name")
                             ),
+                            "lineage": {
+                                "automatic_type": link.AutomaticType,
+                                "source_document_id": link.SourceDocumentId,
+                                "introductory_document_id": link.IntroductoryDocumentId,
+                            },
+                            "selected_file_ids": cast(
+                                list[JsonValue],
+                                sorted(file.file_id for file in document_files),
+                            ),
                         },
                     )
                 )
+            validate_lineage(
+                {
+                    document_id: BawLineage(
+                        automatic_type=cast(
+                            "Literal[1, 3, 4, 5, 6]", link.AutomaticType
+                        ),
+                        source_document_id=link.SourceDocumentId,
+                        introductory_document_id=link.IntroductoryDocumentId,
+                    )
+                    for document_id, link in all_links.items()
+                },
+                act_numbers,
+            )
             if not dispatched_ids.issubset(details):
                 raise BawSourceError(
                     "discovered BAW document is outside the configured legal graph"
@@ -507,21 +535,19 @@ def _selected_files(
         ):
             raise BawSourceError("BAW file parent does not match its tree")
         file = _File(document.Id, file_id, parent, name, display, zipx, depth == 0)
-        if role in (1, 3, 6) and (
-            (file.root and name.lower().endswith(".zipx"))
-            or name.lower()
-            in (
-                {"zalacznik1a.xlsx", "zalacznik9.xlsx"}
-                | ({"zalacznik1.xlsx"} if role == 6 else set())
-            )
+        if (file.root and name.lower().endswith(".zipx")) or name.lower() in (
+            {"zalacznik1a.xlsx", "zalacznik9.xlsx"}
+            | ({"zalacznik1.xlsx"} if role == 6 else set())
         ):
             selected.append(file)
         stack.extend(
             (cast(dict[str, object], child), depth + 1, file_id)
             for child in descendants
         )
-    if role in (1, 3, 6) and not any(file.root for file in selected):
+    if not any(file.root for file in selected):
         raise BawSourceError("BAW legal document is missing its root ZIPX")
+    if len(selected) > 4:
+        raise BawSourceError("BAW document selected file count exceeds its bound")
     return selected
 
 

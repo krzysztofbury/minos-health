@@ -31,7 +31,11 @@ from minos.ingest.watchers.czs.client import create_czs_client
 from minos.ingest.watchers.nfz.collector import NfzSourceCollector
 from minos.ingest.watchers.nfz.discovery import create_nfz_client
 from minos.ingest.watchers.orchestrator import WatcherOrchestrator
-from minos.ingest.watchers.protocols import CollectorRegistry, SourceDriftWatcherError
+from minos.ingest.watchers.protocols import (
+    CollectorRegistry,
+    SourceDriftWatcherError,
+    WatcherRuntimeError,
+)
 from minos.ingest.watchers.publication import (
     ImmutableGenerationPublisher,
     prepare_public_root,
@@ -302,9 +306,15 @@ def _relations() -> bytes:
                     "AutomaticType": role,
                     "IsProject": False,
                     "SourceDocumentId": None if role == 1 else 43868,
-                    "IntroductoryDocumentId": 43942 if role == 3 else None,
+                    "IntroductoryDocumentId": 43942 if role in (3, 4, 5) else None,
                 }
-                for document_id, role in ((43868, 1), (43942, 6), (43943, 3))
+                for document_id, role in (
+                    (43868, 1),
+                    (43942, 6),
+                    (43943, 3),
+                    (43944, 4),
+                    (43945, 5),
+                )
             ]
         ]
     ).encode()
@@ -319,18 +329,24 @@ def _setup(
     nfz_transport: httpx.BaseTransport | None = None,
     czs_state: dict[str, bool] | None = None,
     independent_root_id: int | None = None,
+    invalid_file_id: int = 439431,
+    invalid_lineage: bool = False,
+    rotate_document_id: int = 43868,
+    rotate_relations: bool = False,
+    missing_comparison_root: bool = False,
 ) -> tuple[ControlStore, WatcherOrchestrator, list[str], Path]:
     database = tmp_path / "control.sqlite3"
     calls: list[str] = []
     read_count = 0
+    relation_read_count = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal read_count
+        nonlocal read_count, relation_read_count
         path = request.url.path
         calls.append(path)
         if "/details/" in path:
             document_id = int(path.split("/")[-2])
-            if document_id == 43868:
+            if document_id == rotate_document_id:
                 read_count += 1
             generated_id = (
                 "00000000-0000-4000-8000-000000000002"
@@ -349,7 +365,11 @@ def _setup(
                 document = cast(dict[str, object], json.loads(body))
                 document["PublishedDate"] = "2026-07-23T00:00:00"
                 body = json.dumps(document).encode()
-            if rotate and document_id == 43868 and read_count == 2:
+            if missing_comparison_root and document_id == 43944:
+                document = cast(dict[str, object], json.loads(body))
+                document["Files"] = []
+                body = json.dumps(document).encode()
+            if rotate and document_id == rotate_document_id and read_count == 2:
                 body = body.replace(b"2026-07-23", b"2026-07-24")
             return httpx.Response(
                 200, content=body, headers={"content-type": "application/json"}
@@ -376,8 +396,16 @@ def _setup(
                     content=independent_relations,
                     headers={"content-type": "application/json"},
                 )
+            relations = _relations()
+            relation_read_count += 1
+            if rotate_relations and relation_read_count == 2:
+                relations += b" "
+            if invalid_lineage:
+                relations = relations.replace(
+                    b'"SourceDocumentId": 43868', b'"SourceDocumentId": 43944'
+                )
             return httpx.Response(
-                200, content=_relations(), headers={"content-type": "application/json"}
+                200, content=relations, headers={"content-type": "application/json"}
             )
         if "/GetDocumentAttachments/" in path:
             return httpx.Response(
@@ -400,7 +428,7 @@ def _setup(
             )
             content = (
                 b"<html>challenge</html>"
-                if invalid_zip and file_id == 439431
+                if invalid_zip and file_id == invalid_file_id
                 else _zip_file()
             )
             disposition = (
@@ -800,11 +828,13 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
         state = store.load_source_state("baw").cursor
         documents = cast(dict[str, str], state["documents"])
         products = cast(dict[str, str], state["products"])
-        assert set(documents) == {"43868", "43942", "43943"}
-        assert len(products) == 9
+        assert set(documents) == {"43868", "43942", "43943", "43944", "43945"}
+        assert len(products) == 15
         assert products["43942:439421"] == products["43943:439431"]
         assert "/api/file/GetZipxAttachment/4/439431" in calls
         assert "/api/file/4/438680" in calls
+        assert "/api/file/4/439440" in calls
+        assert "/api/file/4/439450" in calls
         assert _query(database, "SELECT COUNT(*) FROM source_changes") == [(1,)]
         metadata = cast(
             dict[str, object],
@@ -838,13 +868,14 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
             ),
         )
         assert public["source"] == "BAW"
+        assert public["schema_version"] == 2
         redistribution = cast(dict[str, object], public["redistribution"])
         public_documents = cast(list[dict[str, object]], public["documents"])
         assert redistribution["artifacts"] == []
-        assert len(public_documents) == 3
+        assert len(public_documents) == 5
         assert (
             sum(len(cast(list[object], item["files"])) for item in public_documents)
-            == 9
+            == 15
         )
         assert [
             item["document_id"]
@@ -860,6 +891,16 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
             "https://baw.nfz.gov.pl/NFZ/document/43868/Zarzadzenie-46_2026_DSOZ",
             "https://baw.nfz.gov.pl/NFZ/document/43942/Zarzadzenie-74_2026_DSOZ",
             "https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ",
+            "https://baw.nfz.gov.pl/NFZ/document/43944/Zarzadzenie-46_2026_DSOZ",
+            "https://baw.nfz.gov.pl/NFZ/document/43945/Zarzadzenie-46_2026_DSOZ",
+        }
+        comparison = next(
+            item for item in public_documents if item["document_id"] == 43944
+        )
+        assert comparison["lineage"] == {
+            "automatic_type": 4,
+            "source_document_id": 43868,
+            "introductory_document_id": 43942,
         }
 
         second = store.claim_manual("baw")
@@ -869,8 +910,10 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
         store.close()
 
 
+@pytest.mark.parametrize("with_legal_type", [False, True])
 def test_legacy_baw_observation_restores_immutable_public_generation(
     tmp_path: Path,
+    with_legal_type: bool,
 ) -> None:
     store, orchestrator, _, _ = _setup(tmp_path)
     try:
@@ -897,7 +940,14 @@ def test_legacy_baw_observation_restores_immutable_public_generation(
                             metadata={
                                 key: value
                                 for key, value in observation.metadata.items()
-                                if key != "legal_act_type"
+                                if key
+                                not in (
+                                    "legal_act_type"
+                                    if not with_legal_type
+                                    else "unused",
+                                    "lineage",
+                                    "selected_file_ids",
+                                )
                             },
                         )
                         for observation in revision.observations
@@ -910,8 +960,16 @@ def test_legacy_baw_observation_restores_immutable_public_generation(
         documents = cast(list[dict[str, object]], public["documents"])
         assert {item["source_url"] for item in documents} == {
             f"https://baw.nfz.gov.pl/NFZ/document/{document_id}"
-            for document_id in (43868, 43942, 43943)
+            + (
+                "/Zarzadzenie-74_2026_DSOZ"
+                if document_id == 43942
+                else "/Zarzadzenie-46_2026_DSOZ"
+            )
+            if with_legal_type
+            else f"https://baw.nfz.gov.pl/NFZ/document/{document_id}"
+            for document_id in (43868, 43942, 43943, 43944, 43945)
         }
+        assert public["schema_version"] == 1
         current = (
             tmp_path / "public/baw/current/api/v1/provenance/baw.json"
         ).read_bytes()
@@ -920,15 +978,146 @@ def test_legacy_baw_observation_restores_immutable_public_generation(
         store.close()
 
 
+def test_public_baw_files_match_the_current_inventory_not_retained_history(
+    tmp_path: Path,
+) -> None:
+    store, orchestrator, _, _ = _setup(tmp_path)
+    try:
+        claim = store.claim_manual("baw")
+        _ = orchestrator.run_claim(claim, claim.retry_policy)
+        latest = store.latest_recovery_reconciled_run("baw")
+        assert latest is not None
+        history = store.load_committed_observation_history(
+            "baw",
+            "baw_document",
+            through_state_revision=latest.committed_state_revision,
+            product_kind="baw_file",
+        )
+        revision = history.revisions[-1]
+        original = next(
+            item for item in revision.observations if item.source_identity == "43868"
+        )
+        removed = replace(
+            original, metadata={**original.metadata, "selected_file_ids": [438680]}
+        )
+        narrowed = replace(
+            history,
+            revisions=(
+                replace(
+                    revision,
+                    observations=tuple(
+                        removed if item is original else item
+                        for item in revision.observations
+                    ),
+                ),
+            ),
+        )
+        result = cast(dict[str, object], json.loads(build_baw_projection(narrowed)))
+        documents = cast(list[dict[str, object]], result["documents"])
+        public_original = next(
+            item for item in documents if item["document_id"] == 43868
+        )
+        files = cast(list[dict[str, object]], public_original["files"])
+        assert [item["file_id"] for item in files] == [438680]
+        missing = replace(
+            removed, metadata={**removed.metadata, "selected_file_ids": [999999]}
+        )
+        incomplete = replace(
+            history,
+            revisions=(
+                replace(
+                    revision,
+                    observations=tuple(
+                        missing if item is original else item
+                        for item in revision.observations
+                    ),
+                ),
+            ),
+        )
+        with pytest.raises(
+            WatcherRuntimeError, match="selected public file evidence is incomplete"
+        ):
+            _ = build_baw_projection(incomplete)
+        for role in (True, 1.0, 2):
+            corrupted = replace(
+                original,
+                metadata={
+                    **original.metadata,
+                    "lineage": {
+                        "automatic_type": role,
+                        "source_document_id": None,
+                        "introductory_document_id": None,
+                    },
+                },
+            )
+            invalid = replace(
+                history,
+                revisions=(
+                    replace(
+                        revision,
+                        observations=tuple(
+                            corrupted if item is original else item
+                            for item in revision.observations
+                        ),
+                    ),
+                ),
+            )
+            with pytest.raises(WatcherRuntimeError, match="public lineage is invalid"):
+                _ = build_baw_projection(invalid)
+    finally:
+        store.close()
+
+
 @pytest.mark.parametrize(
-    ("rotate", "invalid_zip", "message"),
-    [(True, False, "BAW document changed"), (False, True, "not a valid ZIP")],
+    "fault", ["comparison_drift", "relation_drift", "missing_root"]
 )
-def test_baw_invalid_source_cannot_advance(
-    tmp_path: Path, rotate: bool, invalid_zip: bool, message: str
+def test_baw_comparison_or_lineage_failure_cannot_advance(
+    tmp_path: Path, fault: str
 ) -> None:
     store, orchestrator, _, database = _setup(
-        tmp_path, rotate=rotate, invalid_zip=invalid_zip
+        tmp_path,
+        rotate=fault == "comparison_drift",
+        rotate_document_id=43944,
+        rotate_relations=fault == "relation_drift",
+        missing_comparison_root=fault == "missing_root",
+    )
+    try:
+        claim = store.claim_manual("baw")
+        with pytest.raises(
+            BawSourceError, match="changed during|missing its root ZIPX"
+        ):
+            _ = orchestrator.run_claim(claim, claim.retry_policy)
+        assert store.load_source_state("baw").cursor == {}
+        assert _query(database, "SELECT COUNT(*) FROM observations") == [(0,)]
+        assert not (tmp_path / "public/baw/current").exists()
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize(
+    ("rotate", "invalid_zip", "invalid_file_id", "invalid_lineage", "message"),
+    [
+        (True, False, 439431, False, "BAW document changed"),
+        (False, True, 439431, False, "not a valid ZIP"),
+        (False, True, 439440, False, "not a valid ZIP"),
+        (False, True, 439450, False, "not a valid ZIP"),
+        (False, False, 439431, True, "lineage does not reference an original act"),
+    ],
+)
+def test_baw_invalid_source_cannot_advance(
+    tmp_path: Path,
+    rotate: bool,
+    invalid_zip: bool,
+    invalid_file_id: int,
+    invalid_lineage: bool,
+    message: str,
+) -> None:
+    store, orchestrator, _, database = _setup(
+        tmp_path,
+        rotate=rotate,
+        invalid_zip=invalid_zip,
+        invalid_file_id=invalid_file_id,
+        invalid_lineage=invalid_lineage,
     )
     try:
         claim = store.claim_manual("baw")
