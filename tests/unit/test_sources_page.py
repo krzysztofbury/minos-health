@@ -83,6 +83,57 @@ def _projection() -> dict[str, object]:
     }
 
 
+def _baw_projection() -> dict[str, object]:
+    documents: list[dict[str, object]] = []
+    for document_id, role, source_id, introductory_id, number, date in (
+        (43868, 1, None, None, "46/2026/DSOZ", "2026-04-30"),
+        (43942, 6, 43868, None, "74/2026/DSOZ", "2026-07-23"),
+        (43943, 3, 43868, 43942, "46/2026/DSOZ", "2026-07-23"),
+        (43944, 4, 43868, 43942, "46/2026/DSOZ", "2026-07-23"),
+        (43945, 5, 43868, 43942, "46/2026/DSOZ", "2026-07-23"),
+        (44041, 6, 43868, None, "102/2026/DSOZ", "2026-09-29"),
+        (44042, 3, 43868, 44041, "46/2026/DSOZ", "2026-09-29"),
+        (44043, 4, 43868, 44041, "46/2026/DSOZ", "2026-09-29"),
+        (44044, 5, 43868, 44041, "46/2026/DSOZ", "2026-09-29"),
+    ):
+        documents.append(
+            {
+                "document_id": document_id,
+                "act_number": number,
+                "act_date": date,
+                "published_date": None,
+                "entry_into_force": date,
+                "service_applicability_date": None,
+                "valid_to": None,
+                "legal_status": "Obowiązujący",
+                "observed_at": "2026-09-30T08:20:00Z",
+                "metadata_sha256": "b" * 64,
+                "source_url": f"https://baw.nfz.gov.pl/NFZ/document/{document_id}/Zarzadzenie-{number.replace('/', '_')}",
+                "lineage": {
+                    "automatic_type": role,
+                    "source_document_id": source_id,
+                    "introductory_document_id": introductory_id,
+                },
+                "files": [
+                    {
+                        "file_id": document_id * 10,
+                        "name": "Akt_prawny.zipx",
+                        "size_bytes": 304191,
+                        "sha256": "c" * 64,
+                    }
+                ],
+            }
+        )
+    return {
+        "schema_version": 2,
+        "source": "BAW",
+        "through_state_revision": 13,
+        "observed_at": "2026-09-30T08:30:00Z",
+        "redistribution": {"schema_version": 1, "artifacts": []},
+        "documents": documents,
+    }
+
+
 def test_sources_javascript_schema_suite() -> None:
     node = shutil.which("node")
     if node is None:
@@ -174,41 +225,7 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
     )
     baw_path.mkdir(parents=True)
     baw_fixture = baw_path / "baw.json"
-    _ = baw_fixture.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "source": "BAW",
-                "through_state_revision": 13,
-                "observed_at": "2026-09-22T08:30:00Z",
-                "redistribution": {"schema_version": 1, "artifacts": []},
-                "documents": [
-                    {
-                        "document_id": 43943,
-                        "act_number": "46/2026/DSOZ",
-                        "act_date": "2026-07-23",
-                        "published_date": None,
-                        "entry_into_force": "2026-07-24",
-                        "service_applicability_date": None,
-                        "valid_to": None,
-                        "legal_status": "Obowiązujący",
-                        "observed_at": "2026-09-22T08:20:00Z",
-                        "metadata_sha256": "b" * 64,
-                        "source_url": "https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ",
-                        "files": [
-                            {
-                                "file_id": 30983,
-                                "name": "Zalacznik1a.xlsx",
-                                "size_bytes": 304191,
-                                "sha256": "c" * 64,
-                            }
-                        ],
-                    }
-                ],
-            },
-            ensure_ascii=False,
-        )
-    )
+    _ = baw_fixture.write_text(json.dumps(_baw_projection(), ensure_ascii=False))
     (public_root / "baw" / "current").symlink_to("generations/fixture")
     OUTPUT_ROOT.mkdir(exist_ok=True)
 

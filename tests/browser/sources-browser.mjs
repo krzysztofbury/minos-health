@@ -135,6 +135,14 @@ try {
   assert.equal(rsk.source, "RSK");
   assert.equal(baw.source, "BAW");
   await navigate(client, 1440, 900, "is-ready");
+  await evaluate(client, `document.getElementById('tab-rsk').focus()`);
+  await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
+  assert.equal(await evaluate(client, `document.getElementById('tab-baw').getAttribute('aria-selected')`), "true");
+  await evaluate(client, `document.querySelector('.act-history > summary').focus()`);
+  await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: " ", code: "Space", windowsVirtualKeyCode: 32 });
+  await client.send("Input.dispatchKeyEvent", { type: "keyUp", key: " ", code: "Space", windowsVirtualKeyCode: 32 });
+  assert.equal(await evaluate(client, `document.querySelector('.act-history').open`), true);
+  await evaluate(client, `document.getElementById('tab-all').click()`);
   const desktop = await evaluate(client, `(() => ({
     cards: document.querySelectorAll(".source-card").length,
     hostname: document.location.hostname,
@@ -145,10 +153,40 @@ try {
     overflow: document.documentElement.scrollWidth > window.innerWidth,
   }))()`);
   assert.deepEqual(desktop, {
-    cards: 2, hostname: "minoshealth.pl", textSafe: true,
+    cards: 4, hostname: "minoshealth.pl", textSafe: true,
     injectedImages: 0, noDownloadLinks: true, collapsed: true, overflow: false,
   });
-  assert.equal(await evaluate(client, `document.querySelector('a[href="https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ"]') !== null`), true);
+  assert.equal(await evaluate(client, `document.querySelector('a[href="https://baw.nfz.gov.pl/NFZ/document/44042/Zarzadzenie-46_2026_DSOZ"]') !== null`), true);
+  const history = await evaluate(client, `(() => {
+    const card = [...document.querySelectorAll('.source-card')].find(node => node.querySelector('h3').textContent === 'Zarządzenie 46/2026/DSOZ');
+    card.querySelector('.act-history').open = true;
+    return {
+      acts: [...document.querySelectorAll('h3')].filter(node => node.textContent === 'Zarządzenie 46/2026/DSOZ').length,
+      states: card.querySelectorAll('.act-state').length,
+      variants: card.querySelectorAll('.act-variant').length,
+      labels: [...card.querySelectorAll('.act-variant > summary')].map(node => node.textContent),
+      latest: card.querySelector('.act-state h4').textContent,
+    };
+  })()`);
+  assert.equal(history.acts, 1);
+  assert.equal(history.states, 3);
+  assert.equal(history.variants, 7);
+  assert.match(history.latest, /102\/2026/);
+  assert.equal(history.labels.filter(label => label === 'Porównanie zmian').length, 2);
+  assert.equal(history.labels.filter(label => label === 'Skrócone porównanie zmian').length, 2);
+  await evaluate(client, `document.querySelectorAll('.act-variant').forEach(node => node.open = true)`);
+  await screenshot(client, "sources-history-desktop.png");
+  await evaluate(client, `document.querySelectorAll('.source-card details').forEach(node => node.open = false)`);
+  const rows = await evaluate(client, `(() => {
+    const card = document.querySelector('.source-card');
+    card.querySelector('details').open = true;
+    const row = card.querySelector('.file-row');
+    return { height: row.getBoundingClientRect().height, label: row.querySelector('.file-action').getAttribute('aria-label'), technicalOpen: card.querySelector('.technical-details').open };
+  })()`);
+  assert.ok(rows.height < 65, 'desktop file row is not compact');
+  assert.match(rows.label, /Otwórz .* w RSK/);
+  assert.equal(rows.technicalOpen, false);
+  await screenshot(client, "sources-files-desktop.png");
   const tree = await client.send("Accessibility.getFullAXTree");
   assert.ok(tree.nodes.some((node) => node.role?.value === "tablist"));
   assert.ok(tree.nodes.some((node) => node.role?.value === "tabpanel"));
@@ -161,7 +199,24 @@ try {
   }));
   await navigate(client, 1440, 900, "is-ready");
   assert.equal(await evaluate(client, `document.querySelector('a[href*="baw.nfz.gov.pl/NFZ/document/"]') === null`), true);
+  const amendment = baw.documents.find(doc => doc.document_id === 43942);
+  await writeFile(bawFixture, JSON.stringify({ ...baw, documents: [...baw.documents, {
+    ...amendment, document_id: 50001, act_number: "60/2026/DSOZ", act_date: "2026-06-30",
+    source_url: "https://baw.nfz.gov.pl/NFZ/document/50001/Zarzadzenie-60_2026_DSOZ",
+    files: [{ ...amendment.files[0], file_id: 500010 }],
+  }] }));
+  await navigate(client, 1440, 900, "is-ready");
+  assert.equal(await evaluate(client, `document.querySelector('.additional-amendments a').textContent.includes('60/2026/DSOZ')`), true);
+  assert.equal(await evaluate(client, `document.querySelector('.additional-amendments').textContent.includes('nie ma osobnego tekstu')`), true);
+  await writeFile(bawFixture, JSON.stringify({
+    ...baw, schema_version: 1, documents: baw.documents.map(({ lineage: _lineage, ...doc }) => ({ ...doc, files: [] })),
+  }));
+  await navigate(client, 1440, 900, "is-ready");
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 10);
+  assert.equal(await evaluate(client, `document.querySelector('.act-history').textContent.includes('Starszy zapis')`), true);
+  assert.equal(await evaluate(client, `document.body.textContent.includes('Minos nie ma kopii plików')`), true);
   await writeFile(bawFixture, JSON.stringify(baw));
+  await navigate(client, 1440, 900, "is-ready");
 
   const search = await evaluate(client, `(() => {
     const input = document.getElementById("source-search");
@@ -178,7 +233,7 @@ try {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     return { nfz, rskOnly, icd, restored: document.querySelectorAll(".source-card").length };
   })()`);
-  assert.deepEqual(search, { nfz: 1, rskOnly: 0, icd: 1, restored: 2 });
+  assert.deepEqual(search, { nfz: 3, rskOnly: 0, icd: 1, restored: 4 });
 
   await navigate(client, 390, 844, "is-ready");
   const mobile = await evaluate(client, `(() => ({
@@ -187,11 +242,17 @@ try {
     searchTop: document.getElementById("source-search").getBoundingClientRect().top,
     firstHeight: document.querySelector(".source-card").getBoundingClientRect().height,
   }))()`);
-  assert.equal(mobile.cards, 2);
+  assert.equal(mobile.cards, 4);
   assert.equal(mobile.overflow, false);
   assert.ok(mobile.searchTop < 844, `search starts below first viewport: ${mobile.searchTop}`);
   assert.ok(mobile.firstHeight < 450, `collapsed card is too tall: ${mobile.firstHeight}`);
   await screenshot(client, "sources-mobile.png");
+  await evaluate(client, `document.querySelectorAll('.source-card details:not(.technical-details)').forEach(node => node.open = true)`);
+  assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+  await screenshot(client, "sources-expanded-mobile.png");
+  await client.send("Emulation.setDeviceMetricsOverride", { width: 720, height: 500, deviceScaleFactor: 2, mobile: false });
+  assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+  await screenshot(client, "sources-zoom.png");
 
   await navigate(client, 320, 568, "is-ready");
   assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
@@ -208,7 +269,7 @@ try {
     cached: document.getElementById("source-summary").textContent.includes("może być nieaktualny"),
     named: document.getElementById("load-state").textContent.includes("BAW"),
   }))()`);
-  assert.deepEqual(retry, { cards: 2, cached: true, named: true });
+  assert.deepEqual(retry, { cards: 4, cached: true, named: true });
   await screenshot(client, "sources-retry-failure.png");
   bawUnavailable = false;
   await evaluate(client, `document.getElementById("retry-button").click()`);
@@ -217,7 +278,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   assert.equal(await evaluate(client, `document.getElementById("source-summary").textContent.includes("może być nieaktualny")`), false);
-  assert.equal(await evaluate(client, `document.querySelectorAll(".source-card").length`), 2);
+  assert.equal(await evaluate(client, `document.querySelectorAll(".source-card").length`), 4);
   bawUnavailable = true;
   await navigate(client, 390, 844, "is-error");
   assert.equal(await evaluate(client, `document.querySelectorAll(".source-card").length`), 1);
@@ -235,9 +296,12 @@ try {
     overflow: document.documentElement.scrollWidth > innerWidth,
   }))()`);
   assert.equal(home.cta, "/zrodla");
-  assert.match(home.value, /Sprawdź dane/);
+  assert.match(home.value, /Kody medyczne/);
   assert.equal(home.overflow, false);
   await screenshot(client, "home-mobile.png");
+  await client.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+  assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+  await screenshot(client, "home-desktop.png");
 } finally {
   browser.kill("SIGTERM");
   await Promise.race([

@@ -266,3 +266,35 @@ test("local catalog search normalizes ICD punctuation and Polish diacritics", ()
   assert.equal(sources.normalizeSearch("państwa"), sources.normalizeSearch("panstwa"));
   assert.equal(sources.normalizeSearch("Załącznik 9"), "zalacznik9");
 });
+
+test("BAW lineage requires verified original and introductory acts, not shared names", () => {
+  const base = bawProjection().documents[0];
+  const original = { ...base, document_id: 43868, source_url: null,
+    lineage: { automatic_type: 1, source_document_id: null, introductory_document_id: null } };
+  const amendment = { ...base, document_id: 43942, act_number: "74/2026/DSOZ", source_url: null,
+    lineage: { automatic_type: 6, source_document_id: 43868, introductory_document_id: null } };
+  const variant = { ...base,
+    lineage: { automatic_type: 4, source_document_id: 43868, introductory_document_id: 43942 } };
+  const valid = bawProjection({ schema_version: 2, documents: [original, amendment, variant] });
+  assert.doesNotThrow(() => sources.validateBawProjection(cloned(valid)));
+  for (const change of [
+    { automatic_type: 2 },
+    { source_document_id: null },
+    { source_document_id: 43943 },
+    { source_document_id: 99999 },
+    { introductory_document_id: null },
+    { introductory_document_id: 43868 },
+  ]) {
+    const broken = cloned(valid);
+    Object.assign(broken.documents[2].lineage, change);
+    assert.throws(() => sources.validateBawProjection(broken));
+  }
+  const mismatch = cloned(valid);
+  mismatch.documents[2].act_number = "101/2025/DSOZ";
+  mismatch.documents[2].source_url = null;
+  assert.throws(() => sources.validateBawProjection(mismatch));
+  const missing = cloned(valid);
+  delete missing.documents[2].lineage;
+  assert.throws(() => sources.validateBawProjection(missing));
+  assert.throws(() => sources.validateBawProjection({ ...valid, schema_version: 1 }));
+});

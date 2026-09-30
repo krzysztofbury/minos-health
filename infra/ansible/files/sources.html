@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="index, follow">
-    <meta name="description" content="Sprawdź źródło, wersję i historię obserwacji danych medycznych z RSK i Bazy Aktów Własnych NFZ. Bez pobierania prywatnego archiwum Minos.">
+    <meta name="description" content="Przejrzyj słowniki medyczne i zarządzenia NFZ. Sprawdź wersję, historię zmian i daty dokumentów oraz otwórz pliki w oficjalnym źródle.">
     <link rel="canonical" href="https://minoshealth.pl/zrodla">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <meta property="og:title" content="Źródła danych medycznych - Minos Health">
-    <meta property="og:description" content="Wersje, pliki i pochodzenie danych obserwowanych w RSK i BAW NFZ.">
+    <meta property="og:description" content="Słowniki medyczne i zarządzenia NFZ: wersje, daty i pliki w oficjalnych źródłach.">
     <meta property="og:url" content="https://minoshealth.pl/zrodla">
     <title>Źródła danych medycznych - Minos Health</title>
     <link rel="stylesheet" href="/sources.css">
@@ -29,13 +29,13 @@
     <main>
       <section class="hero" aria-labelledby="page-title">
         <div>
-          <p class="eyebrow">Pochodzenie danych / Minos</p>
+          <p class="eyebrow">Słowniki i zarządzenia</p>
           <h1 id="page-title">Źródła danych <em>medycznych.</em></h1>
-          <p class="lead">Sprawdź, jakie dane widzieliśmy w RSK i w Bazie Aktów Własnych NFZ, kiedy je odczytaliśmy i które pliki zarchiwizowaliśmy prywatnie. To katalog źródeł, nie wyszukiwarka kodów ani biblioteka plików.</p>
+          <p class="lead">Znajdź słownik medyczny lub zarządzenie NFZ. Sprawdź wersję i daty dokumentów, przejrzyj historię zmian i otwórz pliki w oficjalnym źródle. Wyszukiwanie pojedynczych kodów i procedur jest w przygotowaniu.</p>
         </div>
         <aside class="hero-aside">
-          <strong>Skąd wiemy, co wiemy.</strong>
-          <p>Wersja źródła, data odczytu i okres wskazany przez wydawcę to różne informacje. Żadna z nich sama nie potwierdza poprawności klinicznej ani prawa do rozliczenia.</p>
+          <strong>Wybierz dokument dla właściwej daty.</strong>
+          <p>Najnowszy dokument nie zawsze dotyczy wcześniejszych świadczeń. Datę wejścia w życie i okres stosowania do rozliczeń sprawdź w treści zarządzenia.</p>
         </aside>
       </section>
 
@@ -43,7 +43,7 @@
         <div class="catalog-header">
           <div>
             <p class="section-index">Katalog</p>
-            <h2 id="catalog-title">Zasoby i pliki</h2>
+            <h2 id="catalog-title">Słowniki i zarządzenia</h2>
           </div>
           <p id="result-count" class="result-count" aria-live="polite"></p>
         </div>
@@ -51,18 +51,18 @@
         <div class="controls">
           <div class="source-tabs" role="tablist" aria-label="Wybierz źródło danych">
             <button type="button" role="tab" data-source="all" aria-selected="true" aria-controls="catalog-results">Wszystkie</button>
-            <button type="button" role="tab" data-source="rsk" aria-selected="false" aria-controls="catalog-results">RSK</button>
-            <button type="button" role="tab" data-source="baw" aria-selected="false" aria-controls="catalog-results">BAW NFZ</button>
+            <button type="button" role="tab" data-source="rsk" aria-selected="false" aria-controls="catalog-results">Słowniki RSK</button>
+            <button type="button" role="tab" data-source="baw" aria-selected="false" aria-controls="catalog-results">Zarządzenia NFZ</button>
           </div>
           <div class="search-field">
             <label for="source-search">Szukaj w całym katalogu</label>
             <input id="source-search" type="search" autocomplete="off" maxlength="80" placeholder="np. ICD10, NFZ, załącznik 9">
           </div>
-          <p class="search-note">Wpisane słowa filtrują dane tylko na tym urządzeniu. Nie trafiają do adresu strony ani analityki.</p>
+          <p class="search-note">Szukasz po nazwie dokumentu, nie po kodach medycznych. Wpisane słowa pozostają na tym urządzeniu. Nie wpisuj danych pacjentów.</p>
         </div>
 
         <div id="source-summary" class="source-summary" aria-live="polite"></div>
-        <p id="load-state" class="load-state" role="status" aria-live="polite">Wczytywanie publicznych obserwacji...</p>
+        <p id="load-state" class="load-state" role="status" aria-live="polite">Wczytywanie słowników i zarządzeń...</p>
         <button id="retry-button" class="retry-button" type="button" hidden>Odśwież dane</button>
         <div id="catalog-results" class="cards" role="tabpanel" aria-live="polite"></div>
         <p id="empty-state" class="empty-state" hidden>Brak pasujących danych. Spróbuj innej nazwy lub wybierz wszystkie źródła.</p>
@@ -71,20 +71,20 @@
       <section class="methodology" aria-labelledby="methodology-title">
         <div>
           <p class="section-index">Jak czytać katalog</p>
-          <h2 id="methodology-title">Obserwacja to nie zatwierdzenie.</h2>
+          <h2 id="methodology-title">Sprawdź wersję i datę.</h2>
         </div>
         <div class="methodology-grid">
           <article>
-            <h3>Źródło i wydawca</h3>
-            <p>RSK udostępnia zasoby wielu wydawców; BAW publikuje akty NFZ. Nazwy źródeł, wydawców i zestawów danych nie są zamienne.</p>
+            <h3>Gdzie otworzysz pliki?</h3>
+            <p>RSK (Rejestr Systemów Kodowania) udostępnia słowniki medyczne różnych wydawców. BAW (Baza Aktów Własnych) zawiera zarządzenia NFZ. Linki prowadzą do tych oficjalnych źródeł, nie do pobierania kopii z Minos.</p>
           </article>
           <article>
-            <h3>Co sprawdza Minos?</h3>
-            <p>Zapisujemy dokładne odpowiedzi i prywatnie weryfikujemy bajty wybranych plików. Sumy kontrolne potwierdzają integralność archiwum, nie poprawność medyczną ani prawo do redystrybucji.</p>
+            <h3>Jak czytać historię zarządzenia?</h3>
+            <p>Pod jednym zarządzeniem znajdziesz dokument pierwotny, teksty po zmianach i porównania. Zarządzenie zmieniające ma własny numer i odnośnik. Tekst po zmianach ułatwia czytanie, ale nie zastępuje sprawdzenia podstawy prawnej.</p>
           </article>
           <article>
-            <h3>Daty i ograniczenia</h3>
-            <p>Odczyt Minos, publikacja aktu, wejście w życie i okres stosowania mogą się różnić. Nieznany okres stosowania pozostaje nieznany. Minos nie jest zatwierdzony przez RSK, NFZ ani WHO.</p>
+            <h3>Która data ma znaczenie?</h3>
+            <p>„Ostatnio sprawdzono” oznacza aktualizację katalogu Minos, nie początek obowiązywania przepisów. Data publikacji, wejście w życie i okres świadczeń mogą się różnić. Katalog nie potwierdza poprawności rozliczenia konkretnej hospitalizacji. Minos nie jest zatwierdzony przez NFZ, RSK ani WHO.</p>
           </article>
         </div>
       </section>
@@ -97,6 +97,6 @@
       <a href="/regulamin">Regulamin</a>
       <a href="mailto:kontakt@minoshealth.pl">Kontakt</a>
     </footer>
-    <noscript><p class="noscript">Możesz przejść bezpośrednio do <a href="https://rsk3.ezdrowie.gov.pl/">RSK</a> lub <a href="https://baw.nfz.gov.pl/">BAW NFZ</a>. Włącz JavaScript, aby przeszukiwać obserwacje zapisane przez Minos.</p></noscript>
+    <noscript><p class="noscript">Możesz przejść bezpośrednio do <a href="https://rsk3.ezdrowie.gov.pl/">Rejestru Systemów Kodowania</a> lub <a href="https://baw.nfz.gov.pl/">Bazy Aktów Własnych NFZ</a>. Włącz JavaScript, aby przeglądać katalog Minos.</p></noscript>
   </body>
 </html>

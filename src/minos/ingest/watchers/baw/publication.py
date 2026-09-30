@@ -6,7 +6,15 @@ import re
 from datetime import UTC, datetime
 from typing import cast, final
 
+from pydantic import ValidationError
+
+from minos.ingest.watchers.baw.models import (
+    BawLineage,
+    BawSourceError,
+    validate_lineage,
+)
 from minos.ingest.watchers.control import (
+    CommittedObservation,
     CommittedObservationHistory,
     CommittedProductEvidence,
     CommittedRun,
@@ -71,75 +79,18 @@ def build_baw_projection(history: CommittedObservationHistory) -> bytes:
     products: dict[str, CommittedProductEvidence] = {}
     for product in history.product_evidence:
         products[product.source_identity] = product
-    documents: list[dict[str, JsonValue]] = []
     if not 1 <= len(current.observations) <= _MAX_DOCUMENTS:
         raise WatcherRuntimeError("BAW public document count is invalid")
-    for observation in sorted(
-        current.observations, key=lambda item: item.source_identity
-    ):
-        document_id = observation.source_identity
-        if (
-            not document_id.isascii()
-            or not document_id.isdigit()
-            or int(document_id) < 1
-        ):
-            raise WatcherRuntimeError("BAW document identity is invalid")
-        metadata = observation.metadata
-        expected = {
-            "act_number",
-            "act_date",
-            "baw_published_date",
-            "entry_into_force",
-            "service_applicability_date",
-            "service_applicability_evidence",
-            "valid_to",
-            "legal_status",
-        }
-        if set(metadata) not in (
-            expected,
-            expected | {"legal_act_type"},
-        ) or not isinstance(metadata["act_number"], str):
-            raise WatcherRuntimeError("BAW public document metadata is invalid")
-        act_number = _text(metadata["act_number"])
-        # Already published generations are immutable. Legacy observations must
-        # render byte-for-byte as before until a new observation is committed.
-        source_url = (
-            f"https://baw.nfz.gov.pl/NFZ/document/{document_id}"
-            if "legal_act_type" not in metadata
-            else _source_url(int(document_id), act_number, metadata["legal_act_type"])
+    documents = [
+        _public_document(observation, products)
+        for observation in sorted(
+            current.observations, key=lambda item: item.source_identity
         )
-        files = _document_files(int(document_id), products)
-        if (metadata["service_applicability_date"] is None) != (
-            metadata["service_applicability_evidence"] is None
-        ):
-            raise WatcherRuntimeError("BAW applicability evidence is incomplete")
-        document = cast(
-            dict[str, JsonValue],
-            {
-                "document_id": int(document_id),
-                "act_number": act_number,
-                "act_date": _date(metadata["act_date"]),
-                "published_date": _date(metadata["baw_published_date"]),
-                "entry_into_force": _date(metadata["entry_into_force"]),
-                "service_applicability_date": _date(
-                    metadata["service_applicability_date"]
-                ),
-                "valid_to": _date(metadata["valid_to"]),
-                "legal_status": _text(metadata["legal_status"]),
-                "observed_at": _timestamp(observation.observed_at_ms),
-                "metadata_sha256": _digest(observation.response_sha256),
-                "source_url": source_url,
-                "files": files,
-            },
-        )
-        if metadata["service_applicability_evidence"] is not None:
-            document["service_applicability_evidence"] = _text(
-                metadata["service_applicability_evidence"]
-            )
-        documents.append(document)
+    ]
+    has_lineage = _validate_public_lineage(documents)
     result = _canonical(
         {
-            "schema_version": 1,
+            "schema_version": 2 if has_lineage else 1,
             "source": "BAW",
             "through_state_revision": history.through_state_revision,
             "observed_at": _timestamp(current.committed_at_ms),
@@ -150,6 +101,97 @@ def build_baw_projection(history: CommittedObservationHistory) -> bytes:
     if len(result) > _MAX_PUBLIC_BYTES:
         raise WatcherRuntimeError("BAW public projection exceeds its size bound")
     return result
+
+
+def _public_document(
+    observation: CommittedObservation, products: dict[str, CommittedProductEvidence]
+) -> dict[str, JsonValue]:
+    identity = observation.source_identity
+    if not identity.isascii() or not identity.isdigit() or int(identity) < 1:
+        raise WatcherRuntimeError("BAW document identity is invalid")
+    metadata = observation.metadata
+    _validate_document_metadata(metadata)
+    document_id = int(identity)
+    act_number = _text(metadata["act_number"])
+    selected_ids = (
+        _selected_ids(metadata["selected_file_ids"]) if "lineage" in metadata else None
+    )
+    # Legacy observations must restore byte-for-byte immutable generations.
+    source_url = (
+        f"https://baw.nfz.gov.pl/NFZ/document/{identity}"
+        if "legal_act_type" not in metadata
+        else _source_url(document_id, act_number, metadata["legal_act_type"])
+    )
+    document = cast(
+        dict[str, JsonValue],
+        {
+            "document_id": document_id,
+            "act_number": act_number,
+            "act_date": _date(metadata["act_date"]),
+            "published_date": _date(metadata["baw_published_date"]),
+            "entry_into_force": _date(metadata["entry_into_force"]),
+            "service_applicability_date": _date(metadata["service_applicability_date"]),
+            "valid_to": _date(metadata["valid_to"]),
+            "legal_status": _text(metadata["legal_status"]),
+            "observed_at": _timestamp(observation.observed_at_ms),
+            "metadata_sha256": _digest(observation.response_sha256),
+            "source_url": source_url,
+            "files": _document_files(document_id, products, selected_ids),
+        },
+    )
+    if metadata["service_applicability_evidence"] is not None:
+        document["service_applicability_evidence"] = _text(
+            metadata["service_applicability_evidence"]
+        )
+    if "lineage" in metadata:
+        document["lineage"] = metadata["lineage"]
+    return document
+
+
+def _validate_document_metadata(metadata: dict[str, JsonValue]) -> None:
+    expected = {
+        "act_number",
+        "act_date",
+        "baw_published_date",
+        "entry_into_force",
+        "service_applicability_date",
+        "service_applicability_evidence",
+        "valid_to",
+        "legal_status",
+    }
+    if set(metadata) not in (
+        expected,
+        expected | {"legal_act_type"},
+        expected | {"legal_act_type", "lineage", "selected_file_ids"},
+    ):
+        raise WatcherRuntimeError("BAW public document metadata is invalid")
+    if (metadata["service_applicability_date"] is None) != (
+        metadata["service_applicability_evidence"] is None
+    ):
+        raise WatcherRuntimeError("BAW applicability evidence is incomplete")
+
+
+def _validate_public_lineage(documents: list[dict[str, JsonValue]]) -> bool:
+    lineage: dict[int, BawLineage] = {}
+    act_numbers: dict[int, str] = {}
+    for document in documents:
+        if "lineage" not in document:
+            continue
+        document_id = cast(int, document["document_id"])
+        try:
+            lineage[document_id] = BawLineage.model_validate(document["lineage"])
+        except ValidationError:
+            raise WatcherRuntimeError("BAW public lineage is invalid") from None
+        act_numbers[document_id] = cast(str, document["act_number"])
+    if not lineage:
+        return False
+    if len(lineage) != len(documents):
+        raise WatcherRuntimeError("BAW public lineage revision is incomplete")
+    try:
+        validate_lineage(lineage, act_numbers)
+    except BawSourceError:
+        raise WatcherRuntimeError("BAW public lineage graph is invalid") from None
+    return True
 
 
 def _source_url(
@@ -166,12 +208,20 @@ def _source_url(
 
 
 def _document_files(
-    document_id: int, products: dict[str, CommittedProductEvidence]
+    document_id: int,
+    products: dict[str, CommittedProductEvidence],
+    selected_ids: set[int] | None = None,
 ) -> list[dict[str, JsonValue]]:
     result: list[dict[str, JsonValue]] = []
     for identity, product in sorted(products.items()):
         if not identity.startswith(f"{document_id}:"):
             continue
+        if selected_ids is not None:
+            file_id = product.metadata.get("file_id")
+            if type(file_id) is not int:
+                raise WatcherRuntimeError("BAW public file identity is invalid")
+            if file_id not in selected_ids:
+                continue
         metadata = product.metadata
         if (
             set(metadata)
@@ -202,7 +252,23 @@ def _document_files(
         )
         if len(result) > _MAX_FILES:
             raise WatcherRuntimeError("BAW public file count exceeds its bound")
+    if (
+        selected_ids is not None
+        and {cast(int, item["file_id"]) for item in result} != selected_ids
+    ):
+        raise WatcherRuntimeError("BAW selected public file evidence is incomplete")
     return result
+
+
+def _selected_ids(value: JsonValue) -> set[int]:
+    if not isinstance(value, list) or not 1 <= len(value) <= 4:
+        raise WatcherRuntimeError("BAW public selected file set is invalid")
+    if any(type(item) is not int or item < 1 for item in value):
+        raise WatcherRuntimeError("BAW public selected file identity is invalid")
+    ids = cast(list[int], value)
+    if len(set(ids)) != len(ids):
+        raise WatcherRuntimeError("BAW public selected files are duplicated")
+    return set(ids)
 
 
 def _text(value: object) -> str:

@@ -132,6 +132,32 @@ On 2026-09-27, the live `GetAmendments/43868` response also listed amendment
 above are historical anchors, not a complete current graph. The watcher must
 follow the returned relations rather than hard-code a fixed amendment list.
 
+The 2026-09-30 source-catalog review expanded private capture to comparison
+variants as well. Supported `AutomaticType` values are original act (`1`),
+consolidated text (`3`), full comparison (`4`), shortened comparison (`5`), and
+amending act (`6`). Every supported document requires its root ZIPX package;
+selected individually usable catalogs remain `Zalacznik1a.xlsx` and
+`Zalacznik9.xlsx`, plus `Zalacznik1.xlsx` for an amending act. Package capture
+preserves the remaining nested attachments without independently downloading
+every leaf. The existing limits remain 32 documents, four selected files per
+document, 512 MiB per file, and the fenced run deadline. Missing packages,
+unsupported roles, conflicting lineage, or source drift cannot advance state.
+
+Public BAW projection schema `2` adds the verified document role, original-act
+edge, and introductory-amendment edge. It includes file evidence only for the
+current selected inventory, not removed files retained in history. It exposes
+neither private bytes nor archive paths. The source catalog groups consolidated
+and comparison variants under their original act, with historical states keyed
+by the introductory amendment. Amending acts remain distinct, linked records.
+Document dates, entry into force, reviewed service applicability, and Minos
+observation dates remain separate. A latest consolidated text is a reading
+shortcut, not automatic selection of a ruleset for an earlier service date.
+
+Immutable schema `1` generations still restore byte-for-byte. Their missing
+lineage is not inferred from act numbers; the UI labels this legacy limitation
+until a fresh successful BAW run publishes schema `2`. Deployment must run BAW
+once before claiming that production grouping or expanded capture is active.
+
 ## NFZ Grouper Algorithm And Operational Guidance
 
 The dedicated Komunikaty JGP page is:

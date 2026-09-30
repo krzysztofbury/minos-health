@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Annotated, ClassVar, Literal, cast
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from minos.ingest.watchers.protocols import SourceDriftWatcherError
 
@@ -41,6 +41,54 @@ class BawDocument(BaseModel):
     ValidTo: str | None = None
     LegalActStatus: dict[str, object]
     Files: list[dict[str, object]] = Field(max_length=128)
+
+
+class BawLineage(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(strict=True, extra="forbid")
+
+    automatic_type: Literal[1, 3, 4, 5, 6]
+    source_document_id: int | None = Field(gt=0)
+    introductory_document_id: int | None = Field(gt=0)
+
+    @field_validator("automatic_type", mode="before")
+    @classmethod
+    def require_integer_role(cls, value: object) -> object:
+        # Pydantic's Literal matcher accepts True and 1.0 as the integer 1.
+        if type(value) is not int:
+            raise ValueError("BAW document role must be an integer")
+        return value
+
+
+def validate_lineage(
+    lineage: dict[int, BawLineage], act_numbers: dict[int, str]
+) -> None:
+    """Require direct original-act edges, never infer identity from a title."""
+    if not 1 <= len(lineage) <= 32 or lineage.keys() != act_numbers.keys():
+        raise BawSourceError("BAW lineage document set is invalid")
+    for document_id, link in lineage.items():
+        source_id = link.source_document_id
+        introductory_id = link.introductory_document_id
+        if link.automatic_type == 1:
+            if source_id is not None or introductory_id is not None:
+                raise BawSourceError("BAW original act has unexpected lineage")
+            continue
+        if source_id is not None:
+            source = lineage.get(source_id)
+            if source is None or source.automatic_type != 1:
+                raise BawSourceError("BAW lineage does not reference an original act")
+        if link.automatic_type == 6:
+            if introductory_id is not None:
+                raise BawSourceError("BAW amendment has unexpected introductory act")
+            continue
+        if source_id is None or introductory_id is None:
+            raise BawSourceError("BAW variant lineage is incomplete")
+        if act_numbers[document_id] != act_numbers[source_id]:
+            raise BawSourceError("BAW variant does not match its original act")
+        introductory = lineage.get(introductory_id)
+        if introductory is None or introductory.automatic_type != 6:
+            raise BawSourceError("BAW variant does not reference an amendment")
+        if introductory.source_document_id != source_id:
+            raise BawSourceError("BAW variant and amendment have conflicting sources")
 
 
 @dataclass(frozen=True, slots=True)
