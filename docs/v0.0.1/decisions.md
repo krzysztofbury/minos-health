@@ -273,6 +273,30 @@ semantics. Repeated dotted suffixes retain raw values and an explicit contextual
 lookup conversion; single-digit modifiers remain non-concept nodes until their
 semantics are separately reviewed. No conversion infers billability.
 
+### Maintained Linguistic And Catalog Search (2026-09-30)
+
+The owner approved replacing the narrow hand-maintained Polish form example with
+Morfeusz2 1.99.15 and its pinned embedded SGJP dictionary, shared by language
+rather than classification. Literal source vocabulary and exact-match precedence
+remain separate from ambiguous linguistic alternatives. Numbers, code tokens,
+short grammatical operators and negation are not rewritten or dropped. Explicit
+query alternatives and source evidence accompany morphological matches. No model,
+embedding or remote search provider is required; assisted search remains #95.
+
+Morfeusz/SGJP use BSD-2-Clause; notices ship with the wheel and standalone CLI.
+The glibc-only analyzer belongs to the `reference` extra and developer environment,
+not the Alpine watcher. Standalone builds run in pinned Bookworm instead of
+bundling a workstation's potentially incompatible C++ runtime. PyInstaller remains
+an isolated build dependency under its approved application-bundling exception.
+
+The owner also approved metadata-only `/zrodla` ranking, prefixes, explicit spelling
+suggestions and filename/version evidence using locally vendored MiniSearch 7.2.0
+(MIT). There is no file-content extraction or query transmission. Existing RSK
+families and BAW parent/history grouping remain authoritative. The browser engine
+is not a replacement for, or a claim of parity with, Polish morphological analysis.
+Its pinned code/license concatenate with the UI into the existing exact-route
+asset, without a CDN or frontend framework. See [catalog-search.md](catalog-search.md).
+
 ### Ingestion Model
 
 Watchers-first. A dedicated watcher container on Mikr.us uses APScheduler and a

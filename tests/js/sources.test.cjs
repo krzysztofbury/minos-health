@@ -261,10 +261,90 @@ test("BAW applicability requires evidence and remains independent of entry into 
   })));
 });
 
-test("local catalog search normalizes ICD punctuation and Polish diacritics", () => {
-  assert.equal(sources.normalizeSearch("ICD-10"), sources.normalizeSearch("ICD10"));
+test("local catalog search preserves word boundaries and folds Polish diacritics", () => {
+  assert.equal(sources.normalizeSearch("ICD-10"), "icd 10");
   assert.equal(sources.normalizeSearch("państwa"), sources.normalizeSearch("panstwa"));
-  assert.equal(sources.normalizeSearch("Załącznik 9"), "zalacznik9");
+  assert.equal(sources.normalizeSearch("Załącznik 9"), "zalacznik 9");
+  assert.notEqual(sources.normalizeSearch("ab c"), sources.normalizeSearch("a bc"));
+});
+
+function searchableCatalog() {
+  const rsk = sources.rskDatasets(sources.validateProjection(projection({ entries: [entry({
+    resource_name: "Klasyfikacja testowa", resource_short_name: "ICD-10", file_name: "Slownik.xml",
+  })] })));
+  const doc = bawProjection().documents[0];
+  const baw = sources.bawDatasets(sources.validateBawProjection(bawProjection({ documents: [{ ...doc,
+    files: [{ ...doc.files[0], name: "Załącznik 9.xlsx" }],
+  }] })));
+  return sources.buildCatalogIndex([...rsk, ...baw]);
+}
+
+test("catalog finds exact identifiers and multiword metadata in either order", () => {
+  const catalog = searchableCatalog();
+  for (const query of ["ICD10", "ICD-10", "00CD10"]) {
+    assert.deepEqual(sources.searchCatalog(catalog, query, "all").hits.map(hit => hit.card.id), ["00CD10"]);
+  }
+  for (const query of ["NFZ załącznik 9", "9 zalacznik NFZ", "46/2026/DSOZ"]) {
+    const result = sources.searchCatalog(catalog, query, "all");
+    assert.equal(result.hits.length, 1);
+    assert.equal(result.hits[0].card.source, "baw");
+  }
+  assert.equal(sources.searchCatalog(catalog, "NFZ załącznik 9", "rsk").hits.length, 0);
+  assert.equal(sources.searchCatalog(catalog, "NFZ załącznik 99", "all").hits.length, 0);
+  assert.equal(sources.searchCatalog(catalog, "NFZ załącznik 99", "all").suggestions.length, 0);
+});
+
+test("catalog returns filename and version evidence, not an implied contents match", () => {
+  const result = sources.searchCatalog(searchableCatalog(), "NFZ załącznik 9", "all");
+  assert.match(result.hits[0].evidence[0], /Plik: Załącznik 9.xlsx/);
+  assert.match(result.hits[0].evidence[0], /46\/2026\/DSOZ/);
+  assert.equal(sources.searchCatalog(searchableCatalog(), "niewydolność", "all").hits.length, 0);
+});
+
+test("catalog typos produce explicit suggestions without returning corrected matches", () => {
+  const result = sources.searchCatalog(searchableCatalog(), "zalacznikx", "all");
+  assert.equal(result.hits.length, 0);
+  assert.ok(result.suggestions.includes("zalacznik"));
+  assert.equal(sources.searchCatalog(searchableCatalog(), "zalacznikx", "rsk").suggestions.length, 0);
+});
+
+test("catalog rejects controls, oversized queries and excessive token counts", () => {
+  for (const query of ["x".repeat(81), "word ".repeat(9), "x\u001btext", "***"]) {
+    assert.equal(sources.searchCatalog(searchableCatalog(), query, "all").invalid, true);
+  }
+});
+
+test("catalog matches previous RSK metadata even when a file UUID was reused", () => {
+  const latest = entry({ resource_name: "Current catalog", file_name: "current.xml", resource_version: "013" });
+  const old = { ...latest, resource_name: "Previous catalog", resource_short_name: "OLD-ID",
+    file_name: "legacy-appendix.xml", resource_version: "012", status: "historical" };
+  const cards = sources.rskDatasets(sources.validateProjection(projection({ entries: [latest, old] })));
+  const catalog = sources.buildCatalogIndex(cards);
+  for (const query of ["legacy appendix", "012", "OLDID"]) {
+    const result = sources.searchCatalog(catalog, query, "rsk");
+    assert.equal(result.hits.length, 1);
+    assert.match(result.hits[0].evidence.join(" "), /legacy-appendix.xml.*012.*Previous catalog/);
+    assert.equal(result.hits[0].card.title, "Current catalog");
+  }
+});
+
+test("exact catalog names do not collapse boundaries like compact identifiers", () => {
+  const cards = sources.rskDatasets(sources.validateProjection(projection({ entries: [entry({
+    resource_name: "ab c", resource_short_name: "TEST",
+  })] })));
+  assert.equal(sources.searchCatalog(sources.buildCatalogIndex(cards), "a bc", "all").hits.length, 0);
+});
+
+test("exact catalog aliases and names outrank boosted prefix matches", () => {
+  const entries = [
+    entry({ hcd: "AA0001", resource_name: "Target catalog", resource_short_name: "TARGETS" }),
+    entry({ hcd: "AA0002", resource_name: "Target", resource_short_name: "OTHER" }),
+    entry({ hcd: "AA0003", resource_name: "Different catalog", resource_short_name: "TARGET" }),
+  ];
+  const catalog = sources.buildCatalogIndex(sources.rskDatasets(sources.validateProjection(projection({ entries }))));
+  for (let repeat = 0; repeat < 2; repeat++) {
+    assert.deepEqual(sources.searchCatalog(catalog, "target", "all").hits.map(hit => hit.card.id), ["AA0003", "AA0002", "AA0001"]);
+  }
 });
 
 test("BAW lineage requires verified original and introductory acts, not shared names", () => {

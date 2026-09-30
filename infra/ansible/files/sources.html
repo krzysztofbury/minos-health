@@ -56,15 +56,18 @@
           </div>
           <div class="search-field">
             <label for="source-search">Szukaj w całym katalogu</label>
-            <input id="source-search" type="search" autocomplete="off" maxlength="80" placeholder="np. ICD10, NFZ, załącznik 9">
+            <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" aria-describedby="search-note search-feedback" placeholder="np. ICD10, NFZ, załącznik 9"><button id="reset-search" type="button">Wyczyść</button></div>
           </div>
-          <p class="search-note">Szukasz po nazwie dokumentu, nie po kodach medycznych. Wpisane słowa pozostają na tym urządzeniu. Nie wpisuj danych pacjentów.</p>
+          <p id="search-note" class="search-note">Szukasz po nazwach, numerach, nazwach plików i metadanych wersji, nie w treści plików ani po kodach medycznych. Kolejność słów nie ma znaczenia. Wpisane słowa pozostają na tym urządzeniu. Nie wpisuj danych pacjentów.</p>
+          <p id="search-feedback" class="search-note" role="status" aria-live="polite"></p>
+          <div id="search-suggestions" class="search-suggestions" aria-live="polite"></div>
         </div>
 
         <div id="source-summary" class="source-summary" aria-live="polite"></div>
         <p id="load-state" class="load-state" role="status" aria-live="polite">Wczytywanie słowników i zarządzeń...</p>
         <button id="retry-button" class="retry-button" type="button" hidden>Odśwież dane</button>
         <div id="catalog-results" class="cards" role="tabpanel" aria-live="polite"></div>
+        <button id="more-results" class="retry-button" type="button" hidden>Pokaż kolejne zestawy</button>
         <p id="empty-state" class="empty-state" hidden>Brak pasujących danych. Spróbuj innej nazwy lub wybierz wszystkie źródła.</p>
       </section>
 

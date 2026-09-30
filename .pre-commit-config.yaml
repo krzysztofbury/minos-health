@@ -73,12 +73,18 @@ repos:
         language: system
         pass_filenames: false
         files: ^(?:pyproject\.toml$|uv\.lock$)
+      - id: catalog-assets
+        name: pinned catalog asset is current
+        entry: uv run python scripts/build_catalog_assets.py --check
+        language: system
+        pass_filenames: false
+        files: ^(?:apps/web/|infra/ansible/files/sources\.js$|scripts/build_catalog_assets\.py$)
       - id: license-policy
         name: dependency license policy
         entry: >-
           uv run pip-licenses
           --allow-only
-          'Apache-2.0;Apache Software License;Apache-2.0 OR BSD-2-Clause;BSD License;BSD-2-Clause;BSD-3-Clause;MIT;MIT License;MIT OR Apache-2.0;Mozilla Public License 2.0 (MPL 2.0);PSF-2.0;Python Software Foundation License'
+          'Apache-2.0;Apache Software License;Apache-2.0 OR BSD-2-Clause;BSD License;BSD-2-Clause;BSD-3-Clause;MIT;MIT License;MIT OR Apache-2.0;Mozilla Public License 2.0 (MPL 2.0);PSF-2.0;Python Software Foundation License;http://morfeusz.sgjp.pl/doc/license/'
         language: system
         pass_filenames: false
         files: ^(?:pyproject\.toml$|uv\.lock$)

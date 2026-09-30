@@ -100,6 +100,12 @@ requirements. Evidence-based tradeoffs and representative benchmarks are
 required, while developer convenience follows those requirements. Critical
 paths receive targeted mutation and integration testing.
 
+Offline reference commands and their bounded JSON/exit-code contract are in
+[offline-search.md](docs/v0.0.1/offline-search.md). Local full-source and
+standalone evidence is in [the search validation](docs/validation/offline-reference-search.md).
+The website does not expose this search yet; source redistribution and signed
+product promotion retain their separate review gates.
+
 A production-only maintenance Compose stack currently serves an explicit holding
 page through Cloudflare Tunnel. A separate digest-pinned Uptime Kuma bootstrap
 container runs privately on the same host; its public status hostname is not

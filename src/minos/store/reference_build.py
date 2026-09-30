@@ -17,8 +17,10 @@ from minos.domain.reference import (
     SourceHeader,
 )
 from minos.ingest.reference_manifest import DatasetManifest, SourceManifest, utc_text
+from minos.store.search_build import build_search_index
 
-REFERENCE_SCHEMA_VERSION: Literal[1] = 1
+REFERENCE_SCHEMA_VERSION: Literal[2] = 2
+MIGRATIONS = ("001_reference.sql", "002_search.sql")
 REFERENCE_APPLICATION_ID = 0x4D494E52
 TABLES = (
     "source_release",
@@ -27,6 +29,11 @@ TABLES = (
     "reference_relation",
     "concept",
     "concept_description",
+    "search_document",
+    "search_owner",
+    "search_word",
+    "search_token",
+    "search_word_lemma",
 )
 
 
@@ -44,23 +51,31 @@ def reference_sql(relative_path: str) -> str:
 
 def schema_checksum() -> str:
     return hashlib.sha256(
-        reference_sql("migrations/001_reference.sql").encode()
+        "".join(reference_sql("migrations/" + name) for name in MIGRATIONS).encode()
     ).hexdigest()
+
+
+def migration_identities() -> list[tuple[int, str]]:
+    return [
+        (
+            index,
+            hashlib.sha256(reference_sql("migrations/" + name).encode()).hexdigest(),
+        )
+        for index, name in enumerate(MIGRATIONS, 1)
+    ]
 
 
 def initialize_reference(
     connection: sqlite3.Connection, manifest: DatasetManifest
 ) -> None:
-    """Apply schema v1 inside the caller's single fresh-build transaction."""
+    """Apply reviewed migrations only inside a fresh-build transaction."""
     if not connection.in_transaction:
         raise ArtifactError("reference schema requires a build transaction")
-    schema = reference_sql("migrations/001_reference.sql")
-    for statement in schema.split(";"):
-        if statement.strip():
-            _ = connection.execute(statement)
-    _ = connection.execute(
-        "INSERT INTO schema_migration VALUES (?, ?)", (1, schema_checksum())
-    )
+    for name, identity in zip(MIGRATIONS, migration_identities(), strict=True):
+        for statement in reference_sql("migrations/" + name).split(";"):
+            if statement.strip():
+                _ = connection.execute(statement)
+        _ = connection.execute("INSERT INTO schema_migration VALUES (?, ?)", identity)
     metadata = {
         "schema_version": str(REFERENCE_SCHEMA_VERSION),
         "normalization_version": NORMALIZATION_VERSION,
@@ -265,6 +280,11 @@ def _validate_release(connection: sqlite3.Connection, source: SourceManifest) ->
 def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
     if not connection.in_transaction:
         raise ArtifactError("reference finalization requires a build transaction")
+    build_search_index(
+        connection,
+        reference_sql("queries/search_sources.sql"),
+        reference_sql("queries/search_owners.sql"),
+    )
     _ = connection.execute(
         "INSERT INTO concept_description_fts(concept_description_fts) VALUES ('rebuild')"
     )
@@ -284,6 +304,11 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
         UNION ALL SELECT 'reference_relation', count(*) FROM reference_relation
         UNION ALL SELECT 'concept', count(*) FROM concept
         UNION ALL SELECT 'concept_description', count(*) FROM concept_description
+        UNION ALL SELECT 'search_document', count(*) FROM search_document
+        UNION ALL SELECT 'search_owner', count(*) FROM search_owner
+        UNION ALL SELECT 'search_word', count(*) FROM search_word
+        UNION ALL SELECT 'search_token', count(*) FROM search_token
+        UNION ALL SELECT 'search_word_lemma', count(*) FROM search_word_lemma
     """).fetchall(),
     )
     return dict(counts)

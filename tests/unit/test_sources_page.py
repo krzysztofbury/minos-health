@@ -117,7 +117,9 @@ def _baw_projection() -> dict[str, object]:
                 "files": [
                     {
                         "file_id": document_id * 10,
-                        "name": "Akt_prawny.zipx",
+                        "name": "Załącznik 9.xlsx"
+                        if document_id == 43943
+                        else "Akt_prawny.zipx",
                         "size_bytes": 304191,
                         "sha256": "c" * 64,
                     }

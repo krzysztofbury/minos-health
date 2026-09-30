@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "transform_version": "icd10-reference-v1-synthetic",
-  "lockfile_sha256": "fdbc68319f7e3512dffe0d6b2dd15cbc304885ff022138d77fb0a3b57602591a",
+  "lockfile_sha256": "73dd4e453f82aeff47fb36869a55ff815da43b5d3fe0d0ebe1e0e482a267f11f",
   "sources": [
     {
       "release_id": "icd10-synthetic-v1",

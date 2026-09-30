@@ -62,6 +62,13 @@ classification. Minos owns content addressing, single-part conditional-write
 policy, bounded conflict handling, and native checksum verification; transfer
 manager helpers are not used.
 
+RapidFuzz (MIT, locked to 3.14.6) owns bounded Levenshtein scoring for offline
+spelling suggestions. Minos supplies a release/language-scoped vocabulary derived
+from source text, explicit score cutoffs, stable ordering and resource limits.
+Suggestions never silently correct codes or trigger a replacement query. No
+classification-specific fuzzy algorithm or manually maintained spelling corpus
+is used.
+
 Development-only dependencies are pre-commit (MIT) for reproducible repository
 checks, Bandit (Apache-2.0) for Python static security analysis, pip-audit
 (Apache-2.0) for advisory checks, pip-licenses (MIT) for licence policy, and

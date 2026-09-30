@@ -27,6 +27,7 @@ from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.reference import (
     ReferenceReader,
     open_reference,
+    open_reference_bundle,
     open_reference_connection,
 )
 from minos.store.reference_build import (
@@ -61,7 +62,17 @@ def test_build_reopen_and_recursive_cte_preserve_the_agreed_model(
     manifest = stage_source(tmp_path)
     bundle = tmp_path / "bundle"
     result = build_reference_artifact(manifest, tmp_path, bundle)
-    assert result.row_counts == {
+    assert {
+        table: result.row_counts[table]
+        for table in (
+            "source_release",
+            "reference_node",
+            "reference_node_attribute",
+            "reference_relation",
+            "concept",
+            "concept_description",
+        )
+    } == {
         "source_release": 1,
         "reference_node": 10,
         "reference_node_attribute": 11,
@@ -69,6 +80,12 @@ def test_build_reopen_and_recursive_cte_preserve_the_agreed_model(
         "concept": 6,
         "concept_description": 12,
     }
+    assert result.row_counts["search_document"] == 15
+    assert result.row_counts["search_owner"] == 15
+    with open_reference_bundle(bundle) as (connection, verified_manifest):
+        assert verified_manifest.dataset == manifest
+        assert verified_manifest.database_sha256 == result.database_sha256
+        assert connection.execute("SELECT count(*) FROM concept").fetchone() == (6,)
     assert (bundle / "minos.db").stat().st_mode & 0o777 == 0o600
     with open_reference(bundle) as reader:
         concept = reader.concept("icd10-synthetic-v1", "E11.2")

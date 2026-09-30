@@ -15,13 +15,18 @@ dependencies = [
   "boto3>=1.40,<2",
   "botocore>=1.40,<2",
   "defusedxml>=0.7.1,<1",
+  "rapidfuzz>=3.14.6,<4",
 ]
 
 [project.scripts]
 minos = "minos.cli.main:main"
 
+[project.optional-dependencies]
+reference = ["morfeusz2==1.99.15"]
+
 [dependency-groups]
 dev = [
+    "morfeusz2==1.99.15",
     "bandit[toml]>=1.9,<2",
     "basedpyright>=1.31",
     "hatchling==1.32.4",
