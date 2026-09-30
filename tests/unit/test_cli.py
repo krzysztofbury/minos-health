@@ -18,7 +18,10 @@ from minos.cli.watcher import (
     paths_from_environment,
 )
 from minos.ingest.watchers.archive import BlobArchive, FilesystemBlobArchive
-from minos.ingest.watchers.config import RSK_SOURCE_CONFIGURATION_CODECS
+from minos.ingest.watchers.config import (
+    RSK_SOURCE_CONFIGURATION_CODECS,
+    WATCHER_SOURCE_CONFIGURATION_CODECS,
+)
 from minos.ingest.watchers.control import (
     ControlStore,
     SourceConfiguration,
@@ -67,6 +70,9 @@ class _WatcherCommand:
     def bootstrap_baw(self) -> None:
         self.calls.append("bootstrap-baw")
 
+    def bootstrap_nfz(self) -> None:
+        self.calls.append("bootstrap-nfz")
+
     def migrate_control_database(self) -> tuple[int, int]:
         self.calls.append("migrate-control-database")
         return 3, 3
@@ -111,6 +117,7 @@ def test_watcher_cli_commands_use_the_adapter_seam(tmp_path: Path) -> None:
     main(["watcher", "health", *common], watcher_factory=factory)
     main(["watcher", "bootstrap-rsk", *common], watcher_factory=factory)
     main(["watcher", "bootstrap-baw", *common], watcher_factory=factory)
+    main(["watcher", "bootstrap-nfz", *common], watcher_factory=factory)
     main(["watcher", "migrate-control-database", *common], watcher_factory=factory)
     current_digest = "a" * 64
     target_digest = "b" * 64
@@ -138,6 +145,7 @@ def test_watcher_cli_commands_use_the_adapter_seam(tmp_path: Path) -> None:
         "health",
         "bootstrap-rsk",
         "bootstrap-baw",
+        "bootstrap-nfz",
         "migrate-control-database",
         f"rebuild-public-rsk:2:{current_digest}:1:{target_digest}",
     ]
@@ -148,9 +156,37 @@ def test_watcher_cli_commands_use_the_adapter_seam(tmp_path: Path) -> None:
         "health",
         "bootstrap-rsk",
         "bootstrap-baw",
+        "bootstrap-nfz",
         "migrate-control-database",
         "rebuild-public-rsk",
     ]
+
+
+def test_nfz_bootstrap_requires_the_existing_scheduled_baw_source(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "control.sqlite3"
+    paths = [
+        "--database",
+        str(database),
+        "--staging-directory",
+        str(tmp_path / "staging"),
+        "--archive-directory",
+        str(tmp_path / "archive"),
+        "--process-lock",
+        str(tmp_path / "watcher.lock"),
+    ]
+    with pytest.raises(SystemExit) as error:
+        main(["watcher", "bootstrap-nfz", *paths])
+    assert error.value.code == 1
+
+    main(["watcher", "bootstrap-baw", *paths])
+    main(["watcher", "bootstrap-nfz", *paths])
+    with ControlStore.open(
+        database, source_configuration_codecs=WATCHER_SOURCE_CONFIGURATION_CODECS
+    ) as store:
+        assert store.list_enabled_source_kinds() == (("baw", "baw"), ("nfz", "nfz"))
+        assert store.load_retry_policy("nfz") is not None
 
 
 def test_watcher_copy_control_database_command_creates_verified_evidence(
@@ -478,11 +514,11 @@ def test_migrate_control_database_upgrades_supported_live_schema(
     assert json.loads(capsys.readouterr().out) == {
         "from_version": live_schema_version,
         "migrated": True,
-        "schema_version": 3,
+        "schema_version": 4,
     }
     connection = sqlite3.connect(database)
     try:
-        assert connection.execute("PRAGMA user_version").fetchone() == (3,)
+        assert connection.execute("PRAGMA user_version").fetchone() == (4,)
         assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
     finally:
         connection.close()

@@ -25,6 +25,7 @@ from minos.ingest.watchers.control.migrations import (
     validate_control_database,
 )
 from minos.ingest.watchers.control.models import (
+    BawDispatchRequest,
     BlobReceipt,
     BootstrapResult,
     ChangeDraft,
@@ -62,6 +63,7 @@ _MAX_OBSERVATIONS_PER_COMMIT = 256
 _MAX_OBSERVATION_BLOBS_PER_COMMIT = 1024
 _MAX_CHANGES_PER_COMMIT = 256
 _MAX_INCIDENTS_PER_COMMIT = 256
+_MAX_PENDING_BAW_DISPATCHES = 8
 _MAX_RECONCILABLE_RUNS = 1000
 _MAX_PUBLIC_HISTORY_REVISIONS = 512
 _MAX_PUBLIC_HISTORY_INPUT_ROWS = 16_384
@@ -1384,6 +1386,55 @@ class ControlStore:
             self._record_blob_verification_failure(claim, reason=str(error))
             raise
 
+    def list_pending_baw_dispatches(self) -> tuple[BawDispatchRequest, ...]:
+        self._require_open()
+        rows = cast(
+            list[tuple[str, int, str, str, int]],
+            self._connection.execute(
+                """
+                SELECT discovery_source_id, document_id, source_url,
+                       observation_sha256, first_seen_at_ms
+                FROM baw_dispatch_outbox AS dispatch
+                LEFT JOIN watcher_runs AS delivery
+                  ON delivery.run_id = dispatch.delivered_run_id
+                WHERE delivery.status IS NULL OR delivery.status != 'successful'
+                ORDER BY first_seen_at_ms, discovery_source_id, document_id
+                LIMIT ?
+                """,
+                (_MAX_PENDING_BAW_DISPATCHES + 1,),
+            ).fetchall(),
+        )
+        _reject_truncated_rows(rows, _MAX_PENDING_BAW_DISPATCHES, "BAW dispatch")
+        requests = tuple(BawDispatchRequest(*row) for row in rows)
+        for request in requests:
+            _validate_identifier(request.discovery_source_id, "discovery source ID", 64)
+            _validate_baw_document_id(request.document_id)
+            _validate_nfz_source_url(request.source_url)
+            if re.fullmatch(r"[0-9a-f]{64}", request.observation_sha256) is None:
+                raise ControlStorageError("stored BAW dispatch digest is invalid")
+            _validate_timestamp(request.first_seen_at_ms, "BAW first-seen time")
+        return requests
+
+    def list_retained_baw_roots(self) -> tuple[int, ...]:
+        self._require_open()
+        rows = cast(
+            list[tuple[int]],
+            self._connection.execute(
+                """
+                SELECT dispatch.document_id FROM baw_dispatch_outbox AS dispatch
+                JOIN watcher_runs AS delivery
+                  ON delivery.run_id = dispatch.delivered_run_id
+                WHERE dispatch.retained_root = 1 AND delivery.status = 'successful'
+                ORDER BY dispatch.document_id LIMIT ?
+                """,
+                (_MAX_PENDING_BAW_DISPATCHES + 1,),
+            ).fetchall(),
+        )
+        _reject_truncated_rows(rows, _MAX_PENDING_BAW_DISPATCHES, "BAW root")
+        for (document_id,) in rows:
+            _validate_baw_document_id(document_id)
+        return tuple(document_id for (document_id,) in rows)
+
     def _commit_prepared_observations(
         self,
         claim: ClaimIdentity,
@@ -1415,6 +1466,8 @@ class ControlStore:
                             blob.sha256,
                         ),
                     )
+            self._insert_baw_dispatches(claim, commit)
+            self._acknowledge_baw_dispatches(claim, commit, now_ms)
             _ = self._connection.execute(
                 """
                 INSERT INTO source_cursors (
@@ -1474,6 +1527,142 @@ class ControlStore:
                 now_ms=now_ms,
             )
             return CommittedRun(claim.source_id, claim.run_id, state_revision, now_ms)
+
+    def _insert_baw_dispatches(
+        self, claim: ClaimIdentity, commit: ObservationCommit
+    ) -> None:
+        if not commit.baw_dispatches:
+            return
+        if len(commit.baw_dispatches) > _MAX_PENDING_BAW_DISPATCHES:
+            raise ControlValidationError("BAW dispatch batch exceeds its bound")
+        watcher_type = cast(
+            tuple[str] | None,
+            self._connection.execute(
+                "SELECT watcher_type FROM sources WHERE source_id = ?",
+                (claim.source_id,),
+            ).fetchone(),
+        )
+        if claim.source_id != "nfz" or watcher_type != ("nfz",):
+            raise ControlValidationError("only NFZ discovery may dispatch BAW IDs")
+        observations = {item.observation_id: item for item in commit.observations}
+        seen: set[int] = set()
+        for request in commit.baw_dispatches:
+            _validate_baw_document_id(request.document_id)
+            _validate_nfz_source_url(request.source_url)
+            if request.document_id in seen:
+                raise ControlValidationError("BAW dispatch batch has duplicate IDs")
+            seen.add(request.document_id)
+            observation = observations.get(request.observation_id)
+            if (
+                observation is None
+                or observation.observation_kind != "nfz_order_detail"
+            ):
+                raise ControlValidationError(
+                    "BAW dispatch lacks an NFZ detail observation"
+                )
+            if observation.source_identity != request.source_url:
+                raise ControlValidationError(
+                    "BAW dispatch source URL differs from evidence"
+                )
+            existing = cast(
+                tuple[str] | None,
+                self._connection.execute(
+                    """
+                    SELECT source_url FROM baw_dispatch_outbox
+                    WHERE discovery_source_id = ? AND document_id = ?
+                    """,
+                    (claim.source_id, request.document_id),
+                ).fetchone(),
+            )
+            if existing is not None:
+                if existing[0] != request.source_url:
+                    raise ControlValidationError("BAW dispatch identity conflicts")
+                continue
+            _ = self._connection.execute(
+                """
+                INSERT INTO baw_dispatch_outbox (
+                    discovery_source_id, document_id, discovery_run_id,
+                    observation_id, source_url, observation_sha256, first_seen_at_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    claim.source_id,
+                    request.document_id,
+                    claim.run_id,
+                    request.observation_id,
+                    request.source_url,
+                    observation.response_sha256,
+                    observation.observed_at_ms,
+                ),
+            )
+        count = cast(
+            tuple[int],
+            self._connection.execute(
+                """
+                SELECT count(*) FROM baw_dispatch_outbox AS dispatch
+                LEFT JOIN watcher_runs AS delivery
+                  ON delivery.run_id = dispatch.delivered_run_id
+                WHERE delivery.status IS NULL OR delivery.status != 'successful'
+                """
+            ).fetchone(),
+        )[0]
+        if count > _MAX_PENDING_BAW_DISPATCHES:
+            raise ControlValidationError("BAW dispatch backlog exceeds its bound")
+
+    def _acknowledge_baw_dispatches(
+        self, claim: ClaimIdentity, commit: ObservationCommit, now_ms: int
+    ) -> None:
+        root_ids = set(commit.retained_baw_roots)
+        if len(root_ids) != len(commit.retained_baw_roots) or not root_ids.issubset(
+            commit.delivered_baw_ids
+        ):
+            raise ControlValidationError("BAW retained roots do not match deliveries")
+        if not commit.delivered_baw_ids:
+            return
+        if claim.source_id != "baw" or len(commit.delivered_baw_ids) > 8:
+            raise ControlValidationError("BAW delivery source or count is invalid")
+        seen: set[int] = set()
+        for document_id in commit.delivered_baw_ids:
+            _validate_baw_document_id(document_id)
+            if document_id in seen:
+                raise ControlValidationError("BAW delivery contains duplicate IDs")
+            seen.add(document_id)
+            matching = [
+                item
+                for item in commit.observations
+                if item.observation_kind == "baw_document"
+                and item.source_identity == str(document_id)
+            ]
+            if len(matching) != 1:
+                raise ControlValidationError(
+                    "BAW delivery lacks its document observation"
+                )
+            updated = self._connection.execute(
+                """
+                UPDATE baw_dispatch_outbox
+                SET delivered_run_id = ?, delivered_observation_id = ?,
+                    delivered_at_ms = ?, retained_root = ?
+                WHERE document_id = ? AND delivered_run_id IS NULL
+                """,
+                (
+                    claim.run_id,
+                    matching[0].observation_id,
+                    now_ms,
+                    int(document_id in root_ids),
+                    document_id,
+                ),
+            )
+            _require_one_updated(
+                updated, ControlValidationError("BAW delivery has no unique pending ID")
+            )
+        root_count = cast(
+            tuple[int],
+            self._connection.execute(
+                "SELECT count(*) FROM baw_dispatch_outbox WHERE retained_root = 1"
+            ).fetchone(),
+        )[0]
+        if root_count > _MAX_PENDING_BAW_DISPATCHES:
+            raise ControlValidationError("BAW retained roots exceed their bound")
 
     def _record_blob_verification_failure(
         self,
@@ -3611,6 +3800,25 @@ def _validate_timestamp(value: object, label: str) -> None:
         raise ControlValidationError(f"{label} must be an integer")
     if value < 1 or value > _MAX_TIMESTAMP_MS:
         raise ControlValidationError(f"{label} is outside the supported range")
+
+
+def _validate_baw_document_id(value: object) -> None:
+    if not _is_strict_integer(value) or not 1 <= value <= 2_147_483_647:
+        raise ControlValidationError("BAW document ID is outside its supported range")
+
+
+def _validate_nfz_source_url(value: object) -> None:
+    if (
+        not isinstance(value, str)
+        or len(value) > 256
+        or re.fullmatch(
+            r"https://www\.nfz\.gov\.pl/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/"
+            + r"zarzadzenie-nr-[1-9][0-9]{0,3}20[0-9]{2}dsoz,[1-9][0-9]{0,9}\.html",
+            value,
+        )
+        is None
+    ):
+        raise ControlValidationError("BAW dispatch NFZ source URL is invalid")
 
 
 def _validate_positive(value: object, label: str) -> None:

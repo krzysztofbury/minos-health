@@ -34,6 +34,7 @@ from minos.ingest.watchers.control import (
     SourceConfigurationCodecRegistry,
     SourceSchedule,
 )
+from minos.ingest.watchers.nfz.collector import NfzSourceCollector
 from minos.ingest.watchers.orchestrator import (
     RunRecoveryPublisher,
     WatcherOrchestrator,
@@ -85,9 +86,11 @@ _DEPLOYMENT_COPY_TIMEOUT_SECONDS = 240.0
 _DEFAULT_READINESS_FILE = Path("/tmp/minos-watcher-ready.json")  # nosec B108
 _RSK_SOURCE_ID = "rsk"
 _BAW_SOURCE_ID = "baw"
+_NFZ_SOURCE_ID = "nfz"
 _RSK_DAILY_CRON = "0 3 * * *"
 _RSK_WEEKLY_VERIFICATION_CRON = "0 4 * * 0"
 _BAW_DAILY_CRON = "0 5 * * *"
+_NFZ_DAILY_CRON = "0 4 * * *"
 type RskClientFactory = Callable[[RskSettings], AbstractContextManager[httpx.Client]]
 
 
@@ -158,6 +161,8 @@ class WatcherCommand(Protocol):
     def bootstrap_rsk(self) -> None: ...
 
     def bootstrap_baw(self) -> None: ...
+
+    def bootstrap_nfz(self) -> None: ...
 
     def migrate_control_database(self) -> tuple[int, int]: ...
 
@@ -374,6 +379,33 @@ class WatcherCliAdapter:
                         (
                             SourceSchedule(
                                 _BAW_SOURCE_ID, _BAW_DAILY_CRON, 3600, 3, 0.5, 30.0
+                            ),
+                        ),
+                    )
+
+    def bootstrap_nfz(self) -> None:
+        with self._manage_resources():
+            self._prepare_directories()
+            with WatcherProcessLock(self._paths.process_lock):
+                with ControlStore.open(
+                    self._paths.database,
+                    source_configuration_codecs=self._source_configuration_codecs,
+                ) as store:
+                    if self._heartbeat_source_validator is not None:
+                        self._heartbeat_source_validator((_NFZ_SOURCE_ID,))
+                    if ("baw", "baw") not in store.list_enabled_source_kinds():
+                        raise WatcherRuntimeError(
+                            "NFZ discovery requires the existing enabled BAW source"
+                        )
+                    if store.load_retry_policy(_BAW_SOURCE_ID) is None:
+                        raise WatcherRuntimeError(
+                            "NFZ discovery requires the scheduled BAW watcher"
+                        )
+                    _ = store.bootstrap_source(
+                        SourceConfiguration(_NFZ_SOURCE_ID, "nfz", {}, True),
+                        (
+                            SourceSchedule(
+                                _NFZ_SOURCE_ID, _NFZ_DAILY_CRON, 3600, 3, 0.5, 30.0
                             ),
                         ),
                     )
@@ -722,6 +754,9 @@ def create_runtime_collectors(
     )
     registry.register(
         "baw", BawSourceCollector(staging), required_schedule_modes=("scheduled",)
+    )
+    registry.register(
+        "nfz", NfzSourceCollector(staging), required_schedule_modes=("scheduled",)
     )
     return registry
 

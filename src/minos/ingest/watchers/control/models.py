@@ -174,12 +174,31 @@ class IncidentDraft:
 
 
 @dataclass(frozen=True, slots=True)
+class BawDispatchDraft:
+    document_id: int
+    source_url: str
+    observation_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class BawDispatchRequest:
+    discovery_source_id: str
+    document_id: int
+    source_url: str
+    observation_sha256: str
+    first_seen_at_ms: int
+
+
+@dataclass(frozen=True, slots=True)
 class ObservationCommit:
     blobs: tuple[BlobReceipt, ...]
     observations: tuple[ObservationDraft, ...]
     cursor: dict[str, JsonValue]
     changes: tuple[ChangeDraft, ...] = ()
     incidents: tuple[IncidentDraft, ...] = ()
+    baw_dispatches: tuple[BawDispatchDraft, ...] = ()
+    delivered_baw_ids: tuple[int, ...] = ()
+    retained_baw_roots: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

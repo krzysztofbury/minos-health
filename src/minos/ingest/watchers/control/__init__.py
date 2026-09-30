@@ -18,6 +18,8 @@ from minos.ingest.watchers.control.migrations import (
     validate_control_database_with_schema_extension,
 )
 from minos.ingest.watchers.control.models import (
+    BawDispatchDraft,
+    BawDispatchRequest,
     BlobReceipt,
     BootstrapResult,
     ChangeDraft,
@@ -63,6 +65,8 @@ from minos.ingest.watchers.control.store import (
 )
 
 __all__ = [
+    "BawDispatchDraft",
+    "BawDispatchRequest",
     "BlobReceipt",
     "BootstrapResult",
     "BlobVerificationError",
