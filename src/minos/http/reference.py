@@ -5,7 +5,7 @@ from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from threading import Lock
-from typing import final
+from typing import NamedTuple, final
 
 from minos.domain.morphology import PolishMorphology
 from minos.domain.reference import ArtifactError
@@ -17,6 +17,11 @@ class CapacityError(Exception):
     """The fixed HTTP worker budget is already in use."""
 
 
+class Lease(NamedTuple):
+    connection: sqlite3.Connection
+    analyzer: PolishMorphology
+
+
 @final
 class ReferencePool:
     def __init__(self, bundle: Path, *, capacity: int = 4) -> None:
@@ -25,19 +30,19 @@ class ReferencePool:
         self._stack = ExitStack()
         self._lock = Lock()
         self._database = bundle / DATABASE_NAME
-        self._connections: list[sqlite3.Connection] = []
+        self._leases: list[Lease] = []
         self.manifest: ArtifactManifest
         try:
             for _ in range(capacity):
                 connection, manifest = self._stack.enter_context(
                     open_reference_bundle(bundle, check_same_thread=False)
                 )
-                self._connections.append(connection)
+                # Load each verified native dictionary before readiness. Cold
+                # loading exceeded the host's request budget; one analyzer per
+                # exclusive lease keeps concurrent requests independent.
+                self._leases.append(Lease(connection, PolishMorphology()))
                 self.manifest = manifest
             self._identity = self._file_identity()
-            # Retain the verified native dictionary before readiness. Cold loading
-            # exceeded the host's request budget; request analyzers stay independent.
-            self._morphology = PolishMorphology()
         except BaseException:
             self._stack.close()
             raise
@@ -47,20 +52,20 @@ class ReferencePool:
         return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns
 
     @contextmanager
-    def borrow(self) -> Generator[sqlite3.Connection]:
+    def borrow(self) -> Generator[Lease]:
         # Checksums are verified at startup. Runtime artifacts must be mounted
         # read-only; identity changes still fail closed before each lookup.
         if self._file_identity() != self._identity:
             raise ArtifactError("reference artifact changed after startup")
         with self._lock:
-            if not self._connections:
+            if not self._leases:
                 raise CapacityError
-            connection = self._connections.pop()
+            lease = self._leases.pop()
         try:
-            yield connection
+            yield lease
         finally:
             with self._lock:
-                self._connections.append(connection)
+                self._leases.append(lease)
 
     def close(self) -> None:
         self._stack.close()

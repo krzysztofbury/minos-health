@@ -3,26 +3,81 @@
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import final
 
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ROOT / "infra/ansible/files"
+sys.path.insert(0, str(ROOT))
 
-ROUTES = """
-        location = /szukaj {
-            if ($request_uri != "/szukaj") { return 404; }
-            try_files /search.html =404;
-        }
-        location = /search.css {
-            if ($request_uri != "/search.css") { return 404; }
-            try_files /search.css =404;
-        }
-        location = /search.js {
-            if ($request_uri != "/search.js") { return 404; }
-            try_files /search.js =404;
-        }
-        location = /api/v1/releases {
+from scripts.build_site import FONTS, render_site  # noqa: E402
+
+PAGE_ROUTES = (
+    ("/slowniki", "dictionaries.html"),
+    ("/slowniki/icd-10", "dictionary-icd-10.html"),
+    ("/slowniki/icd-9", "dictionary-icd-9.html"),
+)
+ASSET_ROUTES = ("/search.js", "/dictionary.js")
+
+
+def _routes() -> str:
+    blocks = [
+        """
+        # Branded page for every edge-generated 404; proxied API errors pass through.
+        error_page 404 /404.html;
+        location = /404.html {
+            internal;
+            try_files /404.html =404;
+        }"""
+    ]
+    for path, name in PAGE_ROUTES:
+        blocks.append(
+            f"""        location = {path} {{
+            if ($request_uri != "{path}") {{ return 404; }}
+            try_files /{name} =404;
+        }}"""
+        )
+    for path in ASSET_ROUTES:
+        blocks.append(
+            f"""        location = {path} {{
+            if ($request_uri != "{path}") {{ return 404; }}
+            try_files {path} =404;
+        }}"""
+        )
+    for name in FONTS:
+        blocks.append(
+            f"""        location = /fonts/{name} {{
+            if ($request_uri != "/fonts/{name}") {{ return 404; }}
+            types {{ }}
+            default_type font/woff2;
+            try_files /fonts/{name} =404;
+        }}"""
+        )
+    for path, media in (
+        ("/robots.txt", "text/plain"),
+        ("/llms.txt", "text/markdown"),
+        ("/sitemap.xml", "application/xml"),
+        ("/sitemap-pages.xml", "application/xml"),
+    ):
+        blocks.append(
+            f"""        location = {path} {{
+            if ($request_uri != "{path}") {{ return 404; }}
+            types {{ }}
+            default_type "{media}; charset=utf-8";
+            try_files {path} =404;
+        }}"""
+        )
+    blocks.append(
+        """        location = /fonts/OFL.txt {
+            if ($request_uri != "/fonts/OFL.txt") { return 404; }
+            types { }
+            default_type "text/plain; charset=utf-8";
+            try_files /fonts/OFL.txt =404;
+        }"""
+    )
+    blocks.append(
+        """        location = /api/v1/releases {
             if ($request_uri != "/api/v1/releases") { return 404; }
             if ($request_method != GET) { return 405; }
             proxy_pass http://reference-api:8081;
@@ -42,7 +97,47 @@ ROUTES = """
             proxy_read_timeout 3s;
             error_log /dev/null;
         }
+        # Code pages and sitemaps are server-rendered by the API for crawlers.
+        location ~ "^/slowniki/icd-(10|9)/[A-Za-z0-9][A-Za-z0-9.-]{0,15}$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+            proxy_hide_header Cache-Control;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        location ~ "^/sitemap-icd-(10|9)\\.xml$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+            proxy_hide_header Cache-Control;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        # Tree paths carry only a release id and a source node number.
+        location ~ "^/api/v1/tree/[a-z0-9-]{1,80}/(0|[1-9][0-9]{0,6})$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method != GET) { return 405; }
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }"""
+    )
+    return "\n".join(blocks) + "\n"
+
+
+def _com_redirects() -> str:
+    return "".join(
+        f"""        location = {path} {{
+            if ($request_uri != "{path}") {{ return 404; }}
+            return 308 https://minoshealth.pl{path};
+        }}
 """
+        for path, _name in PAGE_ROUTES
+    )
 
 
 @final
@@ -52,44 +147,15 @@ class Arguments(argparse.Namespace):
 
 def build(output: Path) -> None:
     output.mkdir(parents=True, exist_ok=False)
-    names = (
-        "home.css",
-        "legal.css",
-        "plausible-init.js",
-        "privacy-policy.html",
-        "sources.css",
-        "sources.html",
-        "sources.js",
-        "terms.html",
-        "search.html",
-        "search.css",
-        "search.js",
-    )
+    files = render_site("validation")
+    for name in ("plausible-init.js", "sources.js"):
+        files[name] = (FILES / name).read_bytes()
     identities: dict[str, str] = {}
-    for name in names:
-        source_directory = ROOT / "apps/web" if name.startswith("search.") else FILES
-        content = (source_directory / name).read_bytes()
-        _ = (output / name).write_bytes(content)
+    for name, content in sorted(files.items()):
+        target = output / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        _ = target.write_bytes(content)
         identities[name] = hashlib.sha256(content).hexdigest()
-    home = (FILES / "maintenance-index.html").read_text()
-    marker = 'href="/zrodla"'
-    if marker not in home:
-        raise ValueError("validation home navigation layout changed")
-    home = home.replace(
-        "</nav>", '<a href="/szukaj">Wyszukiwanie ICD-9 PL (walidacja)</a></nav>', 1
-    )
-    home = home.replace(
-        "Wyszukiwarka jest w przygotowaniu.",
-        "Dostępna jest walidacja wyszukiwania ICD-9 PL.",
-    )
-    home = home.replace(
-        "Wyszukiwanie kodów ICD-10 i ICD-9 oraz porównywanie punktów",
-        "Wyszukiwanie kodów ICD-10 oraz porównywanie punktów",
-    )
-    if 'href="/szukaj"' not in home:
-        raise ValueError("validation home navigation is missing")
-    _ = (output / "index.html").write_text(home)
-    identities["index.html"] = hashlib.sha256(home.encode()).hexdigest()
     config = (FILES / "edge-nginx.conf").read_text()
     # Nginx warning/error messages can include untrusted URLs and headers.
     config = config.replace("error_log /dev/stderr warn;", "error_log /dev/null;")
@@ -124,17 +190,12 @@ def build(output: Path) -> None:
             error_log /dev/null;
         }
 """
-        + ROUTES,
+        + _routes(),
     )
-    redirect = """        location = /szukaj {
-            if ($request_uri != "/szukaj") { return 404; }
-            return 308 https://minoshealth.pl/szukaj;
-        }
-"""
-    config = config.replace(
-        "        server_name minoshealth.com www.minoshealth.com;",
-        "        server_name minoshealth.com www.minoshealth.com;\n" + redirect,
-    )
+    marker = "        server_name minoshealth.com www.minoshealth.com;"
+    if config.count(marker) != 1:
+        raise ValueError("canonical redirect layout changed")
+    config = config.replace(marker, marker + "\n" + _com_redirects())
     _ = (output / "nginx.conf").write_text(config)
     identities["nginx.conf"] = hashlib.sha256(config.encode()).hexdigest()
     _ = (output / "checksums.json").write_text(

@@ -72,3 +72,11 @@ terms.
 
 No WHO ICD dataset is covered by these notices unless it is added later with
 its own reviewed terms.
+
+## Web Fonts
+
+The website self-hosts subsets of Atkinson Hyperlegible Next and Atkinson
+Hyperlegible Mono (Copyright 2020-2024 The Atkinson Hyperlegible Next and
+Atkinson Hyperlegible Mono Project Authors), licensed under the SIL Open Font
+License 1.1. The licence text and subsetting details are in `apps/web/fonts/`
+and the licence is published with the fonts at `/fonts/OFL.txt`.

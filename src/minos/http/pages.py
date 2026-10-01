@@ -1,0 +1,294 @@
+"""Server-rendered dictionary code pages and sitemaps for crawlers and agents.
+
+Pages reuse the site layout rendered by scripts/build_site.py into
+page_shell.html, so header, footer and styles stay identical to static pages.
+Every source value is HTML-escaped; JSON-LD escapes "<" to stay a data block.
+"""
+
+import html
+import json
+import re
+from dataclasses import dataclass
+from importlib.resources import files
+from typing import Final, cast
+
+SITE: Final = "https://minoshealth.pl"
+CODE_PATTERN: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9.\-]{0,15}")
+NOTE_TITLES: Final = {
+    "includes": "Obejmuje",
+    "excludes": "Nie obejmuje",
+    "term": "Terminy w źródle",
+    "note": "Uwagi",
+    "modifier": "Podział dodatkowy",
+}
+
+
+@dataclass(frozen=True)
+class Dictionary:
+    slug: str
+    system: str
+    name: str
+    coding_system: str
+    source: str
+
+
+DICTIONARIES: Final = {
+    "icd-10": Dictionary(
+        "icd-10",
+        "icd10-pl",
+        "ICD-10",
+        "ICD-10",
+        "Treść i układ: Rejestr Systemów Kodowania (RSK) i Biuro Światowej"
+        + " Organizacji Zdrowia w Polsce, licencja CC BY-NC-SA 3.0 IGO."
+        + " Tłumaczenie polskie nie pochodzi od WHO.",
+    ),
+    "icd-9": Dictionary(
+        "icd-9",
+        "icd9-pl",
+        "ICD-9",
+        "ICD-9-PL",
+        "Nazwa, status i daty: Centralne Zasoby Słownikowe NFZ. Miejsce w"
+        + " hierarchii i uwagi oznaczone jako skoroszyt: skoroszyt ICD-9 PL NFZ"
+        + " tej samej wersji.",
+    ),
+}
+
+
+def _shell() -> str:
+    return files("minos.http").joinpath("page_shell.html").read_text(encoding="utf-8")
+
+
+def _e(value: object) -> str:
+    return html.escape(" ".join(str(value).split()))
+
+
+def _json_ld(value: object) -> str:
+    text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return (
+        '    <script type="application/ld+json">'
+        + text.replace("<", "\\u003c")
+        + "</script>\n"
+    )
+
+
+def _page(
+    *, title: str, description: str, path: str, content: str, head: str, robots: str
+) -> str:
+    values = {
+        "title": html.escape(title),
+        "description": html.escape(description[:300]),
+        "robots": robots,
+        "path": path,
+        "head_extra": head,
+        "content": content,
+    }
+    return re.sub(r"\{\{([a-z_]+)\}\}", lambda match: values[match.group(1)], _shell())
+
+
+def code_path(dictionary: Dictionary, code: str) -> str:
+    return f"/slowniki/{dictionary.slug}/{code}"
+
+
+def _item(dictionary: Dictionary, code: str | None, label: str) -> str:
+    text = (f'<span class="code-chip">{_e(code)}</span> ' if code else "") + (
+        f'<span class="result-label">{_e(label)}</span>'
+    )
+    if not code:
+        return f"<li>{text}</li>"
+    return f'<li><a class="code-link" href="{_e(code_path(dictionary, code))}">{text}</a></li>'
+
+
+def code_page(
+    dictionary: Dictionary,
+    node: dict[str, object],
+    children: list[dict[str, object]],
+    version: str,
+    supporting: bool,
+) -> str:
+    code = cast(str, node["code"])
+    label = " ".join(cast(str, node["label"]).split())
+    path = cast(list[dict[str, object]], node.get("path", []))
+    attributes = cast(list[dict[str, str]], node.get("attributes", []))
+    notes = cast(list[dict[str, str]], node.get("notes", []))
+    crumbs = [
+        '<a href="/slowniki">Słowniki</a>',
+        f'<a href="/slowniki/{dictionary.slug}">{_e(dictionary.name)}</a>',
+    ]
+    for step in path:
+        step_code = cast(str | None, step.get("code"))
+        if step_code:
+            crumbs.append(
+                f'<a href="{_e(code_path(dictionary, step_code))}">{_e(step_code)}</a>'
+            )
+    parts = [
+        '      <div class="shell page-head page-head-compact">',
+        '        <nav class="breadcrumbs" aria-label="Okruszki">'
+        + '<span aria-hidden="true">/</span>'.join(crumbs)
+        + "</nav>",
+        f'        <p class="detail-code"><span class="code-chip">{_e(code)}</span>'
+        + f' <span class="badge badge-muted">{_e(dictionary.name)}, wersja {_e(version)}</span></p>',
+        f"        <h1>{_e(label)}</h1>",
+    ]
+    status = next(
+        (item["value"] for item in attributes if item["key"] == "status"), None
+    )
+    if status and status != "A":
+        parts.append(
+            f'        <p class="badge badge-warn">Status {_e(status)} w CZS</p>'
+        )
+    if node.get("canonical") is False:
+        parts.append(
+            '        <p class="badge badge-muted">Pozycja tylko w skoroszycie NFZ,'
+            + " bez odpowiednika w CZS</p>"
+        )
+    parts.append(
+        '        <p class="code-actions">'
+        + f'<a class="button" href="/slowniki/{dictionary.slug}#kod={_e(code)}">Pokaż w drzewie słownika</a>'
+        + '<a class="button button-quiet" href="/">Wyszukaj inny kod</a></p>'
+    )
+    parts.append("      </div>")
+    parts.append('      <div class="shell code-page">')
+    facts = [
+        f"<div><dt>{_e(item['name'])}</dt><dd>{_e(item['value'])}</dd></div>"
+        for item in attributes
+        if item["key"] != "evidence_kind" and item["value"].strip()
+    ]
+    if facts:
+        parts.append(
+            '        <dl class="detail-facts code-facts">' + "".join(facts) + "</dl>"
+        )
+    for kind in ("includes", "excludes", "term", "modifier", "note"):
+        group = [note for note in notes if note["kind"] == kind]
+        if not group:
+            continue
+        suffix = " (skoroszyt NFZ)" if supporting and kind != "modifier" else ""
+        items = "".join(
+            "<li>"
+            + (
+                f'<span class="code-chip">{_e(note["code"])}</span> '
+                if note["code"]
+                else ""
+            )
+            + _e(note["text"])
+            + "</li>"
+            for note in group
+        )
+        parts.append(
+            f'        <section class="detail-notes"><h2>{NOTE_TITLES[kind]}{suffix}</h2><ul>{items}</ul></section>'
+        )
+    if children:
+        items = "".join(
+            _item(
+                dictionary, cast(str | None, child["code"]), cast(str, child["label"])
+            )
+            for child in children
+        )
+        parts.append(
+            '        <section class="code-children"><h2>Kody podrzędne</h2>'
+            + f'<ul class="code-list">{items}</ul></section>'
+        )
+    if path:
+        items = "".join(
+            _item(
+                dictionary, cast(str | None, step.get("code")), cast(str, step["label"])
+            )
+            for step in path
+        )
+        parts.append(
+            '        <section class="code-children"><h2>Miejsce w słowniku</h2>'
+            + f'<ul class="code-list">{items}</ul></section>'
+        )
+    parts.append(f'        <p class="detail-source">{_e(dictionary.source)}</p>')
+    parts.append("      </div>")
+    url = SITE + code_path(dictionary, code)
+    breadcrumb = [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Słowniki",
+            "item": SITE + "/slowniki",
+        },
+        {
+            "@type": "ListItem",
+            "position": 2,
+            "name": dictionary.name,
+            "item": f"{SITE}/slowniki/{dictionary.slug}",
+        },
+    ]
+    for position, step in enumerate(
+        [step for step in path if step.get("code")], start=3
+    ):
+        breadcrumb.append(
+            {
+                "@type": "ListItem",
+                "position": position,
+                "name": f"{step['code']} {' '.join(cast(str, step['label']).split())}",
+                "item": SITE + code_path(dictionary, cast(str, step["code"])),
+            }
+        )
+    head = _json_ld(
+        [
+            {
+                "@context": "https://schema.org",
+                "@type": "MedicalCode",
+                "codeValue": code,
+                "codingSystem": dictionary.coding_system,
+                "name": label,
+                "url": url,
+                "inLanguage": "pl",
+            },
+            {
+                "@context": "https://schema.org",
+                "@type": "BreadcrumbList",
+                "itemListElement": breadcrumb,
+            },
+        ]
+    )
+    context = next(
+        (cast(str, step["label"]) for step in path if step.get("code")), dictionary.name
+    )
+    description = (
+        f"Kod {dictionary.name} {code}: {label}. "
+        + f"{' '.join(context.split())}. Uwagi źródła, kody podrzędne i miejsce w słowniku."
+    )
+    return _page(
+        title=f"{code} {label} - {dictionary.name} - Minos Health",
+        description=description,
+        path=code_path(dictionary, code),
+        content="\n".join(parts),
+        head=head,
+        robots="index, follow",
+    )
+
+
+def missing_page(dictionary: Dictionary, code: str) -> str:
+    content = (
+        '      <div class="shell page-head not-found">\n'
+        + '        <p class="not-found-code">404</p>\n'
+        + f"        <h1>Nie ma kodu {_e(code)} w słowniku {_e(dictionary.name)}</h1>\n"
+        + '        <p class="page-lead">Sprawdź pisownię kodu albo wyszukaj go po opisie.</p>\n'
+        + '        <p class="not-found-actions"><a class="button" href="/">Przejdź do wyszukiwarki</a>'
+        + f'<a class="button button-quiet" href="/slowniki/{dictionary.slug}">Przeglądaj słownik</a></p>\n'
+        + "      </div>"
+    )
+    return _page(
+        title=f"Nie znaleziono kodu - {dictionary.name} - Minos Health",
+        description=f"Kodu {code} nie ma w słowniku {dictionary.name}.",
+        path=f"/slowniki/{dictionary.slug}",
+        content=content,
+        head="",
+        robots="noindex, follow",
+    )
+
+
+def sitemap(dictionary: Dictionary, codes: list[str]) -> bytes:
+    entries = "".join(
+        f"  <url><loc>{html.escape(SITE + code_path(dictionary, code))}</loc></url>\n"
+        for code in codes
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + entries
+        + "</urlset>\n"
+    ).encode()

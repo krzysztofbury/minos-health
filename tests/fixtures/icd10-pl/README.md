@@ -17,3 +17,8 @@ Broken references and cycles belong to store tests: this XML represents parent
 relationships through nesting and has no explicit parent-reference field.
 
 No fixture or private-source validation authorizes data redistribution.
+
+`ranking.xml` places an inclusion-term match and a narrower code before
+broader title matches in source order, so result ranking is observable: titles
+that begin with the query (broader codes first), then titles that contain it,
+then the inclusion term.

@@ -1,0 +1,41 @@
+      <section class="search-hero" aria-labelledby="search-title">
+        <div class="shell shell-narrow">
+          <h1 id="search-title" class="search-title">Znajdź kod rozpoznania lub procedury</h1>
+          <p class="search-lead">Wpisz kod albo kilka słów opisu. Szukamy w oficjalnych słownikach ICD-10 i ICD-9.</p>
+          <form class="search-form" id="search-form" role="search" autocomplete="off" novalidate>
+            <div class="search-box" id="search-box">
+              <label class="visually-hidden" for="query">Kod lub opis</label>
+              <input class="search-input" id="query" name="query" type="search" maxlength="120" spellcheck="false"
+                placeholder="np. J18, cukrzyca, badanie moczu"
+                role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"
+                aria-describedby="search-help"{{search_disabled}}>
+              <button class="search-submit" id="search-submit" type="submit" aria-label="Szukaj"{{search_disabled}}>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+              </button>
+              <ul class="suggestions" id="suggestions" role="listbox" aria-label="Podpowiedzi" hidden></ul>
+            </div>
+            <fieldset class="filters">
+              <legend class="visually-hidden">Słowniki, w których szukasz</legend>
+              <label class="filter"><input type="checkbox" name="system" value="icd10-pl" checked{{search_disabled}}><span><strong>ICD-10</strong> rozpoznania</span></label>
+              <label class="filter"><input type="checkbox" name="system" value="icd9-pl"{{search_disabled}}><span><strong>ICD-9</strong> procedury</span></label>
+              <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>Procedury medyczne</strong> <em>w przygotowaniu</em></span></span>
+              <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>ICD-11</strong> <em>w przygotowaniu</em></span></span>
+            </fieldset>
+          </form>
+          <p class="search-help" id="search-help">{{search_help}}</p>
+        </div>
+      </section>
+
+      <section class="results shell shell-narrow" id="results" aria-label="Wyniki wyszukiwania" hidden>
+        <p class="results-status" id="results-status" role="status" aria-live="polite"></p>
+        <div id="result-groups"></div>
+      </section>
+
+      <section class="start shell shell-narrow" id="start" aria-label="Na skróty">
+        <h2 class="start-title">Na skróty</h2>
+        <ul class="start-list">
+          <li><a class="start-link" href="/slowniki/icd-10"><strong>Słownik ICD-10</strong><span>Przeglądaj rozpoznania rozdziałami</span></a></li>
+          <li><a class="start-link" href="/slowniki/icd-9"><strong>Słownik ICD-9</strong><span>Przeglądaj procedury według działów</span></a></li>
+          <li><a class="start-link" href="/zrodla"><strong>Źródła danych</strong><span>Wersje słowników i zarządzenia NFZ</span></a></li>
+        </ul>
+      </section>

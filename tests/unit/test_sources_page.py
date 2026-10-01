@@ -178,28 +178,46 @@ def test_sources_page_uses_only_reviewed_dom_and_network_boundaries() -> None:
     assert "<style" not in html
     assert "<script>" not in html
     assert 'src="/sources.js"' in html
-    assert 'href="/sources.css"' in html
+    assert 'href="/site.css"' in html
     assert 'rel="icon" type="image/svg+xml" href="/favicon.svg"' in html
     title = re.search(r"<title>[^<]+</title>", html)
     assert title is not None
     assert title.group() in (ROOT / "infra" / "ansible" / "site.yml").read_text()
     assert "<style" not in home
-    assert 'href="/home.css"' in home
+    assert 'href="/site.css"' in home
     assert 'rel="icon" type="image/svg+xml" href="/favicon.svg"' in home
-    assert 'class="hero-cta" href="/zrodla"' in home
+    assert 'href="/zrodla"' in home
+    # Without the reference API the maintenance home must not offer a dead search.
+    assert 'id="query"' in home and "disabled" in home
     assert "'unsafe-inline'" not in (STATIC_ROOT / "edge-nginx.conf").read_text()
 
 
 def test_normal_text_color_tokens_meet_wcag_aa_contrast() -> None:
-    sources_css = (STATIC_ROOT / "sources.css").read_text()
-    paper = _css_color_token(sources_css, "paper")
-    navy = _css_color_token(sources_css, "navy")
-    cobalt = _css_color_token(sources_css, "cobalt")
-    muted = _css_color_token(sources_css, "muted")
-
-    assert _contrast_ratio(navy, paper) >= 4.5
-    assert _contrast_ratio(cobalt, paper) >= 4.5
-    assert _contrast_ratio(muted, paper) >= 4.5
+    stylesheet = (ROOT / "apps" / "web" / "site.css").read_text()
+    text = ("ink", "ink-soft", "muted", "accent", "accent-strong", "ok", "warn", "bad")
+    for background in ("canvas", "surface"):
+        for name in text:
+            assert (
+                _contrast_ratio(
+                    _css_color_token(stylesheet, name),
+                    _css_color_token(stylesheet, background),
+                )
+                >= 4.5
+            ), (name, background)
+    for name, background in (
+        ("accent-strong", "accent-tint"),
+        ("accent-strong", "code-bg"),
+        ("warn", "warn-bg"),
+        ("bad", "bad-bg"),
+        ("muted", "canvas"),
+    ):
+        assert (
+            _contrast_ratio(
+                _css_color_token(stylesheet, name),
+                _css_color_token(stylesheet, background),
+            )
+            >= 4.5
+        ), (name, background)
 
 
 def test_pinned_nginx_and_installed_browser_render_sources_page(
@@ -235,9 +253,8 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
     volumes = [
         f"{STATIC_ROOT / 'edge-nginx.conf'}:/etc/nginx/nginx.conf:ro",
         f"{STATIC_ROOT / 'maintenance-index.html'}:/usr/share/nginx/html/index.html:ro",
-        f"{STATIC_ROOT / 'home.css'}:/usr/share/nginx/html/home.css:ro",
+        f"{STATIC_ROOT / 'legal.css'}:/usr/share/nginx/html/legal.css:ro",
         f"{STATIC_ROOT / 'sources.html'}:/usr/share/nginx/html/sources.html:ro",
-        f"{STATIC_ROOT / 'sources.css'}:/usr/share/nginx/html/sources.css:ro",
         f"{STATIC_ROOT / 'sources.js'}:/usr/share/nginx/html/sources.js:ro",
         f"{STATIC_ROOT / 'plausible-init.js'}:/usr/share/nginx/html/plausible-init.js:ro",
         f"{public_root}:/var/lib/minos/public:ro",
@@ -354,6 +371,7 @@ def _assert_exact_routes(port: int) -> None:
     assert "content-type: text/html" in lowered
     assert "connect-src 'self' https://plausible.io" in lowered
     assert "style-src 'self'" in lowered
+    assert "font-src 'self'" in lowered
     assert "unsafe-inline" not in lowered
     assert "x-content-type-options: nosniff" in lowered
     assert _curl(port, "/api/v1/provenance/rsk", "minoshealth.pl").endswith(
@@ -362,15 +380,13 @@ def _assert_exact_routes(port: int) -> None:
     assert _curl(port, "/api/v1/provenance/baw", "minoshealth.pl").endswith(
         "STATUS:200"
     )
-    stylesheet = _curl(port, "/sources.css", "minoshealth.pl")
-    home_stylesheet = _curl(port, "/home.css", "minoshealth.pl")
+    # The maintenance runtime serves the shared stylesheet from legal.css.
+    stylesheet = _curl(port, "/site.css", "minoshealth.pl")
     javascript = _curl(port, "/sources.js", "minoshealth.pl")
     redirect = _curl(port, "/zrodla", "minoshealth.com")
     www_redirect = _curl(port, "/zrodla", "www.minoshealth.com")
     assert stylesheet.endswith("STATUS:200")
     assert "content-type: text/css" in stylesheet.lower()
-    assert home_stylesheet.endswith("STATUS:200")
-    assert "content-type: text/css" in home_stylesheet.lower()
     assert javascript.endswith("STATUS:200")
     assert "content-type: application/javascript" in javascript.lower()
     assert redirect.endswith("STATUS:308")
@@ -381,8 +397,9 @@ def _assert_exact_routes(port: int) -> None:
         "/zrodla/",
         "/zrodla?alias=1",
         "/%7arodla",
-        "/sources.css?alias=1",
-        "/home.css?alias=1",
+        "/site.css?alias=1",
+        "/sources.css",
+        "/home.css",
         "/sources.js/",
         "/api/v1/provenance/baw?alias=1",
         "/api/v1/provenance/baw.json",

@@ -374,12 +374,14 @@ try {
   await client.send("Page.navigate", { url: new URL("/", pageUrl).href });
   await homeLoaded;
   const home = await evaluate(client, `(() => ({
-    cta: document.querySelector(".hero-cta")?.getAttribute("href"),
+    sources: Boolean(document.querySelector('.site-nav a[href="/zrodla"]')),
     value: document.querySelector("h1")?.textContent,
+    disabled: document.getElementById("query")?.disabled,
     overflow: document.documentElement.scrollWidth > innerWidth,
   }))()`);
-  assert.equal(home.cta, "/zrodla");
-  assert.match(home.value, /Kody medyczne/);
+  assert.equal(home.sources, true);
+  assert.match(home.value, /Znajdź kod/);
+  assert.equal(home.disabled, true);
   assert.equal(home.overflow, false);
   await screenshot(client, "home-mobile.png");
   await client.send("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });

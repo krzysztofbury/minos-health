@@ -7,6 +7,7 @@ from typing import TypedDict, cast
 import pytest
 from fastapi.testclient import TestClient
 
+from minos.domain.morphology import PolishMorphology
 from minos.domain.reference import ArtifactError
 from minos.domain.search import SearchRequest, SearchResult
 from minos.http.app import create_app
@@ -182,14 +183,19 @@ def test_busy_sql_workers_do_not_block_liveness_and_overload_is_explicit(
 
     lock = Lock()
 
-    def slow(connection: sqlite3.Connection, request: SearchRequest) -> SearchResult:
+    def slow(
+        connection: sqlite3.Connection,
+        request: SearchRequest,
+        *,
+        analyzer: PolishMorphology | None = None,
+    ) -> SearchResult:
         nonlocal occupied
         with lock:
             occupied += 1
             if occupied == 4:
                 entered.set()
         assert release.wait(5)
-        return real_search(connection, request)
+        return real_search(connection, request, analyzer=analyzer)
 
     monkeypatch.setattr(adapter, "search_reference", slow)
     with (
@@ -207,3 +213,26 @@ def test_busy_sql_workers_do_not_block_liveness_and_overload_is_explicit(
         finally:
             release.set()
         assert [future.result(timeout=3).status_code for future in futures] == [200] * 4
+
+
+def test_lookups_reuse_analyzers_loaded_before_readiness(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Cold dictionary loads exceeded the production request budget, so every
+    # analyzer must exist before readiness and no lookup may construct one.
+    constructed: list[object] = []
+    original = PolishMorphology.__init__
+
+    def counting(self: PolishMorphology) -> None:
+        constructed.append(self)
+        original(self)
+
+    monkeypatch.setattr(PolishMorphology, "__init__", counting)
+    with TestClient(create_app(bundle(tmp_path))) as client:
+        assert client.get("/readyz").status_code == 200
+        loaded = len(constructed)
+        assert loaded > 0
+        for query in ("Different synthetic title", "synthetic procedures", "A01"):
+            response = client.post("/api/v1/search", json=request_body(query))
+            assert response.status_code == 200
+        assert len(constructed) == loaded

@@ -5,6 +5,7 @@ import json
 import platform
 import sqlite3
 from collections.abc import Iterable
+from functools import cache
 from importlib.resources import files
 from typing import Literal, cast
 
@@ -37,7 +38,9 @@ TABLES = (
 )
 
 
+@cache
 def reference_sql(relative_path: str) -> str:
+    # Packaged SQL is immutable; rereading it per query cost more than the SQL.
     packaged = files("minos").joinpath("database/reference/sqlite", relative_path)
     if packaged.is_file():
         return packaged.read_text(encoding="utf-8")

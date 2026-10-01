@@ -35,7 +35,24 @@ unavailable/changed artifacts 503. Errors expose only fixed machine-readable
 codes, never the submitted query or exception details. The edge rejects URL
 query parameters and private artifact paths with 404. All responses are no-store.
 
+## Dictionary Tree
+
+`GET /api/v1/tree/{release_id}/{node}` browses one selectable catalog's source
+hierarchy. `node` is `0` for the top level or a positive source node number
+returned by an earlier tree or search response; paths carry no free text and
+any URL query is rejected. Each answer lists at most 400 direct structural
+children in source order. Anonymous RSK containers are flattened, while source
+text and modifier nodes appear only as the selected node's `notes`.
+
+ICD-9 PL has no CZS hierarchy, so `supporting_hierarchy: true` marks the NFZ
+workbook as the tree, with `hierarchy_release_id` naming it. Labels, status,
+dates and inclusion/exclusion text still come from the canonical CZS concept by
+exact code; workbook-only nodes carry `canonical: false`. CZS codes without a
+workbook position are listed separately in `unplaced` and never re-parented.
+Unknown releases, supporting releases and non-structural nodes return 404.
+
 `/healthz` checks API process liveness; `/readyz` also checks the verified dataset.
-The website is `/szukaj`. The metadata-only catalog remains `/zrodla`.
+The website search is `/` (the old `/szukaj` redirects there); dictionaries are
+`/slowniki`, and the metadata-only catalog remains `/zrodla`.
 
 See [deployment scope and acceptance](validation/reference-web-rollout.md).

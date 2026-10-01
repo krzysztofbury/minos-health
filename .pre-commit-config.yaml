@@ -79,6 +79,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(?:apps/web/|infra/ansible/files/sources\.js$|scripts/build_catalog_assets\.py$)
+      - id: site-pages
+        name: rendered site pages are current
+        entry: uv run python scripts/build_site.py --check
+        language: system
+        pass_filenames: false
+        files: ^(?:apps/web/|infra/ansible/files/|scripts/build_site\.py$|src/minos/http/page_shell\.html$)
       - id: license-policy
         name: dependency license policy
         entry: >-

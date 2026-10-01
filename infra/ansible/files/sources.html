@@ -5,46 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="index, follow">
     <meta name="description" content="Przejrzyj słowniki medyczne i zarządzenia NFZ. Sprawdź wersję, historię zmian i daty dokumentów oraz otwórz pliki w oficjalnym źródle.">
+    <meta name="theme-color" content="#ffffff">
     <link rel="canonical" href="https://minoshealth.pl/zrodla">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <meta property="og:title" content="Źródła danych medycznych - Minos Health">
-    <meta property="og:description" content="Słowniki medyczne i zarządzenia NFZ: wersje, daty i pliki w oficjalnych źródłach.">
+    <meta property="og:description" content="Przejrzyj słowniki medyczne i zarządzenia NFZ. Sprawdź wersję, historię zmian i daty dokumentów oraz otwórz pliki w oficjalnym źródle.">
     <meta property="og:url" content="https://minoshealth.pl/zrodla">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="pl_PL">
+    <meta property="og:site_name" content="Minos Health">
+    <meta name="twitter:card" content="summary">
     <title>Źródła danych medycznych - Minos Health</title>
-    <link rel="stylesheet" href="/sources.css">
+    <link rel="stylesheet" href="/site.css">
+
     <script src="/plausible-init.js"></script>
     <script async src="https://plausible.io/js/pa-NFvtUdLPyyrZ5D9U4M1M9.js"></script>
     <script defer src="/sources.js"></script>
   </head>
-  <body>
-    <a class="skip-link" href="#catalog">Przejdź do źródeł</a>
+  <body class="">
+    <a class="skip-link" href="#main">Przejdź do treści</a>
     <header class="site-header">
-      <a class="brand" href="/" aria-label="Minos Health - strona główna">Minos <span>Health</span></a>
-      <nav aria-label="Główna nawigacja">
-        <a href="/">Strona główna</a>
-        <a aria-current="page" href="/zrodla">Źródła danych</a>
-      </nav>
+      <div class="shell site-header-inner">
+        <a class="brand" href="/" aria-label="Minos Health, strona główna">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="7"/><path d="M7 24V8h4.6L16 16.4 20.4 8H25v16h-4.2v-9L16 23.6 11.2 15v9z"/></svg>
+          <span class="brand-name">Minos <span>Health</span></span>
+        </a>
+        <nav class="site-nav" aria-label="Główna nawigacja">
+            <a href="/">Wyszukiwarka</a>
+            <a href="/zrodla" aria-current="page">Źródła danych</a>
+        </nav>
+        <details class="menu">
+          <summary class="menu-toggle"><span class="menu-icon" aria-hidden="true"></span><span class="menu-label">Menu</span></summary>
+          <nav class="menu-nav" aria-label="Menu">
+            <a href="/">Wyszukiwarka</a>
+            <a href="/zrodla" aria-current="page">Źródła danych</a>
+          </nav>
+        </details>
+      </div>
     </header>
+    <main id="main" tabindex="-1">
+      <div class="shell page-head">
+        <h1>Źródła danych</h1>
+        <p class="page-lead">Skąd pochodzą słowniki i zarządzenia NFZ, które wersje sprawdziliśmy i gdzie otworzysz oryginalne pliki.</p>
+        <dl class="source-legend">
+          <div><dt>RSK</dt><dd>Rejestr Systemów Kodowania, oficjalne słowniki medyczne (np. ICD-10).</dd></div>
+          <div><dt>BAW NFZ</dt><dd>Baza Aktów Własnych NFZ, zarządzenia Prezesa NFZ i ich zmiany.</dd></div>
+          <div><dt>CZS NFZ</dt><dd>Centralne Zasoby Słownikowe NFZ, katalog ICD-9 używany w wyszukiwarce.</dd></div>
+        </dl>
+      </div>
 
-    <main>
-      <section class="hero" aria-labelledby="page-title">
-        <div>
-          <p class="eyebrow">Słowniki i zarządzenia</p>
-          <h1 id="page-title">Źródła danych <em>medycznych.</em></h1>
-          <p class="lead">Znajdź słownik medyczny lub zarządzenie NFZ. Sprawdź wersję i daty dokumentów, przejrzyj historię zmian i otwórz pliki w oficjalnym źródle. Wyszukiwanie pojedynczych kodów i procedur jest w przygotowaniu.</p>
-        </div>
-        <aside class="hero-aside">
-          <strong>Wybierz dokument dla właściwej daty.</strong>
-          <p>Najnowszy dokument nie zawsze dotyczy wcześniejszych świadczeń. Datę wejścia w życie i okres stosowania do rozliczeń sprawdź w treści zarządzenia.</p>
-        </aside>
-      </section>
-
-      <section id="catalog" class="catalog" aria-labelledby="catalog-title">
+      <section id="catalog" class="shell catalog" aria-labelledby="catalog-title">
         <div class="catalog-header">
-          <div>
-            <p class="section-index">Katalog</p>
-            <h2 id="catalog-title">Słowniki i zarządzenia</h2>
-          </div>
+          <h2 id="catalog-title">Katalog wersji</h2>
           <p id="result-count" class="result-count" aria-live="polite"></p>
         </div>
 
@@ -55,51 +67,42 @@
             <button type="button" role="tab" data-source="baw" aria-selected="false" aria-controls="catalog-results">Zarządzenia NFZ</button>
           </div>
           <div class="search-field">
-            <label for="source-search">Szukaj w całym katalogu</label>
-            <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" aria-describedby="search-note search-feedback" placeholder="np. ICD10, NFZ, załącznik 9"><button id="reset-search" type="button">Wyczyść</button></div>
+            <label for="source-search">Filtruj katalog</label>
+            <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" aria-describedby="search-note search-feedback" placeholder="np. ICD10, 46/2026, załącznik 9"><button id="reset-search" class="button button-quiet" type="button">Wyczyść</button></div>
           </div>
-          <p id="search-note" class="search-note">Szukasz po nazwach, numerach, nazwach plików i metadanych wersji, nie w treści plików ani po kodach medycznych. Kolejność słów nie ma znaczenia. Wpisane słowa pozostają na tym urządzeniu. Nie wpisuj danych pacjentów.</p>
+          <p id="search-note" class="search-note">Filtr działa na nazwach, numerach i nazwach plików. Nie przeszukuje treści plików ani kodów.</p>
           <p id="search-feedback" class="search-note" role="status" aria-live="polite"></p>
           <div id="search-suggestions" class="search-suggestions" aria-live="polite"></div>
         </div>
 
         <div id="source-summary" class="source-summary" aria-live="polite"></div>
         <p id="load-state" class="load-state" role="status" aria-live="polite">Wczytywanie słowników i zarządzeń...</p>
-        <button id="retry-button" class="retry-button" type="button" hidden>Odśwież dane</button>
+        <button id="retry-button" class="button" type="button" hidden>Odśwież dane</button>
         <div id="catalog-results" class="cards" role="tabpanel" aria-live="polite"></div>
-        <button id="more-results" class="retry-button" type="button" hidden>Pokaż kolejne zestawy</button>
-        <p id="empty-state" class="empty-state" hidden>Brak pasujących danych. Spróbuj innej nazwy lub wybierz wszystkie źródła.</p>
+        <button id="more-results" class="button button-quiet more-results" type="button" hidden>Pokaż kolejne</button>
+        <p id="empty-state" class="empty-state" hidden>Nic nie pasuje. Spróbuj innej nazwy lub wybierz wszystkie źródła.</p>
       </section>
 
-      <section class="methodology" aria-labelledby="methodology-title">
-        <div>
-          <p class="section-index">Jak czytać katalog</p>
-          <h2 id="methodology-title">Sprawdź wersję i datę.</h2>
-        </div>
-        <div class="methodology-grid">
-          <article>
-            <h3>Gdzie otworzysz pliki?</h3>
-            <p>RSK (Rejestr Systemów Kodowania) udostępnia słowniki medyczne różnych wydawców. BAW (Baza Aktów Własnych) zawiera zarządzenia NFZ. Linki prowadzą do tych oficjalnych źródeł, nie do pobierania kopii z Minos.</p>
-          </article>
-          <article>
-            <h3>Jak czytać historię zarządzenia?</h3>
-            <p>Pod jednym zarządzeniem znajdziesz dokument pierwotny, teksty po zmianach i porównania. Zarządzenie zmieniające ma własny numer i odnośnik. Tekst po zmianach ułatwia czytanie, ale nie zastępuje sprawdzenia podstawy prawnej.</p>
-          </article>
-          <article>
-            <h3>Która data ma znaczenie?</h3>
-            <p>„Ostatnio sprawdzono” oznacza aktualizację katalogu Minos, nie początek obowiązywania przepisów. Data publikacji, wejście w życie i okres świadczeń mogą się różnić. Katalog nie potwierdza poprawności rozliczenia konkretnej hospitalizacji. Minos nie jest zatwierdzony przez NFZ, RSK ani WHO.</p>
-          </article>
-        </div>
+      <section class="shell how-to" aria-labelledby="how-to-title">
+        <h2 id="how-to-title">Jak czytać daty</h2>
+        <ul class="how-to-list">
+          <li><strong>„Ostatnio sprawdzono”</strong> to dzień, w którym Minos porównał katalog ze źródłem. Nie jest to data wejścia przepisów w życie.</li>
+          <li><strong>Data aktu, wejście w życie i okres świadczeń</strong> mogą się różnić. Dla konkretnej hospitalizacji sprawdź je w treści zarządzenia.</li>
+          <li><strong>Linki</strong> prowadzą do oficjalnych serwisów RSK i NFZ. Minos nie udostępnia kopii plików. Minos nie jest zatwierdzony przez NFZ, RSK ani WHO.</li>
+        </ul>
       </section>
+      <noscript><p class="shell noscript">Katalog wymaga JavaScript. Możesz przejść bezpośrednio do <a href="https://rsk3.ezdrowie.gov.pl/">Rejestru Systemów Kodowania</a> lub <a href="https://baw.nfz.gov.pl/">Bazy Aktów Własnych NFZ</a>.</p></noscript>
     </main>
-
-    <footer>
-      <span>Minos Health</span>
-      <a href="/">Strona główna</a>
-      <a href="/polityka-prywatnosci">Polityka prywatności</a>
-      <a href="/regulamin">Regulamin</a>
-      <a href="mailto:kontakt@minoshealth.pl">Kontakt</a>
+    <footer class="site-footer">
+      <div class="shell site-footer-inner">
+        <p class="footer-note">Minos Health pokazuje treść oficjalnych słowników i nie zastępuje dokumentacji medycznej ani decyzji NFZ. <strong>Nie wpisuj danych pacjentów.</strong></p>
+        <nav class="footer-nav" aria-label="Informacje o serwisie">
+          <a href="/zrodla">Źródła danych</a>
+          <a href="/polityka-prywatnosci">Polityka prywatności</a>
+          <a href="/regulamin">Regulamin</a>
+          <a href="mailto:kontakt@minoshealth.pl">kontakt@minoshealth.pl</a>
+        </nav>
+      </div>
     </footer>
-    <noscript><p class="noscript">Możesz przejść bezpośrednio do <a href="https://rsk3.ezdrowie.gov.pl/">Rejestru Systemów Kodowania</a> lub <a href="https://baw.nfz.gov.pl/">Bazy Aktów Własnych NFZ</a>. Włącz JavaScript, aby przeglądać katalog Minos.</p></noscript>
   </body>
 </html>

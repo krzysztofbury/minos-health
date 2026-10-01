@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hcd xmlns="http://rsk.rejestrymedyczne.csioz.gov.pl" hcd="00CD10" visible="true" closed="2" version="7" applicationdate="2017-04-24" registrationdate="2017-06-22" maxchars="100">
+  <expirationreason>synthetic</expirationreason><name>Synthetic ranking</name><common_name>ICD10</common_name>
+  <codesformat>X99.99</codesformat><charset>ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.</charset>
+  <minreusetime>100</minreusetime><languages>PL/en</languages><link>https://example.invalid/synthetic-ranking</link>
+  <nodes>
+    <node code="A00-A99"><name>Rozdział rankingu</name><nodes>
+      <node code="A01"><name>Inna choroba testowa</name><nodes>
+        <node code=""><name>Zapalenie rankingowe płatowe</name></node>
+      </nodes></node>
+      <node code="A02"><name>Ciężkie zapalenie rankingowe</name><nodes>
+        <node code=".1"><name>Zapalenie rankingowe ciężkie</name></node>
+      </nodes></node>
+      <node code="A03"><name>Zapalenie rankingowe nieokreślone</name></node>
+    </nodes></node>
+  </nodes>
+</hcd>

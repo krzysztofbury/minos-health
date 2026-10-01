@@ -1,0 +1,48 @@
+      <div class="shell page-head">
+        <h1>Źródła danych</h1>
+        <p class="page-lead">Skąd pochodzą słowniki i zarządzenia NFZ, które wersje sprawdziliśmy i gdzie otworzysz oryginalne pliki.</p>
+        <dl class="source-legend">
+          <div><dt>RSK</dt><dd>Rejestr Systemów Kodowania, oficjalne słowniki medyczne (np. ICD-10).</dd></div>
+          <div><dt>BAW NFZ</dt><dd>Baza Aktów Własnych NFZ, zarządzenia Prezesa NFZ i ich zmiany.</dd></div>
+          <div><dt>CZS NFZ</dt><dd>Centralne Zasoby Słownikowe NFZ, katalog ICD-9 używany w wyszukiwarce.</dd></div>
+        </dl>
+      </div>
+
+      <section id="catalog" class="shell catalog" aria-labelledby="catalog-title">
+        <div class="catalog-header">
+          <h2 id="catalog-title">Katalog wersji</h2>
+          <p id="result-count" class="result-count" aria-live="polite"></p>
+        </div>
+
+        <div class="controls">
+          <div class="source-tabs" role="tablist" aria-label="Wybierz źródło danych">
+            <button type="button" role="tab" data-source="all" aria-selected="true" aria-controls="catalog-results">Wszystkie</button>
+            <button type="button" role="tab" data-source="rsk" aria-selected="false" aria-controls="catalog-results">Słowniki RSK</button>
+            <button type="button" role="tab" data-source="baw" aria-selected="false" aria-controls="catalog-results">Zarządzenia NFZ</button>
+          </div>
+          <div class="search-field">
+            <label for="source-search">Filtruj katalog</label>
+            <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" aria-describedby="search-note search-feedback" placeholder="np. ICD10, 46/2026, załącznik 9"><button id="reset-search" class="button button-quiet" type="button">Wyczyść</button></div>
+          </div>
+          <p id="search-note" class="search-note">Filtr działa na nazwach, numerach i nazwach plików. Nie przeszukuje treści plików ani kodów.</p>
+          <p id="search-feedback" class="search-note" role="status" aria-live="polite"></p>
+          <div id="search-suggestions" class="search-suggestions" aria-live="polite"></div>
+        </div>
+
+        <div id="source-summary" class="source-summary" aria-live="polite"></div>
+        <p id="load-state" class="load-state" role="status" aria-live="polite">Wczytywanie słowników i zarządzeń...</p>
+        <button id="retry-button" class="button" type="button" hidden>Odśwież dane</button>
+        <div id="catalog-results" class="cards" role="tabpanel" aria-live="polite"></div>
+        <button id="more-results" class="button button-quiet more-results" type="button" hidden>Pokaż kolejne</button>
+        <p id="empty-state" class="empty-state" hidden>Nic nie pasuje. Spróbuj innej nazwy lub wybierz wszystkie źródła.</p>
+      </section>
+
+      <section class="shell how-to" aria-labelledby="how-to-title">
+        <h2 id="how-to-title">Jak czytać daty</h2>
+        <ul class="how-to-list">
+          <li><strong>„Ostatnio sprawdzono”</strong> to dzień, w którym Minos porównał katalog ze źródłem. Nie jest to data wejścia przepisów w życie.</li>
+          <li><strong>Data aktu, wejście w życie i okres świadczeń</strong> mogą się różnić. Dla konkretnej hospitalizacji sprawdź je w treści zarządzenia.</li>
+          <li><strong>Linki</strong> prowadzą do oficjalnych serwisów RSK i NFZ. Minos nie udostępnia kopii plików. Minos nie jest zatwierdzony przez NFZ, RSK ani WHO.</li>
+        </ul>
+      </section>
+      <noscript><p class="shell noscript">Katalog wymaga JavaScript. Możesz przejść bezpośrednio do <a href="https://rsk3.ezdrowie.gov.pl/">Rejestru Systemów Kodowania</a> lub <a href="https://baw.nfz.gov.pl/">Bazy Aktów Własnych NFZ</a>.</p></noscript>

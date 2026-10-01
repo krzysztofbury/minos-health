@@ -155,7 +155,7 @@ def main(arguments: Arguments) -> None:
                 "node",
                 str(ROOT / "tests/browser/search-browser.mjs"),
                 arguments.chromium,
-                f"http://minoshealth.pl:{port}/szukaj",
+                f"http://minoshealth.pl:{port}/",
                 str(output),
             ],
             timeout=90,

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="{{robots}}">
+    <meta name="description" content="{{description}}">
+    <meta name="theme-color" content="#ffffff">
+    <link rel="canonical" href="https://minoshealth.pl{{path}}">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <meta property="og:title" content="{{title}}">
+    <meta property="og:description" content="{{description}}">
+    <meta property="og:url" content="https://minoshealth.pl{{path}}">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="pl_PL">
+    <meta property="og:site_name" content="Minos Health">
+    <meta name="twitter:card" content="summary">
+    <title>{{title}}</title>
+{{preload}}    <link rel="stylesheet" href="/site.css">
+{{head_extra}}
+{{scripts}}  </head>
+  <body class="{{body_class}}">
+    <a class="skip-link" href="#main">Przejdź do treści</a>
+    <header class="site-header">
+      <div class="shell site-header-inner">
+        <a class="brand" href="/" aria-label="Minos Health, strona główna">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="7"/><path d="M7 24V8h4.6L16 16.4 20.4 8H25v16h-4.2v-9L16 23.6 11.2 15v9z"/></svg>
+          <span class="brand-name">Minos <span>Health</span></span>
+        </a>
+        <nav class="site-nav" aria-label="Główna nawigacja">
+{{nav}}
+        </nav>
+        <details class="menu">
+          <summary class="menu-toggle"><span class="menu-icon" aria-hidden="true"></span><span class="menu-label">Menu</span></summary>
+          <nav class="menu-nav" aria-label="Menu">
+{{nav}}
+          </nav>
+        </details>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+{{content}}
+    </main>
+    <footer class="site-footer">
+      <div class="shell site-footer-inner">
+        <p class="footer-note">Minos Health pokazuje treść oficjalnych słowników i nie zastępuje dokumentacji medycznej ani decyzji NFZ. <strong>Nie wpisuj danych pacjentów.</strong></p>
+        <nav class="footer-nav" aria-label="Informacje o serwisie">
+{{footer_nav}}
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

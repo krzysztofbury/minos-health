@@ -1,151 +1,393 @@
-"use strict";
-(() => {
-  const query = document.getElementById("query");
-  const release = document.getElementById("release");
-  const state = document.getElementById("state");
-  const results = document.getElementById("results");
-  const provenance = document.getElementById("provenance");
-  const labels = { exact_code: "Dokładny kod", exact_description: "Dokładny opis", prefix_tokens: "Fragmenty tekstu", morphology_tokens: "Odmiana wyrazów", substring: "Fragment opisu" };
-  let sources = [];
-  let timer;
-  let controller;
-  let generation = 0;
-  function element(tag, text, className) {
-    const node = document.createElement(tag);
-    if (text !== undefined) node.textContent = text;
+/* Home search: grouped results and suggestions while typing.
+   Queries travel only in POST bodies, never in URLs, storage or analytics. */
+(function () {
+  "use strict";
+
+  var SYSTEMS = {
+    "icd10-pl": { name: "ICD-10", group: "Rozpoznania (ICD-10)", empty: "Brak wyników w ICD-10.", path: "/slowniki/icd-10" },
+    "icd9-pl": { name: "ICD-9", group: "Procedury (ICD-9)", empty: "Brak wyników w ICD-9.", path: "/slowniki/icd-9" }
+  };
+  var ORDER = ["icd10-pl", "icd9-pl"];
+  var FIRST_PAGE = 10;
+  var MAX_RESULTS = 20;
+  var SUGGEST_LIMIT = 4;
+  var HANDOFF_KEY = "minos.dictionary.query";
+
+  var form = document.getElementById("search-form");
+  var input = document.getElementById("query");
+  var submit = document.getElementById("search-submit");
+  var list = document.getElementById("suggestions");
+  var help = document.getElementById("search-help");
+  var results = document.getElementById("results");
+  var statusLine = document.getElementById("results-status");
+  var groups = document.getElementById("result-groups");
+  var start = document.getElementById("start");
+  var boxes = Array.prototype.slice.call(form.querySelectorAll('input[name="system"]'));
+
+  var releases = {};
+  var suggestTimer = 0;
+  var suggestController = null;
+  var searchController = null;
+  var options = [];
+  var active = -1;
+
+  function element(name, className, text) {
+    var node = document.createElement(name);
     if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
     return node;
   }
-  function source() { return sources.find((item) => item.release_id === release.value); }
-  function sourceLink(sourceUrl, text) {
-    const url = new URL(sourceUrl);
-    if (url.protocol !== "https:" || !["www.nfz.gov.pl", "slowniki.nfz.gov.pl", "rsk.ezdrowie.gov.pl", "rsk3.ezdrowie.gov.pl"].includes(url.hostname)) return null;
-    const link = element("a", text);
-    link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
-    return link;
+
+  function plural(count, one, few, many) {
+    var tens = count % 100;
+    var units = count % 10;
+    if (count === 1) return one;
+    if (units >= 2 && units <= 4 && (tens < 12 || tens > 14)) return few;
+    return many;
   }
-  function renderContext(context, summary) {
-    const details = element("details");
-    details.append(element("summary", summary));
-    const list = element("ul");
-    for (const node of context.nodes) list.append(element("li", `${node.code || "Tekst"}: ${node.label}`));
-    details.append(list);
-    const codes = new Map(context.nodes.map((node) => [node.ordinal, node.code || "Tekst"]));
-    for (const edge of context.edges) details.append(element("p", `${codes.get(edge.parent)} -> ${codes.get(edge.child)} (contains)`));
-    return details;
+
+  function normalize(text) {
+    return text.replace(/\s+/g, " ").trim();
   }
-  function showProvenance() {
-    provenance.replaceChildren();
-    const selected = source();
-    if (!selected) return;
-    provenance.append(element("h2", `${selected.publisher} - ${selected.source_version}`));
-    provenance.append(element("p", `Wersja źródła: ${selected.release_id}. ${selected.origin === "czs" ? "Jedyny katalog ICD-9: CZS ze statusami i datami. Hierarchia NFZ jest osobnym dowodem pomocniczym, nie zmienia kodów ani opisów CZS." : "ICD-10 PL z RSK: zachowane opisy i hierarchia źródła. Kody modyfikatorów nie są rozwijane w rozpoznania."}`));
-    provenance.append(element("p", `Warunki źródła: ${selected.license}`));
-    for (const notice of selected.notices || []) provenance.append(element("p", notice, "evidence"));
-    const link = sourceLink(selected.source_url, "Pobierz plik bezpośrednio z oficjalnego źródła");
-    if (link) provenance.append(link);
-    if (selected.system === "icd10-pl") {
-      const license = element("a", "CC BY-NC-SA 3.0 IGO - treść licencji");
-      license.href = "https://creativecommons.org/licenses/by-nc-sa/3.0/igo/";
-      license.target = "_blank"; license.rel = "noopener noreferrer";
-      provenance.append(license);
-    }
+
+  function validate(text) {
+    if (!text) return "Wpisz kod albo kilka słów opisu.";
+    if (text.length > 120) return "Wpisz najwyżej 120 znaków.";
+    if (text.split(" ").length > 8) return "Wpisz najwyżej 8 słów.";
+    if (/[\u0000-\u001f\u007f]/.test(text)) return "Usuń znaki sterujące z zapytania.";
+    return "";
   }
-  function render(answer) {
-    if (answer.api !== 1 || !Array.isArray(answer.results) || answer.results.length > 20) throw new Error("invalid response");
-    results.replaceChildren();
-    if (Array.isArray(answer.morphology) && answer.morphology.length) {
-      results.append(element("p", `Analiza językowa (${answer.morphology_version}): ${answer.morphology.map((item) => `${item.token} -> ${item.alternatives.join(", ")}`).join("; ")}. Alternatywy językowe, nie synonimy medyczne.`, "evidence"));
-    }
-    if (Array.isArray(answer.interpretation) && answer.interpretation.length) results.append(element("p", `Interpretacja zapytania: ${answer.effective_query}.`, "evidence"));
-    for (const hit of answer.results) {
-      const card = element("article");
-      card.tabIndex = 0;
-      const heading = element("h2");
-      heading.append(element("span", hit.code || "Bez kodu", "code"), element("span", hit.label));
-      card.append(heading, element("span", labels[hit.match_type] || hit.match_type, "badge"));
-      const attributes = hit.source_attributes || {};
-      if (attributes.status) card.append(element("span", `Status źródła: ${attributes.status}`, attributes.status === "N" ? "badge inactive" : "badge"));
-      for (const name of ["data_od", "data_do", "level"]) if (attributes[name]) card.append(element("span", `${name}: ${attributes[name]}`, "badge"));
-      if (hit.match.description_type === "context") {
-        const marker = hit.match.source_attributes.evidence_kind || "Kontekst źródła";
-        card.append(element("p", `${marker}: ${hit.match.text}`, "evidence"));
-      } else if (hit.match.text !== hit.label) {
-        card.append(element("p", `${hit.match.description_type}: ${hit.match.text}`, "evidence"));
-      }
-      const evidence = element("details");
-      evidence.append(element("summary", "Dokładne atrybuty i pochodzenie dowodu"));
-      const attributesList = element("ul");
-      for (const [name, value] of Object.entries(attributes)) attributesList.append(element("li", `${name}: ${value}`));
-      for (const [name, value] of Object.entries(hit.match.source_attributes || {})) if (attributes[name] !== value) attributesList.append(element("li", `Dopasowanie - ${name}: ${value}`));
-      attributesList.append(element("li", `Tekst dopasowania: ${hit.match.text}`), element("li", `Źródłowy kod: ${hit.source_code}`), element("li", `SHA-256 źródła: ${answer.provenance.source_sha256}`));
-      evidence.append(attributesList); card.append(evidence);
-      if (hit.context.nodes.length > 1) {
-        card.append(renderContext(hit.context, "Pełny kontekst i powiązania źródła"));
-      }
-      for (const supporting of hit.supporting_contexts || []) {
-        const details = renderContext(supporting.context, "Pomocnicza hierarchia NFZ - nie pochodzi z CZS");
-        details.append(element("p", `${supporting.publisher} - ${supporting.source_version}; ${supporting.release_id}; SHA-256: ${supporting.source_sha256}`));
-        details.append(element("p", "Powiązanie tylko po dokładnym kodzie. Opisy skoroszytu nie zastępują opisu CZS."));
-        const link = sourceLink(supporting.source_url, "Oficjalny skoroszyt NFZ");
-        if (link) details.append(link);
-        card.append(details);
-      }
-      results.append(card);
-    }
-    const count = answer.results.length;
-    state.textContent = count ? `${count} wyników${answer.truncated ? " (limit listy)" : ""}. Wybrana wersja: ${answer.release_id}.` : "Brak wyników w wybranej wersji źródła.";
-    if (Array.isArray(answer.suggestions) && answer.suggestions.length) state.textContent += ` Propozycje pisowni (nie wykonano): ${answer.suggestions.map((item) => item.query).join("; ")}.`;
+
+  function selectedSystems() {
+    return boxes.filter(function (box) { return box.checked && releases[box.value]; })
+      .map(function (box) { return box.value; });
   }
-  async function search() {
-    const value = query.value.trim();
-    const current = ++generation;
-    if (controller) controller.abort();
-    if (!value) { results.replaceChildren(); state.textContent = "Wpisz kod lub opis."; return; }
-    const selected = source();
-    if (!selected) return;
-    const active = new AbortController();
-    controller = active;
-    const timeout = setTimeout(() => active.abort(), 5000);
-    state.textContent = "Wyszukiwanie...";
-    try {
-      const response = await fetch("/api/v1/search", {
-        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
-        signal: active.signal, body: JSON.stringify({ system: selected.system, release_id: selected.release_id, query: value, limit: 10 }),
+
+  function dictionaryHref(system, code) {
+    // Each code has a stable, citable page; the dictionary tree is one click away.
+    return SYSTEMS[system].path + (code ? "/" + encodeURIComponent(code) : "");
+  }
+
+  function failureMessage(code) {
+    if (code === "limit_exceeded") return "Wyszukiwanie tej frazy trwało zbyt długo. Spróbuj ponownie albo wpisz dokładniejszy opis.";
+    if (code === "busy") return "Wyszukiwarka jest teraz zajęta. Spróbuj ponownie za chwilę.";
+    if (code === "invalid_request") return "Tego zapytania nie da się wyszukać. Zmień frazę.";
+    return "Słownik jest chwilowo niedostępny. Spróbuj ponownie za chwilę.";
+  }
+
+  function lookup(system, query, limit, signal) {
+    var release = releases[system];
+    return fetch("/api/v1/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ system: system, release_id: release.release_id, query: query, limit: limit }),
+      cache: "no-store",
+      credentials: "omit",
+      signal: signal
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (body) {
+        if (response.ok && Array.isArray(body.results)) return body;
+        var code = body && body.error && body.error.code;
+        var error = new Error("search failed");
+        error.code = code || (response.status >= 500 ? "unavailable" : "invalid_request");
+        throw error;
       });
-      if (current !== generation) return;
-      if (!response.ok) { results.replaceChildren(); state.textContent = response.status === 429 ? "Limit zapytań. Spróbuj za chwilę." : "Nie można wykonać zapytania. Użyj maksymalnie 8 słów i 256 znaków."; return; }
-      const answer = await response.json();
-      if (current === generation) render(answer);
-    } catch (error) {
-      if (current === generation) { results.replaceChildren(); state.textContent = error.name === "AbortError" ? "Zapytanie przerwane lub przekroczono czas." : "Usługa chwilowo niedostępna."; }
-    } finally { clearTimeout(timeout); }
+    });
   }
-  query.addEventListener("input", () => { clearTimeout(timer); generation += 1; if (controller) controller.abort(); timer = setTimeout(search, 250); });
-  release.addEventListener("change", () => { clearTimeout(timer); showProvenance(); search(); });
-  query.addEventListener("keydown", (event) => { if (event.key === "Enter") { clearTimeout(timer); search(); } });
-  query.addEventListener("keydown", (event) => { const first = results.querySelector("article"); if (event.key === "ArrowDown" && first) { event.preventDefault(); first.focus(); } });
-  results.addEventListener("keydown", (event) => {
-    const card = event.target.closest("article");
-    if (!card) return;
-    if (event.key === "ArrowDown") { event.preventDefault(); (card.nextElementSibling || card).focus(); }
-    if (event.key === "ArrowUp") { event.preventDefault(); if (card.previousElementSibling) card.previousElementSibling.focus(); else query.focus(); }
-    if (event.key === "Enter" && event.target === card) { const details = card.querySelector("details"); if (details) details.open = !details.open; }
+
+  /* Suggestions while typing (WAI-ARIA combobox with listbox popup). */
+  function closeSuggestions() {
+    list.hidden = true;
+    list.replaceChildren();
+    options = [];
+    active = -1;
+    input.setAttribute("aria-expanded", "false");
+    input.removeAttribute("aria-activedescendant");
+  }
+
+  function highlight(index) {
+    options.forEach(function (option, position) {
+      option.node.setAttribute("aria-selected", position === index ? "true" : "false");
+    });
+    active = index;
+    if (index >= 0) {
+      input.setAttribute("aria-activedescendant", options[index].node.id);
+      options[index].node.scrollIntoView({ block: "nearest" });
+    } else {
+      input.removeAttribute("aria-activedescendant");
+    }
+  }
+
+  function openOption(option) {
+    window.location.assign(dictionaryHref(option.system, option.code));
+  }
+
+  function showSuggestions(items) {
+    list.replaceChildren();
+    options = [];
+    items.forEach(function (item, index) {
+      var node = element("li", "suggestion");
+      node.id = "suggestion-" + index;
+      node.setAttribute("role", "option");
+      node.setAttribute("aria-selected", "false");
+      node.append(
+        element("span", "code-chip", item.code),
+        element("span", "suggestion-label", normalize(item.label)),
+        element("span", "suggestion-system", SYSTEMS[item.system].name)
+      );
+      node.addEventListener("mousedown", function (event) { event.preventDefault(); });
+      node.addEventListener("click", function () { openOption(item); });
+      options.push({ node: node, system: item.system, code: item.code });
+      list.append(node);
+    });
+    active = -1;
+    list.hidden = items.length === 0;
+    input.setAttribute("aria-expanded", items.length ? "true" : "false");
+  }
+
+  function suggest() {
+    var query = normalize(input.value);
+    if (suggestController) suggestController.abort();
+    if (query.length < 2 || validate(query)) { closeSuggestions(); return; }
+    var systems = selectedSystems();
+    if (!systems.length) { closeSuggestions(); return; }
+    suggestController = new AbortController();
+    var signal = suggestController.signal;
+    Promise.all(systems.map(function (system) {
+      return lookup(system, query, SUGGEST_LIMIT, signal)
+        .then(function (answer) { return answer.results.map(function (hit) { return { system: system, code: hit.code, label: hit.label }; }); })
+        .catch(function () { return []; });
+    })).then(function (perSystem) {
+      if (signal.aborted || normalize(input.value) !== query) return;
+      var merged = [];
+      for (var row = 0; row < SUGGEST_LIMIT; row++) {
+        perSystem.forEach(function (items) { if (items[row] && items[row].code) merged.push(items[row]); });
+      }
+      showSuggestions(merged.slice(0, 8));
+    });
+  }
+
+  /* Grouped results. */
+  function badgeFor(hit, system) {
+    var status = hit.source_attributes && hit.source_attributes.status;
+    if (system === "icd9-pl" && status && status !== "A") return element("span", "badge badge-warn", "Status " + status + " w CZS");
+    if (hit.match_type === "morphology_tokens") return element("span", "badge badge-muted", "inna forma słowa");
+    if (hit.match_type === "substring") return element("span", "badge badge-muted", "fragment słowa");
+    return null;
+  }
+
+  function renderHits(system, answer, listNode) {
+    listNode.replaceChildren();
+    answer.results.forEach(function (hit) {
+      var item = element("li");
+      var link = element("a", "result");
+      link.href = dictionaryHref(system, hit.code);
+      link.append(element("span", "code-chip", hit.code || "-"), element("span", "result-label", normalize(hit.label || "")));
+      var matched = normalize((hit.match && hit.match.text) || "");
+      if (matched && matched.toLowerCase() !== normalize(hit.label || "").toLowerCase()) {
+        link.append(element("span", "result-why", "Pasuje do: „" + matched + "”"));
+      }
+      var badge = badgeFor(hit, system);
+      if (badge) {
+        var meta = element("span", "result-meta");
+        meta.append(badge);
+        link.append(meta);
+      }
+      link.append(element("span", "result-go", "Szczegóły"));
+      item.append(link);
+      listNode.append(item);
+    });
+  }
+
+  function groupSection(system) {
+    var section = element("section", "result-group");
+    section.setAttribute("aria-labelledby", "group-" + system);
+    var head = element("div", "result-group-head");
+    var title = element("h2", "", SYSTEMS[system].group);
+    title.id = "group-" + system;
+    var count = element("p", "", "Szukam…");
+    head.append(title, count);
+    var body = element("ul", "result-list");
+    var foot = element("div", "result-group-foot");
+    foot.hidden = true;
+    section.append(head, body, foot);
+    return { section: section, count: count, body: body, foot: foot };
+  }
+
+  function handOff(system, query) {
+    try { window.sessionStorage.setItem(HANDOFF_KEY, JSON.stringify({ system: system, query: query })); } catch (error) { /* The dictionary still opens. */ }
+    window.location.assign(SYSTEMS[system].path);
+  }
+
+  function fillGroup(group, system, query, answer, limit) {
+    var shown = answer.results.length;
+    group.foot.replaceChildren();
+    if (shown === 0) {
+      group.count.textContent = "0 wyników";
+      group.body.replaceChildren(element("li", "group-message", SYSTEMS[system].empty));
+      if (Array.isArray(answer.suggestions) && answer.suggestions.length) {
+        group.foot.append(element("span", "", "Czy chodziło o:"));
+        answer.suggestions.slice(0, 3).forEach(function (suggestion) {
+          var text = typeof suggestion === "string" ? suggestion : suggestion && suggestion.text;
+          if (!text) return;
+          var button = element("button", "button button-quiet", text);
+          button.type = "button";
+          button.addEventListener("click", function () { input.value = text; runSearch(); });
+          group.foot.append(button);
+        });
+        group.foot.hidden = group.foot.childElementCount <= 1;
+      } else {
+        group.foot.hidden = true;
+      }
+      return;
+    }
+    renderHits(system, answer, group.body);
+    group.count.textContent = answer.truncated
+      ? shown + " najlepszych dopasowań"
+      : shown + " " + plural(shown, "wynik", "wyniki", "wyników");
+    if (answer.truncated && limit < MAX_RESULTS) {
+      var more = element("button", "button button-quiet", "Pokaż więcej");
+      more.type = "button";
+      more.addEventListener("click", function () {
+        more.disabled = true;
+        lookup(system, query, MAX_RESULTS).then(function (next) {
+          fillGroup(group, system, query, next, MAX_RESULTS);
+        }).catch(function (error) {
+          more.disabled = false;
+          group.count.textContent = failureMessage(error.code);
+        });
+      });
+      group.foot.append(more);
+    }
+    if (answer.truncated) {
+      var open = element("button", "button button-quiet", "Szukaj w pełnym słowniku " + SYSTEMS[system].name);
+      open.type = "button";
+      open.addEventListener("click", function () { handOff(system, query); });
+      group.foot.append(open);
+    }
+    group.foot.hidden = group.foot.childElementCount === 0;
+  }
+
+  function failGroup(group, system, query, code) {
+    group.count.textContent = "";
+    group.body.replaceChildren(element("li", "group-message is-error", failureMessage(code)));
+    group.foot.replaceChildren();
+    var retry = element("button", "button button-quiet", "Spróbuj ponownie");
+    retry.type = "button";
+    retry.addEventListener("click", function () { loadGroup(group, system, query); });
+    group.foot.append(retry);
+    group.foot.hidden = false;
+  }
+
+  function loadGroup(group, system, query) {
+    group.count.textContent = "Szukam…";
+    var signal = searchController ? searchController.signal : undefined;
+    return lookup(system, query, FIRST_PAGE, signal).then(function (answer) {
+      fillGroup(group, system, query, answer, FIRST_PAGE);
+      return answer.results.length;
+    }).catch(function (error) {
+      if (error.name === "AbortError") throw error;
+      failGroup(group, system, query, error.code);
+      return 0;
+    });
+  }
+
+  function runSearch() {
+    closeSuggestions();
+    var query = normalize(input.value);
+    var problem = validate(query);
+    var systems = selectedSystems();
+    results.hidden = false;
+    statusLine.classList.remove("is-error");
+    if (problem || !systems.length) {
+      groups.replaceChildren();
+      statusLine.textContent = problem || "Zaznacz co najmniej jeden słownik.";
+      statusLine.classList.add("is-error");
+      input.focus();
+      return;
+    }
+    if (searchController) searchController.abort();
+    searchController = new AbortController();
+    start.hidden = true;
+    groups.replaceChildren();
+    statusLine.textContent = "Szukam w: " + systems.map(function (system) { return SYSTEMS[system].name; }).join(", ") + ".";
+    Promise.all(systems.map(function (system) {
+      var group = groupSection(system);
+      groups.append(group.section);
+      return loadGroup(group, system, query);
+    })).then(function (counts) {
+      var total = counts.reduce(function (sum, count) { return sum + count; }, 0);
+      statusLine.textContent = total
+        ? "Kliknij pozycję, aby zobaczyć jej opis i miejsce w słowniku."
+        : "Nic nie znaleziono. Sprawdź pisownię albo wpisz kod.";
+    }).catch(function () { /* A newer search replaced this one. */ });
+  }
+
+  function setUnavailable(message) {
+    help.textContent = message;
+    help.classList.add("is-unavailable");
+    input.disabled = true;
+    submit.disabled = true;
+  }
+
+  input.addEventListener("input", function () {
+    window.clearTimeout(suggestTimer);
+    suggestTimer = window.setTimeout(suggest, 220);
   });
-  document.addEventListener("keydown", (event) => { if (event.key === "/" && !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) { event.preventDefault(); query.focus(); } });
-  fetch("/api/v1/releases", { cache: "no-store" }).then((response) => {
-    if (!response.ok) throw new Error("unavailable");
-    return response.json();
-  }).then((answer) => {
-    if (answer.api !== 1 || !Array.isArray(answer.releases) || answer.releases.length < 1 || answer.releases.length > 16) throw new Error("invalid metadata");
-    sources = answer.releases;
-    release.replaceChildren(...sources.map((item) => {
-      const option = element("option", `${item.system.toUpperCase()} ${item.source_version} - ${item.origin === "czs" ? "CZS: katalog, statusy i daty" : "RSK: opisy i hierarchia"}`);
-      option.value = item.release_id;
-      return option;
-    }));
-    release.disabled = false; query.disabled = false;
-    state.textContent = "Wpisz kod lub opis. Dane historyczne, nie automatycznie najnowsza wersja.";
-    showProvenance();
-  }).catch(() => { state.textContent = "Usługa chwilowo niedostępna."; });
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowDown" && options.length) {
+      event.preventDefault();
+      highlight((active + 1) % options.length);
+    } else if (event.key === "ArrowUp" && options.length) {
+      event.preventDefault();
+      highlight(active <= 0 ? options.length - 1 : active - 1);
+    } else if (event.key === "Escape") {
+      closeSuggestions();
+    } else if (event.key === "Enter" && active >= 0 && options[active]) {
+      event.preventDefault();
+      openOption(options[active]);
+    }
+  });
+  input.addEventListener("blur", function () { window.setTimeout(closeSuggestions, 120); });
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    window.clearTimeout(suggestTimer);
+    if (suggestController) suggestController.abort();
+    runSearch();
+  });
+  boxes.forEach(function (box) {
+    box.addEventListener("change", function () {
+      if (!results.hidden && normalize(input.value)) runSearch();
+    });
+  });
+  document.addEventListener("keydown", function (event) {
+    var tag = document.activeElement && document.activeElement.tagName;
+    if (event.key === "/" && tag !== "INPUT" && tag !== "TEXTAREA" && tag !== "SELECT") {
+      event.preventDefault();
+      input.focus();
+    }
+  });
+
+  fetch("/api/v1/releases", { cache: "no-store", credentials: "omit" })
+    .then(function (response) {
+      if (!response.ok) throw new Error("releases unavailable");
+      return response.json();
+    })
+    .then(function (answer) {
+      if (!answer || !Array.isArray(answer.releases)) throw new Error("invalid releases");
+      answer.releases.forEach(function (release) {
+        if (SYSTEMS[release.system] && !releases[release.system]) releases[release.system] = release;
+      });
+      ORDER.forEach(function (system) {
+        var box = boxes.filter(function (candidate) { return candidate.value === system; })[0];
+        if (box && !releases[system]) { box.checked = false; box.disabled = true; }
+      });
+      if (!selectedSystems().length) {
+        var first = boxes.filter(function (box) { return !box.disabled; })[0];
+        if (first) first.checked = true;
+      }
+    })
+    .catch(function () {
+      setUnavailable("Nie udało się połączyć z wyszukiwarką. Odśwież stronę za chwilę.");
+    });
 })();

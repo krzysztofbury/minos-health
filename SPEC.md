@@ -284,7 +284,8 @@ The `/zrodla` catalog searches bounded metadata locally, not medical codes or th
 contents of linked files. Its separately pinned browser search engine does not
 claim morphological parity with the reference CLI.
 
-Ties use stable source order and then code order. The same database, query,
+After the lexical rules in `docs/v0.0.1/offline-search.md`, ties use stable
+source order and then code order. The same database, query,
 and configuration must always produce the same ordering.
 
 ## Grouping Behaviour (v0.0.2 baseline)
