@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import cast, final
@@ -57,8 +58,9 @@ def main() -> None:
                 "--json",
             ],
         )
-        assert json.loads(built.stdout)["row_counts"]["concept"] == 6
+        assert json.loads(built.stdout)["row_counts"]["concept"] == 15
         _verify_searches(docker, cast(str, json.loads(built.stdout)["database_sha256"]))
+        _verify_icd9_searches(docker)
         missing = _run(
             docker,
             [
@@ -86,7 +88,19 @@ def _prepare_fixture(work: Path) -> None:
     blob = work / "blobs/sha256" / cast(str, sources[0]["sha256"])
     blob.parent.mkdir(parents=True)
     _ = blob.write_bytes((ROOT / "tests/fixtures/icd10-pl/minimal.xml").read_bytes())
-    _ = (work / "source.json").write_bytes(manifest_bytes)
+    # Host-only fixture helpers are not mounted into the frozen runtime.
+    sys.path.insert(0, str(ROOT))
+    from tests.fixtures.icd9_workbook import archive_bytes, workbook_manifest
+    from tests.fixtures.icd9_xml import XML, source_manifest
+
+    content = archive_bytes()
+    for source, body in (
+        (source_manifest(), XML),
+        (workbook_manifest(content), content),
+    ):
+        _ = (blob.parent / source.sha256).write_bytes(body)
+        sources.append(source.model_dump(mode="json"))
+    _ = (work / "source.json").write_text(json.dumps(manifest))
 
 
 def _docker_command(application: Path, work: Path) -> list[str]:
@@ -146,6 +160,51 @@ def _verify_searches(docker: list[str], database_sha256: str) -> None:
             list[str],
             cast(list[dict[str, object]], inflected["morphology"])[0]["alternatives"],
         )
+
+
+def _verify_icd9_searches(docker: list[str]) -> None:
+    for index in ("auto", "portable"):
+        for release in ("icd9-czs-synthetic-v1", "icd9-nfz-workbook-synthetic-v1"):
+            command = [
+                "search",
+                "--system",
+                "icd9-pl",
+                "--release",
+                release,
+                "--query",
+                "A01",
+                "--data",
+                "/work/bundle",
+                "--index",
+                index,
+                "--json",
+            ]
+            first = _run(docker, command)
+            assert first.stdout == _run(docker, command).stdout
+            answer = cast(dict[str, object], json.loads(first.stdout))
+            hit = cast(list[dict[str, object]], answer["results"])[0]
+            attributes = cast(dict[str, str], hit["source_attributes"])
+            context = cast(dict[str, object], hit["context"])
+            assert hit["code"] == "A01"
+            if release == "icd9-czs-synthetic-v1":
+                assert attributes["status"] == "N"
+                assert attributes["data_do"] == "2026-09-24"
+                assert not context["edges"]
+            else:
+                assert hit["source_code"] == "A01 "
+                assert len(cast(list[object], context["edges"])) == 2
+                command[command.index("A01")] = "Different synthetic title"
+                evidence_answer = cast(
+                    dict[str, object], json.loads(_run(docker, command).stdout)
+                )
+                evidence = cast(list[dict[str, object]], evidence_answer["results"])[0]
+                match = cast(dict[str, object], evidence["match"])
+                assert evidence["code"] == "A01"
+                assert match["description_type"] == "context"
+                assert (
+                    cast(dict[str, str], match["source_attributes"])["evidence_kind"]
+                    == "conflicting_title_or_code_form"
+                )
 
 
 def _run(

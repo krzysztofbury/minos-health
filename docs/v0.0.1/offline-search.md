@@ -7,8 +7,8 @@ to #95. This is dictionary lookup, not clinical query interpretation.
 
 Install the pinned application and its `reference` extra for Python reference
 build/search use (`uv sync --locked --extra reference` from this checkout).
-Morfeusz is deliberately absent from the musl-based operational watcher image;
-the standalone application already contains it. Supported reference runtime:
+Morfeusz and the workbook reader are deliberately absent from the musl-based
+operational watcher image; the standalone application contains both. Supported reference runtime:
 Linux x86-64 glibc. Other platforms require separate packaging acceptance.
 
 ```sh
@@ -43,6 +43,27 @@ format: rebuild from pinned source manifests; existing schema-1 bundles are
 rejected, not changed in place. Parser transformation `icd10-reference-v1` and
 normalization v1 are unchanged; the additional projection is `lexical-2`.
 The analyzer and dictionary identities are also checked at build/search time.
+
+CZS ICD-9 PL XML builds are also supported under `icd9-pl` with `origin: czs`.
+The reviewed historical input is `manifests/sources/icd9-czs-reviewed.json`.
+Root version and `ICD9:<generation>` identity must match the manifest. All source
+statuses and supplied procedure date bounds are retained, including `N` entries.
+The CZS XML has no parent links, so its release has no inferred hierarchy.
+NFZ workbook builds use `origin: nfz-workbook` and the pinned `openpyxl==3.1.5`
+reader in the `reference` extra. The reviewed historical companion is
+`manifests/sources/icd9-nfz-workbook-reviewed.json`. Its `source_file_id` is the
+exact filename followed by `#` and the exact selected worksheet name, including
+the trailing space in `ICD-9_PL `. The distinct `ICD-9_PL` table is not merged.
+Only explicit column containment is retained; code prefixes and preceding rows
+do not supply absent parents. Raw titles/code forms and conflicting later titles
+remain source evidence, not corrections or hidden synonyms. The workbook has no
+status/date evidence; it cannot substitute for the complete CZS catalog.
+
+Bundling both ICD-9 sources requires an explicit `--release` on every lookup.
+`review.txt` reports same-version code/title disagreement counts without joining
+their graphs. New reviewed files use new release IDs and new output directories;
+old bundles are never modified. See [the source contract](../validation/icd9-source-contract.md)
+for bounded ZIP/XML validation, typed-cell policy and full-source evidence.
 
 ## Lookup And Context
 
@@ -113,8 +134,8 @@ Search accepts at most 256 characters, eight tokens, and 64 characters per token
 Substring fallback needs at least three characters and never handles code-shaped
 input. A shared 250 ms query deadline and two million SQLite virtual-machine
 operations cover all retrieval/context stages. Each hit permits 256 ancestors,
-64 graph levels and 1,024 context edges; source-label/evidence content across the
-response is bounded to 512 Ki characters. Spelling permits at most 100,000
+64 graph levels and 1,024 context edges; source-label/evidence/attribute content
+across the response is bounded to 512 Ki characters. Spelling permits at most 100,000
 length-filtered vocabulary candidates per word. Native scoring is count-bounded;
 the deadline is checked before and after it, not a preemptive native interrupt.
 Morphological analysis accepts at most 256 dictionary analyses and 16 alternatives
@@ -123,6 +144,9 @@ interrupted by SQLite's progress handler.
 Artifact verification and interpreter/process startup are measured separately
 and are not inside the SQL query deadline. No incomplete context is returned as
 complete results; resource-limit failures produce no partial response.
+For hardened read-only-root execution, supply bounded writable temporary storage
+for SQLite sorting. The full ICD-10/ICD-9 smoke run used a 64 MiB `/tmp` tmpfs for
+both build and query acceptance; database/source mounts remained read-only.
 
 | Exit | Meaning |
 | --- | --- |
@@ -153,9 +177,16 @@ Search success and no-results each write one UTF-8 JSON object to stdout:
   null, `source_code`, `label`, `kind`, `match_type` strings. Kinds are
   `classification`, `range`, `modifier`, `text`, `container`; match types are
   `exact_code`, `exact_description`, `prefix_tokens`, `morphology_tokens`, `substring`.
+- Each result's `source_attributes` is an object of exact source attribute names
+  to source strings, empty when absent. CZS ICD-9 entries expose `status` (`A` or
+  `N`) and supplied `data_od`/`data_do` bounds, plus source annotations. Text
+  output displays these too. No value is an inferred billability decision.
 - Each result's `match` contains `node_ordinal` integer, exact source `text`,
   `description_type` (`preferred`, `alternate`, `translation`, `context`),
-  and `language` strings. Context evidence may belong to a different node.
+   and `language` strings. Context evidence may belong to a different node.
+   Its `source_attributes` preserves that matching node's exact evidence, including
+   workbook inclusion/exclusion/note markers and worksheet/row or cell identity.
+   Text output exposes these markers too; context matches are not synonyms.
 - Each result's `context.nodes` contains `ordinal` integer, `code` string or
   null, `source_code`, `label`, `kind` strings. `context.edges` contains
   `parent`, `child` integers and `type: "contains"`.
@@ -176,6 +207,8 @@ index mode changes `index_used`, not match ordering. JSON field additions or
 breaking changes require an explicit contract/version review.
 The morphology fields finalize the unreleased version-1 envelope in this PR;
 there is no published version-1 client to migrate.
+The additive `source_attributes` field was explicitly approved for version 1
+on 2026-10-01 during #16. Existing fields and exit codes are unchanged.
 
 ## Standalone Linux Build
 
@@ -206,7 +239,7 @@ The builder's dependencies do not become application runtime dependencies.
 Bundled notices cover Morfeusz/SGJP and the collected system C++ runtime; these
 do not change medical source redistribution rights.
 
-CI builds the synthetic artifact through the frozen application inside a
+CI builds the synthetic ICD-10/CZS/workbook artifact through the frozen application inside a
 digest-pinned Debian container, without installed Python, with networking
 disabled, no capabilities and a read-only root filesystem. It checks both
 indexes, known source identity, ancestors, deterministic bytes and no-result exit.

@@ -43,6 +43,7 @@ uv pip check --python "$builder_python"
   --hidden-import morfeusz2 \
   --copy-metadata minos-health --copy-metadata rapidfuzz \
   --copy-metadata morfeusz2 \
+  --copy-metadata openpyxl --copy-metadata et-xmlfile \
   --copy-metadata pydantic --copy-metadata pydantic-core \
   --copy-metadata annotated-types --copy-metadata typing-extensions \
   --copy-metadata typing-inspection \

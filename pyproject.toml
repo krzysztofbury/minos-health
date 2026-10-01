@@ -22,11 +22,12 @@ dependencies = [
 minos = "minos.cli.main:main"
 
 [project.optional-dependencies]
-reference = ["morfeusz2==1.99.15"]
+reference = ["morfeusz2==1.99.15", "openpyxl==3.1.5"]
 
 [dependency-groups]
 dev = [
     "morfeusz2==1.99.15",
+    "openpyxl==3.1.5",
     "bandit[toml]>=1.9,<2",
     "basedpyright>=1.31",
     "hatchling==1.32.4",
@@ -38,6 +39,7 @@ dev = [
     "pyyaml>=6,<7",
     "ruff>=0.12",
     "types-defusedxml>=0.7.0.20260504",
+    "types-openpyxl==3.1.5.20260827",
     "types-pyyaml>=6,<7",
     "zizmor>=1.30,<2",
 ]
@@ -68,6 +70,7 @@ pythonpath = ["."]
 markers = [
   "aws: explicit opt-in tests against tagged disposable resources in the built-in AWS account",
   "rsk_live: explicit opt-in compatibility test for an ignored private RSK capture",
+  "icd9_live: explicit opt-in compatibility test for privately archived pinned NFZ ICD-9 evidence",
 ]
 
 [tool.ruff]
