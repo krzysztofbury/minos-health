@@ -85,6 +85,15 @@ def initialize_reference(
         "python_version": platform.python_version(),
         "sqlite_version": sqlite3.sqlite_version,
     }
+    supporting_sources = {
+        source.release_id: source.context_for
+        for source in manifest.sources
+        if source.context_for is not None
+    }
+    if supporting_sources:
+        metadata["supporting_sources"] = json.dumps(
+            supporting_sources, sort_keys=True, separators=(",", ":")
+        )
     if any(source.system == "icd9-pl" for source in manifest.sources):
         versions = {"czs": "czs-icd9-1", "nfz-workbook": "nfz-icd9-workbook-1"}
         metadata["icd9_conversion_version"] = ",".join(

@@ -61,6 +61,14 @@ class ContextNode:
 
 
 @dataclass(frozen=True)
+class SupportingContext:
+    release_id: str
+    node_ordinal: int
+    nodes: tuple[ContextNode, ...]
+    edges: tuple[tuple[int, int], ...]
+
+
+@dataclass(frozen=True)
 class SearchHit:
     node_ordinal: int
     code: str | None
@@ -76,6 +84,7 @@ class SearchHit:
     context_edges: tuple[tuple[int, int], ...]
     source_attributes: tuple[tuple[str, str], ...] = ()
     matched_source_attributes: tuple[tuple[str, str], ...] = ()
+    supporting_contexts: tuple[SupportingContext, ...] = ()
 
 
 @dataclass(frozen=True)

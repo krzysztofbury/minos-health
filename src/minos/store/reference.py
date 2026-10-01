@@ -1,5 +1,6 @@
 """Verified read-only reference access with typed, bounded hierarchy queries."""
 
+import json
 import os
 import sqlite3
 import stat
@@ -102,6 +103,19 @@ def open_reference_bundle(
             _ = connection.execute("PRAGMA foreign_keys = ON")
             _ = connection.execute("PRAGMA mmap_size = 0")
             _validate_database_header(connection)
+            expected = {
+                source.release_id: source.context_for
+                for source in manifest.dataset.sources
+                if source.context_for is not None
+            }
+            policy = cast(
+                tuple[str] | None,
+                connection.execute(
+                    "SELECT value FROM build_metadata WHERE key='supporting_sources'"
+                ).fetchone(),
+            )
+            if (json.loads(policy[0]) if policy else {}) != expected:
+                raise ArtifactError("supporting source policy does not match manifest")
             yield connection, manifest
         finally:
             connection.close()

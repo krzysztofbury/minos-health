@@ -1,7 +1,7 @@
 # Decisions
 
 Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
-and 2026-09-23
+2026-09-23, and 2026-10-01
 
 ## Product
 
@@ -178,6 +178,20 @@ license sentence grammatically attached to the WHO 2019 English edition. The
 full RSK dictionary is therefore treated as free-tier enrichment whose
 noncommercial constraint must never sit under the paid path until the scope
 question is legally resolved.
+
+On 2026-10-01 the owner confirmed that the current project is noncommercial,
+reference search will remain noncommercial, and the pinned RSK ICD-10 PL release
+must be included in public search. The free search preserves attribution, source
+terms, translation and non-endorsement notices. This does not clear RSK content
+for paid features or commercial offline distribution.
+
+The same decision selects NFZ CZS as the sole canonical ICD-9 PL catalog.
+For the pinned 5.90 captures, CZS has 10,179 codes versus 10,059 in the workbook:
+121 CZS-only codes and one workbook-only code mean neither is a strict superset.
+Canonical codes, titles, statuses and dates come only from CZS. Same-version
+workbook ancestry is supporting evidence linked by exact code, with its own
+release identity and checksum. It never supplies canonical titles/statuses,
+adds workbook-only search results, or invents parents from code prefixes.
 
 WHO-specific ICD-10 and international ICD-9 redistribution rights are
 unresolved and those datasets are excluded.

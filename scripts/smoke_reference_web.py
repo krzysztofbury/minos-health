@@ -35,7 +35,20 @@ def fixture(root: Path) -> Path:
         (ROOT / "manifests/sources/icd10-synthetic.json").read_bytes()
     )
     body = archive_bytes()
-    sources = ((source_manifest(), XML), (workbook_manifest(body), body))
+    canonical = source_manifest()
+    sources = (
+        (canonical, XML),
+        (
+            workbook_manifest(body).model_copy(
+                update={"context_for": canonical.release_id}
+            ),
+            body,
+        ),
+        (
+            manifest.sources[0],
+            (ROOT / "tests/fixtures/icd10-pl/minimal.xml").read_bytes(),
+        ),
+    )
     archive = root / "blobs/sha256"
     archive.mkdir(parents=True)
     for source, content in sources:

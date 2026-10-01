@@ -1,4 +1,4 @@
-"""Bounded public/local deployment smoke and representative reference API load."""
+"""Local-only representative reference API load. Never run against the VPS."""
 
 import argparse
 import json
@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPResponse
 from pathlib import Path
 from typing import cast, final
+from urllib.parse import urlsplit
 
 
 def get_json(
@@ -35,6 +36,8 @@ def get_json(
 
 
 def check(base: str, *, expected_digest: str | None = None) -> dict[str, object]:
+    if urlsplit(base).hostname not in ("127.0.0.1", "::1", "localhost"):
+        raise ValueError("load checks require a local loopback endpoint, never the VPS")
     status, ready, _ = get_json(base, "/readyz")
     assert status == 200
     assert ready["status"] == "ready"
@@ -42,12 +45,22 @@ def check(base: str, *, expected_digest: str | None = None) -> dict[str, object]
     assert status == 200
     sources = cast(list[dict[str, str]], metadata["releases"])
     assert len(sources) == 2
-    assert {source["origin"] for source in sources} == {"czs", "nfz-workbook"}
+    assert {source["origin"] for source in sources} == {"czs", "rsk"}
     bodies = [
-        {"system": "icd9-pl", "release_id": source["release_id"], "query": query}
+        {"system": source["system"], "release_id": source["release_id"], "query": query}
         for source in sources
-        for query in ("A01", "badania moczu")
+        for query in (
+            ("A01", "badania moczu") if source["system"] == "icd9-pl" else ("E11.0",)
+        )
     ]
+    icd10 = next(body for body in bodies if body["system"] == "icd10-pl")
+    status, sentinel, _ = get_json(base, "/api/v1/search", icd10)
+    assert status == 200
+    sentinel_hits = cast(list[dict[str, str]], sentinel["results"])
+    assert sentinel_hits[0]["code"] == "E11.0"
+    # Text comes from the pinned source, so synthetic and captured data exercise
+    # the same real path without substituting medical content into the fixture.
+    bodies.append({**icd10, "query": sentinel_hits[0]["label"]})
 
     def lookup(index: int) -> tuple[int, float]:
         body = bodies[index % len(bodies)]
@@ -60,8 +73,8 @@ def check(base: str, *, expected_digest: str | None = None) -> dict[str, object]
                 assert answer["database_sha256"] == expected_digest
             hits = cast(list[dict[str, object]], answer["results"])
             assert hits
-            if body["query"] == "A01":
-                assert hits[0]["code"] == "A01"
+            if body["query"] in ("A01", "E11.0"):
+                assert hits[0]["code"] == body["query"]
                 assert hits[0]["match_type"] == "exact_code"
         return status, elapsed_ms
 
@@ -100,7 +113,7 @@ def check(base: str, *, expected_digest: str | None = None) -> dict[str, object]
 
 @final
 class Arguments(argparse.Namespace):
-    base: str = "https://minoshealth.pl"
+    base: str = "http://127.0.0.1:8080"
     output: Path = Path()
     expected_digest: str | None = None
 
@@ -108,7 +121,7 @@ class Arguments(argparse.Namespace):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     _ = parser.add_argument("output", type=Path)
-    _ = parser.add_argument("--base", default="https://minoshealth.pl")
+    _ = parser.add_argument("--base", default="http://127.0.0.1:8080")
     _ = parser.add_argument("--expected-digest")
     arguments = Arguments()
     _parsed_arguments = parser.parse_args(namespace=arguments)
