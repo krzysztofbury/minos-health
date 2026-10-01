@@ -20,13 +20,13 @@
     </header>
 
     <main>
-      <p class="eyebrow">Dokument obowiązuje od 22.09.2026</p>
+      <p class="eyebrow">Dokument obowiązuje od 01.10.2026</p>
       <h1>Polityka prywatności</h1>
       <p class="intro">
         Opisujemy tutaj, jakie dane mogą być przetwarzane podczas korzystania
         z minoshealth.pl. Obecna wersja serwisu udostępnia strony informacyjne
-        oraz publiczny, tylko do odczytu rejestr pochodzenia danych RSK. Nie ma
-        kont, formularzy ani funkcji medycznych.
+        oraz publiczny rejestr pochodzenia danych i walidacyjne wyszukiwanie
+        opisów ICD-9 PL. Nie ma kont, płatności ani obsługi danych pacjentów.
       </p>
 
       <article>
@@ -47,6 +47,7 @@
             <li>dane techniczne niezbędne do bezpiecznego dostarczenia strony,</li>
             <li>zagregowane dane statystyczne o korzystaniu z serwisu,</li>
             <li>dane przekazane dobrowolnie w korespondencji e-mail.</li>
+            <li>tekst zapytania o kod lub opis ICD-9 PL, przetwarzany chwilowo w celu zwrócenia wyników.</li>
           </ul>
           <p>
             Podstawą przetwarzania danych technicznych i statystycznych jest
@@ -99,6 +100,17 @@
             projekcję w przeglądarce. Wpisana treść nie jest wysyłana do Minos,
             Plausible ani wydawcy RSK i nie stanowi wyszukiwania medycznego lub
             produktowego.
+          </p>
+        </section>
+
+        <section>
+          <h2>Wyszukiwanie walidacyjne</h2>
+          <p>
+            Na stronie /szukaj zapytanie trafia do API Minos w treści żądania,
+            nie w adresie URL. API przetwarza je w pamięci i nie zapisuje go w
+            bazie, logach ani analityce. Strona wyszukiwania nie ładuje Plausible.
+            Nie wpisuj danych pacjentów, dokumentacji ani innych danych osobowych.
+            Ta funkcja różni się od lokalnego filtra metadanych na stronie Źródła.
           </p>
         </section>
 
@@ -169,11 +181,10 @@
         <section>
           <h2>10. Zmiany polityki</h2>
           <p>
-            Polityka będzie aktualizowana przed uruchomieniem kont, wyszukiwarki,
-            usług płatnych, API przetwarzającego dane użytkownika lub funkcji
-            przetwarzających inne kategorie danych. Obecny punkt API pochodzenia
-            danych jest publiczny, tylko do odczytu i nie przyjmuje danych
-            użytkownika.
+            Polityka będzie aktualizowana przed uruchomieniem kont, usług
+            płatnych lub funkcji przetwarzających inne kategorie danych.
+            Publiczne API pochodzenia nie przyjmuje zapytań użytkownika;
+            walidacyjne API wyszukiwania przetwarza je chwilowo zgodnie z opisem powyżej.
             Aktualna wersja i data obowiązywania są zawsze publikowane na tej
             stronie.
           </p>

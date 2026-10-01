@@ -78,6 +78,8 @@ def open_reference_connection(bundle: Path) -> Generator[sqlite3.Connection]:
 @contextmanager
 def open_reference_bundle(
     bundle: Path,
+    *,
+    check_same_thread: bool = True,
 ) -> Generator[tuple[sqlite3.Connection, ArtifactManifest]]:
     """Keep output provenance bound to the same manifest used for verification."""
     manifest = read_artifact_manifest(bundle)
@@ -92,6 +94,7 @@ def open_reference_bundle(
             database.resolve().as_uri() + "?mode=ro&immutable=1",
             uri=True,
             autocommit=True,
+            check_same_thread=check_same_thread,
         )
         try:
             _ = connection.execute("PRAGMA query_only = ON")

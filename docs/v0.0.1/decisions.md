@@ -329,6 +329,18 @@ before the offline phase.
 
 ## Artifact And Release
 
+### Owner-Approved Public Validation (2026-10-01)
+
+The owner explicitly approved a bounded public ICD-9 website/API validation
+deployment after #16 rather than treating it as a commercial product release.
+This exception retains exact image/dataset identities, rollback, query privacy,
+source attribution and measured runtime limits. It neither claims legal/brand
+clearance nor completes the independently signed product release gate. Medical
+queries use POST bodies, not URLs. Raw private-archive routes remain closed;
+official NFZ download links remain available. See
+[the validation contract](../validation/reference-web-rollout.md) for the narrow
+scope and the maintenance-playbook limitation.
+
 One `linux/amd64` API image, one edge image containing the checksummed static
 web bundle, and one watcher image are the runtime artifacts. Docker Compose runs
 the complete set locally and on the dedicated Mikr.us `3.0` host.

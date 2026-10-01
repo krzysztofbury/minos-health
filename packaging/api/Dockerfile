@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1.7
+FROM ghcr.io/astral-sh/uv:0.12.7@sha256:95f2aa1fe59274951cfe9b0cbc7972e879ff1004bc8945d130a32eb0dbd85945 AS uv
+FROM docker.io/library/python:3.14.7-slim-bookworm@sha256:998acd06f485adfd6890e3e15a4b542543e0cf22ff904310095da328a5e3e561 AS builder
+COPY --from=uv /uv /usr/local/bin/uv
+WORKDIR /build
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+COPY database ./database
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --extra reference --extra api --no-install-project && \
+    uv build --wheel --no-sources --out-dir /dist && \
+    uv pip install --python .venv/bin/python --no-deps /dist/*.whl
+
+FROM docker.io/library/python:3.14.7-slim-bookworm@sha256:998acd06f485adfd6890e3e15a4b542543e0cf22ff904310095da328a5e3e561
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.source="https://github.com/krzysztofbury/minos-health" \
+      org.opencontainers.image.title="Minos validation reference API" \
+      org.opencontainers.image.licenses="MIT OR Apache-2.0"
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/nonexistent OTEL_SDK_DISABLED=true
+COPY --from=builder /build/.venv /build/.venv
+# A validation deployment mounts one pinned, read-only bundle. No raw sources,
+# credentials, source archive, compiler or package manager enter this image.
+RUN mkdir -p /app/data && \
+    rm -rf /usr/local/bin/pip* /usr/local/lib/python3.14/ensurepip \
+    /usr/local/lib/python3.14/site-packages/pip* /usr/bin/apt* /bin/sh /bin/bash
+USER 10004:10004
+WORKDIR /app
+ENTRYPOINT ["/build/.venv/bin/uvicorn", "minos.http.app:application", "--factory", "--host", "0.0.0.0", "--port", "8081", "--workers", "1", "--limit-concurrency", "16", "--timeout-keep-alive", "5", "--no-access-log", "--log-level", "critical"]
