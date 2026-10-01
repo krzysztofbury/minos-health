@@ -160,3 +160,18 @@ high/critical scans, and full-source container/browser/load/failure acceptance
 was repeated successfully. The PR/manual-publication workflow now enforces
 those scans so an image regression blocks promotion. The unchanged old base
 is retained only as the exact maintenance rollback target, not the new release.
+
+Host pre-cutover canaries stopped promotion when ordinary cold searches returned
+HTTP 429. Profiling isolated 320 ms in the first native dictionary construction
+inside the 250 ms request budget; later searches in that same process took
+7-44 ms. The HTTP pool now verifies and retains the pinned dictionary before
+readiness, while request analyzers remain independent. Missing/incompatible
+morphology cannot produce a ready service. Neither the deadline, SQL step limit,
+source evidence nor worker capacity was weakened. The original candidate was
+removed without changing the maintenance edge or operational services.
+
+Container acceptance now tests the first text request before browser/code
+warm-up. Local full-source revalidation passed: first text request 14.599 ms;
+48 successful concurrency-four requests, p95 80.953 ms; overload produced only
+success/HTTP 429; API peak memory 416,358,400 bytes. Host cold/load verification
+must still pass on the replacement immutable image before public cutover.

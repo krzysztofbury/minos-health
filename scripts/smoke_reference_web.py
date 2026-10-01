@@ -104,6 +104,22 @@ def main(arguments: Arguments) -> None:
         ports = cast(dict[str, list[dict[str, str]]], settings["Ports"])
         port = int(ports["8080/tcp"][0]["HostPort"])
         base = f"http://127.0.0.1:{port}"
+        # A fresh process must serve text lookup before any browser/code warm-up.
+        _status, metadata, _duration = get_json(base, "/api/v1/releases")
+        assert _status == 200
+        sources = cast(list[dict[str, str]], metadata["releases"])
+        cold_status, cold_answer, cold_ms = get_json(
+            base,
+            "/api/v1/search",
+            {
+                "system": "icd9-pl",
+                "release_id": sources[0]["release_id"],
+                "query": "badania moczu",
+            },
+        )
+        assert cold_status == 200
+        assert cold_answer["results"]
+        assert cold_ms < 500
         for _ in range(100):
             try:
                 with cast(
@@ -166,6 +182,7 @@ def main(arguments: Arguments) -> None:
                     "browser": "passed",
                     "log_privacy": "passed",
                     "load": load,
+                    "first_text_request_ms": round(cold_ms, 3),
                     "api_peak_memory_bytes": peak_bytes,
                     "stopped_api_readiness": "failed_closed_and_recovered",
                 }
