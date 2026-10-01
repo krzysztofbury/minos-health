@@ -70,8 +70,14 @@ for bounded ZIP/XML validation, typed-cell policy and full-source evidence.
 Results are deduplicated by release-local source node. Ordering is exact code,
 exact literal normalized description, indexed code/token prefixes, explicitly
 labelled Polish morphology tokens, then substring
-only if the indexed stages returned nothing. Within a stage ties use source node
-order. Code-shaped requests use code prefixes, never fuzzy spelling or invented
+only if the indexed stages returned nothing. Within a text stage, results are
+ordered lexically and structurally, never clinically: a match in the code's own
+title before a match only in inclusion or other uncoded text, a title that
+begins with the query before one that only contains it, a broader code before
+narrower codes, then source node order. Each result's evidence is its best
+match by the same rule. Decided by the owner on 2026-10-01 after source order
+alone put inclusion-term hits such as A02.2 ahead of J13-J18 for
+"zapalenie płuc". Code-shaped requests use code prefixes, never fuzzy spelling or invented
 punctuation. Code-shaped detection is conservative, not a classification grammar
 or a claim that an unknown input is a valid code.
 
@@ -91,7 +97,7 @@ references the original graph; it is not another classification tree.
 Every result includes the matching node and all containment ancestors through
 the root as nodes and edges. Multiple parents remain multiple edges. Ancestors
 are context, not additional search matches; containment does not imply `is_a`,
-billability or descendant match propagation. Stable source order is not clinical
+billability or descendant match propagation. This ordering is not clinical
 ranking. One evidence document is selected deterministically per result, not an
 exhaustive list of all matching descriptions.
 

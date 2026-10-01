@@ -395,3 +395,28 @@ def _attributes(
 
 def _code(lookup_code: str | None, source_code: str) -> str | None:
     return lookup_code or source_code or None
+
+
+def find_code(
+    connection: sqlite3.Connection, hierarchy: Hierarchy, code: str
+) -> int | None:
+    row = cast(
+        tuple[int] | None,
+        connection.execute(
+            reference_sql("queries/tree_find_code.sql"),
+            {"release_id": hierarchy.hierarchy_release_id, "code": code},
+        ).fetchone(),
+    )
+    return row[0] if row else None
+
+
+def all_codes(connection: sqlite3.Connection, hierarchy: Hierarchy) -> list[str]:
+    """Unbudgeted startup work; bounded by the sitemap protocol's 50,000 URLs."""
+    rows = cast(
+        list[tuple[str]],
+        connection.execute(
+            reference_sql("queries/tree_all_codes.sql"),
+            {"release_id": hierarchy.hierarchy_release_id, "row_limit": 49_000},
+        ).fetchall(),
+    )
+    return [row[0] for row in rows]

@@ -11,8 +11,13 @@
     <meta property="og:title" content="{{title}}">
     <meta property="og:description" content="{{description}}">
     <meta property="og:url" content="https://minoshealth.pl{{path}}">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="pl_PL">
+    <meta property="og:site_name" content="Minos Health">
+    <meta name="twitter:card" content="summary">
     <title>{{title}}</title>
 {{preload}}    <link rel="stylesheet" href="/site.css">
+{{head_extra}}
 {{scripts}}  </head>
   <body class="{{body_class}}">
     <a class="skip-link" href="#main">Przejdź do treści</a>
@@ -38,7 +43,7 @@
     </main>
     <footer class="site-footer">
       <div class="shell site-footer-inner">
-        <p class="footer-note">Minos Health pokazuje treść oficjalnych słowników. Nie zastępuje dokumentacji medycznej ani decyzji NFZ. Nie wpisuj danych pacjentów.</p>
+        <p class="footer-note">Minos Health pokazuje treść oficjalnych słowników i nie zastępuje dokumentacji medycznej ani decyzji NFZ. <strong>Nie wpisuj danych pacjentów.</strong></p>
         <nav class="footer-nav" aria-label="Informacje o serwisie">
 {{footer_nav}}
         </nav>

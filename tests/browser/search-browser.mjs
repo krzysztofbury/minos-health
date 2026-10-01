@@ -67,7 +67,7 @@ try {
     await wait('document.querySelectorAll(".result-group").length === 2 && ![...document.querySelectorAll(".result-group-head p")].some((node) => node.textContent.startsWith("Szukam"))');
     assert.equal(await evaluate('document.querySelectorAll("#suggestions .suggestion").length'), 0);
     const icd9 = await evaluate('[...document.querySelectorAll(".result-group")][1].querySelector(".result")?.getAttribute("href")');
-    assert.ok(icd9 && icd9.startsWith("/slowniki/icd-9#kod="), `unexpected ICD-9 result link ${icd9}`);
+    assert.ok(icd9 && /^\/slowniki\/icd-9\/[A-Z0-9.]+$/.test(icd9), `unexpected ICD-9 result link ${icd9}`);
     assert.equal(await overflow(), false);
     await shoot(name);
     await send("Page.navigate", { url: new URL("/slowniki/icd-10#kod=E11.0", url).href });

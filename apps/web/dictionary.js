@@ -294,6 +294,11 @@
       detail.append(element("p", "detail-source", answer.supporting_hierarchy
         ? "Nazwa, status i daty: CZS NFZ. Miejsce w hierarchii i uwagi oznaczone jako skoroszyt: skoroszyt NFZ tej samej wersji."
         : "Treść i układ: Rejestr Systemów Kodowania (RSK), " + NAMES[system] + " wersja " + release.source_version + "."));
+      if (info.code) {
+        var permalink = element("a", "detail-permalink", "Stały adres tego kodu");
+        permalink.href = window.location.pathname + "/" + encodeURIComponent(info.code);
+        detail.append(permalink);
+      }
       var back = element("button", "button button-quiet detail-back", "Wróć do drzewa");
       back.type = "button";
       back.addEventListener("click", function () {

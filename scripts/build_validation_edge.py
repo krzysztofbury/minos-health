@@ -54,6 +54,20 @@ def _routes() -> str:
             try_files /fonts/{name} =404;
         }}"""
         )
+    for path, media in (
+        ("/robots.txt", "text/plain"),
+        ("/llms.txt", "text/markdown"),
+        ("/sitemap.xml", "application/xml"),
+        ("/sitemap-pages.xml", "application/xml"),
+    ):
+        blocks.append(
+            f"""        location = {path} {{
+            if ($request_uri != "{path}") {{ return 404; }}
+            types {{ }}
+            default_type "{media}; charset=utf-8";
+            try_files {path} =404;
+        }}"""
+        )
     blocks.append(
         """        location = /fonts/OFL.txt {
             if ($request_uri != "/fonts/OFL.txt") { return 404; }
@@ -78,6 +92,25 @@ def _routes() -> str:
             client_body_buffer_size 4k;
             client_body_timeout 2s;
             proxy_request_buffering on;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        # Code pages and sitemaps are server-rendered by the API for crawlers.
+        location ~ "^/slowniki/icd-(10|9)/[A-Za-z0-9][A-Za-z0-9.-]{0,15}$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+            proxy_hide_header Cache-Control;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        location ~ "^/sitemap-icd-(10|9)\\.xml$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+            proxy_hide_header Cache-Control;
             proxy_pass http://reference-api:8081;
             proxy_connect_timeout 1s;
             proxy_read_timeout 3s;

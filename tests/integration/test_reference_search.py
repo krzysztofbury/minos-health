@@ -508,3 +508,39 @@ def test_negation_remains_a_literal_word_in_morphology_and_substring_fallback(
             assert [hit.code for hit in result.hits] == expected
     finally:
         connection.close()
+
+
+def test_titles_rank_before_inclusion_terms_then_source_order(
+    tmp_path: Path,
+) -> None:
+    original = DatasetManifest.model_validate_json(
+        (ROOT / "manifests/sources/icd10-synthetic.json").read_bytes()
+    )
+    content = (ROOT / "tests/fixtures/icd10-pl/ranking.xml").read_bytes()
+    source = original.sources[0].model_copy(
+        update={
+            "sha256": hashlib.sha256(content).hexdigest(),
+            "size_bytes": len(content),
+            "expected": original.sources[0].expected.model_copy(
+                update={"nodes": 6, "relations": 5, "concepts": 5, "descriptions": 5}
+            ),
+        }
+    )
+    blob = tmp_path / "blobs/sha256" / source.sha256
+    blob.parent.mkdir(parents=True)
+    _ = blob.write_bytes(content)
+    bundle = tmp_path / "bundle"
+    _ = build_reference_artifact(
+        original.model_copy(update={"sources": (source,)}), tmp_path, bundle
+    )
+    indexes: tuple[IndexMode, ...] = ("auto", "portable")
+    for index in indexes:
+        request = SearchRequest(
+            "icd10-pl", prepare_query("zapalenie rankingowe"), index=index
+        )
+        with open_reference_connection(bundle) as connection:
+            result = search_reference(connection, request)
+        # Source order alone would return A01 (inclusion term only) first.
+        assert [hit.code for hit in result.hits] == ["A03", "A02.1", "A02", "A01"]
+        assert result.hits[0].matched_text == "Zapalenie rankingowe nieokreślone"
+        assert result.hits[3].matched_text == "Zapalenie rankingowe płatowe"

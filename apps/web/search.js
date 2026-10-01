@@ -64,7 +64,8 @@
   }
 
   function dictionaryHref(system, code) {
-    return SYSTEMS[system].path + (code ? "#kod=" + encodeURIComponent(code) : "");
+    // Each code has a stable, citable page; the dictionary tree is one click away.
+    return SYSTEMS[system].path + (code ? "/" + encodeURIComponent(code) : "");
   }
 
   function failureMessage(code) {
@@ -192,7 +193,7 @@
         meta.append(badge);
         link.append(meta);
       }
-      link.append(element("span", "result-go", "W słowniku"));
+      link.append(element("span", "result-go", "Szczegóły"));
       item.append(link);
       listNode.append(item);
     });

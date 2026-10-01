@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
@@ -25,13 +25,30 @@ from minos.domain.search import (
     SearchRequest,
     prepare_query,
 )
+from minos.http.pages import (
+    CODE_PATTERN,
+    DICTIONARIES,
+    code_page,
+    missing_page,
+    sitemap,
+)
 from minos.http.reference import CapacityError, ReferencePool
 from minos.store.artifact import dataset_identity
 from minos.store.search import search_reference
-from minos.store.tree import Hierarchy, resolve_hierarchy, tree_node, tree_roots
+from minos.store.tree import (
+    Hierarchy,
+    all_codes,
+    find_code,
+    resolve_hierarchy,
+    tree_node,
+    tree_roots,
+)
 
 LOGGER = logging.getLogger("minos.http")
 TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
+PAGE_ROUTE = re.compile(r"/slowniki/icd-(?:10|9)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}")
+SITEMAP_ROUTE = re.compile(r"/sitemap-icd-(?:10|9)\.xml")
+PAGE_CACHE = "public, max-age=3600"
 DISCLAIMER = "Validation only. Reference data, not medical advice or a binding settlement decision. Code documented care only; never infer billability."
 
 
@@ -74,6 +91,9 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
 class Tree:
     hierarchy: Hierarchy
     roots: dict[str, object]
+    system: str
+    version: str
+    sitemap: bytes
 
 
 def load_trees(pool: ReferencePool) -> dict[str, Tree]:
@@ -84,10 +104,54 @@ def load_trees(pool: ReferencePool) -> dict[str, Tree]:
             if source.context_for is not None:
                 continue
             hierarchy = resolve_hierarchy(lease.connection, source.release_id)
+            roots = tree_roots(lease.connection, hierarchy)
+            codes = all_codes(lease.connection, hierarchy)
+            unplaced = cast(list[dict[str, object]], roots.get("unplaced", []))
+            codes += [cast(str, item["code"]) for item in unplaced]
+            dictionary = next(
+                (
+                    item
+                    for item in DICTIONARIES.values()
+                    if item.system == source.system
+                ),
+                None,
+            )
             trees[source.release_id] = Tree(
-                hierarchy, tree_roots(lease.connection, hierarchy)
+                hierarchy,
+                roots,
+                source.system,
+                source.source_version,
+                sitemap(dictionary, codes) if dictionary else b"",
             )
     return trees
+
+
+def render_code(
+    pool: ReferencePool, trees: dict[str, Tree], slug: str, code: str
+) -> tuple[int, str]:
+    dictionary = DICTIONARIES[slug]
+    tree = next(
+        (item for item in trees.values() if item.system == dictionary.system), None
+    )
+    if tree is None:
+        raise ArtifactError("dictionary is not in the dataset")
+    with pool.borrow() as lease:
+        ordinal = find_code(lease.connection, tree.hierarchy, code)
+        if ordinal is not None:
+            answer = tree_node(lease.connection, tree.hierarchy, ordinal)
+            return 200, code_page(
+                dictionary,
+                cast(dict[str, object], answer["node"]),
+                cast(list[dict[str, object]], answer["children"]),
+                tree.version,
+                tree.hierarchy.supporting,
+            )
+    unplaced = cast(list[dict[str, object]], tree.roots.get("unplaced", []))
+    item = next((entry for entry in unplaced if entry["code"] == code), None)
+    if item is None:
+        return 404, missing_page(dictionary, code)
+    node: dict[str, object] = {**item, "path": [], "notes": []}
+    return 200, code_page(dictionary, node, [], tree.version, tree.hierarchy.supporting)
 
 
 def browse(
@@ -140,8 +204,6 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
     async def guard(request: Request, call_next: object) -> JSONResponse:
         from collections.abc import Awaitable, Callable
 
-        from starlette.responses import Response
-
         request_id = uuid.uuid4().hex
         began = time.monotonic()
         try:
@@ -153,7 +215,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
         except Exception:
             # Fixed failures deliberately omit exception/input/path representations.
             response = failure(503, "unavailable")
-        response.headers["Cache-Control"] = "no-store"
+        if "Cache-Control" not in response.headers:
+            response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Request-ID"] = request_id
         LOGGER.info(
@@ -165,6 +228,10 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                     in ("/healthz", "/readyz", "/api/v1/releases", "/api/v1/search")
                     else "/api/v1/tree"
                     if TREE_ROUTE.fullmatch(request.url.path)
+                    else "/slowniki/code"
+                    if PAGE_ROUTE.fullmatch(request.url.path)
+                    else "/sitemap"
+                    if SITEMAP_ROUTE.fullmatch(request.url.path)
                     else "unmatched",
                     "method": request.method
                     if request.method in ("GET", "POST", "HEAD", "OPTIONS")
@@ -293,11 +360,59 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
         except ArtifactError, OSError:
             return failure(503, "unavailable")
 
+    async def dictionary_page(dictionary: str, code: str) -> Response:
+        # Codes are public identifiers, never typed free text; no query strings.
+        if dictionary not in DICTIONARIES or not CODE_PATTERN.fullmatch(code):
+            return failure(404, "not_found")
+        if code != code.upper():
+            return RedirectResponse(
+                f"/slowniki/{dictionary}/{code.upper()}", status_code=301
+            )
+        try:
+            status, page = await run_in_threadpool(
+                render_code,
+                cast(ReferencePool, app.state.pool),
+                cast(dict[str, Tree], app.state.trees),
+                dictionary,
+                code,
+            )
+        except CapacityError:
+            return failure(429, "busy")
+        except QueryLimitError, TimeoutError:
+            return failure(429, "limit_exceeded")
+        except ArtifactError, OSError:
+            return failure(503, "unavailable")
+        return HTMLResponse(
+            page,
+            status_code=status,
+            headers={"Cache-Control": PAGE_CACHE if status == 200 else "no-store"},
+        )
+
+    def dictionary_sitemap(dictionary: str) -> Response:
+        slug = dictionary.removesuffix(".xml")
+        tree = next(
+            (
+                item
+                for item in cast(dict[str, Tree], app.state.trees).values()
+                if slug in DICTIONARIES and item.system == DICTIONARIES[slug].system
+            ),
+            None,
+        )
+        if tree is None or not tree.sitemap:
+            return failure(404, "not_found")
+        return Response(
+            tree.sitemap,
+            media_type="application/xml",
+            headers={"Cache-Control": PAGE_CACHE},
+        )
+
     app.add_api_route("/healthz", health, methods=["GET"])
     app.add_api_route("/readyz", ready, methods=["GET"])
     app.add_api_route("/api/v1/releases", releases, methods=["GET"])
     app.add_api_route("/api/v1/search", search, methods=["POST"])
     app.add_api_route("/api/v1/tree/{release_id}/{node}", tree, methods=["GET"])
+    app.add_api_route("/slowniki/{dictionary}/{code}", dictionary_page, methods=["GET"])
+    app.add_api_route("/sitemap-{dictionary}", dictionary_sitemap, methods=["GET"])
     return app
 
 

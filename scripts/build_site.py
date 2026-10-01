@@ -7,6 +7,7 @@ search, dictionary and error pages that need the reference API.
 
 import argparse
 import html
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -16,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "apps/web"
 SITE = WEB / "site"
 MAINTENANCE_OUTPUT = ROOT / "infra/ansible/files"
+PAGE_SHELL = ROOT / "src/minos/http/page_shell.html"
 type Mode = Literal["maintenance", "validation"]
 PLAUSIBLE = (
     '    <script src="/plausible-init.js"></script>\n'
@@ -40,6 +42,34 @@ UNAVAILABLE_HELP = (
     "Wyszukiwarka jest chwilowo niedostępna. Słowniki i zarządzenia znajdziesz"
     + ' w <a href="/zrodla">Źródłach danych</a>.'
 )
+
+
+def _json_ld(value: object) -> str:
+    # JSON-LD is a data block, not executed script; escape "<" for HTML safety.
+    text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    return (
+        '    <script type="application/ld+json">'
+        + text.replace("<", "\\u003c")
+        + "</script>\n"
+    )
+
+
+SITE_JSON_LD = _json_ld(
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Minos Health",
+        "url": "https://minoshealth.pl/",
+        "inLanguage": "pl",
+        "description": "Bezpłatna wyszukiwarka i przeglądarka oficjalnych słowników"
+        + " ICD-10 i ICD-9 PL dla osób kodujących i rozliczających świadczenia.",
+        "publisher": {
+            "@type": "Organization",
+            "name": "Data Craze Krzysztof Bury",
+            "email": "kontakt@minoshealth.pl",
+        },
+    }
+)
 LIVE_HELP = (
     "Nie wpisuj danych pacjentów. Wyniki pokazują treść słownika"
     + " i nie przesądzają o rozliczeniu świadczenia."
@@ -59,6 +89,7 @@ class Page:
     analytics: bool = True
     script: str | None = None
     body_class: str = ""
+    head_extra: str = ""
     values: dict[str, str] = field(default_factory=dict[str, str])
 
 
@@ -116,11 +147,12 @@ PAGES = (
         "Minos Health - wyszukiwarka kodów ICD-10 i ICD-9",
         "Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników,"
         + " dla osób kodujących i rozliczających świadczenia.",
-        "noindex, nofollow",
+        "index, follow",
         "/",
         ("validation",),
         script="/search.js",
         body_class="page-home",
+        head_extra=SITE_JSON_LD,
         values={"search_disabled": "", "search_help": LIVE_HELP},
     ),
     Page(
@@ -129,7 +161,7 @@ PAGES = (
         "/slowniki",
         "Słowniki - Minos Health",
         "Przeglądaj pełne słowniki ICD-10 i ICD-9 w układzie źródła.",
-        "noindex, follow",
+        "index, follow",
         "/slowniki",
         ("validation",),
         analytics=False,
@@ -140,7 +172,7 @@ PAGES = (
         "/slowniki/icd-10",
         "Słownik ICD-10 - Minos Health",
         "Pełny słownik ICD-10: rozdziały, grupy i kody rozpoznań z uwagami źródła.",
-        "noindex, follow",
+        "index, follow",
         "/slowniki",
         ("validation",),
         analytics=False,
@@ -163,7 +195,7 @@ PAGES = (
         "/slowniki/icd-9",
         "Słownik ICD-9 - Minos Health",
         "Pełny słownik ICD-9: działy i kody procedur medycznych z uwagami źródła.",
-        "noindex, follow",
+        "index, follow",
         "/slowniki",
         ("validation",),
         analytics=False,
@@ -276,6 +308,7 @@ def render_page(page: Page, mode: Mode) -> str:
             "preload": FONT_PRELOAD if mode == "validation" else "",
             "scripts": scripts,
             "body_class": page.body_class,
+            "head_extra": page.head_extra,
             "nav": _nav(mode, page.nav),
             "footer_nav": _footer_nav(),
             "content": content.rstrip("\n"),
@@ -308,8 +341,114 @@ def render_site(mode: Mode) -> dict[str, bytes]:
         for name in FONTS:
             files[f"fonts/{name}"] = (WEB / "fonts" / name).read_bytes()
         files["fonts/OFL.txt"] = (WEB / "fonts/OFL.txt").read_bytes()
+        files.update(_crawler_files())
     _reject_typography(files)
     return files
+
+
+SITEMAP_PATHS = ("/", "/slowniki", "/slowniki/icd-10", "/slowniki/icd-9", "/zrodla")
+# The reference API generates one sitemap per dictionary from the verified bundle.
+CODE_SITEMAPS = ("/sitemap-icd-10.xml", "/sitemap-icd-9.xml")
+LLMS = """# Minos Health
+
+> Bezpłatna, niekomercyjna wyszukiwarka i przeglądarka oficjalnych polskich
+> słowników medycznych: ICD-10 (rozpoznania, Rejestr Systemów Kodowania) oraz
+> ICD-9 PL (procedury, Centralne Zasoby Słownikowe NFZ). Treść referencyjna,
+> nie porada medyczna ani decyzja rozliczeniowa NFZ.
+
+## Strony
+
+- [Wyszukiwarka](https://minoshealth.pl/): kody i opisy ICD-10 i ICD-9.
+- [Słownik ICD-10](https://minoshealth.pl/slowniki/icd-10): pełne drzewo rozdziałów i kodów.
+- [Słownik ICD-9](https://minoshealth.pl/slowniki/icd-9): pełne drzewo działów i procedur.
+- Strona kodu: `https://minoshealth.pl/slowniki/icd-10/{KOD}` lub
+  `https://minoshealth.pl/slowniki/icd-9/{KOD}`, np. /slowniki/icd-10/J18.9.
+  Zawiera nazwę, miejsce w hierarchii, kody podrzędne, uwagi „obejmuje” i
+  „nie obejmuje” oraz źródło. Pełne listy kodów są w mapach witryny:
+  https://minoshealth.pl/sitemap-icd-10.xml i https://minoshealth.pl/sitemap-icd-9.xml.
+- [Źródła danych](https://minoshealth.pl/zrodla): wersje słowników i zarządzenia NFZ.
+
+## API (JSON, bez klucza)
+
+- `GET /api/v1/releases`: wersje słowników, wydawcy, licencje i uwagi.
+- `POST /api/v1/search` z JSON `{"system":"icd10-pl"|"icd9-pl","release_id":"...","query":"...","limit":1-20}`.
+  Zapytanie tylko w treści żądania, nigdy w adresie URL.
+- `GET /api/v1/tree/{release_id}/{node}`: dzieci pozycji drzewa (`0` to poziom główny).
+
+## Zasady
+
+- Nie wysyłaj danych pacjentów.
+- ICD-10: CC BY-NC-SA 3.0 IGO; tłumaczenie polskie nie pochodzi od WHO.
+  ICD-9 PL: źródło NFZ bez wskazanej licencji. Wykorzystanie niekomercyjne,
+  z podaniem źródła. Żaden wydawca nie popiera Minos.
+"""
+
+
+def _crawler_files() -> dict[str, bytes]:
+    robots = (
+        "User-agent: *\n"
+        + "Allow: /\n"
+        + "Disallow: /api/\n"
+        + "Sitemap: https://minoshealth.pl/sitemap.xml\n"
+    )
+    pages = "".join(
+        f"  <url><loc>https://minoshealth.pl{path}</loc></url>\n"
+        for path in SITEMAP_PATHS
+    )
+    sitemaps = "".join(
+        f"  <sitemap><loc>https://minoshealth.pl{path}</loc></sitemap>\n"
+        for path in ("/sitemap-pages.xml", *CODE_SITEMAPS)
+    )
+    header = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    return {
+        "robots.txt": robots.encode(),
+        "llms.txt": LLMS.encode(),
+        "sitemap.xml": (
+            header
+            + f'<sitemapindex xmlns="{namespace}">\n'
+            + sitemaps
+            + "</sitemapindex>\n"
+        ).encode(),
+        "sitemap-pages.xml": (
+            header + f'<urlset xmlns="{namespace}">\n' + pages + "</urlset>\n"
+        ).encode(),
+    }
+
+
+def render_page_shell() -> str:
+    """Layout for API-rendered dictionary pages; {{...}} values stay for the API."""
+    page = Page(
+        "page_shell.html",
+        "",
+        "{{path}}",
+        "{{title}}",
+        "{{description}}",
+        "index, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+        body_class="page-code",
+        head_extra="{{head_extra}}",
+    )
+    layout = (SITE / "layout.html").read_text(encoding="utf-8")
+    rendered = _fill(
+        layout,
+        {
+            "title": "{{title}}",
+            "description": "{{description}}",
+            "robots": "{{robots}}",
+            "path": "{{path}}",
+            "preload": FONT_PRELOAD,
+            "scripts": "",
+            "body_class": page.body_class,
+            "head_extra": "{{head_extra}}",
+            "nav": _nav("validation", page.nav),
+            "footer_nav": _footer_nav(),
+            "content": "{{content}}",
+        },
+    )
+    return "\n".join(line.rstrip() for line in rendered.splitlines()) + "\n"
 
 
 def _reject_typography(files: dict[str, bytes]) -> None:
@@ -332,8 +471,13 @@ def main() -> None:
     arguments = _Arguments()
     _ = parser.parse_args(namespace=arguments)
     stale: list[str] = []
-    for name, content in render_site("maintenance").items():
-        target = MAINTENANCE_OUTPUT / name
+    outputs = {
+        MAINTENANCE_OUTPUT / name: content
+        for name, content in render_site("maintenance").items()
+    }
+    outputs[PAGE_SHELL] = render_page_shell().encode()
+    for target, content in outputs.items():
+        name = target.name
         if arguments.check:
             if not target.is_file() or target.read_bytes() != content:
                 stale.append(name)
