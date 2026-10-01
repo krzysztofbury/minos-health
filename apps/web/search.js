@@ -17,17 +17,38 @@
     return node;
   }
   function source() { return sources.find((item) => item.release_id === release.value); }
+  function sourceLink(sourceUrl, text) {
+    const url = new URL(sourceUrl);
+    if (url.protocol !== "https:" || !["www.nfz.gov.pl", "slowniki.nfz.gov.pl", "rsk.ezdrowie.gov.pl", "rsk3.ezdrowie.gov.pl"].includes(url.hostname)) return null;
+    const link = element("a", text);
+    link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
+    return link;
+  }
+  function renderContext(context, summary) {
+    const details = element("details");
+    details.append(element("summary", summary));
+    const list = element("ul");
+    for (const node of context.nodes) list.append(element("li", `${node.code || "Tekst"}: ${node.label}`));
+    details.append(list);
+    const codes = new Map(context.nodes.map((node) => [node.ordinal, node.code || "Tekst"]));
+    for (const edge of context.edges) details.append(element("p", `${codes.get(edge.parent)} -> ${codes.get(edge.child)} (contains)`));
+    return details;
+  }
   function showProvenance() {
     provenance.replaceChildren();
     const selected = source();
     if (!selected) return;
     provenance.append(element("h2", `${selected.publisher} - ${selected.source_version}`));
-    provenance.append(element("p", `Wersja źródła: ${selected.release_id}. ${selected.origin === "czs" ? "Pełny katalog CZS ze statusami i datami. Źródło nie zawiera hierarchii." : "Osobny skoroszyt NFZ z hierarchią. Nie zawiera wszystkich kodów CZS ani statusów i dat. Opisy mogą się różnić."}`));
-    const url = new URL(selected.source_url);
-    if (url.protocol === "https:" && ["www.nfz.gov.pl", "slowniki.nfz.gov.pl", "rsk.ezdrowie.gov.pl"].includes(url.hostname)) {
-      const link = element("a", "Pobierz plik bezpośrednio z oficjalnego źródła");
-      link.href = url.href; link.target = "_blank"; link.rel = "noopener noreferrer";
-      provenance.append(link);
+    provenance.append(element("p", `Wersja źródła: ${selected.release_id}. ${selected.origin === "czs" ? "Jedyny katalog ICD-9: CZS ze statusami i datami. Hierarchia NFZ jest osobnym dowodem pomocniczym, nie zmienia kodów ani opisów CZS." : "ICD-10 PL z RSK: zachowane opisy i hierarchia źródła. Kody modyfikatorów nie są rozwijane w rozpoznania."}`));
+    provenance.append(element("p", `Warunki źródła: ${selected.license}`));
+    for (const notice of selected.notices || []) provenance.append(element("p", notice, "evidence"));
+    const link = sourceLink(selected.source_url, "Pobierz plik bezpośrednio z oficjalnego źródła");
+    if (link) provenance.append(link);
+    if (selected.system === "icd10-pl") {
+      const license = element("a", "CC BY-NC-SA 3.0 IGO - treść licencji");
+      license.href = "https://creativecommons.org/licenses/by-nc-sa/3.0/igo/";
+      license.target = "_blank"; license.rel = "noopener noreferrer";
+      provenance.append(license);
     }
   }
   function render(answer) {
@@ -60,13 +81,14 @@
       attributesList.append(element("li", `Tekst dopasowania: ${hit.match.text}`), element("li", `Źródłowy kod: ${hit.source_code}`), element("li", `SHA-256 źródła: ${answer.provenance.source_sha256}`));
       evidence.append(attributesList); card.append(evidence);
       if (hit.context.nodes.length > 1) {
-        const details = element("details");
-        details.append(element("summary", "Pełny kontekst i powiązania źródła"));
-        const list = element("ul");
-        for (const node of hit.context.nodes) list.append(element("li", `${node.code || "Tekst"}: ${node.label}`));
-        details.append(list);
-        const codes = new Map(hit.context.nodes.map((node) => [node.ordinal, node.code || "Tekst"]));
-        for (const edge of hit.context.edges) details.append(element("p", `${codes.get(edge.parent)} -> ${codes.get(edge.child)} (contains)`));
+        card.append(renderContext(hit.context, "Pełny kontekst i powiązania źródła"));
+      }
+      for (const supporting of hit.supporting_contexts || []) {
+        const details = renderContext(supporting.context, "Pomocnicza hierarchia NFZ - nie pochodzi z CZS");
+        details.append(element("p", `${supporting.publisher} - ${supporting.source_version}; ${supporting.release_id}; SHA-256: ${supporting.source_sha256}`));
+        details.append(element("p", "Powiązanie tylko po dokładnym kodzie. Opisy skoroszytu nie zastępują opisu CZS."));
+        const link = sourceLink(supporting.source_url, "Oficjalny skoroszyt NFZ");
+        if (link) details.append(link);
         card.append(details);
       }
       results.append(card);
@@ -118,7 +140,7 @@
     if (answer.api !== 1 || !Array.isArray(answer.releases) || answer.releases.length < 1 || answer.releases.length > 16) throw new Error("invalid metadata");
     sources = answer.releases;
     release.replaceChildren(...sources.map((item) => {
-      const option = element("option", `${item.system.toUpperCase()} ${item.source_version} - ${item.origin === "czs" ? "CZS: pełny katalog, statusy i daty" : "NFZ: osobna hierarchia i uwagi"}`);
+      const option = element("option", `${item.system.toUpperCase()} ${item.source_version} - ${item.origin === "czs" ? "CZS: katalog, statusy i daty" : "RSK: opisy i hierarchia"}`);
       option.value = item.release_id;
       return option;
     }));

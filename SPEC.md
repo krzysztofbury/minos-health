@@ -57,6 +57,10 @@ Two interfaces share the same domain behaviour:
   for a given group, list, or point value.
 - Source release metadata and transformation provenance.
 - Deterministic code and normalized-text search.
+- Reference search remains free and noncommercial. The owner-authorized RSK
+  ICD-10 PL capture retains its attribution and NC/SA source terms; paid
+  calculations must not depend on this content. NFZ CZS is the sole ICD-9 PL
+  catalog, with separately attributed exact-code workbook hierarchy evidence.
 - Human-readable and JSON CLI output.
 - A versioned read-only HTTP API and responsive anonymous webpage.
 - One immutable API container and one immutable static web artifact, deployed

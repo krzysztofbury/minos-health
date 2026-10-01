@@ -19,6 +19,7 @@ from minos.domain.search import (
     SearchRequest,
     SearchResult,
     SpellingSuggestion,
+    SupportingContext,
     prefix_upper_bound,
     use_token_prefix,
 )
@@ -60,6 +61,11 @@ def search_reference(
             characters += sum(
                 len(name) + len(text) for name, text in hit.matched_source_attributes
             )
+            characters += sum(
+                len(node.label)
+                for context in hit.supporting_contexts
+                for node in context.nodes
+            )
             if characters > 512 * 1024:
                 raise QueryLimitError("search output exceeds character limit")
             hits.append(hit)
@@ -81,7 +87,10 @@ def _resolve_release(connection: sqlite3.Connection, request: SearchRequest) -> 
     rows = cast(
         list[tuple[str]],
         connection.execute(
-            "SELECT id FROM source_release WHERE system=? AND (? IS NULL OR id=?) ORDER BY id LIMIT 2",
+            """SELECT id FROM source_release WHERE system=? AND (? IS NULL OR id=?)
+            AND id NOT IN (SELECT key FROM json_each(coalesce(
+                (SELECT value FROM build_metadata WHERE key='supporting_sources'), '{}')))
+            ORDER BY id LIMIT 2""",
             (request.system, request.release_id, request.release_id),
         ).fetchall(),
     )
@@ -241,7 +250,34 @@ def _hydrate_hit(
         edges,
         attributes,
         matched_attributes,
+        _supporting_contexts(connection, release, target.code),
     )
+
+
+def _supporting_contexts(
+    connection: sqlite3.Connection, release: str, code: str | None
+) -> tuple[SupportingContext, ...]:
+    if code is None:
+        return ()
+    rows = cast(
+        list[tuple[str, int]],
+        connection.execute(
+            """SELECT concept.source_release_id, concept.node_ordinal
+            FROM concept JOIN json_each(coalesce(
+                (SELECT value FROM build_metadata WHERE key='supporting_sources'), '{}')) AS policy
+            ON policy.key=concept.source_release_id
+            WHERE policy.value=? AND concept.lookup_code=?
+            ORDER BY concept.source_release_id LIMIT 17""",
+            (release, code),
+        ).fetchall(),
+    )
+    if len(rows) > 16:
+        raise QueryLimitError("supporting context exceeds source limit")
+    contexts: list[SupportingContext] = []
+    for source, ordinal in rows:
+        nodes, edges = _context(connection, source, ordinal)
+        contexts.append(SupportingContext(source, ordinal, nodes, edges))
+    return tuple(contexts)
 
 
 def _source_attributes(

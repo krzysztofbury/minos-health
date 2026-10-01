@@ -8,12 +8,26 @@ for the commercial/product launch gates. This is an explicit, narrow development
 exception, not a written legal opinion, trademark clearance, signed product
 release or completion of #2, #3, #27 or #41.
 
-The validation deployment exposes bounded ICD-9 PL lookup from pinned NFZ CZS
-and companion-workbook evidence, with separate selectable releases. It does not
+The owner subsequently confirmed on 2026-10-01 that reference search will always
+remain free and noncommercial and authorized adding pinned RSK ICD-10 PL. The
+current selection is `manifests/sources/reference-public-validation.json`:
+one canonical NFZ CZS ICD-9 PL catalog and one RSK ICD-10 PL catalog. It does not
 expose the private S3 archive, credentials, control database, raw source routes,
 patient data, grouping calculations, payments or a claim of clinical correctness.
-Official upstream download links remain available. RSK ICD-10 is not added to
-this deployment merely because it is present in a private local bundle.
+Official upstream download links remain available. RSK publisher, CC BY-NC-SA
+3.0 IGO terms, translation disclaimer, transformation and non-endorsement notices
+appear in API provenance and on the search page. No paid feature may depend on
+the RSK content; source-derived data remain subject to the source terms.
+
+`context_for` binds the immutable same-version NFZ workbook to its canonical CZS
+release. The verified DB repeats this binding in build metadata; manifest/DB
+disagreement fails closed. Supporting sources are not selectable search releases,
+even by direct API or CLI request. CZS result codes/titles/statuses/dates stay
+unchanged. `supporting_contexts` carries exact-code-linked workbook ancestors,
+all supplied parents, original workbook labels, its release identity/checksum
+and source terms, separately from the canonical `context`. Workbook-only codes,
+conflicting titles and annotations are not additional canonical matches. Earlier
+bundles without `context_for` retain their explicit separate-release behavior.
 
 ## API And Privacy
 
@@ -61,23 +75,27 @@ and [Logpull retention](https://developers.cloudflare.com/logs/logpull/enabling-
 - SQL retrieval retains the shared 250 ms / two-million-VM-step ceiling.
 - API: non-root UID 10004, read-only root/data, no capabilities or outbound
   network, one CPU, 512 MiB memory and 64 MiB temporary storage.
-- Validation acceptance: 48 requests at concurrency four, no unexpected errors,
-  public warm API p95 below 500 ms, mobile/desktop usable rendering and keyboard
-  lookup, no medical queries in URLs/telemetry, at least 300 MiB host memory
-  headroom while existing services remain running. An overload burst at
-  concurrency eight must return only success or explicit capacity/limit errors.
-  These targets are validation budgets, not an incumbent comparison or a launch SLO.
+- Local-only load acceptance: 48 requests at concurrency four, no unexpected
+  errors, warm API p95 below 500 ms. A local concurrency-eight burst must return
+  only success or explicit capacity/limit errors. The checker rejects non-loopback
+  targets. These are validation budgets, not an incumbent comparison or launch SLO.
+- Mikr.us receives only readiness and one search per selected terminology, plus
+  desktop/mobile visual review, query-free URLs/telemetry and at least 300 MiB
+  host memory headroom with existing services running. The owner stopped VPS
+  stress/profiling after a provider warning; no load acceptance runs on the host.
+  Earlier concurrency-related query deadlines remain unresolved and are not a
+  throughput claim. Keep the existing VPS and query limits, without tuning.
 
 ## Artifact And Cutover Policy
 
 Private validation API and edge images are built from the reviewed `main` commit
 and selected by exact runnable `linux/amd64` digests, not mutable tags. The code
-image receives one checksummed, read-only, versioned NFZ-only bundle; no raw
+image receives one checksummed, read-only, versioned reference bundle; no raw
 sources or generated medical bundle are committed or uploaded to PR jobs.
 The immutable edge includes the checksummed static artifact. Its data-free
 `/zrodla` metadata behavior remains unchanged.
 
-The separate `manifests/sources/icd9-public-validation.json` records the owner's
+The separate `manifests/sources/reference-public-validation.json` records the owner's
 validation authorization without retroactively rewriting the private-development
 source manifests or claiming a publisher licence. It pins the same raw captures.
 `scripts/render_validation_compose.py` preserves existing operational services
@@ -98,6 +116,7 @@ docker build --platform linux/amd64 --file packaging/validation-edge/Dockerfile 
 uv run python scripts/smoke_reference_web.py /path/to/new/acceptance \
   --bundle /path/to/verified/bundle --chromium /usr/bin/chromium
 uv run python scripts/check_reference_web.py /path/to/new/public-acceptance.json \
+  --base http://127.0.0.1:8080 \
   --expected-digest <database-sha256>
 ```
 
@@ -112,7 +131,8 @@ dataset receipt and retained exact previous Compose/static configuration. It
 does not claim #41's independent signatures or signed receipt chain. Only the
 new reference API and edge change; watcher, tunnel, Kuma, credentials, schedules
 and control state remain untouched. Rollback restores the exact previous edge
-and removes only the validation API. No watcher database restore is involved.
+and restores or removes the validation API according to the previous Compose
+configuration. No watcher database restore is involved.
 
 Do not run the maintenance-only Ansible playbook over an active validation
 deployment. Restore maintenance first, or integrate the validated services into
@@ -173,5 +193,9 @@ removed without changing the maintenance edge or operational services.
 Container acceptance now tests the first text request before browser/code
 warm-up. Local full-source revalidation passed: first text request 14.599 ms;
 48 successful concurrency-four requests, p95 80.953 ms; overload produced only
-success/HTTP 429; API peak memory 416,358,400 bytes. Host cold/load verification
-must still pass on the replacement immutable image before public cutover.
+success/HTTP 429; API peak memory 416,358,400 bytes. On 2026-10-01 at 13:02 UTC
+the NFZ-only release was activated with readiness and exactly one public browser
+search, desktop/mobile visual review, retained maintenance rollback and unchanged
+operational services. No VPS stress/profiling was run during that cutover. The
+subsequent canonical ICD-9 plus ICD-10 deployment needs its own artifact receipt
+and the same minimal host checks, not a replay of the earlier host load plan.

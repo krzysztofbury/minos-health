@@ -168,8 +168,22 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                     "source_url": source.source_url,
                     "license": source.license,
                     "notices": source.notices,
+                    "supporting_sources": [
+                        {
+                            "release_id": evidence.release_id,
+                            "source_sha256": evidence.sha256,
+                            "source_url": evidence.source_url,
+                            "publisher": evidence.publisher,
+                            "source_version": evidence.source_version,
+                            "license": evidence.license,
+                            "notices": evidence.notices,
+                        }
+                        for evidence in pool.manifest.dataset.sources
+                        if evidence.context_for == source.release_id
+                    ],
                 }
                 for source in pool.manifest.dataset.sources
+                if source.context_for is None
             ],
         }
 

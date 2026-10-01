@@ -1,7 +1,8 @@
 """Explicit versioned output adapters; domain values have no JSON policy."""
 
 from minos.domain.morphology import MORPHOLOGY_VERSION
-from minos.domain.search import SearchHit, SearchResult
+from minos.domain.reference import ArtifactError
+from minos.domain.search import ContextNode, SearchHit, SearchResult, SupportingContext
 from minos.store.artifact import ArtifactManifest, dataset_identity
 
 
@@ -21,8 +22,6 @@ def search_envelope(
         None,
     )
     if source is None:
-        from minos.domain.reference import ArtifactError
-
         raise ArtifactError("search release is not in the verified manifest")
     return {
         "version": 1,
@@ -43,7 +42,9 @@ def search_envelope(
             for token, alternatives in result.morphology
         ],
         "truncated": result.truncated,
-        "results": [_hit_envelope(hit) for hit in result.hits],
+        "results": [
+            _hit_envelope(hit, manifest, result.release_id) for hit in result.hits
+        ],
         "suggestions": [
             {
                 "query": item.query,
@@ -63,7 +64,9 @@ def search_envelope(
     }
 
 
-def _hit_envelope(hit: SearchHit) -> dict[str, object]:
+def _hit_envelope(
+    hit: SearchHit, manifest: ArtifactManifest, release_id: str
+) -> dict[str, object]:
     return {
         "node_ordinal": hit.node_ordinal,
         "code": hit.code,
@@ -79,22 +82,58 @@ def _hit_envelope(hit: SearchHit) -> dict[str, object]:
             "language": hit.language,
             "source_attributes": dict(hit.matched_source_attributes),
         },
-        "context": {
-            "nodes": [
-                {
-                    "ordinal": node.ordinal,
-                    "code": node.code,
-                    "source_code": node.source_code,
-                    "label": node.label,
-                    "kind": node.kind,
-                }
-                for node in hit.context_nodes
-            ],
-            "edges": [
-                {"parent": parent, "child": child, "type": "contains"}
-                for parent, child in hit.context_edges
-            ],
-        },
+        "context": _context_envelope(hit.context_nodes, hit.context_edges),
+        "supporting_contexts": [
+            _supporting_envelope(context, manifest, release_id)
+            for context in hit.supporting_contexts
+        ],
+    }
+
+
+def _supporting_envelope(
+    context: SupportingContext, manifest: ArtifactManifest, release_id: str
+) -> dict[str, object]:
+    source = next(
+        (
+            source
+            for source in manifest.dataset.sources
+            if source.release_id == context.release_id
+        ),
+        None,
+    )
+    if source is None or source.context_for != release_id:
+        raise ArtifactError("supporting context is not bound to the canonical release")
+    return {
+        "release_id": source.release_id,
+        "node_ordinal": context.node_ordinal,
+        "publisher": source.publisher,
+        "source_version": source.source_version,
+        "source_sha256": source.sha256,
+        "source_url": source.source_url,
+        "license": source.license,
+        "notices": list(source.notices),
+        "context": _context_envelope(context.nodes, context.edges),
+    }
+
+
+def _context_envelope(
+    nodes: tuple[ContextNode, ...], edges: tuple[tuple[int, int], ...]
+) -> dict[str, object]:
+    return {
+        "nodes": [
+            {
+                "ordinal": node.ordinal,
+                "code": node.code,
+                "source_code": node.source_code,
+                "label": node.label,
+                "kind": node.kind,
+            }
+            for node in nodes
+        ],
+        "edges": [
+            {"parent": parent, "child": child, "type": "contains"}
+            for parent, child in edges
+        ],
     }
 
 
@@ -153,6 +192,18 @@ def search_table(
             "  Contains edges: "
             + ", ".join(f"{parent}->{child}" for parent, child in hit.context_edges)
         )
+        for context in hit.supporting_contexts:
+            lines.append(
+                "  Supporting hierarchy (not canonical): " + context.release_id
+            )
+            lines.extend(
+                f"    {node.ordinal}: {node.code or '(uncoded)'} {_display(node.label)}"
+                for node in context.nodes
+            )
+            lines.append(
+                "    Contains edges: "
+                + ", ".join(f"{parent}->{child}" for parent, child in context.edges)
+            )
     if not result.hits:
         lines.append("No matching source entries.")
     if result.truncated:
