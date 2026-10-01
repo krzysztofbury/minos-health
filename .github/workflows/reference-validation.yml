@@ -48,6 +48,28 @@ jobs:
           uv run python scripts/smoke_reference_web.py "$RUNNER_TEMP/reference-smoke" \
             --chromium "$(command -v google-chrome)"
 
+      - name: Scan validation API for fixable high/critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: minos-reference-api:validation-local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+
+      - name: Scan validation edge for fixable high/critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: image
+          image-ref: minos-reference-edge:validation-local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+
   publish:
     name: Publish private validation images
     needs: verify

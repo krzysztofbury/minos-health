@@ -150,3 +150,13 @@ Public deployment and host-load evidence are recorded in the operator receipt
 after activation; no deployment success is inferred from local acceptance or
 an idle production interval. These results do not compare Minos with incumbents
 or claim completion of the full #42 SLO investigation.
+
+Pre-promotion Trivy 0.70.0 scanning found fixable `CVE-2026-93990` in the old
+maintenance edge's libexpat 2.8.4-r0. The validation edge now uses the refreshed
+NGINX 1.31.6 Alpine `linux/amd64` base
+`sha256:c18d735d33a1c3ccb5ef201d504e5b4aa4d003e81f034b329011267f4c4d0f58`,
+containing libexpat 2.8.5-r0. Both validation images then passed fixable
+high/critical scans, and full-source container/browser/load/failure acceptance
+was repeated successfully. The PR/manual-publication workflow now enforces
+those scans so an image regression blocks promotion. The unchanged old base
+is retained only as the exact maintenance rollback target, not the new release.
