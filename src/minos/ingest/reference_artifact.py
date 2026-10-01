@@ -6,14 +6,15 @@ import platform
 import sqlite3
 import stat
 import tempfile
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO, cast
 
 from minos.domain.reference import ArtifactError, SourceError
-from minos.ingest.icd10 import parse_icd10
+from minos.ingest.icd9 import parse_icd9_xml
+from minos.ingest.icd10 import ReferenceEvent, parse_icd10
 from minos.ingest.reference_manifest import DatasetManifest, SourceManifest
 from minos.store.artifact import (
     ARTIFACT_MANIFEST_NAME,
@@ -88,7 +89,11 @@ def build_reference_artifact(
     if output.exists() or output.is_symlink():
         raise ArtifactError("reference output already exists")
     for source in manifest.sources:
-        if source.system != "icd10-pl" or source.origin != "rsk":
+        if (source.system, source.origin) not in (
+            ("icd10-pl", "rsk"),
+            ("icd9-pl", "czs"),
+            ("icd9-pl", "nfz-workbook"),
+        ):
             raise SourceError("unsupported source adapter")
     try:
         with tempfile.TemporaryDirectory(
@@ -99,7 +104,7 @@ def build_reference_artifact(
             counts, options = _build_database(database_path, manifest, archive_root)
             database_path.chmod(0o600)
             checksum, size_bytes = file_identity(database_path)
-            summary = _review_summary(manifest, counts, previous_bundle)
+            summary = _review_summary(manifest, counts, previous_bundle, database_path)
             _write_synced(candidate / REVIEW_SUMMARY_NAME, summary)
             result = ArtifactManifest(
                 schema_version=REFERENCE_SCHEMA_VERSION,
@@ -158,7 +163,7 @@ def _build_database(
             with verified_source(
                 archive_root, source, staging_directory=database.parent
             ) as snapshot:
-                import_release(connection, source, parse_icd10(snapshot))
+                import_release(connection, source, _source_events(snapshot, source))
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options
@@ -170,8 +175,25 @@ def _build_database(
             connection.close()
 
 
+def _source_events(
+    snapshot: BinaryIO, source: SourceManifest
+) -> Iterator[ReferenceEvent]:
+    if (source.system, source.origin) == ("icd10-pl", "rsk"):
+        return parse_icd10(snapshot)
+    if (source.system, source.origin) == ("icd9-pl", "czs"):
+        return parse_icd9_xml(snapshot, source)
+    if (source.system, source.origin) == ("icd9-pl", "nfz-workbook"):
+        from minos.ingest.icd9_workbook import parse_icd9_workbook
+
+        return parse_icd9_workbook(snapshot, source)
+    raise SourceError("unsupported source adapter")
+
+
 def _review_summary(
-    manifest: DatasetManifest, counts: dict[str, int], previous_bundle: Path | None
+    manifest: DatasetManifest,
+    counts: dict[str, int],
+    previous_bundle: Path | None,
+    database_path: Path,
 ) -> bytes:
     from minos.store.reference import open_reference_connection, read_artifact_manifest
 
@@ -203,6 +225,9 @@ def _review_summary(
         lines.append(f"Pinned bytes: {source.sha256} / {source.size_bytes}")
         lines.append(f"License: {source.license}")
         lines.extend(f"Notice: {notice}" for notice in source.notices)
+    from minos.ingest.reference_reconciliation import reconciliation_lines
+
+    lines.extend(reconciliation_lines(database_path, manifest))
     return ("\n".join(lines) + "\n").encode()
 
 

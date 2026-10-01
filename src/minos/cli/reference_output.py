@@ -70,12 +70,14 @@ def _hit_envelope(hit: SearchHit) -> dict[str, object]:
         "source_code": hit.source_code,
         "label": hit.label,
         "kind": hit.kind,
+        "source_attributes": dict(hit.source_attributes),
         "match_type": hit.match_type,
         "match": {
             "node_ordinal": hit.matched_node_ordinal,
             "text": hit.matched_text,
             "description_type": hit.description_type,
             "language": hit.language,
+            "source_attributes": dict(hit.matched_source_attributes),
         },
         "context": {
             "nodes": [
@@ -122,6 +124,24 @@ def search_table(
         lines.append(
             f"  Match [{hit.match_type}/{hit.description_type}]: {_display(hit.matched_text)}"
         )
+        if hit.source_attributes:
+            lines.append(
+                "  Source attributes: "
+                + "; ".join(
+                    name + "=" + _display(text) for name, text in hit.source_attributes
+                )
+            )
+        if (
+            hit.matched_source_attributes
+            and hit.matched_node_ordinal != hit.node_ordinal
+        ):
+            lines.append(
+                "  Match source attributes: "
+                + "; ".join(
+                    name + "=" + _display(text)
+                    for name, text in hit.matched_source_attributes
+                )
+            )
         lines.append(
             "  Context nodes: "
             + "; ".join(

@@ -85,6 +85,17 @@ def initialize_reference(
         "python_version": platform.python_version(),
         "sqlite_version": sqlite3.sqlite_version,
     }
+    if any(source.system == "icd9-pl" for source in manifest.sources):
+        versions = {"czs": "czs-icd9-1", "nfz-workbook": "nfz-icd9-workbook-1"}
+        metadata["icd9_conversion_version"] = ",".join(
+            sorted(
+                {
+                    versions.get(source.origin, "source-defined")
+                    for source in manifest.sources
+                    if source.system == "icd9-pl"
+                }
+            )
+        )
     _ = connection.executemany(
         "INSERT INTO build_metadata VALUES (?, ?)", sorted(metadata.items())
     )

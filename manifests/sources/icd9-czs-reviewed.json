@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "transform_version": "icd9-czs-reference-v1",
+  "lockfile_sha256": "25e420d51a615aae7af6593715bbd1bcb8d3e5faef7533e65c54344b1e4a4a39",
+  "sources": [
+    {
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "system": "icd9-pl",
+      "origin": "czs",
+      "source_version": "5.90",
+      "source_file_id": "ICD9:93",
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=93",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "fetched_at": "2026-09-29T14:24:40.621Z",
+      "source_created_at": null,
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "e3c744634e68f23d5ecbfecb50ece831140eb8533ab72b8a1b3ee54594024b1b",
+      "size_bytes": 1630852,
+      "license": "No stated license; private development only, redistribution rights under review",
+      "notices": [
+        "Source: NFZ Centralne Zasoby Slownikowe, ICD-9 PL 5.90, generation 93. This is a reviewed historical capture, not a latest-version selector.",
+        "The fetch timestamp is the archived watcher observation timestamp; source publication and generation timestamps have no stated timezone and are retained in the source header.",
+        "All source codes, titles, statuses, procedure date bounds and annotations are preserved. The XML supplies no hierarchy; no parent or billability inference is made.",
+        "NFZ workbook hierarchy is separate companion evidence, never silently joined into this XML-attributed release.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+        "No raw source redistribution or public medical-data publication is authorized by this manifest."
+      ],
+      "expected": {"nodes": 10179, "relations": 0, "concepts": 10179, "descriptions": 10179}
+    }
+  ]
+}

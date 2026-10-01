@@ -183,6 +183,8 @@ jobs:
           from minos.ingest.reference_artifact import build_reference_artifact
           from minos.ingest.reference_manifest import DatasetManifest
           from minos.store.reference import open_reference
+          from tests.fixtures.icd9_workbook import archive_bytes, workbook_manifest
+          from tests.fixtures.icd9_xml import XML, source_manifest
 
           from minos.ingest.watchers.control import (
               CONTROL_SCHEMA_VERSION,
@@ -223,6 +225,26 @@ jobs:
                   assert answer["results"][0]["match_type"] == "exact_code"
                   assert answer["release_id"] == manifest.sources[0].release_id
                   assert answer["database_sha256"] == result.database_sha256
+              workbook = archive_bytes()
+              companions = ((source_manifest(), XML), (workbook_manifest(workbook), workbook))
+              for source, body in companions:
+                  (blob.parent / source.sha256).write_bytes(body)
+              combined = manifest.model_copy(update={"sources": (*manifest.sources, *(source for source, _ in companions))})
+              mixed = build_reference_artifact(combined, root, root / "mixed")
+              assert mixed.row_counts["source_release"] == 3
+              assert mixed.row_counts["concept"] == 15
+              for source, _ in companions:
+                  searched = subprocess.run([str(Path(sys.executable).with_name("minos")), "search",
+                      "--system", "icd9-pl", "--release", source.release_id, "--query", "A01",
+                      "--data", str(root / "mixed"), "--json"],
+                      cwd=root, capture_output=True, text=True, timeout=10, check=True)
+                  hit = json.loads(searched.stdout)["results"][0]
+                  assert hit["code"] == "A01"
+                  if source.origin == "czs":
+                      assert hit["source_attributes"]["status"] == "N"
+                  else:
+                      assert hit["source_attributes"]["worksheet"] == "ICD-9_PL "
+                      assert len(hit["context"]["edges"]) == 2
           PY
 
       - name: Build and exercise the standalone offline reference CLI

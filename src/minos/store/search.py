@@ -54,6 +54,12 @@ def search_reference(
             characters += len(hit.matched_text) + sum(
                 len(node.label) for node in hit.context_nodes
             )
+            characters += sum(
+                len(name) + len(text) for name, text in hit.source_attributes
+            )
+            characters += sum(
+                len(name) + len(text) for name, text in hit.matched_source_attributes
+            )
             if characters > 512 * 1024:
                 raise QueryLimitError("search output exceeds character limit")
             hits.append(hit)
@@ -214,6 +220,12 @@ def _hydrate_hit(
     target = next((node for node in nodes if node.ordinal == ordinal), None)
     if target is None:
         raise ArtifactError("search attribution is outside source context")
+    attributes = _source_attributes(connection, release, ordinal)
+    matched_attributes = (
+        attributes
+        if matched[0] == ordinal
+        else _source_attributes(connection, release, matched[0])
+    )
     return SearchHit(
         ordinal,
         target.code,
@@ -227,7 +239,24 @@ def _hydrate_hit(
         matched[1],
         nodes,
         edges,
+        attributes,
+        matched_attributes,
     )
+
+
+def _source_attributes(
+    connection: sqlite3.Connection, release: str, ordinal: int
+) -> tuple[tuple[str, str], ...]:
+    attributes = cast(
+        list[tuple[str, str]],
+        connection.execute(
+            reference_sql("queries/search_source_attributes.sql"),
+            {"release_id": release, "ordinal": ordinal},
+        ).fetchall(),
+    )
+    if len(attributes) > 16:
+        raise QueryLimitError("search source attributes exceed limit")
+    return tuple(attributes)
 
 
 def _context(

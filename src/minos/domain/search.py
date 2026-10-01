@@ -74,6 +74,8 @@ class SearchHit:
     language: str
     context_nodes: tuple[ContextNode, ...]
     context_edges: tuple[tuple[int, int], ...]
+    source_attributes: tuple[tuple[str, str], ...] = ()
+    matched_source_attributes: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
