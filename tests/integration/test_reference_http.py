@@ -151,6 +151,22 @@ def test_http_missing_or_altered_data_fails_closed(tmp_path: Path) -> None:
         assert client.get("/healthz").status_code == 200
 
 
+def test_http_cannot_be_ready_without_pinned_morphology(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from minos.domain import morphology
+
+    path = bundle(tmp_path)
+
+    def unavailable(_name: str) -> object:
+        raise ImportError("unavailable analyzer")
+
+    monkeypatch.setattr(morphology, "import_module", unavailable)
+    with pytest.raises(ArtifactError, match="pinned reference extra"):
+        with TestClient(create_app(path)) as client:
+            assert client.get("/readyz").status_code == 200
+
+
 def test_busy_sql_workers_do_not_block_liveness_and_overload_is_explicit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

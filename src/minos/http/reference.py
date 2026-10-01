@@ -7,6 +7,7 @@ from pathlib import Path
 from threading import Lock
 from typing import final
 
+from minos.domain.morphology import PolishMorphology
 from minos.domain.reference import ArtifactError
 from minos.store.artifact import DATABASE_NAME, ArtifactManifest
 from minos.store.reference import open_reference_bundle
@@ -34,6 +35,9 @@ class ReferencePool:
                 self._connections.append(connection)
                 self.manifest = manifest
             self._identity = self._file_identity()
+            # Retain the verified native dictionary before readiness. Cold loading
+            # exceeded the host's request budget; request analyzers stay independent.
+            self._morphology = PolishMorphology()
         except BaseException:
             self._stack.close()
             raise
