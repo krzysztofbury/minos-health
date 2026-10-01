@@ -74,6 +74,10 @@ try {
 } finally {
   if (socket) socket.close();
   browser.kill("SIGTERM");
-  await new Promise((resolve) => { if (browser.exitCode !== null) resolve(); else browser.once("exit", resolve); });
-  await rm(profile, { recursive: true, force: true });
+  await Promise.race([
+    new Promise((resolve) => { if (browser.exitCode !== null || browser.signalCode !== null) resolve(); else browser.once("exit", resolve); }),
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
+  if (browser.exitCode === null && browser.signalCode === null) browser.kill("SIGKILL");
+  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
