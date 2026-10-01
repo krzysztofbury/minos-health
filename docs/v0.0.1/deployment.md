@@ -268,8 +268,9 @@ validates the complete bounded schema before rendering, and derives every
 official RSK link from a validated UUID. It renders at most 75 rows at once,
 debounces local filtering, and labels current, stale, severe-stale, and material
 future-clock states separately from schema validity. Nginx serves the page and
-its `/sources.css` and `/sources.js` assets only on exact query-free paths,
-compresses JSON, and applies a CSP with external styles only. The artifact
+the shared `/site.css` and its `/sources.js` asset only on exact query-free
+paths, compresses JSON, and applies a CSP with external styles and same-origin
+fonts only. The artifact
 namespace is deny-all and returns 404. The page offers no Minos artifact
 download.
 

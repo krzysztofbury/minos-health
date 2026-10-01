@@ -1,0 +1,349 @@
+"""Render every public page from one layout so header, footer and styles match.
+
+The maintenance edge (Ansible) receives the API-free subset, committed under
+infra/ansible/files and verified with --check. The validation edge adds the
+search, dictionary and error pages that need the reference API.
+"""
+
+import argparse
+import html
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Literal, final
+
+ROOT = Path(__file__).resolve().parents[1]
+WEB = ROOT / "apps/web"
+SITE = WEB / "site"
+MAINTENANCE_OUTPUT = ROOT / "infra/ansible/files"
+type Mode = Literal["maintenance", "validation"]
+PLAUSIBLE = (
+    '    <script src="/plausible-init.js"></script>\n'
+    + '    <script async src="https://plausible.io/js/pa-NFvtUdLPyyrZ5D9U4M1M9.js"></script>\n'
+)
+FONT_PRELOAD = (
+    '    <link rel="preload" href="/fonts/atkinson-next-400.woff2" as="font"'
+    + ' type="font/woff2" crossorigin>\n'
+)
+FONTS = (
+    "atkinson-next-400.woff2",
+    "atkinson-next-600.woff2",
+    "atkinson-next-700.woff2",
+    "atkinson-mono-400.woff2",
+    "atkinson-mono-600.woff2",
+)
+RETIRED_STYLESHEET = (
+    b"/* Retired: every page uses /site.css. Kept only because the Ansible\n"
+    + b"   runtime inventory still deploys this file name. */\n"
+)
+UNAVAILABLE_HELP = (
+    "Wyszukiwarka jest chwilowo niedostępna. Słowniki i zarządzenia znajdziesz"
+    + ' w <a href="/zrodla">Źródłach danych</a>.'
+)
+LIVE_HELP = (
+    "Nie wpisuj danych pacjentów. Wyniki pokazują treść słownika"
+    + " i nie przesądzają o rozliczeniu świadczenia."
+)
+
+
+@dataclass(frozen=True)
+class Page:
+    output: str
+    source: str
+    path: str
+    title: str
+    description: str
+    robots: str
+    nav: str | None
+    modes: tuple[Mode, ...]
+    analytics: bool = True
+    script: str | None = None
+    body_class: str = ""
+    values: dict[str, str] = field(default_factory=dict[str, str])
+
+
+def _dictionary_tabs(current: str) -> str:
+    tabs: list[str] = []
+    for path, label in (("/slowniki/icd-10", "ICD-10"), ("/slowniki/icd-9", "ICD-9")):
+        state = ' aria-current="page"' if path == current else ""
+        tabs.append(
+            f'          <a class="dictionary-tab" role="listitem" href="{path}"{state}>{label}</a>'
+        )
+    for label in ("Procedury medyczne", "ICD-11"):
+        tabs.append(
+            '          <span class="dictionary-tab is-soon" role="listitem"'
+            + f' title="W przygotowaniu" aria-disabled="true">{label}</span>'
+        )
+    return "\n".join(tabs)
+
+
+ICD10_NOTE = (
+    "<p>Źródłem jest Rejestr Systemów Kodowania (RSK, Centrum e-Zdrowia) i Biuro"
+    + " Światowej Organizacji Zdrowia w Polsce. Treść i jej przekształcenia są"
+    + ' objęte licencją <a href="https://creativecommons.org/licenses/by-nc-sa/3.0/igo/"'
+    + ' rel="noopener noreferrer">CC BY-NC-SA 3.0 IGO</a>.</p>'
+    + "<p>Tłumaczenie polskie nie zostało przygotowane przez WHO; WHO nie odpowiada"
+    + " za jego treść ani poprawność. Wiążące jest angielskie wydanie WHO 2019."
+    + " Minos zachowuje tekst i układ źródła; żaden wydawca nie popiera Minos.</p>"
+)
+ICD9_NOTE = (
+    "<p>Kody, nazwy, statusy i daty pochodzą z Centralnych Zasobów Słownikowych"
+    + " NFZ (CZS). CZS nie podaje hierarchii, dlatego układ działów pochodzi ze"
+    + " skoroszytu ICD-9 PL tej samej wersji opublikowanego przez NFZ i jest"
+    + " powiązany z CZS wyłącznie po dokładnym kodzie.</p>"
+    + "<p>Źródła nie podają licencji; Minos udostępnia je niekomercyjnie do"
+    + " celów referencyjnych. Żaden wydawca nie popiera Minos.</p>"
+)
+
+PAGES = (
+    Page(
+        "maintenance-index.html",
+        "home.html",
+        "/",
+        "Minos Health - wyszukiwarka kodów ICD-10 i ICD-9",
+        "Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników,"
+        + " dla osób kodujących i rozliczających świadczenia.",
+        "noindex, nofollow",
+        "/",
+        ("maintenance",),
+        body_class="page-home",
+        values={"search_disabled": " disabled", "search_help": UNAVAILABLE_HELP},
+    ),
+    Page(
+        "index.html",
+        "home.html",
+        "/",
+        "Minos Health - wyszukiwarka kodów ICD-10 i ICD-9",
+        "Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników,"
+        + " dla osób kodujących i rozliczających świadczenia.",
+        "noindex, nofollow",
+        "/",
+        ("validation",),
+        script="/search.js",
+        body_class="page-home",
+        values={"search_disabled": "", "search_help": LIVE_HELP},
+    ),
+    Page(
+        "dictionaries.html",
+        "dictionaries.html",
+        "/slowniki",
+        "Słowniki - Minos Health",
+        "Przeglądaj pełne słowniki ICD-10 i ICD-9 w układzie źródła.",
+        "noindex, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+    ),
+    Page(
+        "dictionary-icd-10.html",
+        "dictionary.html",
+        "/slowniki/icd-10",
+        "Słownik ICD-10 - Minos Health",
+        "Pełny słownik ICD-10: rozdziały, grupy i kody rozpoznań z uwagami źródła.",
+        "noindex, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+        script="/dictionary.js",
+        body_class="page-dictionary",
+        values={
+            "system": "icd10-pl",
+            "dictionary_short": "ICD-10",
+            "dictionary_title": "Słownik ICD-10",
+            "dictionary_lead": "Międzynarodowa Statystyczna Klasyfikacja Chorób i"
+            + " Problemów Zdrowotnych z Rejestru Systemów Kodowania.",
+            "tree_placeholder": "np. J18 albo zapalenie płuc",
+            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-10"),
+            "source_note": ICD10_NOTE,
+        },
+    ),
+    Page(
+        "dictionary-icd-9.html",
+        "dictionary.html",
+        "/slowniki/icd-9",
+        "Słownik ICD-9 - Minos Health",
+        "Pełny słownik ICD-9: działy i kody procedur medycznych z uwagami źródła.",
+        "noindex, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+        script="/dictionary.js",
+        body_class="page-dictionary",
+        values={
+            "system": "icd9-pl",
+            "dictionary_short": "ICD-9",
+            "dictionary_title": "Słownik ICD-9",
+            "dictionary_lead": "Międzynarodowa Klasyfikacja Procedur Medycznych"
+            + " z Centralnych Zasobów Słownikowych NFZ.",
+            "tree_placeholder": "np. 89.00 albo badanie moczu",
+            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-9"),
+            "source_note": ICD9_NOTE,
+        },
+    ),
+    Page(
+        "sources.html",
+        "sources.html",
+        "/zrodla",
+        "Źródła danych medycznych - Minos Health",
+        "Przejrzyj słowniki medyczne i zarządzenia NFZ. Sprawdź wersję, historię zmian"
+        + " i daty dokumentów oraz otwórz pliki w oficjalnym źródle.",
+        "index, follow",
+        "/zrodla",
+        ("maintenance", "validation"),
+        script="/sources.js",
+    ),
+    Page(
+        "privacy-policy.html",
+        "privacy.html",
+        "/polityka-prywatnosci",
+        "Polityka prywatności - Minos Health",
+        "Jakie dane przetwarza minoshealth.pl i w jakim celu.",
+        "noindex, follow",
+        None,
+        ("maintenance", "validation"),
+    ),
+    Page(
+        "terms.html",
+        "terms.html",
+        "/regulamin",
+        "Regulamin - Minos Health",
+        "Zasady korzystania z minoshealth.pl.",
+        "noindex, follow",
+        None,
+        ("maintenance", "validation"),
+    ),
+    Page(
+        "404.html",
+        "not-found.html",
+        "/404",
+        "Nie znaleziono strony - Minos Health",
+        "Nie ma takiej strony w serwisie Minos Health.",
+        "noindex, nofollow",
+        None,
+        ("validation",),
+        analytics=False,
+    ),
+)
+
+
+def _nav(mode: Mode, current: str | None) -> str:
+    items = [("/", "Wyszukiwarka")]
+    if mode == "validation":
+        items.append(("/slowniki", "Słowniki"))
+    items.append(("/zrodla", "Źródła danych"))
+    links: list[str] = []
+    for path, label in items:
+        state = ' aria-current="page"' if path == current else ""
+        links.append(f'            <a href="{path}"{state}>{label}</a>')
+    return "\n".join(links)
+
+
+def _footer_nav() -> str:
+    links = (
+        ("/zrodla", "Źródła danych"),
+        ("/polityka-prywatnosci", "Polityka prywatności"),
+        ("/regulamin", "Regulamin"),
+        ("mailto:kontakt@minoshealth.pl", "kontakt@minoshealth.pl"),
+    )
+    return "\n".join(f'          <a href="{href}">{label}</a>' for href, label in links)
+
+
+def _fill(template: str, values: dict[str, str]) -> str:
+    def replace(match: re.Match[str]) -> str:
+        name = match.group(1)
+        if name not in values:
+            raise SystemExit(f"Unknown template value: {name}")
+        return values[name]
+
+    return re.sub(r"\{\{([a-z_]+)\}\}", replace, template)
+
+
+def render_page(page: Page, mode: Mode) -> str:
+    layout = (SITE / "layout.html").read_text(encoding="utf-8")
+    content = _fill(
+        (SITE / "pages" / page.source).read_text(encoding="utf-8"), page.values
+    )
+    scripts = PLAUSIBLE if page.analytics else ""
+    if page.script:
+        scripts += f'    <script defer src="{page.script}"></script>\n'
+    rendered = _fill(
+        layout,
+        {
+            "title": html.escape(page.title),
+            "description": html.escape(page.description),
+            "robots": page.robots,
+            "path": page.path,
+            "preload": FONT_PRELOAD if mode == "validation" else "",
+            "scripts": scripts,
+            "body_class": page.body_class,
+            "nav": _nav(mode, page.nav),
+            "footer_nav": _footer_nav(),
+            "content": content.rstrip("\n"),
+        },
+    )
+    lines = [line.rstrip() for line in rendered.splitlines()]
+    return "\n".join(lines) + "\n"
+
+
+def render_site(mode: Mode) -> dict[str, bytes]:
+    """Every file one edge serves from its static root, keyed by file name."""
+    files = {
+        page.output: render_page(page, mode).encode()
+        for page in PAGES
+        if mode in page.modes
+    }
+    stylesheet = (WEB / "site.css").read_bytes()
+    if mode == "maintenance":
+        # The Ansible runtime inventory still deploys these three names; nginx
+        # serves /site.css from legal.css there (try_files fallback). Retire them
+        # together with the inventory entries, not separately.
+        files["legal.css"] = stylesheet
+        for name in ("home.css", "sources.css"):
+            files[name] = RETIRED_STYLESHEET
+    else:
+        files["site.css"] = stylesheet
+    if mode == "validation":
+        for name in ("search.js", "dictionary.js"):
+            files[name] = (WEB / name).read_bytes()
+        for name in FONTS:
+            files[f"fonts/{name}"] = (WEB / "fonts" / name).read_bytes()
+        files["fonts/OFL.txt"] = (WEB / "fonts/OFL.txt").read_bytes()
+    _reject_typography(files)
+    return files
+
+
+def _reject_typography(files: dict[str, bytes]) -> None:
+    # House style: plain hyphens only in authored copy.
+    for name, content in files.items():
+        if name.endswith((".html", ".css", ".js")) and re.search(
+            r"[\u2013\u2014]", content.decode()
+        ):
+            raise SystemExit(f"{name} contains an en or em dash; use a hyphen.")
+
+
+@final
+class _Arguments(argparse.Namespace):
+    check: bool = False
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    _ = parser.add_argument("--check", action="store_true")
+    arguments = _Arguments()
+    _ = parser.parse_args(namespace=arguments)
+    stale: list[str] = []
+    for name, content in render_site("maintenance").items():
+        target = MAINTENANCE_OUTPUT / name
+        if arguments.check:
+            if not target.is_file() or target.read_bytes() != content:
+                stale.append(name)
+        else:
+            _ = target.write_bytes(content)
+    if stale:
+        raise SystemExit(
+            "Rendered pages are stale; run scripts/build_site.py: " + ", ".join(stale)
+        )
+
+
+if __name__ == "__main__":
+    main()

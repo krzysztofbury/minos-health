@@ -2321,10 +2321,8 @@
               - "Host: minoshealth.pl"
               - "http://127.0.0.1:8080{{ item.path }}"
           loop:
-            - path: /home.css
-              marker: "grid-template-columns: 1.4fr 0.6fr"
-            - path: /sources.css
-              marker: "--paper: #f2f0e9"
+            - path: /site.css
+              marker: "--accent: #0a5c6e"
             - path: /sources.js
               marker: 'var RSK_PATH = "/api/v1/provenance/rsk"'
           register: minos_candidate_edge_assets

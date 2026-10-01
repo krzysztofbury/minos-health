@@ -4,55 +4,92 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="Słowniki rozpoznań i procedur oraz zarządzenia NFZ dla osób zajmujących się kodowaniem i rozliczaniem świadczeń szpitalnych. Wyszukiwarka jest w przygotowaniu.">
+    <meta name="description" content="Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników, dla osób kodujących i rozliczających świadczenia.">
+    <meta name="theme-color" content="#ffffff">
     <link rel="canonical" href="https://minoshealth.pl/">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <title>Minos Health - kody medyczne i zasady rozliczeń NFZ</title>
-    <link rel="stylesheet" href="/home.css">
+    <meta property="og:title" content="Minos Health - wyszukiwarka kodów ICD-10 i ICD-9">
+    <meta property="og:description" content="Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników, dla osób kodujących i rozliczających świadczenia.">
+    <meta property="og:url" content="https://minoshealth.pl/">
+    <title>Minos Health - wyszukiwarka kodów ICD-10 i ICD-9</title>
+    <link rel="stylesheet" href="/site.css">
     <script src="/plausible-init.js"></script>
     <script async src="https://plausible.io/js/pa-NFvtUdLPyyrZ5D9U4M1M9.js"></script>
   </head>
-  <body>
+  <body class="page-home">
     <a class="skip-link" href="#main">Przejdź do treści</a>
     <header class="site-header">
-      <a class="brand" href="/">Minos <span>Health</span></a>
-      <nav aria-label="Główna nawigacja"><a href="/zrodla">Źródła danych</a></nav>
+      <div class="shell site-header-inner">
+        <a class="brand" href="/" aria-label="Minos Health, strona główna">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect width="32" height="32" rx="7"/><path d="M7 24V8h4.6L16 16.4 20.4 8H25v16h-4.2v-9L16 23.6 11.2 15v9z"/></svg>
+          <span class="brand-name">Minos <span>Health</span></span>
+        </a>
+        <nav class="site-nav" aria-label="Główna nawigacja">
+            <a href="/" aria-current="page">Wyszukiwarka</a>
+            <a href="/zrodla">Źródła danych</a>
+        </nav>
+        <details class="menu">
+          <summary class="menu-toggle"><span class="menu-icon" aria-hidden="true"></span><span class="menu-label">Menu</span></summary>
+          <nav class="menu-nav" aria-label="Menu">
+            <a href="/" aria-current="page">Wyszukiwarka</a>
+            <a href="/zrodla">Źródła danych</a>
+          </nav>
+        </details>
+      </div>
     </header>
-    <main id="main">
-      <section aria-labelledby="page-title">
-        <p class="eyebrow">Dla lekarzy i działów rozliczeń</p>
-        <h1 id="page-title">Kody medyczne.<br><span>Zasady rozliczeń NFZ.</span></h1>
-        <p class="lead">
-          Budujemy narzędzie do wyszukiwania kodów rozpoznań i procedur oraz
-          sprawdzania zasad rozliczeń szpitalnych. Dziś znajdziesz tu słowniki
-          i zarządzenia NFZ z odnośnikami do oficjalnych źródeł.
-        </p>
-        <a class="hero-cta" href="/zrodla">Przeglądaj słowniki i zarządzenia <span aria-hidden="true">↗</span></a>
+    <main id="main" tabindex="-1">
+      <section class="search-hero" aria-labelledby="search-title">
+        <div class="shell shell-narrow">
+          <h1 id="search-title" class="search-title">Znajdź kod rozpoznania lub procedury</h1>
+          <p class="search-lead">Wpisz kod albo kilka słów opisu. Szukamy w oficjalnych słownikach ICD-10 i ICD-9.</p>
+          <form class="search-form" id="search-form" role="search" autocomplete="off" novalidate>
+            <div class="search-box" id="search-box">
+              <label class="visually-hidden" for="query">Kod lub opis</label>
+              <input class="search-input" id="query" name="query" type="search" maxlength="120" spellcheck="false"
+                placeholder="np. J18, cukrzyca, badanie moczu"
+                role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="suggestions"
+                aria-describedby="search-help" disabled>
+              <button class="search-submit" id="search-submit" type="submit" aria-label="Szukaj" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+              </button>
+              <ul class="suggestions" id="suggestions" role="listbox" aria-label="Podpowiedzi" hidden></ul>
+            </div>
+            <fieldset class="filters">
+              <legend class="visually-hidden">Słowniki, w których szukasz</legend>
+              <label class="filter"><input type="checkbox" name="system" value="icd10-pl" checked disabled><span><strong>ICD-10</strong> rozpoznania</span></label>
+              <label class="filter"><input type="checkbox" name="system" value="icd9-pl" disabled><span><strong>ICD-9</strong> procedury</span></label>
+              <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>Procedury medyczne</strong> <em>w przygotowaniu</em></span></span>
+              <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>ICD-11</strong> <em>w przygotowaniu</em></span></span>
+            </fieldset>
+          </form>
+          <p class="search-help" id="search-help">Wyszukiwarka jest chwilowo niedostępna. Słowniki i zarządzenia znajdziesz w <a href="/zrodla">Źródłach danych</a>.</p>
+        </div>
       </section>
 
-      <aside aria-label="Co znajdziesz w Minos">
-        <dl>
-          <div>
-            <dt>Dostępne teraz</dt>
-            <dd>Słowniki medyczne, wersje zarządzeń NFZ i pliki w oficjalnych źródłach.</dd>
-          </div>
-          <div>
-            <dt>W przygotowaniu</dt>
-            <dd>Wyszukiwanie kodów ICD-10 i ICD-9 oraz porównywanie punktów i zasad JGP (Jednorodnych Grup Pacjentów).</dd>
-          </div>
-        </dl>
-        <p class="notice">
-          To katalog informacyjny, nie narzędzie do diagnozy ani rozliczenia
-          konkretnej hospitalizacji. Nie wpisuj danych pacjentów.
-        </p>
-      </aside>
+      <section class="results shell shell-narrow" id="results" aria-label="Wyniki wyszukiwania" hidden>
+        <p class="results-status" id="results-status" role="status" aria-live="polite"></p>
+        <div id="result-groups"></div>
+      </section>
+
+      <section class="start shell shell-narrow" id="start" aria-label="Na skróty">
+        <h2 class="start-title">Na skróty</h2>
+        <ul class="start-list">
+          <li><a class="start-link" href="/slowniki/icd-10"><strong>Słownik ICD-10</strong><span>Przeglądaj rozpoznania rozdziałami</span></a></li>
+          <li><a class="start-link" href="/slowniki/icd-9"><strong>Słownik ICD-9</strong><span>Przeglądaj procedury według działów</span></a></li>
+          <li><a class="start-link" href="/zrodla"><strong>Źródła danych</strong><span>Wersje słowników i zarządzenia NFZ</span></a></li>
+        </ul>
+      </section>
     </main>
-    <footer>
-      <span>Minos Health</span>
-      <a href="/zrodla">Źródła</a>
-      <a href="/polityka-prywatnosci">Polityka prywatności</a>
-      <a href="/regulamin">Regulamin</a>
-      <a href="mailto:kontakt@minoshealth.pl">kontakt@minoshealth.pl</a>
+    <footer class="site-footer">
+      <div class="shell site-footer-inner">
+        <p class="footer-note">Minos Health pokazuje treść oficjalnych słowników. Nie zastępuje dokumentacji medycznej ani decyzji NFZ. Nie wpisuj danych pacjentów.</p>
+        <nav class="footer-nav" aria-label="Informacje o serwisie">
+          <a href="/zrodla">Źródła danych</a>
+          <a href="/polityka-prywatnosci">Polityka prywatności</a>
+          <a href="/regulamin">Regulamin</a>
+          <a href="mailto:kontakt@minoshealth.pl">kontakt@minoshealth.pl</a>
+        </nav>
+      </div>
     </footer>
   </body>
 </html>

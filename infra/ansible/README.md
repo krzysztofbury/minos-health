@@ -218,8 +218,12 @@ The watcher alone mounts `/var/lib/minos/public` read-write. The edge mounts tha
 directory read-only and receives no watcher control, archive, staging, AWS, or
 other watcher secret mounts. Its exact provenance route reads the atomic
 `current` generation; the artifact namespace remains an unconditional 404.
-The same reviewed edge artifacts provide the exact `/zrodla`, `/sources.css`,
-and `/sources.js` routes. During activation, Ansible requests those routes,
+The same reviewed edge artifacts provide the exact `/zrodla`, `/site.css`,
+and `/sources.js` routes. Pages are rendered from `apps/web/site` by
+`scripts/build_site.py`; the maintenance runtime still deploys the shared
+stylesheet under its inventoried name `legal.css`, which nginx serves as
+`/site.css`, while `home.css` and `sources.css` are retired placeholders kept
+until the runtime inventory drops them. During activation, Ansible requests those routes,
 strict CSP headers, and the exact provenance endpoint from inside the running
 production edge container. Provenance must return HTTP 200 and its bytes must
 match the digest of the revalidated current generation. The page reads only the public same-origin provenance

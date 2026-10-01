@@ -2547,7 +2547,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }
     article.append(facts);
     if (card.source === "baw") {
-      if (card.document.service_applicability_date === null) article.append(element("p", "card-notice", "Nie potwierdziliśmy jeszcze, za jaki okres świadczeń można stosować ten dokument do rozliczeń."));
+      if (card.document.service_applicability_date === null) article.append(element("p", "card-notice", "Okres stosowania do rozliczeń sprawdź w treści zarządzenia."));
       article.append(bawHistory(card));
       if (card.document.source_url) article.append(externalLink(card.document.source_url, card.document.lineage && card.document.lineage.automatic_type === 3 ? "Najnowszy tekst po zmianach ↗" : "Otwórz zarządzenie w bazie NFZ ↗"));
       return article;

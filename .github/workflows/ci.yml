@@ -136,6 +136,9 @@ jobs:
       - name: Verify pinned catalog search asset
         run: uv run python scripts/build_catalog_assets.py --check
 
+      - name: Verify rendered site pages
+        run: uv run python scripts/build_site.py --check
+
       - name: Scan complete Git history for secrets
         run: uv run pre-commit run gitleaks-history --hook-stage manual --all-files
 

@@ -1,0 +1,36 @@
+      <div class="shell page-head page-head-compact">
+        <nav class="breadcrumbs" aria-label="Okruszki"><a href="/slowniki">Słowniki</a><span aria-hidden="true">/</span><span aria-current="page">{{dictionary_short}}</span></nav>
+        <div class="dictionary-tabs" role="list">
+{{dictionary_tabs}}
+        </div>
+        <h1>{{dictionary_title}}</h1>
+        <p class="page-lead" id="dictionary-source">{{dictionary_lead}}</p>
+      </div>
+      <div class="shell dictionary" id="dictionary" data-system="{{system}}">
+        <form class="tree-search" id="tree-search" role="search" autocomplete="off" novalidate>
+          <label class="tree-search-label" for="tree-query">Szukaj w słowniku {{dictionary_short}}</label>
+          <div class="tree-search-row">
+            <input class="tree-search-input" id="tree-query" type="search" maxlength="120" spellcheck="false" placeholder="{{tree_placeholder}}">
+            <button class="button" type="submit">Szukaj</button>
+            <button class="button button-quiet" id="tree-reset" type="button" hidden>Pokaż cały słownik</button>
+          </div>
+        </form>
+        <p class="tree-status" id="tree-status" role="status" aria-live="polite">Wczytywanie słownika…</p>
+        <div class="tree-layout">
+          <div class="tree-pane">
+            <ul class="tree" id="tree" role="tree" aria-label="Słownik {{dictionary_short}}"></ul>
+            <section class="unplaced" id="unplaced" hidden>
+              <h2>Kody spoza hierarchii skoroszytu NFZ</h2>
+              <p>Te kody są w katalogu CZS, ale skoroszyt NFZ nie podaje dla nich miejsca w hierarchii. Pokazujemy je osobno, bez dopisywania rodzica.</p>
+              <ul class="unplaced-list" id="unplaced-list"></ul>
+            </section>
+          </div>
+          <aside class="detail" id="detail" aria-live="polite" aria-label="Szczegóły pozycji">
+            <p class="detail-empty">Wybierz pozycję, aby zobaczyć jej opis, uwagi i miejsce w słowniku.</p>
+          </aside>
+        </div>
+        <details class="source-note">
+          <summary>Skąd pochodzi ten słownik</summary>
+          <div id="source-note-body">{{source_note}}</div>
+        </details>
+      </div>
