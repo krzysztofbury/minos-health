@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "transform_version": "icd9-public-validation-v1",
+  "lockfile_sha256": "2343f00e7db876cc5c6920c2e87126b10ef9f7383c8295b6b559d3690133c203",
+  "sources": [
+    {
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "system": "icd9-pl",
+      "origin": "czs",
+      "source_version": "5.90",
+      "source_file_id": "ICD9:93",
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=93",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "fetched_at": "2026-09-29T14:24:40.621Z",
+      "source_created_at": null,
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "e3c744634e68f23d5ecbfecb50ece831140eb8533ab72b8a1b3ee54594024b1b",
+      "size_bytes": 1630852,
+      "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+      "notices": [
+        "Source: NFZ Centralne Zasoby Slownikowe, ICD-9 PL 5.90, generation 93. Historical pinned capture, not a latest-version selector.",
+        "The fetch timestamp is the archived watcher observation timestamp; source publication and generation timestamps have no stated timezone and are retained in the source header.",
+        "All source codes, titles, statuses, procedure date bounds and annotations are preserved. The XML supplies no hierarchy; no parent or billability inference is made.",
+        "NFZ workbook hierarchy is separate companion evidence, never silently joined into this XML-attributed release.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+        "The owner authorized bounded public website/API validation on 2026-10-01. This manifest is not a publisher licence or commercial redistribution clearance. Official raw download links point upstream; the Minos private archive is not exposed."
+      ],
+      "expected": {"nodes": 10179, "relations": 0, "concepts": 10179, "descriptions": 10179}
+    },
+    {
+      "release_id": "icd9-nfz-5-90-main-6c607dd5e564",
+      "system": "icd9-pl",
+      "origin": "nfz-workbook",
+      "source_version": "5.90",
+      "source_file_id": "icd-9_pl_cm_v_5.90.xlsx#ICD-9_PL ",
+      "source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultstronaopisowa/782/1/2/icd-9_pl_cm_v_5.90.xlsx",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "fetched_at": "2026-09-29T14:24:47.500Z",
+      "source_created_at": null,
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "6c607dd5e564d6e8033b5314946a7f0e43103cc067b9d26346a64dcd05b76a2e",
+      "size_bytes": 1228323,
+      "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+      "notices": [
+        "Source: NFZ ICD-9 PL 5.90 companion workbook. Historical pinned evidence, not the complete CZS catalog or a latest-version selector.",
+        "The exact selected table is ICD-9_PL followed by one space. The distinct ICD-9_PL table without that space is not merged or silently substituted.",
+        "The capture observation links this workbook to CZS generation 93, SHA-256 e3c744634e68f23d5ecbfecb50ece831140eb8533ab72b8a1b3ee54594024b1b. This link does not authorize cross-source corrections or shared hierarchy/status facts.",
+        "The workbook supplies explicit column levels and containment, not procedure status, applicability dates, synonyms or billability. Choose the separately attributed CZS release for status/date evidence.",
+        "Raw code/title cells, conflicting title/code-form evidence, inclusion/exclusion text and notes remain attributed to this workbook. Lookup keys strip surrounding code whitespace and convert integer code cells to decimal strings; no leading zeros or absent parents are invented.",
+        "Shared concepts use the first-seen source title within the selected table; differing later titles remain separate labelled context evidence, never hidden synonyms. Annotation text has inclusion/exclusion/note markers and exact worksheet/cell evidence.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+        "The owner authorized bounded public website/API validation on 2026-10-01. This manifest is not a publisher licence or commercial redistribution clearance. Official raw download links point upstream; the Minos private archive is not exposed."
+      ],
+      "expected": {"nodes": 13052, "relations": 12950, "concepts": 10059, "descriptions": 10059}
+    }
+  ]
+}

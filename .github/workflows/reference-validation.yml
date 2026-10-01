@@ -1,0 +1,99 @@
+name: Verify and publish reference validation
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify validation containers and browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.7"
+          checksum: 788f18abea7c5f55d6216e4f5613fd89d4d59b631efeec117b2b07fe72f1da21
+
+      - name: Install browser driver runtime
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "26.10.0"
+
+      - name: Build and exercise validation images using synthetic data only
+        run: |
+          set -euo pipefail
+          uv sync --locked --all-groups --python 3.14.7
+          uv run python scripts/build_validation_edge.py "$RUNNER_TEMP/edge-artifacts"
+          docker build --platform linux/amd64 --provenance=false \
+            --file packaging/api/Dockerfile --build-arg "VCS_REF=$GITHUB_SHA" \
+            --tag minos-reference-api:validation-local .
+          docker build --platform linux/amd64 --provenance=false \
+            --file packaging/validation-edge/Dockerfile \
+            --build-context "edge-artifacts=$RUNNER_TEMP/edge-artifacts" \
+            --build-arg "VCS_REF=$GITHUB_SHA" --tag minos-reference-edge:validation-local .
+          uv run python scripts/smoke_reference_web.py "$RUNNER_TEMP/reference-smoke" \
+            --chromium "$(command -v google-chrome)"
+
+  publish:
+    name: Publish private validation images
+    needs: verify
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.repository == 'krzysztofbury/minos-health'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # Private validation code/static images, never datasets.
+    steps:
+      - name: Check out exact source revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Authenticate to private GHCR
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and publish exact validation identities
+        run: |
+          set -euo pipefail
+          python3 scripts/build_validation_edge.py "$RUNNER_TEMP/edge-artifacts"
+          tag="run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          for kind in api edge; do
+            if [ "$kind" = api ]; then
+              repository="ghcr.io/krzysztofbury/minos-health-reference-api"
+              dockerfile=packaging/api/Dockerfile
+              docker buildx build --platform linux/amd64 --provenance=false \
+                --file "$dockerfile" --build-arg "VCS_REF=$GITHUB_SHA" \
+                --tag "$repository:$tag" --metadata-file "$RUNNER_TEMP/$kind.json" --push .
+            else
+              repository="ghcr.io/krzysztofbury/minos-health-validation-edge"
+              dockerfile=packaging/validation-edge/Dockerfile
+              docker buildx build --platform linux/amd64 --provenance=false \
+                --file "$dockerfile" --build-context "edge-artifacts=$RUNNER_TEMP/edge-artifacts" \
+                --build-arg "VCS_REF=$GITHUB_SHA" --tag "$repository:$tag" \
+                --metadata-file "$RUNNER_TEMP/$kind.json" --push .
+            fi
+            digest="$(python3 -c 'import json,re,sys; value=json.load(open(sys.argv[1]))["containerimage.digest"]; assert re.fullmatch(r"sha256:[a-f0-9]{64}",value); print(value)' "$RUNNER_TEMP/$kind.json")"
+            reference="$repository@$digest"
+            docker pull "$reference"
+            test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$reference")" = linux/amd64
+            test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$reference")" = "$GITHUB_SHA"
+            printf '%s image: `%s`\nSource revision: `%s`\n' "$kind" "$reference" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          done

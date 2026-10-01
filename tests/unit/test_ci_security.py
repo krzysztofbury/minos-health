@@ -71,6 +71,17 @@ def test_workflows_use_read_only_defaults_and_safe_triggers() -> None:
                     "github.ref == 'refs/heads/main' && "
                     "github.repository == 'krzysztofbury/minos-health'"
                 )
+            elif workflow.name == "reference-validation.yml" and name == "publish":
+                assert job_definition.get("permissions") == {
+                    "contents": "read",
+                    "packages": "write",
+                }
+                assert job_definition.get("if") == (
+                    "github.event_name == 'workflow_dispatch' && "
+                    "github.ref == 'refs/heads/main' && "
+                    "github.repository == 'krzysztofbury/minos-health'"
+                )
+                assert job_definition.get("needs") == "verify"
             else:
                 assert "permissions" not in job_definition
 
@@ -79,6 +90,8 @@ def test_workflows_use_read_only_defaults_and_safe_triggers() -> None:
         assert "pull_request_target" not in triggers
         if workflow.name == "publish-watcher.yml":
             assert set(triggers) == {"workflow_dispatch"}
+        elif workflow.name == "reference-validation.yml":
+            assert set(triggers) == {"pull_request", "workflow_dispatch"}
 
 
 def test_checkout_does_not_persist_credentials() -> None:
