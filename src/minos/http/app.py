@@ -3,10 +3,12 @@
 import asyncio
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
@@ -26,8 +28,10 @@ from minos.domain.search import (
 from minos.http.reference import CapacityError, ReferencePool
 from minos.store.artifact import dataset_identity
 from minos.store.search import search_reference
+from minos.store.tree import Hierarchy, resolve_hierarchy, tree_node, tree_roots
 
 LOGGER = logging.getLogger("minos.http")
+TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
 DISCLAIMER = "Validation only. Reference data, not medical advice or a binding settlement decision. Code documented care only; never infer billability."
 
 
@@ -66,6 +70,48 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
         return answer
 
 
+@dataclass(frozen=True)
+class Tree:
+    hierarchy: Hierarchy
+    roots: dict[str, object]
+
+
+def load_trees(pool: ReferencePool) -> dict[str, Tree]:
+    """Precompute each catalog's root listing; the release scan is too slow per request."""
+    trees: dict[str, Tree] = {}
+    with pool.borrow() as lease:
+        for source in pool.manifest.dataset.sources:
+            if source.context_for is not None:
+                continue
+            hierarchy = resolve_hierarchy(lease.connection, source.release_id)
+            trees[source.release_id] = Tree(
+                hierarchy, tree_roots(lease.connection, hierarchy)
+            )
+    return trees
+
+
+def browse(
+    pool: ReferencePool, trees: dict[str, Tree], release_id: str, ordinal: int
+) -> dict[str, object]:
+    tree = trees.get(release_id)
+    if tree is None:
+        raise SearchInputError("release is not a selectable catalog")
+    if ordinal == 0:
+        answer = dict(tree.roots)
+    else:
+        with pool.borrow() as lease:
+            answer = tree_node(lease.connection, tree.hierarchy, ordinal)
+    answer.update(
+        {
+            "api": 1,
+            "release_id": release_id,
+            "hierarchy_release_id": tree.hierarchy.hierarchy_release_id,
+            "supporting_hierarchy": tree.hierarchy.supporting,
+        }
+    )
+    return answer
+
+
 def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -79,6 +125,11 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                 "reference dataset is not the selected deployment artifact"
             )
         _app.state.pool = pool
+        try:
+            _app.state.trees = await run_in_threadpool(load_trees, pool)
+        except BaseException:
+            pool.close()
+            raise
         try:
             yield
         finally:
@@ -112,6 +163,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                     "route": request.url.path
                     if request.url.path
                     in ("/healthz", "/readyz", "/api/v1/releases", "/api/v1/search")
+                    else "/api/v1/tree"
+                    if TREE_ROUTE.fullmatch(request.url.path)
                     else "unmatched",
                     "method": request.method
                     if request.method in ("GET", "POST", "HEAD", "OPTIONS")
@@ -217,10 +270,34 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             return failure(503, "unavailable")
 
     _ = app.middleware("http")(guard)
+
+    async def tree(release_id: str, node: str) -> JSONResponse:
+        # Paths carry only a release identity and a source node number, never text.
+        if TREE_ROUTE.fullmatch(f"/api/v1/tree/{release_id}/{node}") is None:
+            return failure(404, "not_found")
+        try:
+            answer = await run_in_threadpool(
+                browse,
+                cast(ReferencePool, app.state.pool),
+                cast(dict[str, Tree], app.state.trees),
+                release_id,
+                int(node),
+            )
+            return JSONResponse(answer)
+        except SearchInputError:
+            return failure(404, "not_found")
+        except CapacityError:
+            return failure(429, "busy")
+        except QueryLimitError, TimeoutError:
+            return failure(429, "limit_exceeded")
+        except ArtifactError, OSError:
+            return failure(503, "unavailable")
+
     app.add_api_route("/healthz", health, methods=["GET"])
     app.add_api_route("/readyz", ready, methods=["GET"])
     app.add_api_route("/api/v1/releases", releases, methods=["GET"])
     app.add_api_route("/api/v1/search", search, methods=["POST"])
+    app.add_api_route("/api/v1/tree/{release_id}/{node}", tree, methods=["GET"])
     return app
 
 
