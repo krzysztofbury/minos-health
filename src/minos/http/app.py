@@ -47,9 +47,9 @@ def failure(status: int, code: str) -> JSONResponse:
 
 
 def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
-    with pool.borrow() as connection:
+    with pool.borrow() as lease:
         result = search_reference(
-            connection,
+            lease.connection,
             SearchRequest(
                 payload.system,
                 prepare_query(payload.query, language=payload.language),
@@ -57,6 +57,7 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
                 language=payload.language,
                 limit=payload.limit,
             ),
+            analyzer=lease.analyzer,
         )
         answer = search_envelope(
             result, pool.manifest, disclaimer=DISCLAIMER, search_version=SEARCH_VERSION
@@ -134,8 +135,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
     def ready() -> JSONResponse:
         pool = cast(ReferencePool, app.state.pool)
         try:
-            with pool.borrow() as connection:
-                if connection.execute(
+            with pool.borrow() as lease:
+                if lease.connection.execute(
                     "SELECT count(*) FROM source_release"
                 ).fetchone() != (len(pool.manifest.dataset.sources),):
                     return failure(503, "unavailable")

@@ -32,7 +32,10 @@ _PROTECTED_WORDS = frozenset(
 
 
 def search_reference(
-    connection: sqlite3.Connection, request: SearchRequest
+    connection: sqlite3.Connection,
+    request: SearchRequest,
+    *,
+    analyzer: PolishMorphology | None = None,
 ) -> SearchResult:
     with query_budget(connection) as budget:
         if connection.execute(
@@ -46,7 +49,7 @@ def search_reference(
         release = _resolve_release(connection, request)
         index = _select_index(connection, request.index)
         request = replace(request, release_id=release)
-        selected, morphology = _select_matches(connection, request, index)
+        selected, morphology = _select_matches(connection, request, index, analyzer)
         hits: list[SearchHit] = []
         characters = 0
         for ordinal, document, match_type in selected[: request.limit]:
@@ -144,7 +147,10 @@ def _parameters(request: SearchRequest) -> dict[str, str | int]:
 
 
 def _select_matches(
-    connection: sqlite3.Connection, request: SearchRequest, index: str
+    connection: sqlite3.Connection,
+    request: SearchRequest,
+    index: str,
+    analyzer: PolishMorphology | None,
 ) -> tuple[list[tuple[int, int, MatchType]], tuple[tuple[str, tuple[str, ...]], ...]]:
     parameters = _parameters(request)
     selected: list[tuple[int, int, MatchType]] = []
@@ -176,7 +182,8 @@ def _select_matches(
     ):
         parameters["excluded"] = json.dumps([item[0] for item in selected])
         parameters["row_limit"] = request.limit + 1 - len(selected)
-        analyzer = PolishMorphology()
+        # Offline callers load on demand; the HTTP pool supplies a warm analyzer.
+        analyzer = analyzer or PolishMorphology()
         morphology = tuple(
             (token, analyzer.variants(token))
             for token in dict.fromkeys(request.query.tokens)
