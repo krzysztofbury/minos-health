@@ -34,6 +34,7 @@ from minos.store.reference_build import (
     REFERENCE_APPLICATION_ID,
     REFERENCE_SCHEMA_VERSION,
     TABLES,
+    migration_identities,
     reference_sql,
     schema_checksum,
 )
@@ -70,6 +71,15 @@ def read_artifact_manifest(bundle: Path) -> ArtifactManifest:
 @contextmanager
 def open_reference_connection(bundle: Path) -> Generator[sqlite3.Connection]:
     """Low-level read-only access for reference queries and local diagnostics."""
+    with open_reference_bundle(bundle) as (connection, _manifest):
+        yield connection
+
+
+@contextmanager
+def open_reference_bundle(
+    bundle: Path,
+) -> Generator[tuple[sqlite3.Connection, ArtifactManifest]]:
+    """Keep output provenance bound to the same manifest used for verification."""
     manifest = read_artifact_manifest(bundle)
     database = bundle / DATABASE_NAME
     try:
@@ -89,7 +99,7 @@ def open_reference_connection(bundle: Path) -> Generator[sqlite3.Connection]:
             _ = connection.execute("PRAGMA foreign_keys = ON")
             _ = connection.execute("PRAGMA mmap_size = 0")
             _validate_database_header(connection)
-            yield connection
+            yield connection, manifest
         finally:
             connection.close()
     except (sqlite3.Error, OSError) as error:
@@ -105,9 +115,12 @@ def _validate_database_header(connection: sqlite3.Connection) -> None:
         REFERENCE_SCHEMA_VERSION,
     ):
         raise ArtifactError("incompatible reference schema version")
-    if connection.execute(
-        "SELECT version, sha256 FROM schema_migration"
-    ).fetchall() != [(1, schema_checksum())]:
+    if (
+        connection.execute(
+            "SELECT version, sha256 FROM schema_migration ORDER BY version"
+        ).fetchall()
+        != migration_identities()
+    ):
         raise ArtifactError("incompatible reference migration checksum")
     normalization = cast(
         tuple[str] | None,

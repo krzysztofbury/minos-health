@@ -155,13 +155,17 @@ owns argument parsing, output formatting, stable exit codes, and JSON schemas.
 A representative command shape is:
 
 ```text
-minos search --system icd10-pl --query "E11" --data artifacts/minos.db
-minos data build --manifest dataset-manifest.toml --output artifacts/minos.db
+minos search --system icd10-pl --query "E11" --data artifacts/reference-bundle
+minos data build --manifest dataset-manifest.json --archive-root archives --output artifacts/reference-bundle
 ```
 
 The exact command grammar may change during implementation, but scripts must
 be able to select a terminology system, a grouping scheme, and a pinned
 dataset explicitly.
+
+The #14 command contract uses the reviewed JSON source manifests and complete
+bundle directories. See [offline-search.md](docs/v0.0.1/offline-search.md) for
+grammar, exact match precedence, context, bounded suggestions and JSON/exit codes.
 
 ### HTTP And Web
 
@@ -266,7 +270,15 @@ Lexical results are authoritative source matches and use this precedence:
 1. Exact code match.
 2. Exact normalized preferred or alternate description.
 3. Indexed prefix and token match.
-4. A bounded normalized substring fallback when the indexed stages are empty.
+4. Explicitly labelled Polish morphological token match using pinned Morfeusz2
+   and SGJP, with literal keys retained and ambiguous alternatives disclosed.
+5. A bounded normalized substring fallback when the indexed stages are empty.
+
+Numbers, code tokens and short grammatical operators remain literal in every
+stage. No classification-specific inflection or spelling dictionary is maintained.
+The `/zrodla` catalog searches bounded metadata locally, not medical codes or the
+contents of linked files. Its separately pinned browser search engine does not
+claim morphological parity with the reference CLI.
 
 Ties use stable source order and then code order. The same database, query,
 and configuration must always produce the same ordering.

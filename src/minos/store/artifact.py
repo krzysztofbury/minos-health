@@ -23,7 +23,7 @@ class ArtifactManifest(BaseModel):
         extra="forbid", frozen=True, strict=True
     )
 
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     database_sha256: Digest
     database_size_bytes: int = Field(ge=1, le=512 * 1024 * 1024)
     schema_sha256: Digest
@@ -42,6 +42,23 @@ def canonical_json(value: BaseModel | dict[str, object]) -> bytes:
         json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         + "\n"
     ).encode()
+
+
+def dataset_identity(manifest: DatasetManifest) -> str:
+    return hashlib.sha256(canonical_json(manifest)).hexdigest()
+
+
+def read_regular_file(path: Path, *, max_bytes: int = MAX_MANIFEST_BYTES) -> bytes:
+    descriptor = os.open(
+        path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+    )
+    with os.fdopen(descriptor, "rb") as source:
+        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+            raise ArtifactError("reference input is not a regular file")
+        content = source.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise ArtifactError("reference input exceeds size limit")
+    return content
 
 
 def file_identity(path: Path, *, max_bytes: int = 512 * 1024 * 1024) -> tuple[str, int]:

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hcd xmlns="http://rsk.rejestrymedyczne.csioz.gov.pl" hcd="00CD10" visible="true" closed="2" version="7" applicationdate="2017-04-24" registrationdate="2017-06-22" maxchars="100">
+  <expirationreason>synthetic</expirationreason><name>Synthetic search</name><common_name>ICD10</common_name>
+  <codesformat>X99.99</codesformat><charset>ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.</charset>
+  <minreusetime>100</minreusetime><languages>PL/en</languages><link>https://example.invalid/synthetic-search</link>
+  <nodes>
+    <node code="E00-E99"><name>Rozdział testowy</name><nodes>
+      <node code="E10"><name>Cukrzyca próbna typu 1</name><attributes><attribute name="EN">Synthetic diabetes type 1</attribute></attributes><nodes>
+        <node code=".0"><name>Testowy wariant dotyczący cukrzycy</name><nodes>
+          <node code=""><name>Bursztynowy przykład dotyczący cukrzycy i niewydolności</name><attributes><attribute name="EN">Amber contextual example</attribute></attributes></node>
+        </nodes></node>
+      </nodes></node>
+      <node code="E11"><name>Cukrzyca próbna typu 2</name><nodes>
+        <node code=".0"><name>Testowy wariant</name></node>
+        <node code=".1"><name>Wariant testowy bez powikłań</name><attributes><attribute name="annotationPL">Nieindeksowana adnotacja</attribute></attributes></node>
+      </nodes></node>
+    </nodes></node>
+    <node code="M00"><name>Inna kategoria próbna</name><nodes>
+      <node code="0"><name>Nieindeksowany modyfikator</name></node>
+    </nodes></node>
+    <node code=""><name>Samodzielny opis korzeniowy</name></node>
+  </nodes>
+</hcd>

@@ -104,17 +104,34 @@ const browser = spawn(chromium, [
   "--no-first-run", "--remote-debugging-port=0", `--user-data-dir=${profile}`,
   "about:blank",
 ], { stdio: ["ignore", "pipe", "pipe"] });
+// Drain both pipes immediately: a noisy runner must not block Chromium on write.
+browser.stdout.resume();
+let startupDiagnostics = Buffer.alloc(0);
+browser.stderr.on("data", (chunk) => {
+  startupDiagnostics = Buffer.concat([startupDiagnostics, chunk]).subarray(-8192);
+});
 
 try {
-  const client = await connect(profile, browser);
+  let client;
+  try {
+    client = await connect(profile, browser);
+  } catch (error) {
+    // Only pre-navigation diagnostics are exposed, without local paths/controls.
+    const safeDiagnostics = startupDiagnostics.toString("utf8").replace(/\/[\w./+-]+/g, "[path]").replace(/\p{C}/gu, " ");
+    throw new Error(`${error.message}\nChromium startup diagnostics:\n${safeDiagnostics}`, { cause: error });
+  }
   const errors = [];
   const requests = [];
+  const requestBodies = [];
   let bawUnavailable = false;
   client.on("Runtime.consoleAPICalled", (event) => {
     if (event.type === "error") errors.push(event);
   });
   client.on("Runtime.exceptionThrown", (event) => errors.push(event));
-  client.on("Network.requestWillBeSent", (event) => requests.push(event.request.url));
+  client.on("Network.requestWillBeSent", (event) => {
+    requests.push(event.request.url);
+    if (event.request.postData) requestBodies.push(event.request.postData);
+  });
   client.on("Fetch.requestPaused", async (event) => {
     if (bawUnavailable && event.request.url.endsWith("/api/v1/provenance/baw")) {
       await client.send("Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 503 });
@@ -235,6 +252,65 @@ try {
   })()`);
   assert.deepEqual(search, { nfz: 3, rskOnly: 0, icd: 1, restored: 4 });
 
+  const metadataSearch = await evaluate(client, `(() => {
+    const input = document.getElementById('source-search');
+    const query = text => { input.value = text; input.dispatchEvent(new Event('input', {bubbles:true})); };
+    query('NFZ załącznik 9');
+    const first = document.querySelector('.source-card h3').textContent;
+    const evidence = document.querySelector('.match-evidence').textContent;
+    query('9 zalacznik NFZ');
+    const reversed = document.querySelector('.source-card h3').textContent;
+    query('NFZ załącznik 99');
+    const numericMiss = document.querySelectorAll('.source-card').length;
+    query('zalacznikx');
+    const correctedHits = document.querySelectorAll('.source-card').length;
+    const suggestion = document.querySelector('.suggestion-button');
+    const labelled = document.getElementById('search-suggestions').textContent;
+    suggestion.click();
+    const accepted = document.querySelectorAll('.source-card').length;
+    const focused = document.activeElement.id;
+    query('one two three four five six seven eight nine');
+    const invalid = input.getAttribute('aria-invalid');
+    document.getElementById('reset-search').click();
+    return { first, evidence, reversed, numericMiss, correctedHits, labelled, accepted, focused,
+      invalid, restored: document.querySelectorAll('.source-card').length,
+      location: location.search + location.hash, persisted: localStorage.length + sessionStorage.length };
+  })()`);
+  assert.equal(metadataSearch.first, 'Zarządzenie 46/2026/DSOZ');
+  assert.equal(metadataSearch.reversed, metadataSearch.first);
+  assert.match(metadataSearch.evidence, /Załącznik 9.xlsx/);
+  assert.match(metadataSearch.evidence, /Tekst po zmianach/);
+  assert.match(metadataSearch.evidence, /23 lip 2026/);
+  assert.equal(metadataSearch.numericMiss, 0);
+  assert.equal(metadataSearch.correctedHits, 0);
+  assert.match(metadataSearch.labelled, /Czy chodziło o/);
+  assert.equal(metadataSearch.accepted, 1);
+  assert.equal(metadataSearch.focused, 'source-search');
+  assert.equal(metadataSearch.invalid, 'true');
+  assert.equal(metadataSearch.restored, 4);
+  assert.equal(metadataSearch.location, '');
+  assert.equal(metadataSearch.persisted, 0);
+  assert.equal(requests.concat(requestBodies).some(value => /zalacznikx|za%C5%82%C4%85cznik|NFZ%20za/i.test(value)), false);
+  await evaluate(client, `(() => { const input = document.getElementById('source-search'); input.value = '9 zalacznik NFZ'; input.dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  await screenshot(client, "sources-search-desktop.png");
+
+  const manyEntries = Array.from({ length: 55 }, (_, index) => {
+    const uuid = '00000000-0000-4000-8000-' + String(index + 1000).padStart(12, '0');
+    return { ...rsk.entries[0], hcd: 'AA' + String(index).padStart(4, '0'), file_uuid: uuid,
+      origin_url: 'https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/' + uuid,
+      resource_name: 'Fixture catalog ' + index, resource_short_name: 'FIX' + index };
+  });
+  await writeFile(rskFixture, JSON.stringify({ ...rsk, entries: manyEntries }));
+  await navigate(client, 1440, 900, "is-ready");
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 50);
+  assert.equal(await evaluate(client, `document.getElementById('result-count').textContent`), '58 zestawów');
+  await evaluate(client, `document.getElementById('more-results').click()`);
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 58);
+  assert.equal(await evaluate(client, `document.getElementById('more-results').hidden`), true);
+  await evaluate(client, `document.getElementById('tab-rsk').click()`);
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 50);
+  await writeFile(rskFixture, JSON.stringify(rsk));
+
   await navigate(client, 390, 844, "is-ready");
   const mobile = await evaluate(client, `(() => ({
     cards: document.querySelectorAll(".source-card").length,
@@ -247,6 +323,13 @@ try {
   assert.ok(mobile.searchTop < 844, `search starts below first viewport: ${mobile.searchTop}`);
   assert.ok(mobile.firstHeight < 450, `collapsed card is too tall: ${mobile.firstHeight}`);
   await screenshot(client, "sources-mobile.png");
+  await evaluate(client, `(() => { const input = document.getElementById('source-search'); input.value = 'zalacznikx'; input.dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+  await screenshot(client, "sources-suggestions-mobile.png");
+  await evaluate(client, `document.querySelector('.suggestion-button').click()`);
+  assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+  await screenshot(client, "sources-search-mobile.png");
+  await evaluate(client, `document.getElementById('reset-search').click()`);
   await evaluate(client, `document.querySelectorAll('.source-card details:not(.technical-details)').forEach(node => node.open = true)`);
   assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
   await screenshot(client, "sources-expanded-mobile.png");
