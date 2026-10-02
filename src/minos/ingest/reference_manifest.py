@@ -5,14 +5,20 @@ from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from minos.ingest.komunikat_manifest import KomunikatManifest
+from minos.ingest.manifest_types import Digest as Digest
+from minos.ingest.manifest_types import Identifier as Identifier
+from minos.ingest.manifest_types import SourceText as SourceText
+
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
-type Digest = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-type Identifier = Annotated[str, Field(pattern=r"^[a-z][a-z0-9-]{0,79}$")]
-type SourceText = Annotated[str, Field(min_length=1, max_length=4096)]
 
 
 def absent_context(value: object) -> bool:
     return value is None
+
+
+def empty_evidence(value: object) -> bool:
+    return value == ()
 
 
 class ExpectedCounts(BaseModel):
@@ -65,6 +71,9 @@ class DatasetManifest(BaseModel):
     transform_version: SourceText
     lockfile_sha256: Digest
     sources: Annotated[tuple[SourceManifest, ...], Field(min_length=1, max_length=16)]
+    komunikaty: Annotated[tuple[KomunikatManifest, ...], Field(max_length=8)] = Field(
+        default=(), exclude_if=empty_evidence
+    )
 
     @model_validator(mode="after")
     def validate_releases(self) -> Self:
@@ -72,6 +81,17 @@ class DatasetManifest(BaseModel):
         if len(set(identities)) != len(identities):
             raise ValueError("duplicate source release identity")
         sources = {source.release_id: source for source in self.sources}
+        evidence_ids = [item.release_id for item in self.komunikaty]
+        if len(set(identities + evidence_ids)) != len(identities + evidence_ids):
+            raise ValueError("duplicate komunikat release identity")
+        for item in self.komunikaty:
+            target = sources.get(item.icd9_release_id)
+            if target is None or (target.system, target.origin) != ("icd9-pl", "czs"):
+                raise ValueError("komunikat reference requires canonical CZS")
+        if len({item.icd9_release_id for item in self.komunikaty}) != len(
+            self.komunikaty
+        ):
+            raise ValueError("ambiguous komunikat reference selection")
         for source in self.sources:
             if source.context_for is None:
                 continue

@@ -33,11 +33,11 @@ from minos.store.artifact import (
 )
 from minos.store.reference_build import (
     REFERENCE_APPLICATION_ID,
-    REFERENCE_SCHEMA_VERSION,
-    TABLES,
     migration_identities,
     reference_sql,
     schema_checksum,
+    schema_version_for,
+    tables_for,
 )
 
 
@@ -55,9 +55,11 @@ def read_artifact_manifest(bundle: Path) -> ArtifactManifest:
         manifest = ArtifactManifest.model_validate_json(content)
         if content != canonical_json(manifest):
             raise ArtifactError("reference manifest is not canonical")
-        if manifest.schema_sha256 != schema_checksum():
+        if manifest.schema_version != schema_version_for(manifest.dataset):
+            raise ArtifactError("reference manifest schema and source policy conflict")
+        if manifest.schema_sha256 != schema_checksum(manifest.schema_version):
             raise ArtifactError("incompatible reference schema checksum")
-        if set(manifest.row_counts) != set(TABLES):
+        if set(manifest.row_counts) != set(tables_for(manifest.schema_version)):
             raise ArtifactError("invalid reference table counts")
         summary_sha256, _ = file_identity(
             bundle / REVIEW_SUMMARY_NAME, max_bytes=MAX_MANIFEST_BYTES
@@ -102,7 +104,11 @@ def open_reference_bundle(
             _ = connection.execute("PRAGMA trusted_schema = OFF")
             _ = connection.execute("PRAGMA foreign_keys = ON")
             _ = connection.execute("PRAGMA mmap_size = 0")
-            _validate_database_header(connection)
+            _validate_database_header(connection, manifest.schema_version)
+            if manifest.schema_version == 3:
+                from minos.store.komunikat_build import validate_komunikat_bindings
+
+                validate_komunikat_bindings(connection, manifest.dataset.komunikaty)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources
@@ -123,21 +129,18 @@ def open_reference_bundle(
         raise ArtifactError("reference database read failed") from error
 
 
-def _validate_database_header(connection: sqlite3.Connection) -> None:
+def _validate_database_header(
+    connection: sqlite3.Connection, schema_version: int
+) -> None:
     if connection.execute("PRAGMA application_id").fetchone() != (
         REFERENCE_APPLICATION_ID,
     ):
         raise ArtifactError("not a Minos reference database")
-    if connection.execute("PRAGMA user_version").fetchone() != (
-        REFERENCE_SCHEMA_VERSION,
-    ):
+    if connection.execute("PRAGMA user_version").fetchone() != (schema_version,):
         raise ArtifactError("incompatible reference schema version")
-    if (
-        connection.execute(
-            "SELECT version, sha256 FROM schema_migration ORDER BY version"
-        ).fetchall()
-        != migration_identities()
-    ):
+    if connection.execute(
+        "SELECT version, sha256 FROM schema_migration ORDER BY version"
+    ).fetchall() != migration_identities(schema_version):
         raise ArtifactError("incompatible reference migration checksum")
     normalization = cast(
         tuple[str] | None,

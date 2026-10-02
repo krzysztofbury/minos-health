@@ -56,3 +56,16 @@ The website search is `/` (the old `/szukaj` redirects there); dictionaries are
 `/slowniki`, and the metadata-only catalog remains `/zrodla`.
 
 See [deployment scope and acceptance](validation/reference-web-rollout.md).
+
+## Procedure Rank Evidence
+
+`GET /api/v1/procedure-ranks/{icd9_release_id}/{code}` returns pinned SZP
+procedure-rank evidence for an exact canonical CZS ICD-9 code. `recorded`
+includes its source rank; `not_listed` and `not_selected` return null rank,
+never an inferred zero. Responses retain algorithm/rank source identities,
+checksums and reporting-month evidence, and explicitly state that a legal
+service-date ruleset is not bound. The endpoint is reference-only, not
+clinical priority or billability. No query strings are accepted.
+
+See [komunikat ingestion](v0.0.1/komunikat-ingestion.md) for the schema-2/3
+compatibility, source pairing and UI contract.

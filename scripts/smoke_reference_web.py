@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 import uuid
@@ -30,6 +31,7 @@ def fixture(root: Path) -> Path:
     from minos.ingest.reference_manifest import DatasetManifest
     from tests.fixtures.icd9_workbook import archive_bytes, workbook_manifest
     from tests.fixtures.icd9_xml import XML, source_manifest
+    from tests.fixtures.komunikat import stage_komunikat
 
     manifest = DatasetManifest.model_validate_json(
         (ROOT / "manifests/sources/icd10-synthetic.json").read_bytes()
@@ -54,7 +56,10 @@ def fixture(root: Path) -> Path:
     for source, content in sources:
         _ = (archive / source.sha256).write_bytes(content)
     manifest = manifest.model_copy(
-        update={"sources": tuple(source for source, _ in sources)}
+        update={
+            "sources": tuple(source for source, _ in sources),
+            "komunikaty": (stage_komunikat(root, canonical.release_id),),
+        }
     )
     bundle = root / "bundle"
     _ = build_reference_artifact(manifest, root, bundle)
@@ -68,6 +73,59 @@ def docker(*arguments: str) -> str:
     return subprocess.check_output(
         ["docker", *arguments], text=True, timeout=120
     ).strip()
+
+
+def browser_checks(arguments: Arguments, bundle: Path, port: int, output: Path) -> None:
+    from minos.store.reference import open_reference_bundle, read_artifact_manifest
+
+    # Chromium adds its own socket-directory suffix; deep artifact paths exceed
+    # the Unix socket path limit. Honour the caller's short owned scratch root.
+    parent = os.environ.get(
+        "TMPDIR", "/tmp/opencode" if Path("/tmp/opencode").is_dir() else "/tmp"
+    )
+    with tempfile.TemporaryDirectory(prefix="cb-", dir=parent) as browser_temp:
+        environment = dict(os.environ, TMPDIR=browser_temp)
+        _ = subprocess.run(
+            [
+                "node",
+                str(ROOT / "tests/browser/search-browser.mjs"),
+                arguments.chromium,
+                f"http://minoshealth.pl:{port}/",
+                str(output),
+            ],
+            timeout=90,
+            check=True,
+            env=environment,
+        )
+        if not read_artifact_manifest(bundle).dataset.komunikaty:
+            return
+        with open_reference_bundle(bundle) as (connection, _):
+            sample = cast(
+                tuple[str, int] | None,
+                connection.execute(
+                    """SELECT rank.code, rank.rank FROM procedure_rank AS rank
+                JOIN algorithm_release AS release ON release.id=rank.release_id
+                JOIN concept ON concept.source_release_id=release.icd9_release_id
+                AND concept.lookup_code=rank.code WHERE rank.grouper_type='SZP'
+                ORDER BY rank.code LIMIT 1"""
+                ).fetchone(),
+            )
+        if sample is None:
+            raise RuntimeError("rank browser fixture has no canonical SZP rank")
+        _ = subprocess.run(
+            [
+                "node",
+                str(ROOT / "tests/browser/procedure-rank-browser.mjs"),
+                arguments.chromium,
+                f"http://minoshealth.pl:{port}/",
+                str(output),
+                sample[0],
+                str(sample[1]),
+            ],
+            timeout=90,
+            check=True,
+            env=environment,
+        )
 
 
 def main(arguments: Arguments) -> None:
@@ -150,21 +208,12 @@ def main(arguments: Arguments) -> None:
                 time.sleep(0.1)
         else:
             raise RuntimeError("validation runtime did not become ready")
-        _ = subprocess.run(
-            [
-                "node",
-                str(ROOT / "tests/browser/search-browser.mjs"),
-                arguments.chromium,
-                f"http://minoshealth.pl:{port}/",
-                str(output),
-            ],
-            timeout=90,
-            check=True,
-            env=dict(
-                os.environ,
-                TMPDIR="/tmp/opencode" if Path("/tmp/opencode").is_dir() else "/tmp",
-            ),
-        )
+        browser_checks(arguments, bundle, port, output)
+        canonical = next(source for source in sources if source["origin"] == "czs")
+        rank_route = f"/api/v1/procedure-ranks/{canonical['release_id']}/A01"
+        assert get_json(base, rank_route)[0] == 200
+        assert get_json(base, rank_route + "?q=PRIVATE_QUERY_SENTINEL")[0] == 404
+        assert get_json(base, rank_route, {})[0] == 405
         logs = docker("logs", api)
         assert "badania moczu" not in logs and '"query"' not in logs
         assert '"request_id"' in logs
