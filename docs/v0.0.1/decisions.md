@@ -263,6 +263,12 @@ section 4 of the act in BAW). Queries select rules by service date; "what did
 we believe on date Y about service date X" must be answerable for audit
 support.
 
+Refinement proposed in #18 (2026-10-02, pending owner review): for reviewed
+releases ingested after publication, the knowledge-time filter uses the
+reviewed publication date, while the Minos fetch time stays recorded as the
+ingestion identity. Back-filled releases would otherwise share one ingestion
+date and could not answer what was known before a retroactive amendment.
+
 A `ruleset_release` is a composite: zarządzenie plus załącznik versions,
 algorithm version, ICD-9 version, and ICD-10 version paired per reporting
 period (per § 10 of the base act).

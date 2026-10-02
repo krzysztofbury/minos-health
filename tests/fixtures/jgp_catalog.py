@@ -160,6 +160,7 @@ def stage_catalog(
     *,
     sheets: dict[str, tuple[Row, ...]] | None = None,
     repeated: dict[str, int] | None = None,
+    release: dict[str, object] | None = None,
 ) -> CatalogManifest:
     chosen = sheets if sheets is not None else default_sheets()
     archive = root / "blobs/sha256"
@@ -187,6 +188,12 @@ def stage_catalog(
             "introductory_document_id": 43942,
             "act_date": datetime(2026, 7, 23).date(),
             "entry_into_force": datetime(2026, 7, 24).date(),
+            "published_on": datetime(2026, 7, 23).date(),
+            "service_from": datetime(2026, 7, 1).date(),
+            "service_evidence": "Synthetic: services from 2026-07-01.",
+            "supersedes": None,
+            "row_applicability": _twin_windows(chosen),
+            "modifier_binding": "unbound",
             "document_url": "https://baw.nfz.gov.pl/NFZ/document/43943/Synthetic",
             "publisher": "Synthetic NFZ fixture",
             "license": "Synthetic fixture, not publisher source bytes",
@@ -199,6 +206,21 @@ def stage_catalog(
                 "fetched_at": datetime(2026, 10, 2, tzinfo=UTC),
             },
             "sheets": expectations,
+            **(release or {}),
         },
         strict=False,
     )
+
+
+def _twin_windows(sheets: dict[str, tuple[Row, ...]]) -> tuple[dict[str, object], ...]:
+    """Reviewed windows for the synthetic H21 twins, as 102/2026 § 4 ust. 5."""
+    rows = sheets.get("nfz-1a-74-2026", ())
+    if [row.ordinal for row in rows if row.code == "H21"] != [3, 4]:
+        return ()
+    return (
+        {"catalog": "1a", "ordinals": (4,), "service_from": datetime(2027, 1, 1).date(),
+         "service_to": None, "note_marker": "od 1.01.2027", "evidence": "Synthetic § 4 ust. 5."},
+        {"catalog": "1a", "ordinals": (3,), "service_from": None,
+         "service_to": datetime(2026, 12, 31).date(), "note_marker": "do 31.12.2026",
+         "evidence": "Synthetic twin until 2026-12-31."},
+    )  # fmt: skip

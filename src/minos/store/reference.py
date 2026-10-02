@@ -112,7 +112,7 @@ def open_reference_bundle(
             if manifest.schema_version >= 4:
                 from minos.store.jgp_catalog_build import validate_catalog_bindings
 
-                validate_catalog_bindings(connection, manifest.dataset.catalogs)
+                validate_catalog_bindings(connection, manifest.dataset)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources

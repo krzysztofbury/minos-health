@@ -8,17 +8,34 @@ CREATE TABLE schema_migration (
 INSERT INTO schema_migration SELECT version, sha256 FROM previous_schema_migration;
 DROP TABLE previous_schema_migration;
 
--- Publication evidence for one attachment 1a workbook. Service-date
--- applicability is resolved separately and never by latest release.
+-- One attachment 1a workbook with its reviewed temporal evidence. Valid time
+-- is service_from, which rows may narrow. Knowledge time is published_on.
+-- recorded_at is when Minos fetched the bytes. A service date never falls
+-- back to the latest release.
 CREATE TABLE catalog_release (
     id TEXT PRIMARY KEY,
     act_number TEXT NOT NULL,
     baw_document_id INTEGER NOT NULL UNIQUE CHECK (baw_document_id > 0),
     automatic_type INTEGER NOT NULL CHECK (automatic_type IN (1, 3)),
-    act_date TEXT NOT NULL,
-    entry_into_force TEXT,
+    act_date TEXT NOT NULL CHECK (act_date = date(act_date)),
+    entry_into_force TEXT CHECK (entry_into_force = date(entry_into_force)),
+    published_on TEXT NOT NULL CHECK (
+        published_on = date(published_on) AND published_on >= act_date
+    ),
+    service_from TEXT NOT NULL CHECK (service_from = date(service_from)),
+    service_evidence TEXT NOT NULL,
+    supersedes TEXT REFERENCES catalog_release(id),
+    modifier_binding TEXT NOT NULL CHECK (modifier_binding = 'unbound'),
+    recorded_at TEXT NOT NULL,
     workbook_sha256 TEXT NOT NULL CHECK (length(workbook_sha256) = 64),
     manifest_json TEXT NOT NULL CHECK (json_valid(manifest_json))
+) STRICT;
+
+-- The reviewed date through which the catalog lineage is known complete.
+CREATE TABLE catalog_knowledge (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    as_of TEXT NOT NULL CHECK (as_of = date(as_of)),
+    evidence TEXT NOT NULL
 ) STRICT;
 
 CREATE TABLE catalog_sheet (
@@ -52,6 +69,11 @@ CREATE TABLE group_definition (
     procedural INTEGER NOT NULL CHECK (procedural IN (0, 1)),
     chapter TEXT NOT NULL,
     notes TEXT,
+    service_from TEXT NOT NULL CHECK (service_from = date(service_from)),
+    service_to TEXT CHECK (
+        service_to IS NULL OR (service_to = date(service_to) AND service_to >= service_from)
+    ),
+    applicability_evidence TEXT NOT NULL,
     PRIMARY KEY (release_id, catalog, source_row),
     FOREIGN KEY (release_id, catalog) REFERENCES catalog_sheet(release_id, catalog)
 ) STRICT;

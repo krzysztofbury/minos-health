@@ -26,6 +26,7 @@ KOMUNIKAT_MIGRATION = "003_komunikat.sql"
 KOMUNIKAT_TABLES = ("algorithm_release", "procedure_rank", "department_specialty")
 CATALOG_MIGRATION = "004_jgp_catalog.sql"
 CATALOG_TABLES = (
+    "catalog_knowledge",
     "catalog_release",
     "catalog_sheet",
     "catalog_scope",
@@ -386,7 +387,8 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
             cast(
                 list[tuple[str, int]],
                 connection.execute(
-                    """SELECT 'catalog_release', count(*) FROM catalog_release
+                    """SELECT 'catalog_knowledge', count(*) FROM catalog_knowledge
+            UNION ALL SELECT 'catalog_release', count(*) FROM catalog_release
             UNION ALL SELECT 'catalog_sheet', count(*) FROM catalog_sheet
             UNION ALL SELECT 'catalog_scope', count(*) FROM catalog_scope
             UNION ALL SELECT 'group_definition', count(*) FROM group_definition

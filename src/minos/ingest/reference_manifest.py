@@ -1,6 +1,6 @@
 """Strict reviewed input manifests, separate from watcher control metadata."""
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
@@ -12,6 +12,11 @@ from minos.ingest.manifest_types import Identifier as Identifier
 from minos.ingest.manifest_types import SourceText as SourceText
 
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
+
+
+def _lineage_root(item: CatalogManifest) -> int:
+    """The original act a catalog release belongs to (BAW document ID)."""
+    return item.source_document_id or item.baw_document_id
 
 
 def absent_context(value: object) -> bool:
@@ -78,6 +83,14 @@ class DatasetManifest(BaseModel):
     catalogs: Annotated[tuple[CatalogManifest, ...], Field(max_length=8)] = Field(
         default=(), exclude_if=empty_evidence
     )
+    # Reviewed date through which the catalog lineage is known complete. No
+    # answer may claim knowledge beyond it.
+    catalog_knowledge_as_of: date | None = Field(
+        default=None, exclude_if=absent_context
+    )
+    catalog_knowledge_evidence: SourceText | None = Field(
+        default=None, exclude_if=absent_context
+    )
 
     @model_validator(mode="after")
     def validate_releases(self) -> Self:
@@ -95,6 +108,28 @@ class DatasetManifest(BaseModel):
         documents = [item.baw_document_id for item in self.catalogs]
         if len(set(documents)) != len(documents):
             raise ValueError("a BAW document is pinned twice")
+        if bool(self.catalogs) != (self.catalog_knowledge_as_of is not None):
+            raise ValueError("catalog releases require a reviewed knowledge horizon")
+        if (self.catalog_knowledge_as_of is None) != (
+            self.catalog_knowledge_evidence is None
+        ):
+            raise ValueError("a catalog knowledge horizon requires its evidence")
+        if self.catalog_knowledge_as_of is not None and any(
+            catalog.published_on > self.catalog_knowledge_as_of
+            for catalog in self.catalogs
+        ):
+            raise ValueError("a catalog release is published after the horizon")
+        catalogs = {catalog.release_id: catalog for catalog in self.catalogs}
+        for catalog in self.catalogs:
+            if catalog.supersedes is None:
+                continue
+            replaced = catalogs.get(catalog.supersedes)
+            if replaced is None:
+                raise ValueError("superseded catalog release is not pinned")
+            if replaced.published_on >= catalog.published_on:
+                raise ValueError("a catalog release supersedes a later publication")
+            if _lineage_root(replaced) != _lineage_root(catalog):
+                raise ValueError("superseded catalog release has another lineage")
         for item in self.komunikaty:
             target = sources.get(item.icd9_release_id)
             if target is None or (target.system, target.origin) != ("icd9-pl", "czs"):
