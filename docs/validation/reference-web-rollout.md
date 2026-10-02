@@ -120,6 +120,18 @@ uv run python scripts/check_reference_web.py /path/to/new/public-acceptance.json
   --expected-digest <database-sha256>
 ```
 
+The search and procedure-rank browser scripts map `minoshealth.pl` to loopback
+only for `http:` targets, which is how local containers are exercised. The
+public origin redirects plain HTTP to HTTPS, so an `https:` target uses real DNS
+and the same assertions serve as the post-activation desktop/mobile review:
+
+```sh
+node tests/browser/procedure-rank-browser.mjs /usr/bin/chromium \
+  https://minoshealth.pl/ /path/to/new/public-review 89.02 4
+```
+
+The sources-page script stays local-only because it serves fixture provenance.
+
 The `reference-validation.yml` PR workflow exercises synthetic data only. A manual
 dispatch on reviewed `main` additionally publishes private, code/static-only GHCR
 images using a short-lived GitHub token. Publication does not deploy a host or

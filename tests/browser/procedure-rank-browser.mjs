@@ -7,7 +7,11 @@ import path from "node:path";
 const [, , executable, url, output, code = "A01", expectedRank = "4"] = process.argv;
 assert.ok(executable && url && output);
 const profile = await mkdtemp(path.join(os.tmpdir(), "minos-rank-browser-"));
-const browser = spawn(executable, ["--host-resolver-rules=MAP minoshealth.pl 127.0.0.1", "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-background-networking", "--disable-extensions", "--no-first-run", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { stdio: ["ignore", "pipe", "pipe"] });
+const args = ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-background-networking", "--disable-extensions", "--no-first-run", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"];
+// Local containers serve plain HTTP under the production hostname; the public
+// origin is HTTPS-only, so an http: target can never reach production.
+if (new URL(url).protocol === "http:") args.unshift("--host-resolver-rules=MAP minoshealth.pl 127.0.0.1");
+const browser = spawn(executable, args, { stdio: ["ignore", "pipe", "pipe"] });
 browser.stdout.resume(); browser.stderr.resume();
 let socket;
 try {
