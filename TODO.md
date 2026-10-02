@@ -49,8 +49,8 @@ Free ICD-10 PL and ICD-9 PL search is live. The next work makes it JGP-aware
 before any calculation, because a grouper without traceable conditions would
 put unverified points in front of users.
 
-1. [ ] #33: procedure ranks per ruleset release, shown on ICD-9 code pages.
-       The NFZ watcher already archives the komunikat files.
+1. [x] #33: procedure ranks per ruleset release, shown on ICD-9 code pages
+       (#106, deployed to the validation host 2026-10-02).
 2. [ ] #17, a minimal #18, then #24 and #26: JGP group pages with points per
        settlement mode, selectable by service date. These are catalog base
        points without modifiers, labelled as such in API and UI. #18 retains
@@ -293,7 +293,8 @@ UI remain the baseline.
       compatibility and bounded runtime.
 - [x] Add small committed XML fixtures and code-generated XLSX fixtures
       (`tests/fixtures/icd9_workbook.py`) outside the ignored `/data` directory.
-- [ ] Add committed DOCX fixtures with the komunikat parser (#33).
+- [x] Add code-generated DOCX and XLSX komunikat fixtures
+      (`tests/fixtures/komunikat.py`, #33).
 - [x] Add checked-in dataset manifests containing source identities and
       checksums (`manifests/sources`).
 - [ ] Add architecture decision records if implementation changes accepted
@@ -326,8 +327,8 @@ UI remain the baseline.
 - [x] Download and fixture the RSK ICD-10 XML (HCD `00CD10`) and the NFZ ICD-9
       PL XML/XLSX.
 - [ ] Fixture załącznik 1a (katalog JGP, #17), załącznik 9 (charakterystyka
-      JGP, #29/#30), CZS MODTAR XML (#46), and the komunikat algorithm DOCX
-      plus rank tables (#33). The watchers already archive the source bytes.
+      JGP, #29/#30) and CZS MODTAR XML (#46). The watchers already archive the
+      source bytes. Komunikat algorithm and rank fixtures landed with #33.
 - [x] Record source identity for every archived file: URL or UUID, byte size,
       computed SHA-256, upstream timestamps, publisher, and disclaimers, without
       inventing publication dates.
