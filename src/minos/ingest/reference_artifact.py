@@ -128,6 +128,10 @@ def _build_database(
 
         for komunikat in sorted(manifest.komunikaty, key=lambda item: item.release_id):
             import_komunikat(connection, komunikat, archive_root, database.parent)
+        from minos.store.jgp_catalog_build import import_catalog
+
+        for catalog in sorted(manifest.catalogs, key=lambda item: item.release_id):
+            import_catalog(connection, catalog, archive_root, database.parent)
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options
@@ -206,6 +210,20 @@ def _review_summary(
             ("specialties", item.specialties),
         ):
             lines.append(f"Pinned {label}: {file.sha256} / {file.size_bytes}")
+    for catalog in manifest.catalogs:
+        identity = (catalog.release_id, catalog.act_number, catalog.baw_document_id)
+        lines.append("JGP catalog: {} / {} / BAW {}".format(*identity))
+        lines.append("Catalog base points without modifiers; no service-date binding.")
+        lines.append(
+            f"Pinned workbook: {catalog.workbook.sha256} / {catalog.workbook.size_bytes}"
+        )
+        for name, sheet in sorted(catalog.sheets.items()):
+            reviewed = (sheet.expected_groups, sheet.expected_repeated_codes)
+            lines.append(
+                "Catalog {}: {}, {} groups, {} repeated codes".format(
+                    name, sheet.layout, *reviewed
+                )
+            )
     return ("\n".join(lines) + "\n").encode()
 
 
