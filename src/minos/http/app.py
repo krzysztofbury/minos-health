@@ -144,44 +144,34 @@ def render_code(
         and (source.system, source.origin) == ("icd9-pl", "czs")
         for source in pool.manifest.dataset.sources
     )
+    # One lease per page: the pool has no wait queue, so a second borrow could
+    # turn an already-resolved page into a capacity failure.
     with pool.borrow() as lease:
         ordinal = find_code(lease.connection, tree.hierarchy, code)
-        if ordinal is not None:
+        if ordinal is None:
+            unplaced = cast(list[dict[str, object]], tree.roots.get("unplaced", []))
+            item = next((entry for entry in unplaced if entry["code"] == code), None)
+            if item is None:
+                return 404, missing_page(dictionary, code)
+            node: dict[str, object] = {**item, "path": [], "notes": []}
+            children: list[dict[str, object]] = []
+        else:
             answer = tree_node(lease.connection, tree.hierarchy, ordinal)
             node = cast(dict[str, object], answer["node"])
-            ranks = (
-                procedure_rank_evidence(
-                    lease.connection,
-                    pool.manifest.dataset,
-                    tree.hierarchy.release_id,
-                    code,
-                )
-                if canonical_icd9 and node.get("canonical") is not False
-                else None
-            )
-            return 200, code_page(
-                dictionary,
-                node,
-                cast(list[dict[str, object]], answer["children"]),
-                tree.version,
-                tree.hierarchy.supporting,
-                ranks,
-            )
-    unplaced = cast(list[dict[str, object]], tree.roots.get("unplaced", []))
-    item = next((entry for entry in unplaced if entry["code"] == code), None)
-    if item is None:
-        return 404, missing_page(dictionary, code)
-    unplaced_node: dict[str, object] = {**item, "path": [], "notes": []}
-    with pool.borrow() as lease:
+            children = cast(list[dict[str, object]], answer["children"])
+        # Supporting-only workbook nodes have no canonical concept to rank.
         ranks = (
             procedure_rank_evidence(
-                lease.connection, pool.manifest.dataset, tree.hierarchy.release_id, code
+                lease.connection,
+                pool.manifest.dataset,
+                tree.hierarchy.release_id,
+                code,
             )
-            if canonical_icd9
+            if canonical_icd9 and node.get("canonical") is not False
             else None
         )
     return 200, code_page(
-        dictionary, unplaced_node, [], tree.version, tree.hierarchy.supporting, ranks
+        dictionary, node, children, tree.version, tree.hierarchy.supporting, ranks
     )
 
 
@@ -409,6 +399,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                 dictionary,
                 code,
             )
+        except SearchInputError:
+            return failure(404, "not_found")
         except CapacityError:
             return failure(429, "busy")
         except QueryLimitError, TimeoutError:
