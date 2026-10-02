@@ -38,8 +38,48 @@ class CatalogSheetExpectation(BaseModel):
     expected_repeated_codes: int = Field(ge=0, le=1_000)
 
 
+class RowApplicability(BaseModel):
+    """Reviewed per-row service window that differs from the release window.
+
+    Each listed row must exist once and its source note must contain
+    `note_marker`, pairing the legal provision with the catalog row.
+    """
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid", frozen=True, strict=True
+    )
+
+    catalog: Literal["1a", "1ae"]
+    ordinals: Annotated[
+        tuple[Annotated[int, Field(ge=1, le=5_000)], ...],
+        Field(min_length=1, max_length=500),
+    ]
+    service_from: date | None
+    service_to: date | None
+    note_marker: SourceText
+    evidence: SourceText
+
+    @model_validator(mode="after")
+    def validate_window(self) -> Self:
+        if self.service_from is None and self.service_to is None:
+            raise ValueError("row applicability must narrow the release window")
+        if (
+            self.service_from is not None
+            and self.service_to is not None
+            and self.service_to < self.service_from
+        ):
+            raise ValueError("row applicability ends before it starts")
+        if len(set(self.ordinals)) != len(self.ordinals):
+            raise ValueError("row applicability lists an ordinal twice")
+        return self
+
+
 class CatalogManifest(BaseModel):
-    """Publication evidence only; service-date applicability belongs to #18."""
+    """Publication and service-applicability evidence for one catalog release.
+
+    Knowledge time is the publication evidence (`published_on`); the workbook
+    `fetched_at` records when Minos ingested the bytes.
+    """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid", frozen=True, strict=True
@@ -54,6 +94,17 @@ class CatalogManifest(BaseModel):
     introductory_document_id: BawId | None
     act_date: date
     entry_into_force: date | None
+    published_on: date
+    service_from: date
+    service_evidence: SourceText
+    # An earlier release this one replaces where both cover a service date.
+    supersedes: Identifier | None
+    row_applicability: Annotated[
+        tuple[RowApplicability, ...], Field(max_length=32)
+    ] = ()
+    # #46 supplies a reviewed MODTAR binding; until then modifiers are unbound,
+    # which is not the same as an empty set of applicable modifiers.
+    modifier_binding: Literal["unbound"]
     document_url: Annotated[
         str,
         Field(
@@ -87,4 +138,22 @@ class CatalogManifest(BaseModel):
             raise ValueError("a consolidated text requires its lineage")
         if self.entry_into_force is not None and self.entry_into_force < self.act_date:
             raise ValueError("entry into force precedes the act date")
+        if self.published_on < self.act_date:
+            raise ValueError("publication precedes the act date")
+        if self.supersedes == self.release_id:
+            raise ValueError("a release cannot supersede itself")
+        listed = [
+            (item.catalog, ordinal)
+            for item in self.row_applicability
+            for ordinal in item.ordinals
+        ]
+        if len(set(listed)) != len(listed):
+            raise ValueError("a catalog row has two applicability overrides")
+        for item in self.row_applicability:
+            if item.catalog not in self.sheets:
+                raise ValueError("row applicability names an absent catalog")
+            if item.service_to is not None and item.service_to < self.service_from:
+                raise ValueError("row applicability ends before the release applies")
+            if item.service_from is not None and item.service_from <= self.service_from:
+                raise ValueError("row applicability must start after the release")
         return self

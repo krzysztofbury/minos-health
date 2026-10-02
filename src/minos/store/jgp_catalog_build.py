@@ -1,14 +1,18 @@
 """Transactional attachment 1a import and manifest correspondence checks."""
 
 import sqlite3
+from datetime import date
 from pathlib import Path
 from typing import cast
 
 from minos.domain.jgp_catalog import CatalogSheet
+from minos.domain.jgp_ruleset import RowWindow
 from minos.domain.reference import ArtifactError
 from minos.ingest.archive_source import verified_source
 from minos.ingest.jgp_catalog import parse_catalog_workbook
-from minos.ingest.jgp_catalog_manifest import CatalogManifest
+from minos.ingest.jgp_catalog_applicability import RowKey, row_windows
+from minos.ingest.jgp_catalog_manifest import CatalogManifest, RowApplicability
+from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.artifact import canonical_json
 
 
@@ -24,8 +28,9 @@ def import_catalog(
         archive, manifest.workbook, staging_directory=staging
     ) as source:
         sheets = parse_catalog_workbook(source, manifest)
+    windows = row_windows(sheets, manifest)
     _ = connection.execute(
-        "INSERT INTO catalog_release VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO catalog_release VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             manifest.release_id,
             manifest.act_number,
@@ -35,16 +40,25 @@ def import_catalog(
             manifest.entry_into_force.isoformat()
             if manifest.entry_into_force
             else None,
+            manifest.published_on.isoformat(),
+            manifest.service_from.isoformat(),
+            manifest.service_evidence,
+            manifest.supersedes,
+            manifest.modifier_binding,
+            manifest.workbook.fetched_at.isoformat(),
             manifest.workbook.sha256,
             canonical_json(manifest).decode(),
         ),
     )
     for sheet in sheets:
-        _insert_sheet(connection, manifest.release_id, sheet)
+        _insert_sheet(connection, manifest.release_id, sheet, windows)
 
 
 def _insert_sheet(
-    connection: sqlite3.Connection, release_id: str, sheet: CatalogSheet
+    connection: sqlite3.Connection,
+    release_id: str,
+    sheet: CatalogSheet,
+    windows: dict[RowKey, tuple[RowWindow, str]],
 ) -> None:
     key = (release_id, sheet.catalog)
     _ = connection.execute(
@@ -56,7 +70,7 @@ def _insert_sheet(
         [(*key, scope.position, scope.column, scope.label) for scope in sheet.scopes],
     )
     _ = connection.executemany(
-        "INSERT INTO group_definition VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO group_definition VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
                 *key,
@@ -68,6 +82,9 @@ def _insert_sheet(
                 int(group.procedural),
                 group.chapter,
                 group.notes,
+                windows[(sheet.catalog, group.row)][0].service_from.isoformat(),
+                _optional_date(windows[(sheet.catalog, group.row)][0].service_to),
+                windows[(sheet.catalog, group.row)][1],
             )
             for group in sheet.groups
         ],
@@ -90,27 +107,83 @@ def _insert_sheet(
     )
 
 
+def _optional_date(value: date | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
+def record_catalog_knowledge(
+    connection: sqlite3.Connection, dataset: DatasetManifest
+) -> None:
+    if dataset.catalog_knowledge_as_of is None:
+        return
+    _ = connection.execute(
+        "INSERT INTO catalog_knowledge VALUES (1, ?, ?)",
+        (
+            dataset.catalog_knowledge_as_of.isoformat(),
+            dataset.catalog_knowledge_evidence,
+        ),
+    )
+
+
 def validate_catalog_bindings(
+    connection: sqlite3.Connection, dataset: DatasetManifest
+) -> None:
+    """Paired read-side check of what import wrote from the reviewed manifest.
+
+    The resolver reads release and row columns directly, so every temporal
+    column is compared with the reviewed manifest, not only its JSON copy.
+    """
+    manifests = dataset.catalogs
+    knowledge = connection.execute(
+        "SELECT as_of, evidence FROM catalog_knowledge"
+    ).fetchall()
+    expected_knowledge = (
+        [
+            (
+                dataset.catalog_knowledge_as_of.isoformat(),
+                dataset.catalog_knowledge_evidence,
+            )
+        ]
+        if dataset.catalog_knowledge_as_of is not None
+        else []
+    )
+    if knowledge != expected_knowledge:
+        raise ArtifactError("catalog knowledge horizon does not match manifest")
+    releases = set(
+        connection.execute(
+            """SELECT id, act_number, baw_document_id, published_on, service_from,
+                service_evidence, supersedes, modifier_binding, recorded_at,
+                workbook_sha256, manifest_json
+            FROM catalog_release"""
+        ).fetchall()
+    )
+    if releases != {_release_columns(manifest) for manifest in manifests}:
+        raise ArtifactError("catalog source policy does not match manifest")
+    _validate_sheets(connection, manifests)
+    for manifest in manifests:
+        _validate_row_windows(connection, manifest)
+    _validate_catalog_invariants(connection)
+
+
+def _release_columns(manifest: CatalogManifest) -> tuple[object, ...]:
+    return (
+        manifest.release_id,
+        manifest.act_number,
+        manifest.baw_document_id,
+        manifest.published_on.isoformat(),
+        manifest.service_from.isoformat(),
+        manifest.service_evidence,
+        manifest.supersedes,
+        manifest.modifier_binding,
+        manifest.workbook.fetched_at.isoformat(),
+        manifest.workbook.sha256,
+        canonical_json(manifest).decode(),
+    )
+
+
+def _validate_sheets(
     connection: sqlite3.Connection, manifests: tuple[CatalogManifest, ...]
 ) -> None:
-    """Paired read-side check of what import wrote from the reviewed manifest."""
-    releases = cast(
-        list[tuple[str, str, int, str]],
-        connection.execute(
-            "SELECT id, act_number, baw_document_id, manifest_json FROM catalog_release"
-        ).fetchall(),
-    )
-    expected_releases = {
-        (
-            manifest.release_id,
-            manifest.act_number,
-            manifest.baw_document_id,
-            canonical_json(manifest).decode(),
-        )
-        for manifest in manifests
-    }
-    if set(releases) != expected_releases:
-        raise ArtifactError("catalog source policy does not match manifest")
     sheets = cast(
         list[tuple[str, str, str, int, int]],
         connection.execute(
@@ -139,7 +212,51 @@ def validate_catalog_bindings(
     }
     if set(sheets) != expected_sheets:
         raise ArtifactError("catalog rows do not match the reviewed manifest")
-    _validate_catalog_invariants(connection)
+
+
+def _validate_row_windows(
+    connection: sqlite3.Connection, manifest: CatalogManifest
+) -> None:
+    """Every stored row window and evidence equals the reviewed derivation."""
+    overrides: dict[tuple[str, int], RowApplicability] = {
+        (item.catalog, ordinal): item
+        for item in manifest.row_applicability
+        for ordinal in item.ordinals
+    }
+    rows = cast(
+        list[tuple[str, int, str, str | None, str, str | None]],
+        connection.execute(
+            """SELECT catalog, ordinal, service_from, service_to,
+                applicability_evidence, notes
+            FROM group_definition WHERE release_id = ?""",
+            (manifest.release_id,),
+        ).fetchall(),
+    )
+    matched: set[tuple[str, int]] = set()
+    for catalog, ordinal, service_from, service_to, evidence, notes in rows:
+        override = overrides.get((catalog, ordinal))
+        expected: tuple[str, str | None, str]
+        if override is None:
+            expected = (
+                manifest.service_from.isoformat(),
+                None,
+                manifest.service_evidence,
+            )
+        else:
+            if (catalog, ordinal) in matched:
+                raise ArtifactError("catalog row override matches several rows")
+            matched.add((catalog, ordinal))
+            if override.note_marker not in " ".join((notes or "").split()):
+                raise ArtifactError("catalog row note no longer confirms its window")
+            expected = (
+                (override.service_from or manifest.service_from).isoformat(),
+                _optional_date(override.service_to),
+                override.evidence,
+            )
+        if (service_from, service_to, evidence) != expected:
+            raise ArtifactError("catalog row window does not match the manifest")
+    if matched != set(overrides):
+        raise ArtifactError("catalog row override has no stored row")
 
 
 def _validate_catalog_invariants(connection: sqlite3.Connection) -> None:

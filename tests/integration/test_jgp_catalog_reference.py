@@ -1,6 +1,10 @@
 import json
+import os
 import sqlite3
+import subprocess
+import sys
 from contextlib import closing
+from datetime import date
 from pathlib import Path
 from typing import cast
 
@@ -20,6 +24,8 @@ def catalog_manifest(root: Path) -> DatasetManifest:
     catalog = stage_catalog(root, catalog_workbook(default_sheets()))
     data = base.model_dump(mode="json")
     data["catalogs"] = [catalog.model_dump(mode="json")]
+    data["catalog_knowledge_as_of"] = "2026-10-02"
+    data["catalog_knowledge_evidence"] = "Synthetic lineage review on 2026-10-02."
     return DatasetManifest.model_validate_json(json.dumps(data))
 
 
@@ -131,10 +137,10 @@ def test_open_time_invariants_mirror_parser_rules(
     copy = tmp_path / "tampered.db"
     _ = copy.write_bytes((tmp_path / "bundle/minos.db").read_bytes())
     with closing(sqlite3.connect(copy)) as connection:
-        validate_catalog_bindings(connection, manifest.catalogs)  # untouched passes
+        validate_catalog_bindings(connection, manifest)  # untouched passes
         _ = connection.executescript(tamper)
         with pytest.raises(ArtifactError, match=message):
-            validate_catalog_bindings(connection, manifest.catalogs)
+            validate_catalog_bindings(connection, manifest)
 
 
 def test_schema_ties_each_measure_to_its_unit(tmp_path: Path) -> None:
@@ -149,3 +155,235 @@ def test_schema_ties_each_measure_to_its_unit(tmp_path: Path) -> None:
         ):
             with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
                 _ = connection.execute(statement)
+
+
+def _built(tmp_path: Path) -> Path:
+    manifest = catalog_manifest(tmp_path)
+    _ = build_reference_artifact(manifest, tmp_path, tmp_path / "bundle")
+    return tmp_path / "bundle"
+
+
+def test_service_date_selects_the_twin_row_and_keeps_modifiers_unbound(
+    tmp_path: Path,
+) -> None:
+    from minos.store.jgp_ruleset import catalog_group, resolve_ruleset
+
+    bundle = _built(tmp_path)
+    with open_reference_bundle(bundle) as (connection, _):
+        answers = {
+            day: catalog_group(
+                connection, resolve_ruleset(connection, day, date(2026, 10, 2)), "H21"
+            )
+            for day in (date(2026, 12, 31), date(2027, 1, 1))
+        }
+    before, after = answers[date(2026, 12, 31)], answers[date(2027, 1, 1)]
+    before_group = cast(dict[str, object], before["group"])
+    after_group = cast(dict[str, object], after["group"])
+    assert (before_group["ordinal"], after_group["ordinal"]) == (3, 4)
+    assert [
+        scope["label"] for scope in cast(list[dict[str, object]], before["scopes"])
+    ][0] == "chirurgia ogólna"
+    assert len(cast(list[object], after["scopes"])) == 1
+    assert before["base_values"] == after["base_values"]
+    assert (
+        cast(dict[str, object], after_group["applicability"])["evidence"]
+        == "Synthetic § 4 ust. 5."
+    )
+    ruleset = cast(dict[str, object], after["ruleset"])
+    assert cast(dict[str, object], ruleset["modifiers"])["binding"] == "unbound"
+    assert after["points_kind"] == "catalog_base_points_without_modifiers"
+
+
+def _cli(bundle: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "minos", "jgp", "group", "--data", str(bundle), "--json", *arguments],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )  # fmt: skip
+
+
+def test_cli_reports_dates_unbound_modifiers_and_explicit_errors(
+    tmp_path: Path,
+) -> None:
+    bundle = _built(tmp_path)
+    answer = _cli(
+        bundle,
+        "--code",
+        "PZD02",
+        "--service-date",
+        "2026-07-10",
+        "--known-on",
+        "2026-08-01",
+    )
+    assert answer.returncode == 0, answer.stderr
+    body = cast(dict[str, object], json.loads(answer.stdout))
+    assert body["date_selection"] == {
+        "known_on": "explicit",
+        "service_date": "explicit",
+    }
+    values = {
+        value["measure"]: value["amount"]
+        for value in cast(list[dict[str, object]], body["base_values"])
+    }
+    assert values["planned_hospitalization"] == 1287172
+    ruleset = cast(dict[str, object], body["ruleset"])
+    assert ruleset["modifiers"] == {
+        "binding": "unbound",
+        "meaning": "No reviewed MODTAR binding yet; this is not an empty set of"
+        + " applicable modifiers and final points cannot be calculated.",
+    }
+    defaulted_run = _cli(bundle, "--code", "PZD02")
+    assert defaulted_run.returncode == 0, defaulted_run.stderr
+    defaulted = cast(dict[str, object], json.loads(defaulted_run.stdout))
+    assert defaulted["date_selection"] == {
+        "known_on": "default_today_europe_warsaw",
+        "service_date": "default_today_europe_warsaw",
+    }
+    uncovered = _cli(bundle, "--code", "PZD02", "--service-date", "2026-06-30")
+    assert uncovered.returncode == 5 and uncovered.stdout == ""
+    assert json.loads(uncovered.stderr)["error"]["code"] == "no_ruleset_for_date"
+    for arguments in (
+        ("--code", "PZD02", "--service-date", "2026-02-30"),
+        ("--code", "pzd02"),
+    ):
+        assert _cli(bundle, *arguments).returncode == 2
+    missing = _cli(bundle, "--code", "Z99", "--service-date", "2026-07-10")
+    assert missing.returncode == 1
+    assert json.loads(missing.stderr)["error"]["code"] == "group_not_on_date"
+
+
+TWIN_BOUNDARY = (
+    "UPDATE group_definition SET service_to = '2026-09-30' WHERE ordinal = 3"
+)
+EARLY_ROW = (
+    "UPDATE group_definition SET service_from = '2026-06-01' WHERE source_row = 7"
+)
+EVIDENCE = (
+    "UPDATE group_definition SET applicability_evidence = 'edited' WHERE ordinal = 4"
+)
+NOTE = "UPDATE group_definition SET notes = 'edited' WHERE ordinal = 4"
+RELEASE_START = "UPDATE catalog_release SET service_from = '2026-05-01'"
+PUBLISHED = "UPDATE catalog_release SET published_on = '2026-07-24'"
+HORIZON = "UPDATE catalog_knowledge SET as_of = '2027-01-01'"
+
+
+@pytest.mark.parametrize(
+    ("tamper", "message"),
+    [
+        (TWIN_BOUNDARY, "row window does not match the manifest"),
+        (EARLY_ROW, "row window does not match the manifest"),
+        (EVIDENCE, "row window does not match the manifest"),
+        (NOTE, "no longer confirms its window"),
+        (RELEASE_START, "source policy does not match"),
+        (PUBLISHED, "source policy does not match"),
+        (HORIZON, "knowledge horizon does not match"),
+    ],
+)
+def test_open_time_invariants_cover_row_windows(
+    tmp_path: Path, tamper: str, message: str
+) -> None:
+    from minos.store.jgp_catalog_build import validate_catalog_bindings
+
+    manifest = catalog_manifest(tmp_path)
+    _ = build_reference_artifact(manifest, tmp_path, tmp_path / "bundle")
+    copy = tmp_path / "tampered.db"
+    _ = copy.write_bytes((tmp_path / "bundle/minos.db").read_bytes())
+    with closing(sqlite3.connect(copy)) as connection:
+        _ = connection.executescript(tamper)
+        with pytest.raises(ArtifactError, match=message):
+            validate_catalog_bindings(connection, manifest)
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
+            _ = connection.execute(
+                "UPDATE catalog_release SET modifier_binding = 'none'"
+            )
+
+
+def test_knowledge_is_bounded_by_the_reviewed_bundle_horizon(tmp_path: Path) -> None:
+    manifest = catalog_manifest(tmp_path)
+    data = manifest.model_dump(mode="json")
+    data["catalog_knowledge_as_of"] = "2026-09-30"
+    narrowed = DatasetManifest.model_validate_json(json.dumps(data))
+    bundle = tmp_path / "bundle"
+    _ = build_reference_artifact(narrowed, tmp_path, bundle)
+    beyond = _cli(
+        bundle,
+        "--code",
+        "PZD02",
+        "--service-date",
+        "2026-07-10",
+        "--known-on",
+        "2026-10-01",
+    )
+    assert beyond.returncode == 7
+    assert json.loads(beyond.stderr)["error"]["code"] == "known_on_beyond_bundle"
+    # Today is after 2026-09-30, so the default knowledge date is capped.
+    capped = _cli(bundle, "--code", "PZD02", "--service-date", "2026-07-10")
+    assert capped.returncode == 0, capped.stderr
+    body = cast(dict[str, dict[str, object]], json.loads(capped.stdout))
+    assert body["date_selection"]["known_on"] == "default_capped_to_bundle_knowledge"
+    assert (
+        body["ruleset"]["known_on"]
+        == body["ruleset"]["knowledge_as_of"]
+        == "2026-09-30"
+    )
+    data["catalog_knowledge_as_of"] = "2026-07-01"  # before the 2026-07-23 publication
+    with pytest.raises(ValueError, match="published after the horizon"):
+        _ = DatasetManifest.model_validate_json(json.dumps(data))
+
+
+def _cli_without_time_zone(
+    bundle: Path, *arguments: str
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "minos", "jgp", "group", "--data", str(bundle), "--json", *arguments],
+        capture_output=True, text=True, timeout=60, check=False,
+        env={**os.environ, "PYTHONTZPATH": "/nonexistent"},
+    )  # fmt: skip
+
+
+def test_cli_fails_explicitly_without_time_zone_data_or_catalog(tmp_path: Path) -> None:
+    bundle = _built(tmp_path)
+    defaulted = _cli_without_time_zone(bundle, "--code", "PZD02")
+    assert defaulted.returncode == 2
+    assert json.loads(defaulted.stderr)["error"]["code"] == "timezone_unavailable"
+    explicit = _cli_without_time_zone(
+        bundle,
+        "--code",
+        "PZD02",
+        "--service-date",
+        "2026-07-10",
+        "--known-on",
+        "2026-08-01",
+    )
+    assert explicit.returncode == 0, explicit.stderr
+    legacy = tmp_path / "legacy"
+    ranks = tmp_path / "ranks"
+    _ = build_reference_artifact(rank_manifest(ranks), ranks, legacy)
+    no_catalog = _cli(
+        legacy,
+        "--code",
+        "PZD02",
+        "--service-date",
+        "2026-07-10",
+        "--known-on",
+        "2026-08-01",
+    )
+    assert no_catalog.returncode == 8
+    assert json.loads(no_catalog.stderr)["error"]["code"] == "no_jgp_catalog"
+
+
+def test_cli_text_output_labels_base_points_and_unbound_modifiers(
+    tmp_path: Path,
+) -> None:
+    bundle = _built(tmp_path)
+    text = subprocess.run(
+        [sys.executable, "-m", "minos", "jgp", "group", "--data", str(bundle), "--code", "PZD02",
+         "--service-date", "2026-07-10", "--known-on", "2026-08-01"],
+        capture_output=True, text=True, timeout=60, check=True,
+    ).stdout  # fmt: skip
+    assert "punkty bazowe wg katalogu, bez modyfikatorów:" in text
+    assert "planned_hospitalization: 12871.72" in text
+    assert "financed_stay: 21 days" in text
+    assert "Modifiers: unbound" in text

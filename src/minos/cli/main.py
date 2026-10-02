@@ -175,7 +175,7 @@ def main(
     parser = build_parser()
     raw_arguments = cast(dict[str, object], vars(parser.parse_args(argv)))
     top_level_command = raw_arguments.get("command")
-    if top_level_command in ("search", "data"):
+    if top_level_command in ("search", "data", "jgp"):
         from minos.cli.reference import execute_reference
 
         code = execute_reference(raw_arguments)

@@ -128,10 +128,17 @@ def _build_database(
 
         for komunikat in sorted(manifest.komunikaty, key=lambda item: item.release_id):
             import_komunikat(connection, komunikat, archive_root, database.parent)
-        from minos.store.jgp_catalog_build import import_catalog
+        from minos.store.jgp_catalog_build import (
+            import_catalog,
+            record_catalog_knowledge,
+        )
 
-        for catalog in sorted(manifest.catalogs, key=lambda item: item.release_id):
+        # Publication order inserts every superseded release before its successor.
+        for catalog in sorted(
+            manifest.catalogs, key=lambda item: (item.published_on, item.release_id)
+        ):
             import_catalog(connection, catalog, archive_root, database.parent)
+        record_catalog_knowledge(connection, manifest)
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options
