@@ -321,6 +321,8 @@ UI remain the baseline.
 - [x] Publish the free, noncommercial ICD-10 PL and ICD-9 PL validation search,
       API, dictionary trees, and code pages under the owner's validation
       exception (#98-#102, `docs/validation/reference-web-rollout.md`).
+- [ ] Replace manual validation updates with one guarded command and artifact
+      retention (#109, `docs/validation/validation-deploy.md`).
 
 ### Remaining Dataset And Product Gates
 
