@@ -102,6 +102,98 @@ keep distinct codes rather than sharing the `1a` ones.
   keep 138 stray formulas (mostly `=#REF!`) from column DL; a formula, error or
   date inside the reviewed columns fails.
 
+## Service-Date Resolution (#18)
+
+Each pinned release carries reviewed temporal evidence, quoted from its act
+text (BAW `akt.xml`) and the BAW watcher's publication evidence:
+
+| Release | Services from | Published (knowledge) | Supersedes | Evidence |
+| --- | --- | --- | --- | --- |
+| Original 46/2026 | 2026-05-01 | 2026-04-30 | none | "Zarządzenie wchodzi w życie z dniem 1 maja 2026 r." (repeals 101/2025) |
+| After 74/2026 | 2026-07-01 | 2026-07-23 | original | 74/2026 § 4: "stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r." |
+| After 102/2026 | 2026-07-01 | 2026-09-23 | after 74 | 102/2026 § 4 ust. 1: the same date "z zastrzeżeniem ust. 2-5" |
+
+A service date resolves against the releases that cover it and were
+published by the chosen knowledge date. Candidates explicitly superseded by
+another candidate drop out, and exactly one must remain. Otherwise the answer
+is `NoRulesetForDate` (nothing covers the date) or `AmbiguousRuleset`
+(unsuperseded overlap). Services before 2026-05-01 belong to the unpinned
+101/2025 lineage and fail explicitly.
+
+Release windows have no end date because a later act may never come. To keep
+that from becoming a silent latest-release fallback, the dataset manifest pins
+a reviewed knowledge horizon (`catalog_knowledge_as_of`, 2026-10-02: the BAW
+lineage observation listing 74/2026 and 102/2026 as the only amendments). An
+explicit knowledge date after it fails with `KnowledgeBeyondBundle`; the
+default knowledge date is capped to it and reported as such. Every answer
+states the horizon, so "102/2026 governs" always reads as "as known on
+2026-10-02".
+
+- Retroactivity: a 2026-07-10 service known on 2026-08-01 resolves to 74/2026
+  (PZD02 planned hospitalization 12871.72 points), known on 2026-07-15 to the
+  original act (8040 points).
+- Overlap: 74/2026 and 102/2026 both apply from 2026-07-01; 102/2026's
+  consolidated text explicitly supersedes 74/2026's.
+- Supersession must point to an earlier publication in the same original-act
+  lineage, so it cannot form a cycle.
+
+Knowledge time uses the reviewed publication date. SPEC describes knowledge
+time as ingestion time, but these releases were back-filled on 2026-10-02, so
+an ingestion filter could not answer what was known before 74/2026 was
+published, which the delivery scope requires. Minos' fetch time is kept as
+`recorded_at`. See the 2026-10-02 decision entry.
+
+### 102/2026 § 4 ust. 5
+
+§ 4 ust. 5 lists catalog rows that apply only to services from 2027-01-01:
+`1a` Lp. 245, 247, 249, 253, 255, 297, 302, 304, 306, 308, 310, 378, 380, 382,
+384, 389, 398, 400, 403 and `1ae` Lp. 32, 34, 36, 53, 75, 79. Each has an
+adjacent twin with the same code, the same base points and one scope more
+(chirurgia ogólna), whose note limits reporting to 31.12.2026. The manifest
+pins both groups as row overrides (`service_from` 2027-01-01 and `service_to`
+2026-12-31). The build accepts an override only when its row exists once and
+its own note contains the reviewed marker ("od 1.01.2027" or
+"do 31.12.2026"), and it rejects any code that would apply on two rows on one
+date. Conversely, any row whose note carries a date limit ("od DD.MM.YYYY" or
+"do DD.MM.YYYY") must have a reviewed override; law citations such as
+"ustawą z dnia 7 stycznia 1993 r" are not date limits. Without these overrides
+the after-102 release cannot be imported.
+
+### Modifiers
+
+Every release stores `modifier_binding = 'unbound'` (a schema CHECK) and every
+answer serializes it with its meaning: no reviewed MODTAR binding exists yet,
+which is not an empty set of applicable modifiers. #46 binds MODTAR; #35 must
+refuse final points while modifiers are unbound.
+
+### Lookup
+
+```sh
+uv run python -m minos jgp group --data /path/to/bundle --code PZD02 \
+  --service-date 2026-07-10 --known-on 2026-08-01 --json
+```
+
+The answer contains the service and knowledge dates and whether each was given
+or defaulted to today in Europe/Warsaw, the governing release with act number,
+BAW document, publication, service evidence and workbook checksum, the row's
+own window and evidence, base values labelled "punkty bazowe wg katalogu, bez
+modyfikatorów" (`points_kind: catalog_base_points_without_modifiers`), scope
+markers and the unbound modifier state. Errors go to stderr with a category
+and exit code:
+
+| Exit | Category | Meaning |
+| --- | --- | --- |
+| 1 | `group_not_on_date` | the code has no catalog row on that service date |
+| 2 | `invalid_request` / `timezone_unavailable` | malformed input, or no time-zone data for a default date (pass both dates) |
+| 3 | `data_error` | the bundle cannot be verified or read |
+| 5 | `no_ruleset_for_date` | no reviewed release covers the date as known |
+| 6 | `ambiguous_ruleset` | reviewed releases overlap without supersession |
+| 7 | `known_on_beyond_bundle` | the knowledge date is after the bundle's horizon |
+| 8 | `no_jgp_catalog` | a schema 2 or 3 bundle without catalogs |
+
+Default dates use one clock reading in Europe/Warsaw, never UTC. HTTP access
+belongs to #24.
+
 ## Repeated Codes
 
 After 102/2026, 19 `1a` codes and 6 `1ae` codes appear on two rows. In the
@@ -121,15 +213,22 @@ schema 3, so schema 2 and 3 bundles stay valid. Tables:
 
 | Table | Content |
 | --- | --- |
-| `catalog_release` | BAW document identity, lineage role, act date, entry into force, workbook SHA-256, canonical manifest |
+| `catalog_release` | BAW document identity, lineage role, act date, entry into force, publication (knowledge time), service window and evidence, supersession, `modifier_binding = 'unbound'`, fetch time, workbook SHA-256, canonical manifest |
 | `catalog_sheet` | layout version, worksheet and title per catalog |
 | `catalog_scope` | the 68 scope columns with source column and label |
-| `group_definition` | one row per source row: ordinal, code, product code, name, procedural flag, chapter, notes |
+| `group_definition` | one row per source row: ordinal, code, product code, name, procedural flag, chapter, notes, service window and its evidence |
 | `group_base_value` | base points (hundredths) or financed days per measure, with source column |
 | `group_scope` | raw scope markers per group row |
 
 SPEC's `tariff_value` is named `group_base_value` here so stored values cannot
-be mistaken for final tariffs; validity periods arrive with #18. The schema
+be mistaken for final tariffs. Validity is held on the release and the row:
+values belong to a row, so they share its window. Migration 004 was amended in
+place for #18 because no schema-4 artifact had been published; schema 2 and 3
+bundles are unaffected. A singleton `catalog_knowledge` table holds the
+reviewed horizon, and date columns carry format CHECKs. Opening a bundle
+compares every release's temporal columns and the horizon with the manifest,
+then re-derives each row's window, evidence and note confirmation from the
+reviewed overrides, because the resolver reads those columns directly. The schema
 ties `days` to the two financed-stay measures and points to every other
 measure. Opening a bundle re-checks that stored releases, layouts, group counts
 and repeated-code counts equal the reviewed manifest, and that every row still

@@ -1,11 +1,14 @@
 import os
+from datetime import date
 from pathlib import Path
 
 import pytest
 
 from minos.domain.jgp_catalog import CatalogGroup, CatalogSheet
+from minos.domain.jgp_ruleset import ReleaseWindow, resolve_release
 from minos.ingest.archive_source import verified_source
 from minos.ingest.jgp_catalog import parse_catalog_workbook
+from minos.ingest.jgp_catalog_applicability import row_windows
 from minos.ingest.reference_manifest import DatasetManifest
 
 ROOT = Path(__file__).parents[2]
@@ -129,3 +132,55 @@ def test_pinned_catalog_workbooks_parse_and_match_hand_checked_groups(
     for first, second in twins:
         assert first.values == second.values
         assert first.notes != second.notes
+
+
+@pytest.mark.jgp_live
+def test_pinned_102_section_4_5_rows_split_at_2027(tmp_path: Path) -> None:
+    archive = os.environ.get("MINOS_JGP_PRIVATE_ARCHIVE")
+    if not archive:
+        pytest.skip("private JGP catalog archive opt-in is not configured")
+    manifest = DatasetManifest.model_validate_json(MANIFEST.read_bytes())
+    after_102 = next(
+        item for item in manifest.catalogs if item.baw_document_id == 44042
+    )
+    with verified_source(
+        Path(archive), after_102.workbook, staging_directory=tmp_path
+    ) as snapshot:
+        sheets = parse_catalog_workbook(snapshot, after_102)
+    windows = row_windows(sheets, after_102)
+    applying: dict[date, dict[str, int]] = {}
+    for day in (date(2026, 12, 31), date(2027, 1, 1)):
+        applying[day] = {
+            group.code: group.ordinal
+            for sheet in sheets
+            for group in sheet.groups
+            if windows[(sheet.catalog, group.row)][0].covers(day)
+        }
+    changed = {
+        code: (applying[date(2026, 12, 31)][code], ordinal)
+        for code, ordinal in applying[date(2027, 1, 1)].items()
+        if applying[date(2026, 12, 31)][code] != ordinal
+    }
+    assert len(changed) == 25
+    assert changed["H21"] == (244, 245) and changed["LU30"] == (78, 79)
+    releases = tuple(
+        ReleaseWindow(
+            item.release_id, item.service_from, item.published_on, item.supersedes
+        )
+        for item in manifest.catalogs
+    )
+    chosen = {
+        (service, known): resolve_release(releases, service, known).release_id[-12:]
+        for service, known in (
+            (date(2026, 7, 10), date(2026, 7, 15)),
+            (date(2026, 7, 10), date(2026, 8, 1)),
+            (date(2026, 7, 10), date(2026, 10, 2)),
+            (date(2026, 5, 15), date(2026, 10, 2)),
+        )
+    }
+    assert list(chosen.values()) == [
+        "3d4197ceb459",
+        "fbe73d5fb7a3",
+        "32dc947fc6ac",
+        "3d4197ceb459",
+    ]
