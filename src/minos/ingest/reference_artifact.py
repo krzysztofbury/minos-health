@@ -4,15 +4,14 @@ import hashlib
 import os
 import platform
 import sqlite3
-import stat
 import tempfile
-from collections.abc import Generator, Iterator
-from contextlib import contextmanager
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO, cast
 
 from minos.domain.reference import ArtifactError, SourceError
+from minos.ingest.archive_source import verified_source as verified_source
 from minos.ingest.icd9 import parse_icd9_xml
 from minos.ingest.icd10 import ReferenceEvent, parse_icd10
 from minos.ingest.reference_manifest import DatasetManifest, SourceManifest
@@ -26,51 +25,12 @@ from minos.store.artifact import (
     file_identity,
 )
 from minos.store.reference_build import (
-    REFERENCE_SCHEMA_VERSION,
     finalize_reference,
     import_release,
     initialize_reference,
     schema_checksum,
+    schema_version_for,
 )
-
-
-@contextmanager
-def verified_source(
-    archive_root: Path, source: SourceManifest, *, staging_directory: Path
-) -> Generator[BinaryIO]:
-    """Snapshot and verify before parsing, preventing hash/parse file rotation."""
-    blob_path = archive_root / "blobs" / "sha256" / source.sha256
-    try:
-        descriptor = os.open(
-            blob_path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
-        )
-        with (
-            os.fdopen(descriptor, "rb") as archived,
-            tempfile.TemporaryFile("w+b", dir=staging_directory) as snapshot,
-        ):
-            details = os.fstat(archived.fileno())
-            if (
-                not stat.S_ISREG(details.st_mode)
-                or details.st_size != source.size_bytes
-            ):
-                raise SourceError(
-                    "pinned source byte count or file type does not match"
-                )
-            digest = hashlib.sha256()
-            consumed = 0
-            while chunk := archived.read(64 * 1024):
-                consumed += len(chunk)
-                if consumed > source.size_bytes:
-                    raise SourceError("pinned source grew during verification")
-                digest.update(chunk)
-                if snapshot.write(chunk) != len(chunk):
-                    raise SourceError("source snapshot write was incomplete")
-            if consumed != source.size_bytes or digest.hexdigest() != source.sha256:
-                raise SourceError("pinned source checksum or byte count does not match")
-            _ = snapshot.seek(0)
-            yield snapshot
-    except OSError as error:
-        raise SourceError("pinned archive source cannot be read or staged") from error
 
 
 def build_reference_artifact(
@@ -107,10 +67,10 @@ def build_reference_artifact(
             summary = _review_summary(manifest, counts, previous_bundle, database_path)
             _write_synced(candidate / REVIEW_SUMMARY_NAME, summary)
             result = ArtifactManifest(
-                schema_version=REFERENCE_SCHEMA_VERSION,
+                schema_version=schema_version_for(manifest),
                 database_sha256=checksum,
                 database_size_bytes=size_bytes,
-                schema_sha256=schema_checksum(),
+                schema_sha256=schema_checksum(schema_version_for(manifest)),
                 review_summary_sha256=hashlib.sha256(summary).hexdigest(),
                 dataset=manifest,
                 row_counts=counts,
@@ -164,6 +124,10 @@ def _build_database(
                 archive_root, source, staging_directory=database.parent
             ) as snapshot:
                 import_release(connection, source, _source_events(snapshot, source))
+        from minos.store.komunikat_build import import_komunikat
+
+        for komunikat in sorted(manifest.komunikaty, key=lambda item: item.release_id):
+            import_komunikat(connection, komunikat, archive_root, database.parent)
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options
@@ -215,7 +179,7 @@ def _review_summary(
     else:
         lines.append(f"Previous database SHA-256: {previous.database_sha256}")
     for table, count in sorted(counts.items()):
-        old_count = previous.row_counts[table] if previous else 0
+        old_count = previous.row_counts.get(table, 0) if previous else 0
         lines.append(f"{table}: {old_count} -> {count} ({count - old_count:+d})")
     lines.append("")
     for source in sorted(manifest.sources, key=lambda item: item.release_id):
@@ -228,6 +192,20 @@ def _review_summary(
     from minos.ingest.reference_reconciliation import reconciliation_lines
 
     lines.extend(reconciliation_lines(database_path, manifest))
+    for item in manifest.komunikaty:
+        lines.append(
+            f"Algorithm evidence: {item.release_id} / {item.algorithm_version}"
+        )
+        lines.append(
+            "Reference-only code correspondence; not service-date ruleset pairing."
+        )
+        lines.append(f"Canonical ICD-9 reference: {item.icd9_release_id}")
+        for label, file in (
+            ("algorithm", item.algorithm),
+            ("ranks", item.ranks),
+            ("specialties", item.specialties),
+        ):
+            lines.append(f"Pinned {label}: {file.sha256} / {file.size_bytes}")
     return ("\n".join(lines) + "\n").encode()
 
 

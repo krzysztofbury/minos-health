@@ -34,6 +34,7 @@ from minos.http.pages import (
 )
 from minos.http.reference import CapacityError, ReferencePool
 from minos.store.artifact import dataset_identity
+from minos.store.komunikat import procedure_rank_evidence
 from minos.store.search import search_reference
 from minos.store.tree import (
     Hierarchy,
@@ -48,6 +49,9 @@ LOGGER = logging.getLogger("minos.http")
 TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
 PAGE_ROUTE = re.compile(r"/slowniki/icd-(?:10|9)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}")
 SITEMAP_ROUTE = re.compile(r"/sitemap-icd-(?:10|9)\.xml")
+RANK_ROUTE = re.compile(
+    r"/api/v1/procedure-ranks/[a-z0-9-]{1,80}/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}"
+)
 PAGE_CACHE = "public, max-age=3600"
 DISCLAIMER = "Validation only. Reference data, not medical advice or a binding settlement decision. Code documented care only; never infer billability."
 
@@ -135,23 +139,50 @@ def render_code(
     )
     if tree is None:
         raise ArtifactError("dictionary is not in the dataset")
+    canonical_icd9 = any(
+        source.release_id == tree.hierarchy.release_id
+        and (source.system, source.origin) == ("icd9-pl", "czs")
+        for source in pool.manifest.dataset.sources
+    )
     with pool.borrow() as lease:
         ordinal = find_code(lease.connection, tree.hierarchy, code)
         if ordinal is not None:
             answer = tree_node(lease.connection, tree.hierarchy, ordinal)
+            node = cast(dict[str, object], answer["node"])
+            ranks = (
+                procedure_rank_evidence(
+                    lease.connection,
+                    pool.manifest.dataset,
+                    tree.hierarchy.release_id,
+                    code,
+                )
+                if canonical_icd9 and node.get("canonical") is not False
+                else None
+            )
             return 200, code_page(
                 dictionary,
-                cast(dict[str, object], answer["node"]),
+                node,
                 cast(list[dict[str, object]], answer["children"]),
                 tree.version,
                 tree.hierarchy.supporting,
+                ranks,
             )
     unplaced = cast(list[dict[str, object]], tree.roots.get("unplaced", []))
     item = next((entry for entry in unplaced if entry["code"] == code), None)
     if item is None:
         return 404, missing_page(dictionary, code)
-    node: dict[str, object] = {**item, "path": [], "notes": []}
-    return 200, code_page(dictionary, node, [], tree.version, tree.hierarchy.supporting)
+    unplaced_node: dict[str, object] = {**item, "path": [], "notes": []}
+    with pool.borrow() as lease:
+        ranks = (
+            procedure_rank_evidence(
+                lease.connection, pool.manifest.dataset, tree.hierarchy.release_id, code
+            )
+            if canonical_icd9
+            else None
+        )
+    return 200, code_page(
+        dictionary, unplaced_node, [], tree.version, tree.hierarchy.supporting, ranks
+    )
 
 
 def browse(
@@ -232,6 +263,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                     if PAGE_ROUTE.fullmatch(request.url.path)
                     else "/sitemap"
                     if SITEMAP_ROUTE.fullmatch(request.url.path)
+                    else "/api/v1/procedure-ranks"
+                    if RANK_ROUTE.fullmatch(request.url.path)
                     else "unmatched",
                     "method": request.method
                     if request.method in ("GET", "POST", "HEAD", "OPTIONS")
@@ -406,6 +439,25 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             headers={"Cache-Control": PAGE_CACHE},
         )
 
+    def procedure_rank(release_id: str, code: str) -> JSONResponse:
+        if not CODE_PATTERN.fullmatch(code) or len(release_id) > 80:
+            return failure(404, "not_found")
+        pool = cast(ReferencePool, app.state.pool)
+        try:
+            with pool.borrow() as lease:
+                evidence = procedure_rank_evidence(
+                    lease.connection, pool.manifest.dataset, release_id, code
+                )
+            return JSONResponse({"api": 1, "evidence": evidence})
+        except SearchInputError:
+            return failure(404, "not_found")
+        except CapacityError:
+            return failure(429, "busy")
+        except QueryLimitError, TimeoutError:
+            return failure(429, "limit_exceeded")
+        except ArtifactError, OSError:
+            return failure(503, "unavailable")
+
     app.add_api_route("/healthz", health, methods=["GET"])
     app.add_api_route("/readyz", ready, methods=["GET"])
     app.add_api_route("/api/v1/releases", releases, methods=["GET"])
@@ -413,6 +465,9 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
     app.add_api_route("/api/v1/tree/{release_id}/{node}", tree, methods=["GET"])
     app.add_api_route("/slowniki/{dictionary}/{code}", dictionary_page, methods=["GET"])
     app.add_api_route("/sitemap-{dictionary}", dictionary_sitemap, methods=["GET"])
+    app.add_api_route(
+        "/api/v1/procedure-ranks/{release_id}/{code}", procedure_rank, methods=["GET"]
+    )
     return app
 
 

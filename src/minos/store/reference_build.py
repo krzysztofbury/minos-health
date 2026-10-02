@@ -22,6 +22,8 @@ from minos.store.search_build import build_search_index
 
 REFERENCE_SCHEMA_VERSION: Literal[2] = 2
 MIGRATIONS = ("001_reference.sql", "002_search.sql")
+KOMUNIKAT_MIGRATION = "003_komunikat.sql"
+KOMUNIKAT_TABLES = ("algorithm_release", "procedure_rank", "department_specialty")
 REFERENCE_APPLICATION_ID = 0x4D494E52
 TABLES = (
     "source_release",
@@ -52,19 +54,39 @@ def reference_sql(relative_path: str) -> str:
     )
 
 
-def schema_checksum() -> str:
+def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3]:
+    return 3 if manifest.komunikaty else 2
+
+
+def migrations_for(schema_version: int) -> tuple[str, ...]:
+    if schema_version not in (2, 3):
+        raise ArtifactError("incompatible reference schema version")
+    return MIGRATIONS + ((KOMUNIKAT_MIGRATION,) if schema_version == 3 else ())
+
+
+def tables_for(schema_version: int) -> tuple[str, ...]:
+    _ = migrations_for(schema_version)
+    return TABLES + (KOMUNIKAT_TABLES if schema_version == 3 else ())
+
+
+def schema_checksum(schema_version: int = REFERENCE_SCHEMA_VERSION) -> str:
     return hashlib.sha256(
-        "".join(reference_sql("migrations/" + name) for name in MIGRATIONS).encode()
+        "".join(
+            reference_sql("migrations/" + name)
+            for name in migrations_for(schema_version)
+        ).encode()
     ).hexdigest()
 
 
-def migration_identities() -> list[tuple[int, str]]:
+def migration_identities(
+    schema_version: int = REFERENCE_SCHEMA_VERSION,
+) -> list[tuple[int, str]]:
     return [
         (
             index,
             hashlib.sha256(reference_sql("migrations/" + name).encode()).hexdigest(),
         )
-        for index, name in enumerate(MIGRATIONS, 1)
+        for index, name in enumerate(migrations_for(schema_version), 1)
     ]
 
 
@@ -74,13 +96,16 @@ def initialize_reference(
     """Apply reviewed migrations only inside a fresh-build transaction."""
     if not connection.in_transaction:
         raise ArtifactError("reference schema requires a build transaction")
-    for name, identity in zip(MIGRATIONS, migration_identities(), strict=True):
+    version = schema_version_for(manifest)
+    for name, identity in zip(
+        migrations_for(version), migration_identities(version), strict=True
+    ):
         for statement in reference_sql("migrations/" + name).split(";"):
             if statement.strip():
                 _ = connection.execute(statement)
         _ = connection.execute("INSERT INTO schema_migration VALUES (?, ?)", identity)
     metadata = {
-        "schema_version": str(REFERENCE_SCHEMA_VERSION),
+        "schema_version": str(version),
         "normalization_version": NORMALIZATION_VERSION,
         "code_conversion_version": "rsk-icd10-1",
         "transform_version": manifest.transform_version,
@@ -112,7 +137,7 @@ def initialize_reference(
         "INSERT INTO build_metadata VALUES (?, ?)", sorted(metadata.items())
     )
     _ = connection.execute(f"PRAGMA application_id = {REFERENCE_APPLICATION_ID}")
-    _ = connection.execute(f"PRAGMA user_version = {REFERENCE_SCHEMA_VERSION}")
+    _ = connection.execute(f"PRAGMA user_version = {version}")
 
 
 def import_release(
@@ -334,4 +359,16 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
         UNION ALL SELECT 'search_word_lemma', count(*) FROM search_word_lemma
     """).fetchall(),
     )
-    return dict(counts)
+    result = dict(counts)
+    if connection.execute("PRAGMA user_version").fetchone() == (3,):
+        result.update(
+            cast(
+                list[tuple[str, int]],
+                connection.execute(
+                    """SELECT 'algorithm_release', count(*) FROM algorithm_release
+            UNION ALL SELECT 'procedure_rank', count(*) FROM procedure_rank
+            UNION ALL SELECT 'department_specialty', count(*) FROM department_specialty"""
+                ).fetchall(),
+            )
+        )
+    return result

@@ -232,6 +232,19 @@ class _XmlGuard:
 def preflight_workbook(
     source: BinaryIO, *, limits: WorkbookLimits = DEFAULT_WORKBOOK_LIMITS
 ) -> dict[str, WorksheetLayout]:
+    return _preflight_office(source, limits, document=False)
+
+
+def preflight_docx(
+    source: BinaryIO, *, limits: WorkbookLimits = DEFAULT_WORKBOOK_LIMITS
+) -> None:
+    """Check every DOCX part without decoding images or executing office content."""
+    _ = _preflight_office(source, limits, document=True)
+
+
+def _preflight_office(
+    source: BinaryIO, limits: WorkbookLimits, *, document: bool
+) -> dict[str, WorksheetLayout]:
     """Read every bounded entry to EOF, checking ZIP consistency, CRC, and XML."""
     try:
         count = _central_directory(source, limits)
@@ -242,13 +255,18 @@ def preflight_workbook(
                 or len({item.filename for item in entries}) != count
             ):
                 _fail("ZIP entry names or count conflict")
-            if not {
-                "xl/workbook.xml",
-                "[Content_Types].xml",
-                "xl/_rels/workbook.xml.rels",
-            } <= set(archive.namelist()):
-                _fail("required XLSX parts are missing")
-            _validate_entries(entries, limits)
+            required = (
+                {"word/document.xml", "[Content_Types].xml", "_rels/.rels"}
+                if document
+                else {
+                    "xl/workbook.xml",
+                    "[Content_Types].xml",
+                    "xl/_rels/workbook.xml.rels",
+                }
+            )
+            if not required <= set(archive.namelist()):
+                _fail("required Office parts are missing")
+            _validate_entries(entries, limits, document=document)
             elements = 0
             layouts: dict[str, WorksheetLayout] = {}
             for entry in entries:
@@ -283,7 +301,7 @@ def preflight_workbook(
                         layouts[entry.filename] = WorksheetLayout(
                             guard.rows, guard.columns, tuple(guard.merges)
                         )
-            selected = _worksheet_layouts(archive, layouts)
+            selected = {} if document else _worksheet_layouts(archive, layouts)
         _ = source.seek(0)
         return selected
     except (
@@ -339,7 +357,9 @@ def _worksheet_layouts(
     return result
 
 
-def _validate_entries(entries: list[ZipInfo], limits: WorkbookLimits) -> None:
+def _validate_entries(
+    entries: list[ZipInfo], limits: WorkbookLimits, *, document: bool = False
+) -> None:
     expanded = 0
     for entry in entries:
         name = entry.filename
@@ -360,6 +380,10 @@ def _validate_entries(entries: list[ZipInfo], limits: WorkbookLimits) -> None:
             _fail("active or linked workbook content is unsupported")
         if (
             not name.endswith((".xml", ".rels"))
+            and not (
+                document
+                and re.fullmatch(r"word/media/[A-Za-z0-9_.-]+\.(?:emf|jpeg|png)", name)
+            )
             and re.fullmatch(
                 r"xl/printerSettings/printerSettings[1-9][0-9]*\.bin", name
             )
@@ -377,7 +401,7 @@ def _validate_entries(entries: list[ZipInfo], limits: WorkbookLimits) -> None:
         metadata_limit = (
             8 * 1024 * 1024 if name == "xl/sharedStrings.xml" else 1024 * 1024
         )
-        if name.startswith("xl/worksheets/"):
+        if name.startswith("xl/worksheets/") or name == "word/document.xml":
             metadata_limit = limits.max_entry_bytes
         if name.endswith((".xml", ".rels")) and entry.file_size > metadata_limit:
             _fail("eagerly loaded XML part exceeds limit")

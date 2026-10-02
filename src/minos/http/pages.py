@@ -98,12 +98,66 @@ def _item(dictionary: Dictionary, code: str | None, label: str) -> str:
     return f'<li><a class="code-link" href="{_e(code_path(dictionary, code))}">{text}</a></li>'
 
 
+def _rank_section(evidence: dict[str, object]) -> list[str]:
+    parts = [
+        '        <section class="detail-notes procedure-rank"><h2>Ranga procedury w JGP (SZP)</h2>'
+    ]
+    if evidence["status"] == "not_selected":
+        parts.append(
+            "<p>Nie wybrano wykazu rang dla tego wydania słownika. Brak danych nie oznacza rangi 0.</p></section>"
+        )
+        return parts
+    if evidence["status"] == "recorded":
+        parts.append(
+            f"<p><strong>Ranga {_e(evidence['rank'])}</strong> w wybranym wykazie NFZ.</p>"
+        )
+        parts.append(f"<p>Nazwa w wykazie rang: {_e(evidence['source_title'])}</p>")
+    else:
+        parts.append(
+            "<p>Brak pozycji w wybranym wykazie rang SZP. Nie oznacza to rangi 0 ani braku znaczenia w grupowaniu.</p>"
+        )
+    values = [
+        ("Algorytm", evidence["algorithm_version"]),
+        ("Pierwszy okres sprawozdawczy wersji", evidence["first_reporting_month"]),
+        ("Wydanie dowodu", evidence["algorithm_release_id"]),
+    ]
+    if evidence["status"] == "recorded":
+        values.append(
+            (
+                "Pozycja źródłowa",
+                f"{evidence['worksheet']}, wiersz {evidence['source_row']}",
+            )
+        )
+    rank_source = cast(dict[str, object], evidence["rank_source"])
+    algorithm_source = cast(dict[str, object], evidence["algorithm_source"])
+    values.append(("SHA-256 wykazu", rank_source["sha256"]))
+    parts.append(
+        '<dl class="detail-facts code-facts">'
+        + "".join(
+            f"<div><dt>{_e(name)}</dt><dd>{_e(value)}</dd></div>"
+            for name, value in values
+        )
+        + "</dl>"
+    )
+    parts.append(
+        "<p>Dowód referencyjny powiązany po dokładnym kodzie, nie dobór rulesetu dla daty świadczenia. Ranga opisuje rolę w algorytmie, nie priorytet kliniczny ani możliwość rozliczenia.</p>"
+    )
+    parts.append(
+        f'<p class="detail-source">{_e(evidence["publisher"])}. {_e(evidence["license"])}</p>'
+    )
+    parts.append(
+        f'<p><a href="{_e(rank_source["source_url"])}">Oficjalny wykaz rang NFZ</a> · <a href="{_e(algorithm_source["source_url"])}">Opis algorytmu NFZ</a></p></section>'
+    )
+    return parts
+
+
 def code_page(
     dictionary: Dictionary,
     node: dict[str, object],
     children: list[dict[str, object]],
     version: str,
     supporting: bool,
+    rank_evidence: dict[str, object] | None = None,
 ) -> str:
     code = cast(str, node["code"])
     label = " ".join(cast(str, node["label"]).split())
@@ -157,6 +211,8 @@ def code_page(
         parts.append(
             '        <dl class="detail-facts code-facts">' + "".join(facts) + "</dl>"
         )
+    if rank_evidence is not None:
+        parts.extend(_rank_section(rank_evidence))
     for kind in ("includes", "excludes", "term", "modifier", "note"):
         group = [note for note in notes if note["kind"] == kind]
         if not group:
