@@ -13,6 +13,17 @@ const args = ["--headless=new", "--no-sandbox", "--disable-gpu", "--disable-back
 if (new URL(url).protocol === "http:") args.unshift("--host-resolver-rules=MAP minoshealth.pl 127.0.0.1");
 const browser = spawn(executable, args, { stdio: ["ignore", "pipe", "pipe"] });
 browser.stdout.resume(); browser.stderr.resume();
+// DevToolsActivePort can appear before the initial about:blank page target.
+async function pageTarget(port) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    const target = targets.find((candidate) => candidate.type === "page");
+    if (target) return target;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Chromium did not expose a page target");
+}
+
 let socket;
 try {
   let port;
@@ -21,8 +32,7 @@ try {
     catch { if (browser.exitCode !== null) throw new Error("browser startup failed"); await new Promise(resolve => setTimeout(resolve, 50)); }
   }
   assert.ok(port);
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  socket = new WebSocket(targets.find(item => item.type === "page").webSocketDebuggerUrl);
+  socket = new WebSocket((await pageTarget(port)).webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
   let id = 0;
   const pending = new Map(), errors = [], requests = [];
