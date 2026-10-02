@@ -68,6 +68,7 @@ CREATE TABLE group_definition (
     name TEXT NOT NULL,
     procedural INTEGER NOT NULL CHECK (procedural IN (0, 1)),
     chapter TEXT NOT NULL,
+    chapter_position INTEGER NOT NULL CHECK (chapter_position BETWEEN 1 AND 200),
     notes TEXT,
     service_from TEXT NOT NULL CHECK (service_from = date(service_from)),
     service_to TEXT CHECK (

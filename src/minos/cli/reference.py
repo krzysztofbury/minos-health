@@ -24,6 +24,7 @@ from minos.domain.search import (
     SearchRequest,
     prepare_query,
 )
+from minos.ingest.jgp_catalog import GROUP_CODE_REGEX
 from minos.store.artifact import dataset_identity, read_regular_file
 
 DISCLAIMER = "Reference only. Code documented care completely and correctly; do not infer diagnoses or billability."
@@ -59,7 +60,7 @@ class _BuildArguments(BaseModel):
 
 class _GroupArguments(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
-    code: str = Field(pattern=r"^[A-Z]{1,4}[0-9]{2,3}[A-Z]{0,3}$")
+    code: str = Field(pattern=f"^{GROUP_CODE_REGEX}$")
     data: Path
     service_date: str | None = Field(
         default=None, pattern=r"^20[0-9]{2}-[0-9]{2}-[0-9]{2}$"

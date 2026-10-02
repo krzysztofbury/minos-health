@@ -43,7 +43,9 @@ if TYPE_CHECKING:
     from openpyxl.worksheet._read_only import ReadOnlyWorksheet
     from openpyxl.worksheet.worksheet import Worksheet
 
-CODE_PATTERN = re.compile(r"[A-Z]{1,4}[0-9]{2,3}[A-Z]{0,3}")
+# Shared by the parser, CLI and HTTP routes; the validation edge mirrors it.
+GROUP_CODE_REGEX = r"[A-Z]{1,4}[0-9]{2,3}[A-Z]{0,3}"
+CODE_PATTERN = re.compile(GROUP_CODE_REGEX)
 CELL_RANGE_PATTERN = re.compile(
     r"([A-Z]{1,3})([1-9][0-9]{0,4}):([A-Z]{1,3})([1-9][0-9]{0,4})"
 )
@@ -358,6 +360,9 @@ def _check_reviewed_counts(
         raise SourceError("reviewed catalog group count conflicts")
     if len(sheet.chapters) != expectation.expected_chapters:
         raise SourceError("reviewed catalog chapter count conflicts")
+    # Section URLs address chapters by source position; names must be unique.
+    if len(set(sheet.chapters)) != len(sheet.chapters):
+        raise SourceError("catalog chapter heading repeats")
     repeated = sum(1 for count in codes.values() if count > 1)
     if repeated != expectation.expected_repeated_codes:
         raise SourceError("reviewed repeated catalog codes conflict")

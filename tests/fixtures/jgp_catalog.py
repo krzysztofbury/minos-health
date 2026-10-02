@@ -63,6 +63,7 @@ def catalog_workbook(
     *,
     shift_from: str | None = None,
     edit: Callable[[Worksheet, CatalogLayout], None] | None = None,
+    headings: dict[str, dict[int, str]] | None = None,
 ) -> bytes:
     """Build reviewed-layout sheets; `shift_from` inserts a column before it."""
     from openpyxl import Workbook
@@ -92,9 +93,18 @@ def catalog_workbook(
             sheet.merge_cells(f"{_shift(start, place)}:{_shift(end, place)}")
         sheet["A6"] = "Choroby układu nerwowego"
         sheet.merge_cells(f"A6:{last}6")
-        for number, row in enumerate(rows, 7):
+        number = 7
+        # Extra chapter headings before the row at each index, merged like
+        # every reviewed heading.
+        for index, row in enumerate(rows):
+            heading = (headings or {}).get(version, {}).get(index)
+            if heading is not None:
+                _ = sheet.cell(number, 1, heading)
+                sheet.merge_cells(f"A{number}:{last}{number}")
+                number += 1
             _write_row(sheet, number, row, layout, place)
-        footer = 8 + len(rows)
+            number += 1
+        footer = number + 1
         for line_number, line in enumerate(LEGEND, footer):
             _ = sheet.cell(line_number, 1, line)
         # Real workbooks keep stray formulas far right of the layout.
@@ -161,6 +171,7 @@ def stage_catalog(
     sheets: dict[str, tuple[Row, ...]] | None = None,
     repeated: dict[str, int] | None = None,
     release: dict[str, object] | None = None,
+    headings: dict[str, dict[int, str]] | None = None,
 ) -> CatalogManifest:
     chosen = sheets if sheets is not None else default_sheets()
     archive = root / "blobs/sha256"
@@ -171,7 +182,7 @@ def stage_catalog(
         LAYOUTS[version].catalog: {
             "layout": version,
             "expected_groups": len(rows),
-            "expected_chapters": 1,
+            "expected_chapters": 1 + len((headings or {}).get(version, {})),
             "expected_repeated_codes": (repeated or {}).get(
                 LAYOUTS[version].catalog, _repeated(rows)
             ),

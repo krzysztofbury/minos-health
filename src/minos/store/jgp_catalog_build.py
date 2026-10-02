@@ -70,7 +70,8 @@ def _insert_sheet(
         [(*key, scope.position, scope.column, scope.label) for scope in sheet.scopes],
     )
     _ = connection.executemany(
-        "INSERT INTO group_definition VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO group_definition VALUES"
+        + " (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
                 *key,
@@ -81,6 +82,7 @@ def _insert_sheet(
                 group.name,
                 int(group.procedural),
                 group.chapter,
+                sheet.chapters.index(group.chapter) + 1,
                 group.notes,
                 windows[(sheet.catalog, group.row)][0].service_from.isoformat(),
                 _optional_date(windows[(sheet.catalog, group.row)][0].service_to),
@@ -185,10 +187,13 @@ def _validate_sheets(
     connection: sqlite3.Connection, manifests: tuple[CatalogManifest, ...]
 ) -> None:
     sheets = cast(
-        list[tuple[str, str, str, int, int]],
+        list[tuple[str, str, str, int, int, int]],
         connection.execute(
             """SELECT sheet.release_id, sheet.catalog, sheet.layout,
                 (SELECT count(*) FROM group_definition AS grouped
+                 WHERE grouped.release_id = sheet.release_id
+                   AND grouped.catalog = sheet.catalog),
+                (SELECT count(DISTINCT chapter_position) FROM group_definition AS grouped
                  WHERE grouped.release_id = sheet.release_id
                    AND grouped.catalog = sheet.catalog),
                 (SELECT count(*) FROM (
@@ -205,6 +210,7 @@ def _validate_sheets(
             catalog,
             sheet.layout,
             sheet.expected_groups,
+            sheet.expected_chapters,
             sheet.expected_repeated_codes,
         )
         for manifest in manifests
@@ -279,6 +285,13 @@ def _validate_catalog_invariants(connection: sqlite3.Connection) -> None:
             SELECT 1 FROM group_definition GROUP BY release_id, code
             HAVING count(DISTINCT product_code) > 1
                 OR count(DISTINCT catalog) > 1)""",
+        "a catalog chapter position names two chapters": """SELECT count(*) FROM (
+            SELECT 1 FROM group_definition
+            GROUP BY release_id, catalog, chapter_position
+            HAVING count(DISTINCT chapter) > 1)""",
+        "a catalog chapter has two positions": """SELECT count(*) FROM (
+            SELECT 1 FROM group_definition GROUP BY release_id, catalog, chapter
+            HAVING count(DISTINCT chapter_position) > 1)""",
         "a catalog product code maps to several codes": """SELECT count(*) FROM (
             SELECT 1 FROM group_definition GROUP BY release_id, product_code
             HAVING count(DISTINCT code) > 1)""",

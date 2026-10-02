@@ -110,6 +110,8 @@ class Plan(BaseModel):
     dataset_id: Digest
     bundle: str
     rank_sample: tuple[str, int] | None
+    # (service date, group code, governing release) for catalog bundles.
+    jgp_sample: tuple[str, str, str] | None = None
     planned_at: str
 
 
@@ -226,6 +228,31 @@ def verify_bundle(bundle: Path) -> tuple[str, str, tuple[str, int] | None]:
     return manifest.database_sha256, dataset_identity(manifest.dataset), sample
 
 
+def jgp_sample(bundle: Path) -> tuple[str, str, str] | None:
+    """One group the live API must answer from the bundle's own resolution."""
+    from minos.store.jgp_ruleset import catalog_knowledge, resolve_ruleset
+
+    manifest = read_artifact_manifest(bundle)
+    if manifest.schema_version < 4:
+        return None
+    with open_reference_bundle(bundle) as (connection, _):
+        horizon = catalog_knowledge(connection)
+        ruleset = resolve_ruleset(connection, horizon, horizon)
+        row = cast(
+            tuple[str] | None,
+            connection.execute(
+                """SELECT code FROM group_definition
+                WHERE release_id = ? AND service_from <= ?
+                  AND (service_to IS NULL OR ? <= service_to)
+                ORDER BY catalog, source_row LIMIT 1""",
+                (ruleset["release_id"], horizon.isoformat(), horizon.isoformat()),
+            ).fetchone(),
+        )
+    if row is None:
+        raise DeployError("catalog bundle has no group to verify")
+    return horizon.isoformat(), row[0], cast(str, ruleset["release_id"])
+
+
 def resolve_release(revision: str, run_id: int) -> Release:
     remote = run(["git", "ls-remote", "origin", "refs/heads/main"]).split()
     if not remote or remote[0] != revision:
@@ -291,6 +318,7 @@ def plan(arguments: Arguments) -> Plan:
         dataset_id=dataset_id,
         bundle=str(bundle),
         rank_sample=sample,
+        jgp_sample=jgp_sample(bundle),
         planned_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
     path = plan_path(release.source_revision)
@@ -375,8 +403,25 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
             checks["browser"] = (
                 "desktop and mobile rank acceptance passed; review screenshots"
             )
+    if value.jgp_sample is not None:
+        checks["jgp_group"] = verify_jgp(base, value.jgp_sample)
     report("verified", checks)
     return checks
+
+
+def verify_jgp(base: str, sample: tuple[str, str, str]) -> str:
+    service_date, code, release_id = sample
+    status, body = get(f"{base}/api/v1/jgp/{service_date}/groups/{code}")
+    answer = cast(dict[str, object], json.loads(body)) if status == 200 else {}
+    ruleset = cast(dict[str, object], answer.get("ruleset", {}))
+    modifiers = cast(dict[str, object], ruleset.get("modifiers", {}))
+    if (
+        ruleset.get("release_id") != release_id
+        or answer.get("points_kind") != "catalog_base_points_without_modifiers"
+        or modifiers.get("binding") != "unbound"
+    ):
+        raise DeployError(f"public JGP group {code} is wrong: {status}")
+    return f"{code} on {service_date} from {release_id}, base points, modifiers unbound"
 
 
 def write_receipt(value: Plan, checks: dict[str, object]) -> None:

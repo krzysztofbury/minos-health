@@ -9,6 +9,7 @@ import tempfile
 import time
 import urllib.request
 import uuid
+from datetime import date
 from http.client import HTTPResponse
 from pathlib import Path
 from typing import cast, final
@@ -31,6 +32,11 @@ def fixture(root: Path) -> Path:
     from minos.ingest.reference_manifest import DatasetManifest
     from tests.fixtures.icd9_workbook import archive_bytes, workbook_manifest
     from tests.fixtures.icd9_xml import XML, source_manifest
+    from tests.fixtures.jgp_catalog import (
+        catalog_workbook,
+        default_sheets,
+        stage_catalog,
+    )
     from tests.fixtures.komunikat import stage_komunikat
 
     manifest = DatasetManifest.model_validate_json(
@@ -55,11 +61,16 @@ def fixture(root: Path) -> Path:
     archive.mkdir(parents=True)
     for source, content in sources:
         _ = (archive / source.sha256).write_bytes(content)
-    manifest = manifest.model_copy(
-        update={
+    manifest = DatasetManifest.model_validate(
+        {
+            **manifest.model_dump(),
             "sources": tuple(source for source, _ in sources),
             "komunikaty": (stage_komunikat(root, canonical.release_id),),
-        }
+            "catalogs": (stage_catalog(root, catalog_workbook(default_sheets())),),
+            "catalog_knowledge_as_of": date(2026, 10, 2),
+            "catalog_knowledge_evidence": "Synthetic lineage review on 2026-10-02.",
+        },
+        strict=False,
     )
     bundle = root / "bundle"
     _ = build_reference_artifact(manifest, root, bundle)
@@ -214,6 +225,24 @@ def main(arguments: Arguments) -> None:
         assert get_json(base, rank_route)[0] == 200
         assert get_json(base, rank_route + "?q=PRIVATE_QUERY_SENTINEL")[0] == 404
         assert get_json(base, rank_route, {})[0] == 405
+        # JGP routes: one call per group page, path-only dates, explicit gaps.
+        group_route = "/api/v1/jgp/2026-07-10/groups/PZD02"
+        status, group, _ = get_json(base, group_route)
+        assert status == 200
+        assert group["points_kind"] == "catalog_base_points_without_modifiers"
+        ruleset = cast(dict[str, dict[str, object]], group["ruleset"])
+        assert ruleset["modifiers"]["binding"] == "unbound"
+        assert get_json(base, "/api/v1/jgp/2026-07-10/sections")[0] == 200
+        assert get_json(base, "/api/v1/jgp/2026-07-10/sections/1a/1")[0] == 200
+        status, gap, _ = get_json(base, "/api/v1/jgp/2026-06-30/groups/PZD02")
+        # The API's explicit gap, not an edge 404 for an unrouted path.
+        assert (status, cast(dict[str, str], gap["error"])["code"]) == (
+            404,
+            "no_ruleset_for_date",
+        )
+        status, refused, _ = get_json(base, group_route + "?date=2026-07-10")
+        assert (status, refused) == (404, {})  # nginx refuses queries before the API
+        assert get_json(base, group_route, {})[0] == 405
         logs = docker("logs", api)
         assert "badania moczu" not in logs and '"query"' not in logs
         assert '"request_id"' in logs

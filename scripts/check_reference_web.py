@@ -30,9 +30,15 @@ def get_json(
             answer = cast(dict[str, object], json.loads(content))
             return response.status, answer, (time.perf_counter() - began) * 1000
     except urllib.error.HTTPError as error:
-        _ = error.read(4096)
+        content = error.read(4096)
         error.close()
-        return error.code, {}, (time.perf_counter() - began) * 1000
+        # Proxied API errors carry a JSON code; edge-generated pages do not.
+        try:
+            parsed = cast(object, json.loads(content))
+        except ValueError:
+            parsed = {}
+        answer = cast(dict[str, object], parsed) if isinstance(parsed, dict) else {}
+        return error.code, answer, (time.perf_counter() - began) * 1000
 
 
 def check(base: str, *, expected_digest: str | None = None) -> dict[str, object]:
