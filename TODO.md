@@ -329,9 +329,9 @@ UI remain the baseline.
 
 - [x] Download and fixture the RSK ICD-10 XML (HCD `00CD10`) and the NFZ ICD-9
       PL XML/XLSX.
-- [ ] Fixture załącznik 1a (katalog JGP, #17), załącznik 9 (charakterystyka
-      JGP, #29/#30) and CZS MODTAR XML (#46). The watchers already archive the
-      source bytes. Komunikat algorithm and rank fixtures landed with #33.
+- [ ] Fixture załącznik 9 (charakterystyka JGP, #29/#30) and CZS MODTAR XML
+      (#46). The watchers already archive the source bytes. Komunikat algorithm
+      and rank fixtures landed with #33; załącznik 1a catalog fixtures with #17.
 - [x] Record source identity for every archived file: URL or UUID, byte size,
       computed SHA-256, upstream timestamps, publisher, and disclaimers, without
       inventing publication dates.
