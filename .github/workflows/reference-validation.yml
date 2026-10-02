@@ -118,4 +118,27 @@ jobs:
             test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$reference")" = linux/amd64
             test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$reference")" = "$GITHUB_SHA"
             printf '%s image: `%s`\nSource revision: `%s`\n' "$kind" "$reference" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+            printf '%s' "$reference" > "$RUNNER_TEMP/$kind.reference"
           done
+          # Machine-readable identities for scripts/deploy_validation.py (#109).
+          mkdir "$RUNNER_TEMP/validation-release"
+          python3 - "$RUNNER_TEMP" > "$RUNNER_TEMP/validation-release/validation-release.json" <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          temp = Path(sys.argv[1])
+          print(json.dumps({
+              "source_revision": os.environ["GITHUB_SHA"],
+              "run_id": int(os.environ["GITHUB_RUN_ID"]),
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "api_image": (temp / "api.reference").read_text(),
+              "edge_image": (temp / "edge.reference").read_text(),
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload exact validation identities
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: validation-release
+          path: ${{ runner.temp }}/validation-release/validation-release.json
+          if-no-files-found: error
+          retention-days: 90
