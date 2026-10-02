@@ -105,10 +105,14 @@ def open_reference_bundle(
             _ = connection.execute("PRAGMA foreign_keys = ON")
             _ = connection.execute("PRAGMA mmap_size = 0")
             _validate_database_header(connection, manifest.schema_version)
-            if manifest.schema_version == 3:
+            if manifest.schema_version >= 3:
                 from minos.store.komunikat_build import validate_komunikat_bindings
 
                 validate_komunikat_bindings(connection, manifest.dataset.komunikaty)
+            if manifest.schema_version >= 4:
+                from minos.store.jgp_catalog_build import validate_catalog_bindings
+
+                validate_catalog_bindings(connection, manifest.dataset.catalogs)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources

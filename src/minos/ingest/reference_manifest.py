@@ -5,6 +5,7 @@ from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from minos.ingest.jgp_catalog_manifest import CatalogManifest
 from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.manifest_types import Digest as Digest
 from minos.ingest.manifest_types import Identifier as Identifier
@@ -74,6 +75,9 @@ class DatasetManifest(BaseModel):
     komunikaty: Annotated[tuple[KomunikatManifest, ...], Field(max_length=8)] = Field(
         default=(), exclude_if=empty_evidence
     )
+    catalogs: Annotated[tuple[CatalogManifest, ...], Field(max_length=8)] = Field(
+        default=(), exclude_if=empty_evidence
+    )
 
     @model_validator(mode="after")
     def validate_releases(self) -> Self:
@@ -84,6 +88,13 @@ class DatasetManifest(BaseModel):
         evidence_ids = [item.release_id for item in self.komunikaty]
         if len(set(identities + evidence_ids)) != len(identities + evidence_ids):
             raise ValueError("duplicate komunikat release identity")
+        catalog_ids = [item.release_id for item in self.catalogs]
+        all_ids = identities + evidence_ids + catalog_ids
+        if len(set(all_ids)) != len(all_ids):
+            raise ValueError("duplicate catalog release identity")
+        documents = [item.baw_document_id for item in self.catalogs]
+        if len(set(documents)) != len(documents):
+            raise ValueError("a BAW document is pinned twice")
         for item in self.komunikaty:
             target = sources.get(item.icd9_release_id)
             if target is None or (target.system, target.origin) != ("icd9-pl", "czs"):

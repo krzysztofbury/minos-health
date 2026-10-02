@@ -24,6 +24,15 @@ REFERENCE_SCHEMA_VERSION: Literal[2] = 2
 MIGRATIONS = ("001_reference.sql", "002_search.sql")
 KOMUNIKAT_MIGRATION = "003_komunikat.sql"
 KOMUNIKAT_TABLES = ("algorithm_release", "procedure_rank", "department_specialty")
+CATALOG_MIGRATION = "004_jgp_catalog.sql"
+CATALOG_TABLES = (
+    "catalog_release",
+    "catalog_sheet",
+    "catalog_scope",
+    "group_definition",
+    "group_base_value",
+    "group_scope",
+)
 REFERENCE_APPLICATION_ID = 0x4D494E52
 TABLES = (
     "source_release",
@@ -54,19 +63,30 @@ def reference_sql(relative_path: str) -> str:
     )
 
 
-def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3]:
+def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3, 4]:
+    # Each schema is a superset of the previous one, so older bundles stay valid.
+    if manifest.catalogs:
+        return 4
     return 3 if manifest.komunikaty else 2
 
 
 def migrations_for(schema_version: int) -> tuple[str, ...]:
-    if schema_version not in (2, 3):
+    if schema_version not in (2, 3, 4):
         raise ArtifactError("incompatible reference schema version")
-    return MIGRATIONS + ((KOMUNIKAT_MIGRATION,) if schema_version == 3 else ())
+    return (
+        MIGRATIONS
+        + ((KOMUNIKAT_MIGRATION,) if schema_version >= 3 else ())
+        + ((CATALOG_MIGRATION,) if schema_version >= 4 else ())
+    )
 
 
 def tables_for(schema_version: int) -> tuple[str, ...]:
     _ = migrations_for(schema_version)
-    return TABLES + (KOMUNIKAT_TABLES if schema_version == 3 else ())
+    return (
+        TABLES
+        + (KOMUNIKAT_TABLES if schema_version >= 3 else ())
+        + (CATALOG_TABLES if schema_version >= 4 else ())
+    )
 
 
 def schema_checksum(schema_version: int = REFERENCE_SCHEMA_VERSION) -> str:
@@ -360,7 +380,22 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
     """).fetchall(),
     )
     result = dict(counts)
-    if connection.execute("PRAGMA user_version").fetchone() == (3,):
+    version = cast(tuple[int], connection.execute("PRAGMA user_version").fetchone())[0]
+    if version >= 4:
+        result.update(
+            cast(
+                list[tuple[str, int]],
+                connection.execute(
+                    """SELECT 'catalog_release', count(*) FROM catalog_release
+            UNION ALL SELECT 'catalog_sheet', count(*) FROM catalog_sheet
+            UNION ALL SELECT 'catalog_scope', count(*) FROM catalog_scope
+            UNION ALL SELECT 'group_definition', count(*) FROM group_definition
+            UNION ALL SELECT 'group_base_value', count(*) FROM group_base_value
+            UNION ALL SELECT 'group_scope', count(*) FROM group_scope"""
+                ).fetchall(),
+            )
+        )
+    if version >= 3:
         result.update(
             cast(
                 list[tuple[str, int]],

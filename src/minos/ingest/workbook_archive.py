@@ -384,6 +384,8 @@ def _validate_entries(
                 document
                 and re.fullmatch(r"word/media/[A-Za-z0-9_.-]+\.(?:emf|jpeg|png)", name)
             )
+            # Excel's saved preview image; listed, size-bounded, never decoded.
+            and name != "docProps/thumbnail.emf"
             and re.fullmatch(
                 r"xl/printerSettings/printerSettings[1-9][0-9]*\.bin", name
             )
