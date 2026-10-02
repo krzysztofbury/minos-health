@@ -1,8 +1,9 @@
 # Validation Deployment Updates
 
-Status: the update procedure below is manual and was last performed on
-2026-10-02 for `b599f3e` (#106). A guarded one-command tool is specified at the
-end of this document and tracked in #109. This is the temporary public-data
+Status: updates run through `scripts/deploy_validation.py` (#109), described in
+[Automated Updates](#automated-updates). The manual procedure below is what the
+tool automates, and it stays the reference and fallback; it was last performed by
+hand on 2026-10-02 for `b599f3e` (#106). This is the temporary public-data
 validation path from [reference-web-rollout.md](reference-web-rollout.md), not
 the signed product release of #41 or the full Compose deployment of #27.
 
@@ -33,9 +34,10 @@ identities and nothing else.
 | Reference bundle | `minos data build` from a reviewed source manifest and the private archive | database SHA-256 in the bundle manifest; deterministic rebuild |
 | Previous identities | live `/opt/minos/compose.yaml` on the host | must equal the last activation record |
 
-The publish job prints the digests only to the step summary. The log lines
-of `docker pull` contain the exact `ghcr.io/...@sha256:` references and were
-used for `b599f3e`.
+The publish job uploads `validation-release.json` as the `validation-release`
+run artifact (revision, run ID and attempt, both exact `@sha256:` references,
+90-day retention). Before #109 the digests were only in the step summary and
+were copied from job logs.
 
 The bundle build reads every pinned blob from the archive root. A blob that is
 missing locally (on 2026-10-02 the three komunikat files existed only in the
@@ -54,13 +56,14 @@ All paths are under `/opt/minos`, root-owned.
 | `reference/<database-sha256>/` | `manifest.json`, `minos.db`, `review.txt` | dir `0755`, files `0444` |
 | `validation-stage/<revision>/` | `bundle.tar.gz`, `deployment.json`, `compose.json`, `image-pull.log`, `ob`, `oa`, `compose-operations.log`, `activated-at.txt`, optional `activation-receipt.json` | dir `0700` |
 | `validation-rollback/<revision>/compose.yaml` | the live Compose file captured before that revision was activated | `0600` |
+| `.validation-deploy.lock` | exclusive lock held by every mutating tool command | `0600` |
 
 `deployment.json` uses the `Deployment` model of
 `scripts/render_validation_compose.py`: `api_image`, `edge_image`,
 `source_revision` and `database_sha256`.
 
-Nothing prunes these paths yet. Measured on 2026-10-02 after five validation
-revisions: three bundles of 62 to 130 MiB, stage directories of up to 74 MiB,
+Before #109 nothing pruned these paths. Measured on 2026-10-02 after five
+validation revisions: three bundles of 62 to 130 MiB, stage directories of up to 74 MiB,
 and 2.9 GB of images of which 1.4 GB were reclaimable, with 19 GB of the 25 GB
 disk free. Each update adds about 390 MB of images, one bundle and one staged
 archive.
@@ -134,93 +137,105 @@ be deleted while any retained rollback file references them.
   an agent-run update needed three owner approvals. A single checked-in
   command can be allowed once by an exact rule instead.
 
-## Automated Update Tool
+## Automated Updates
 
-Goal: one reviewed command performs the procedure above with the same
-assertions, without granting CI any access to the host.
+`scripts/deploy_validation.py` runs the manual procedure with the same
+assertions. Local steps resolve identities; host steps stream the stdlib-only
+`scripts/validation_host.py` to the host's Python 3.12 over the SSH options of
+`infra/ansible/ansible.cfg` (pinned ED25519 host key, key-only, batch mode).
+Parameters travel base64-encoded and are validated on both sides; nothing is
+interpolated into a remote shell. CI never receives SSH access, host secrets or
+the Docker socket.
 
-### Shape
+### Release
 
-`scripts/deploy_validation.py`, standard library plus Pydantic, reusing the
-`Deployment` model and the bind/identity checks of
-`scripts/render_validation_compose.py`. Subcommands are separate so each
-boundary can be approved and resumed independently:
+1. Merge the reviewed change to `main`.
+2. Dispatch `reference-validation.yml` on `main` and wait for success:
 
-| Command | Effect | Host change |
+   ```sh
+   gh workflow run reference-validation.yml --ref main
+   gh run list --workflow reference-validation.yml --branch main --limit 1
+   ```
+
+3. Build the bundle from the reviewed manifest (see Inputs for missing blobs):
+
+   ```sh
+   uv run python -m minos data build \
+     --manifest manifests/sources/reference-ranks-public-validation.json \
+     --archive-root ~/.cache/minos-local/archive --output /path/to/new/bundle
+   ```
+
+4. Deploy:
+
+   ```sh
+   uv run python -m scripts.deploy_validation deploy \
+     --revision <main sha> --run-id <publish run id> \
+     --bundle /path/to/new/bundle --chromium /usr/bin/chromium
+   ```
+
+   Then look at the screenshots in
+   `test-output/validation-deploy/<revision>/browser/`.
+
+`deploy` runs `plan`, `stage`, `activate`, `verify` and, unless `--no-prune`,
+`prune --keep 1 --apply`. It stops at the first failure with one JSON `failed`
+event; every step can be rerun on its own with `--revision <sha>`.
+
+### Commands
+
+| Command | Checks and effect | Host change |
 | --- | --- | --- |
-| `plan --revision <sha> --bundle <dir>` | resolve digests, read live state, print and save the plan | none |
-| `stage <plan>` | steps 3 to 7 | new files only; running containers untouched |
-| `activate <plan>` | steps 8 and 9, automatic rollback on failure | live Compose |
-| `verify <plan>` | step 10 and the receipt | none |
-| `rollback <revision>` | restore that revision's rollback file | live Compose |
-| `prune --keep <n>` | list removable stages, bundles and images; delete only with `--apply` | deletes unreferenced artifacts |
+| `inspect` | live identities, live revision, Compose SHA-256, memory, disk, container health | none |
+| `plan` | revision is remote `main`; publish run is a successful `workflow_dispatch` of that commit on `main`; artifact matches; bundle opens and its database matches its manifest; records the live Compose SHA-256; writes `test-output/validation-deploy/<revision>/plan.json` | none |
+| `stage` | live Compose unchanged since `plan`; deterministic archive upload (skipped if the bundle is installed); checksum; atomic install as root `0755`/`0444`; `deployment.json`; rollback copy; identity swap that asserts all previous identities; pulls both digests and requires `linux/amd64` plus the source revision label | new files only |
+| `activate` | Compose unchanged since `plan`; at least 300 MiB available; operational snapshot; installs the staged file; `up --no-deps --wait reference-api edge`; on failure restores the rollback file and waits for health; requires unchanged watcher, tunnel and Kuma container IDs and restart counts and healthy validation services; rerunning on an active release reports `already_active` | live Compose |
+| `verify` | public `/readyz` serves the planned dataset identity; for rank bundles one exact page shows the expected rank and, with `--chromium`, the desktop and mobile rank acceptance runs; writes `activation-receipt.json` on the host (with the host's own activation time) and locally | receipt only |
+| `rollback --revision <sha>` | restores the Compose file captured before that revision and requires unchanged operational services | live Compose |
+| `prune [--keep n] [--apply]` | lists, or with `--apply` removes, unreferenced images, bundles and staged archives | deletes only with `--apply` |
 
-`deploy <revision> --bundle <dir>` may chain `plan`, `stage`, `activate` and
-`verify`, stopping at the first failure.
+Plans, receipts and screenshots stay in the ignored `test-output/` tree.
 
-### Required behaviour
+### Retention
 
-- **Exact identities only.** Digests come from a machine-readable
-  `validation-release.json` that the publish job uploads as a run artifact
-  (revision, run ID, both `@sha256:` references). The tool rejects tags,
-  a run on another commit, or a revision that is not remote `main`.
-- **Plan binding.** The plan records the SHA-256 of the live Compose file.
-  `stage` and `activate` refuse if it changed, so two operators or a manual
-  edit cannot interleave.
-- **Idempotent staging.** An existing bundle directory is accepted only if its
-  database checksum matches; an existing stage directory is accepted only if
-  its `deployment.json` is identical. Otherwise the command stops.
-- **Bounded remote execution.** Each host step is one SSH call with a fixed
-  remote program streamed on stdin. Inputs are validated locally against the
-  `Deployment` patterns and passed as environment values, never interpolated
-  into shell text. SSH options match the Ansible configuration: the
-  materialized `known_hosts`, `StrictHostKeyChecking=yes`, `BatchMode=yes`.
-- **Isolation proof.** `activate` fails unless the operational container IDs
-  and restart counts are unchanged, and leaves the rollback in place.
-- **Explicit rollback.** A failed `up` restores the previous Compose file and
-  waits for health before exiting non-zero. A later manual `rollback` uses the
-  retained file only.
-- **Retention.** `prune` keeps the live revision plus the newest `n` retained
-  rollbacks with every bundle and image they reference, and is a dry run unless
-  `--apply` is given.
-- **Privacy.** Logs and receipts contain identities, timings and status only:
-  no request bodies, medical queries, signed URLs, credentials or local paths.
-- **Receipts.** `verify` writes `activation-receipt.json` to the stage
-  directory and a local copy, with the fields listed in step 11.
+`prune` keeps:
+
+- every image or bundle whose digest appears in the live `compose.yaml`;
+- the rollback chain: `validation-rollback/<live revision>`, then the rollback
+  file of the release it restores, up to `--keep` steps (1 to 5);
+- everything referenced by Compose files owned by other procedures:
+  `rollback/`, `candidate/`, `catalog-deploy/*/*/` and `*.compose.yml`
+  (watcher, maintenance edge, Kuma bootstrap);
+- every image used by any container, running or stopped, and every image
+  without a registry digest.
+
+All other images are removed, which covers stale watcher images as well as old
+validation releases. Unreferenced bundles, interrupted `.partial` installs and
+staged `bundle.tar.gz` copies are removed too; small stage records, logs,
+receipts and older rollback files remain as history. `docker image rm` runs
+without `--force`, so an image still in use is never deleted. Never replace this
+with `docker image prune -a` or `docker system prune -a`: they would delete the
+rollback images, and rollback would then need the registry mid-incident.
+
+### Permissions
+
+The owner instructs every production update. An agent runs the tool only after
+that instruction, through exact Claude Code permission rules for
+`uv run python -m scripts.deploy_validation` subcommands; production reads,
+deploys and deletions are separate classifier categories, so `prune --apply`
+may need its own approval.
+
+### Verification Of The Tool
+
+`tests/unit/test_validation_deploy.py` runs every host command for real against
+a temporary root and a stateful fake Docker CLI
+(`tests/fixtures/fake_docker.py`): staging, resume, activation, failed
+activation with restore, an operational restart during activation, changed
+live Compose, a wrong image build, rollback, lock exclusion, and prune
+selection and application. Targeted mutations of the previous-identity check,
+the failure restore, rollback-chain retention and operational isolation each
+fail the suite. The host program is also checked against Python 3.12 grammar.
 
 ### Boundaries
 
-- No GitHub workflow, token or runner receives SSH access, host secrets or the
-  Docker socket. Publication stays the existing manual dispatch.
 - Not a substitute for #41 signatures and receipt chain or #27 cutover and
-  measurements; the tool must be retired or folded into #27 when that lands.
+  measurements; fold it into #27 when that lands.
 - No load, stress or profiling on the host.
-- An agent may run the tool only after an explicit owner instruction for that
-  revision, through one exact permission rule for
-  `uv run python scripts/deploy_validation.py`.
-
-### Tests
-
-- Unit: the identity swap on representative Compose JSON, including refusal of
-  an unexpected previous image, bundle path, environment value, a missing or
-  writable `/app/data` bind, and extra changed keys.
-- Unit: plan parsing rejects tags, mismatched revisions and malformed digests.
-- Unit: `prune` never selects the live or a retained-rollback reference.
-- Integration: run `stage`, `activate`, `verify` and `rollback` against a
-  disposable local Compose project built from the validation images in
-  `reference-validation.yml`, with a temporary root in place of `/opt/minos`,
-  and assert that a sentinel service keeps its container ID.
-
-### Acceptance
-
-- One command updates a validation deployment from reviewed `main` with no
-  hand-copied identity.
-- A changed live Compose file, unexpected previous identity, missing digest,
-  checksum mismatch or unhealthy candidate stops the update with the previous
-  release serving.
-- Watcher, tunnel and Kuma container IDs and restart counts are unchanged.
-- A receipt with the step 11 fields exists on the host and locally.
-- `prune` reclaims unreferenced artifacts without touching rollback targets.
-
-Estimate: 4 to 6 hours including the publish artifact, tests and one real
-update.
