@@ -116,6 +116,15 @@ def _routes() -> str:
             proxy_read_timeout 3s;
             error_log /dev/null;
         }
+        # JGP paths carry a service date and public exact identifiers only.
+        location ~ "^/api/v1/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}/(groups/[A-Z]{1,4}[0-9]{2,3}[A-Z]{0,3}|sections|sections/1ae?/[1-9][0-9]{0,2})$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method != GET) { return 405; }
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
         # Rank paths carry public exact codes, never free-text medical queries.
         location ~ "^/api/v1/procedure-ranks/[a-z0-9-]{1,80}/[A-Za-z0-9][A-Za-z0-9.-]{0,15}$" {
             if ($request_uri ~ "\\?") { return 404; }

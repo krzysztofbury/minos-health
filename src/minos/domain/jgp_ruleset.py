@@ -32,6 +32,10 @@ class GroupNotOnDate(ReferenceError):
     """The code has no catalog row applying on the service date."""
 
 
+class SectionNotOnDate(ReferenceError):
+    """The catalog has no chapter at that source position."""
+
+
 MAX_RELEASES = 64
 
 

@@ -14,6 +14,7 @@ from minos.domain.jgp_ruleset import (
     GroupNotOnDate,
     KnowledgeBeyondBundle,
     ReleaseWindow,
+    SectionNotOnDate,
     resolve_release,
 )
 from minos.domain.reference import ArtifactError
@@ -46,10 +47,16 @@ def catalog_knowledge(connection: sqlite3.Connection) -> date:
 
 
 def resolve_ruleset(
-    connection: sqlite3.Connection, service_date: date, known_on: date
+    connection: sqlite3.Connection, service_date: date, known_on: date | None
 ) -> dict[str, object]:
-    """The release governing `service_date` as published by `known_on`."""
+    """The release governing `service_date` as published by `known_on`.
+
+    `None` uses the bundle's reviewed horizon. A service date after the horizon
+    is answered from what the bundle knows and flagged, because a later act may
+    exist that the bundle has not reviewed.
+    """
     horizon = catalog_knowledge(connection)
+    known_on = horizon if known_on is None else known_on
     if known_on > horizon:
         raise KnowledgeBeyondBundle(
             "bundle catalog knowledge ends on " + horizon.isoformat()
@@ -78,6 +85,7 @@ def resolve_ruleset(
         "service_date": service_date.isoformat(),
         "known_on": known_on.isoformat(),
         "knowledge_as_of": horizon.isoformat(),
+        "service_date_after_knowledge": service_date > horizon,
         **_release_provenance(connection, governing.release_id),
         "modifiers": unbound_modifiers(),
     }
@@ -209,3 +217,108 @@ def _row_details(
             for position, label, marker in scopes
         ],
     )
+
+
+MAX_SECTION_GROUPS = 500
+# The manifest caps chapters at 200 per catalog; two catalogs per release.
+MAX_SECTIONS = 400
+
+
+def catalog_sections(
+    connection: sqlite3.Connection, ruleset: dict[str, object]
+) -> list[dict[str, object]]:
+    """Every chapter of the governing release at its stable source position.
+
+    Positions come from the source sheet, not from the date's rows, so a
+    section URL names the same chapter on every date. Chapters with no rows on
+    the date report zero groups instead of shifting the others.
+    """
+    service_date = cast(str, ruleset["service_date"])
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[str, int, str, int]],
+            connection.execute(
+                """SELECT catalog, chapter_position, chapter,
+                    sum(CASE WHEN service_from <= ?
+                         AND (service_to IS NULL OR ? <= service_to) THEN 1 ELSE 0 END)
+                FROM group_definition WHERE release_id = ?
+                GROUP BY catalog, chapter_position, chapter
+                ORDER BY catalog, chapter_position LIMIT ?""",
+                (service_date, service_date, ruleset["release_id"], MAX_SECTIONS + 1),
+            ).fetchall(),
+        )
+    if len(rows) > MAX_SECTIONS:
+        raise ArtifactError("catalog sections exceed their bound")
+    return [
+        {"catalog": catalog, "position": position, "chapter": chapter, "groups": groups}
+        for catalog, position, chapter, groups in rows
+    ]
+
+
+def catalog_section(
+    connection: sqlite3.Connection,
+    ruleset: dict[str, object],
+    catalog: str,
+    position: int,
+) -> dict[str, object]:
+    """Groups of one chapter applying on the ruleset's service date."""
+    chosen = [
+        section
+        for section in catalog_sections(connection, ruleset)
+        if section["catalog"] == catalog and section["position"] == position
+    ]
+    if len(chosen) != 1:
+        raise SectionNotOnDate("catalog has no chapter at that position")
+    service_date = cast(str, ruleset["service_date"])
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[str, str, str, int, int | None]],
+            connection.execute(
+                """SELECT grouped.code, grouped.product_code, grouped.name,
+                    grouped.procedural, value.amount
+                FROM group_definition AS grouped
+                LEFT JOIN group_base_value AS value
+                  ON value.release_id = grouped.release_id
+                 AND value.catalog = grouped.catalog
+                 AND value.source_row = grouped.source_row
+                 AND value.measure = 'hospitalization'
+                WHERE grouped.release_id = ? AND grouped.catalog = ?
+                  AND grouped.chapter_position = ? AND grouped.service_from <= ?
+                  AND (grouped.service_to IS NULL OR ? <= grouped.service_to)
+                ORDER BY grouped.source_row LIMIT ?""",
+                (
+                    ruleset["release_id"],
+                    catalog,
+                    position,
+                    service_date,
+                    service_date,
+                    MAX_SECTION_GROUPS + 1,
+                ),
+            ).fetchall(),
+        )
+    if len(rows) > MAX_SECTION_GROUPS:
+        raise ArtifactError("catalog section exceeds its bound")
+    return {
+        "ruleset": ruleset,
+        "section": chosen[0],
+        "points_kind": POINTS_KIND,
+        "points_label": POINTS_LABEL,
+        "groups": [
+            {
+                "code": code,
+                "product_code": product,
+                "name": name,
+                "procedural": bool(procedural),
+                "hospitalization_hundredths": hospitalization,
+                "hospitalization_display": None
+                if hospitalization is None
+                else points_display(hospitalization),
+            }
+            for code, product, name, procedural, hospitalization in rows
+        ],
+    }
+
+
+def points_display(hundredths: int) -> str:
+    """Exact decimal text for integer hundredths; clients never divide floats."""
+    return f"{hundredths // 100}.{hundredths % 100:02d}"

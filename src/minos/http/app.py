@@ -6,7 +6,7 @@ import logging
 import re
 import time
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +25,7 @@ from minos.domain.search import (
     SearchRequest,
     prepare_query,
 )
+from minos.http.jgp import JGP_ROUTE, register_jgp_routes
 from minos.http.pages import (
     CODE_PATTERN,
     DICTIONARIES,
@@ -223,7 +224,7 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
     async def guard(request: Request, call_next: object) -> JSONResponse:
-        from collections.abc import Awaitable, Callable
+        from collections.abc import Awaitable
 
         request_id = uuid.uuid4().hex
         began = time.monotonic()
@@ -255,6 +256,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                     if SITEMAP_ROUTE.fullmatch(request.url.path)
                     else "/api/v1/procedure-ranks"
                     if RANK_ROUTE.fullmatch(request.url.path)
+                    else "/api/v1/jgp"
+                    if JGP_ROUTE.fullmatch(request.url.path)
                     else "unmatched",
                     "method": request.method
                     if request.method in ("GET", "POST", "HEAD", "OPTIONS")
@@ -459,6 +462,9 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
     app.add_api_route("/sitemap-{dictionary}", dictionary_sitemap, methods=["GET"])
     app.add_api_route(
         "/api/v1/procedure-ranks/{release_id}/{code}", procedure_rank, methods=["GET"]
+    )
+    register_jgp_routes(
+        app, failure=failure, disclaimer=DISCLAIMER, cache_control=PAGE_CACHE
     )
     return app
 

@@ -263,11 +263,16 @@ section 4 of the act in BAW). Queries select rules by service date; "what did
 we believe on date Y about service date X" must be answerable for audit
 support.
 
-Refinement proposed in #18 (2026-10-02, pending owner review): for reviewed
+Refinement accepted by the owner in #18 (2026-10-02): for reviewed
 releases ingested after publication, the knowledge-time filter uses the
 reviewed publication date, while the Minos fetch time stays recorded as the
 ingestion identity. Back-filled releases would otherwise share one ingestion
 date and could not answer what was known before a retroactive amendment.
+
+The #24 JGP routes carry the service date as a path segment instead of
+SPEC's `?date=`, keeping the reject-every-query-string privacy rule global
+and making group pages shareable. Their list is per catalog chapter at a stable
+source position instead of a paginated `?section=` query.
 
 A `ruleset_release` is a composite: zarządzenie plus załącznik versions,
 algorithm version, ICD-9 version, and ICD-10 version paired per reporting

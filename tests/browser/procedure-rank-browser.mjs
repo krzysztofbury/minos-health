@@ -27,7 +27,8 @@ async function pageTarget(port) {
 let socket;
 try {
   let port;
-  for (let i = 0; i < 200; i++) {
+  // Same 60 s startup window as sources-browser.mjs; slow CI runners need >10 s.
+  for (let i = 0; i < 1200; i++) {
     try { port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; }
     catch { if (browser.exitCode !== null) throw new Error("browser startup failed"); await new Promise(resolve => setTimeout(resolve, 50)); }
   }

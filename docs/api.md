@@ -69,3 +69,59 @@ clinical priority or billability. No query strings are accepted.
 
 See [komunikat ingestion](v0.0.1/komunikat-ingestion.md) for the schema-2/3
 compatibility, source pairing and UI contract.
+
+## JGP Catalog Base Points
+
+All three routes take an explicit service date in the path (`YYYY-MM-DD`) and
+resolve it to the one reviewed catalog release governing that date, as known
+on the bundle's reviewed knowledge horizon (`knowledge_as_of`), so a response
+is fixed per bundle and cacheable. Query strings are rejected like every other
+route; SPEC's `?date=` shape became a path segment to keep that privacy rule
+global and to give group pages shareable URLs.
+
+- `GET /api/v1/jgp/{service_date}/groups/{code}` returns everything a group
+  page needs in one call: the ruleset (service date, knowledge date and
+  horizon, release identity, act number, BAW document, publication, service
+  evidence, workbook checksum, the explicit unbound modifier state), the group
+  (product code, name, procedural flag, chapter, notes, source row and its own
+  applicability window and evidence), base values and scope markers.
+- `GET /api/v1/jgp/{service_date}/sections` lists every chapter of the
+  governing release per catalog with the number of groups applying on the
+  date (possibly 0).
+- `GET /api/v1/jgp/{service_date}/sections/{catalog}/{position}` lists one
+  chapter's groups with code, product code, name, procedural flag and
+  hospitalization base points (`hospitalization_hundredths` and exact
+  `hospitalization_display`, null when the group has none).
+
+A section position is the chapter's place in the source worksheet, stored at
+build time; chapter headings are unique per sheet. It names the same chapter on
+every date of a release, so section URLs stay valid when rows change at
+2027-01-01. A chapter with more than 500 groups fails with 503 `unavailable`
+rather than returning a truncated list (the largest reviewed chapter has 97).
+This replaces the issue's paginated `?section=` list.
+
+`ruleset.service_date_after_knowledge` is true when the service date is after
+`knowledge_as_of`: the answer is what the bundle knows, and a later act it has
+not reviewed may apply.
+
+Every value is a catalog base point without modifiers:
+`points_kind: catalog_base_points_without_modifiers` and `points_label:
+"punkty bazowe wg katalogu, bez modyfikatorów"`. Points are integer
+hundredths (`amount`) with an exact decimal `display`; financed stay is a day
+count. No response carries final points; `ruleset.modifiers.binding` is
+`unbound` until #46 binds MODTAR, and #35 must refuse final calculation in that
+state. Attachment 1a publishes no AOTMiT tariff flag, so none is returned.
+
+| Status | `error.code` | Meaning |
+| --- | --- | --- |
+| 404 | `no_ruleset_for_date` | no reviewed release covers the date; no other release is substituted |
+| 404 | `group_not_on_date` | the code has no catalog row on that date |
+| 404 | `section_not_on_date` | the catalog has no chapter at that position |
+| 404 | `no_jgp_catalog` | the deployed bundle contains no JGP catalog |
+| 404 | `not_found` | malformed date, code, catalog or position |
+| 409 | `ambiguous_ruleset` | reviewed releases overlap without supersession |
+| 409 | `known_on_beyond_bundle` | defensive: the knowledge date exceeds the bundle horizon |
+| 400 | `queries_must_not_be_in_urls` | a query string was sent |
+
+See [JGP catalog ingestion](v0.0.1/jgp-catalog-ingestion.md) for the release
+evidence, row windows and knowledge horizon.
