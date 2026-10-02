@@ -52,17 +52,29 @@ put unverified points in front of users.
 1. [ ] #33: procedure ranks per ruleset release, shown on ICD-9 code pages.
        The NFZ watcher already archives the komunikat files.
 2. [ ] #17, a minimal #18, then #24 and #26: JGP group pages with points per
-       settlement mode, selectable by service date. #18 must model
-       per-provision applicability (102/2026).
+       settlement mode, selectable by service date. These are catalog base
+       points without modifiers, labelled as such in API and UI. #18 retains
+       bitemporal provenance, explicit uncovered-date errors and per-provision
+       base-point applicability, including 102/2026 section 4(5)'s deferred
+       2027-01-01 catalog rows. It records modifiers as explicitly unbound;
+       #46 owns MODTAR binding and section 17 coefficient applicability.
+       #26 first delivers shareable date-specific group pages with the governing
+       act/catalog identity, not diffs or condition-based ICD cross-links.
 3. [ ] #29 in parallel with step 2, since it is the schedule risk; then #30
        and #32 for the "występuje w grupach" reverse lookup from any ICD code.
 4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
-       before final points.
+       before final points. #35 must reject unbound modifiers, never interpret
+       that state as no modifiers applying or return base points as final.
 5. [ ] External: show steps 1-2 to the practitioner from #4 and request the
        complete anonymized encounters needed by #37 and #38.
 
 ICD-11 (#53) stays deferred: it is not an NFZ settlement input, adds a
 licensing review, and does not advance JGP validation.
+
+See [JGP delivery scope](docs/v0.0.1/jgp-delivery-scope.md) for the acceptance
+boundaries, deferred diff ownership and UI preservation gate. Implementation
+PRs require owner review before merge; the #102 shared layout and search-first
+UI remain the baseline.
 
 ## Domains
 
@@ -323,9 +335,10 @@ licensing review, and does not advance JGP validation.
       concepts and multilingual descriptions, preserving uncoded containers,
       annotations and modifiers without inventing diagnosis codes.
 - [x] Define terminology, concept, description, and source-release tables.
-- [ ] Define group, condition, tariff, tariff-modifier, and ruleset-release
-      tables with bitemporal fields and per-provision applicability (#18; see
-      the 102/2026 split dates).
+- [ ] Define group, base-tariff and ruleset-release tables with bitemporal
+      fields and per-provision applicability (#18, including the 102/2026
+      deferred catalog rows); add conditions in #30 and modifiers/binding in
+      #46. Base-only rulesets explicitly record modifiers as unbound.
 - [x] Implement streaming XML parsing with explicit validation errors; reject
       DTDs and external entities; bound depth, value size, record count,
       source bytes, and parser resource use.
@@ -393,7 +406,9 @@ licensing review, and does not advance JGP validation.
 - [x] Build the responsive terminology search, dictionary trees, and code pages
       under `apps/web`; embed its immutable output in the edge image and route
       API paths to `minos.http` under the same origin (#102).
-- [ ] Add the JGP group browser and version diff views (#26).
+- [ ] Add the shareable service-date JGP group browser with labelled catalog
+      base points and governing act/catalog provenance (#26).
+- [ ] Add JGP version diff views in #104 after #20 and the first #26 delivery.
 - [x] Display code hierarchy, source release, and the safety/compliance
       disclaimer.
 - [ ] Display grouping conditions and point values (#26, #32).
