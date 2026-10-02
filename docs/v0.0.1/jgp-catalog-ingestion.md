@@ -191,8 +191,8 @@ and exit code:
 | 7 | `known_on_beyond_bundle` | the knowledge date is after the bundle's horizon |
 | 8 | `no_jgp_catalog` | a schema 2 or 3 bundle without catalogs |
 
-Default dates use one clock reading in Europe/Warsaw, never UTC. HTTP access
-belongs to #24.
+Default dates use one clock reading in Europe/Warsaw, never UTC. The HTTP
+routes are described in [the API reference](../api.md).
 
 ## Repeated Codes
 
