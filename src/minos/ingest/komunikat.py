@@ -2,7 +2,6 @@
 
 import re
 from collections.abc import Iterator
-from datetime import date
 from typing import TYPE_CHECKING, Annotated, BinaryIO, ClassVar, cast
 from zipfile import ZipFile
 
@@ -14,6 +13,7 @@ from minos.domain.komunikat import (
     DepartmentSpecialty,
     GrouperType,
     ProcedureRank,
+    first_reporting_month,
 )
 from minos.domain.reference import SourceError
 from minos.ingest.komunikat_manifest import KomunikatManifest
@@ -134,8 +134,7 @@ def _algorithm_version(paragraphs: list[str], expected: str) -> AlgorithmMetadat
     version = match[1]
     if version != expected:
         raise SourceError("algorithm version conflicts with manifest")
-    _, month, year = version.split(".")
-    return AlgorithmMetadata(version, date(int(year), int(month), 1), text, number)
+    return AlgorithmMetadata(version, first_reporting_month(version), text, number)
 
 
 def _rows(

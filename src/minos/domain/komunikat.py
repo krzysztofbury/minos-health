@@ -7,6 +7,12 @@ from typing import Literal
 type GrouperType = Literal["SZP", "AOS", "REH"]
 
 
+def first_reporting_month(algorithm_version: str) -> date:
+    """X.Y.ZZZZ names reporting month Y of year ZZZZ, not the publication date."""
+    _, month, year = algorithm_version.split(".")
+    return date(int(year), int(month), 1)
+
+
 @dataclass(frozen=True)
 class AlgorithmMetadata:
     version: str

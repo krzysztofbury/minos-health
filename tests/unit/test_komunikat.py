@@ -37,6 +37,18 @@ def test_algorithm_extracts_split_runs_and_reporting_month_not_publication(
     assert metadata.paragraph == 2
 
 
+def test_algorithm_reporting_month_is_y_not_version_number_x(
+    manifest: KomunikatManifest,
+) -> None:
+    # 1.1.2026 cannot tell X from Y; a distinct pair pins the source semantics.
+    paragraphs = PARAGRAPHS[:1] + ("wersja 2.4.2026",) + PARAGRAPHS[2:]
+    metadata = parse_algorithm(
+        BytesIO(docx_bytes(paragraphs)),
+        manifest.model_copy(update={"algorithm_version": "2.4.2026"}),
+    )
+    assert metadata.reporting_from == date(2026, 4, 1)
+
+
 @pytest.mark.parametrize(
     "paragraphs",
     [

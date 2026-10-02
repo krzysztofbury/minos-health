@@ -3,6 +3,7 @@
 import sqlite3
 from typing import cast
 
+from minos.domain.komunikat import first_reporting_month
 from minos.domain.search import SearchInputError
 from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.reference_manifest import DatasetManifest
@@ -76,12 +77,12 @@ def procedure_rank_evidence(
 
 
 def _source_metadata(evidence: KomunikatManifest) -> dict[str, object]:
-    _, month, year = evidence.algorithm_version.split(".")
+    reporting_from = first_reporting_month(evidence.algorithm_version)
     return {
         "pairing": evidence.pairing,
         "algorithm_release_id": evidence.release_id,
         "algorithm_version": evidence.algorithm_version,
-        "first_reporting_month": f"{year}-{int(month):02d}",
+        "first_reporting_month": reporting_from.strftime("%Y-%m"),
         "publisher": evidence.publisher,
         "license": evidence.license,
         "notices": evidence.notices,

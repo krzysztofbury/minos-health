@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 from typing import cast
 
-from minos.domain.komunikat import ProcedureRank
+from minos.domain.komunikat import ProcedureRank, first_reporting_month
 from minos.domain.reference import ArtifactError
 from minos.ingest.archive_source import verified_source
 from minos.ingest.komunikat import parse_algorithm, parse_companion
@@ -82,7 +82,7 @@ def validate_komunikat_bindings(
         manifest.release_id: (
             manifest.icd9_release_id,
             manifest.algorithm_version,
-            f"{manifest.algorithm_version.split('.')[2]}-{int(manifest.algorithm_version.split('.')[1]):02d}-01",
+            first_reporting_month(manifest.algorithm_version).isoformat(),
             manifest.pairing,
             canonical_json(manifest).decode(),
         )
