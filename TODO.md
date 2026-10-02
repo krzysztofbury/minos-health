@@ -43,6 +43,27 @@ day-to-day order.
       mutation or fault injection, integration, and pair-programmer review gates
       for implementation chunks.
 
+## Next Product Sequence (2026-10-02)
+
+Free ICD-10 PL and ICD-9 PL search is live. The next work makes it JGP-aware
+before any calculation, because a grouper without traceable conditions would
+put unverified points in front of users.
+
+1. [ ] #33: procedure ranks per ruleset release, shown on ICD-9 code pages.
+       The NFZ watcher already archives the komunikat files.
+2. [ ] #17, a minimal #18, then #24 and #26: JGP group pages with points per
+       settlement mode, selectable by service date. #18 must model
+       per-provision applicability (102/2026).
+3. [ ] #29 in parallel with step 2, since it is the schedule risk; then #30
+       and #32 for the "występuje w grupach" reverse lookup from any ICD code.
+4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
+       before final points.
+5. [ ] External: show steps 1-2 to the practitioner from #4 and request the
+       complete anonymized encounters needed by #37 and #38.
+
+ICD-11 (#53) stays deferred: it is not an NFZ settlement input, adds a
+licensing review, and does not advance JGP validation.
+
 ## Domains
 
 - [x] Register `minoshealth.com` and delegate it to Cloudflare.
@@ -100,8 +121,8 @@ day-to-day order.
 
 ### Immediate Delivery Sequence
 
-- [ ] Complete issue #49 before continuing source-specific issue #6 work. Keep
-      the accepted order `#49 -> #6 -> #8 -> #7`.
+- [x] Deliver the accepted order `#49 -> #6 -> #8 -> #7`. #6, #7, and #8 are
+      closed; #49 stays open only for its external acceptance gates below.
 - [x] Deliver #49 control state first: numbered SQLite migrations, complete
       migration checksums, one writer, fenced claims, legal run transitions,
       durable due cursors, observations, blob references, incidents, audit
@@ -148,31 +169,34 @@ day-to-day order.
       deny-all while the legal digest allowlist is empty.
 - [x] Build the accepted Sources HTML, CSS, and JavaScript UI over the public
       provenance endpoint. This remains separate from the publication boundary.
-- [ ] Complete issue #6 with the atomic #49 observation transaction, exact
+- [x] Complete issue #6 with the atomic #49 observation transaction, exact
       revisioned recovery image, durable local finalization, documented local
       and production Compose status and log commands, and the first forced
       Mikr.us observation of all HCD metadata plus the current `00CD10` XML.
-- [ ] Planning estimates remain 30-50 hours for #49 and 8-14 hours for #6 after
-      #49, excluding the RSK transport hardening already implemented.
+- [ ] Observe one real weekly forced RSK re-download and re-hash of an unchanged
+      `00CD10` file in production (carried from #6 into #49).
 
 - [x] Scheduled watcher: archive the RSK catalog and metadata for every returned
       HCD; alert on set/schema drift; download only allowlisted product files
       (initially `00CD10` XML), compare complete metadata, and compute SHA-256.
-- [ ] Scheduled watcher: NFZ DSOZ listing, general Centrala provider news,
+- [x] Scheduled watcher: NFZ DSOZ listing, general Centrala provider news,
       Komunikaty JGP, CZS ICD-9 and MODTAR metadata/pinned XML, projects, and
       AOTMiT tariff signals. Use official machine interfaces where available,
       not HTML only.
-- [ ] BAW anonymous-API fetcher: archive source, amendment, and consolidated
+- [x] BAW anonymous-API fetcher: archive source, amendment, and consolidated
       document graphs, root ZIPX packages, selected attachments, all relevant
       dates, and checksums. Browser automation requires a separate task and
       captured evidence that it succeeds from the Mikr.us environment.
 - [x] Bootstrap the dedicated versioned Terraform state bucket locally and back
       up bootstrap state independently.
-- [ ] Initialize the `watcher` root directly against its own remote-state key.
-- [ ] Provision the watcher private versioned S3 snapshot bucket, narrowly
+- [x] Initialize the `watcher` root directly against its own remote-state key.
+- [x] Provision the watcher private versioned S3 snapshot bucket, narrowly
       scoped Mikr.us watcher identity, GitHub OIDC read role, and budget in
       remote Terraform state before the first production run. Enforce
       conditional creates and deny watcher overwrite and deletion.
+- [ ] Resolve the SNS budget subscription inconsistency (list returned
+      `Deleted`, direct read returned confirmed). Do not claim budget email
+      alerts work until a delivered alert is observed (#49).
 - [x] Define the raw-SQL watcher control schema for sources, schedules, runs,
       observations, blobs, source cursors, monotonic state revisions, changes,
       incidents, and audit events. Keep the canonical `schema.sql` synchronized
@@ -192,9 +216,9 @@ day-to-day order.
       bounded misfire handling. Reconcile committed and `heartbeat_pending` runs
       before dispatch and use durable due cursors plus token-and-epoch fenced
       claims for catch-up, manual, expiry, and stale-worker rejection.
-- [ ] Run issue #6 through one Docker/Compose watcher command locally and on
+- [x] Run issue #6 through one Docker/Compose watcher command locally and on
       Mikr.us; use local filesystem blobs in development and S3 in production,
-      with shared contract tests and a disposable AWS test.
+      with shared contract tests. The disposable AWS test is tracked above.
 - [x] Stage at most one download in a disk-backed `noexec,nosuid,nodev`
       directory with a `600 MiB` application quota, `512 MiB` per-file ceiling,
       startup cleanup, and pre-run free-space assertion.
@@ -245,20 +269,21 @@ day-to-day order.
 - [x] Establish `apps/web`, `database/reference/sqlite/{migrations,queries}`,
       `tests/{unit,integration,compatibility,fixtures,golden}`, `manifests`,
       `infra`, and `scripts` boundaries; do not commit empty future components.
-- [ ] Implement raw numbered SQLite migrations with transactional application,
-      an applied-migration checksum table, and fresh-database build tests. The
-      runtime must only validate and open the reference artifact read-only.
-- [ ] Real #11-#13 artifact gates replacing #10's disposable spike: pin runtime
+- [x] Implement raw numbered reference SQLite migrations
+      (`database/reference/sqlite/migrations`) with fresh-database build tests.
+      The runtime only validates and opens the reference artifact read-only.
+- [x] Real #11-#13 artifact gates replacing #10's disposable spike: pin runtime
       identity and verify FTS5, read-only operation, determinism and measured
-      build/query behavior. #14 retains search and standalone packaging;
-      container search acceptance remains a runtime gate.
-- [ ] Add Ruff, BasedPyright, mypy, pytest, dependency policy, and package
-      metadata; select an automated mutation runner only after proving Python
-      3.14 compatibility and bounded runtime.
-- [ ] Add small committed fixtures (XML, XLSX, DOCX) outside the ignored
-      `/data` directory.
-- [ ] Add a checked-in dataset manifest containing source identities and
-      checksums.
+      build/query behavior (#94, #96).
+- [x] Add Ruff, BasedPyright, mypy, pytest, dependency policy, and package
+      metadata (#15).
+- [ ] Select an automated mutation runner only after proving Python 3.14
+      compatibility and bounded runtime.
+- [x] Add small committed XML fixtures and code-generated XLSX fixtures
+      (`tests/fixtures/icd9_workbook.py`) outside the ignored `/data` directory.
+- [ ] Add committed DOCX fixtures with the komunikat parser (#33).
+- [x] Add checked-in dataset manifests containing source identities and
+      checksums (`manifests/sources`).
 - [ ] Add architecture decision records if implementation changes accepted
       decisions in `docs/v0.0.1/decisions.md`.
 
@@ -275,52 +300,63 @@ day-to-day order.
       checksums, read-only opening and bounded recursive CTEs.
 - [x] Exercise the full archived source and installed wheel; record local
       artifact and query measurements plus targeted failure evidence.
-- [ ] Complete #14 product search precedence and standalone packaging, #15
-      private full-source CI and container search/runtime acceptance. The #10
-      disposable spike is superseded, not completed or waived.
+- [x] Complete #14 product search precedence and standalone packaging, #15
+      private full-source CI and container search/runtime acceptance (#96). The
+      #10 disposable spike is superseded, not completed or waived.
+- [x] Ingest canonical NFZ CZS ICD-9 PL with the separately attributed NFZ
+      workbook as supporting context (#97, #101).
+- [x] Publish the free, noncommercial ICD-10 PL and ICD-9 PL validation search,
+      API, dictionary trees, and code pages under the owner's validation
+      exception (#98-#102, `docs/validation/reference-web-rollout.md`).
 
 ### Remaining Dataset And Product Gates
 
-- [ ] Download and fixture the RSK ICD-10 XML (HCD `00CD10`), the NFZ ICD-9 PL
-      XLSX/XML, załącznik 1a (katalog JGP), załącznik 9 (charakterystyka JGP),
-      CZS MODTAR XML, and the komunikat algorithm DOCX plus rank tables.
-- [ ] Record source identity for every file: URL or UUID, byte size, computed
-      SHA-256, upstream timestamps, publisher, and disclaimers, without
+- [x] Download and fixture the RSK ICD-10 XML (HCD `00CD10`) and the NFZ ICD-9
+      PL XML/XLSX.
+- [ ] Fixture załącznik 1a (katalog JGP, #17), załącznik 9 (charakterystyka
+      JGP, #29/#30), CZS MODTAR XML (#46), and the komunikat algorithm DOCX
+      plus rank tables (#33). The watchers already archive the source bytes.
+- [x] Record source identity for every archived file: URL or UUID, byte size,
+      computed SHA-256, upstream timestamps, publisher, and disclaimers, without
       inventing publication dates.
-- [ ] Define a generic release-scoped source-node/relation graph linked to
+- [x] Define a generic release-scoped source-node/relation graph linked to
       concepts and multilingual descriptions, preserving uncoded containers,
       annotations and modifiers without inventing diagnosis codes.
-- [ ] Define terminology, concept, description, group, condition,
-      tariff, source-release, and ruleset-release tables with bitemporal
-      fields.
-- [ ] Implement streaming XML parsing with explicit validation errors; reject
+- [x] Define terminology, concept, description, and source-release tables.
+- [ ] Define group, condition, tariff, tariff-modifier, and ruleset-release
+      tables with bitemporal fields and per-provision applicability (#18; see
+      the 102/2026 split dates).
+- [x] Implement streaming XML parsing with explicit validation errors; reject
       DTDs and external entities; bound depth, value size, record count,
       source bytes, and parser resource use.
-- [ ] Implement hardened XLSX parsing (merged-cell headers are the norm in NFZ
-      catalogs) with zip entry-count, expansion-ratio, and size limits.
+- [x] Implement hardened XLSX parsing with zip entry-count, expansion-ratio,
+      and size limits for the ICD-9 workbook.
+- [ ] Extend it to the merged-cell multi-row headers of the JGP catalog with
+      explicit layout-version markers (#17).
 - [ ] Implement komunikat DOCX extraction for algorithm metadata; the
       algorithm steps themselves are implemented as versioned engine code with
       fixture-backed tests.
 - [ ] Curated overlay dataset for rules living in legal prose (correction
       coefficients, coefficient-combination formula) with `manual` provenance
       and mandatory review; reconcile it against CZS MODTAR mappings.
-- [ ] Reject duplicate codes, broken parents, unresolved list references,
-      missing descriptions, and unknown structural elements that affect
-      meaning.
-- [ ] Build the database transactionally and reproducibly; emit a
-      machine-readable artifact manifest, database checksum, and a
-      human-readable diff against the previous release.
-- [ ] Validate complete-dataset counts, hierarchy integrity, and list
-      reference integrity.
+- [x] Reject duplicate codes, broken parents, missing descriptions, and unknown
+      structural elements that affect meaning in terminology sources.
+- [ ] Reject unresolved JGP list references (#30).
+- [x] Build the database transactionally and reproducibly; emit a
+      machine-readable artifact manifest and database checksum.
+- [ ] Emit a human-readable diff against the previous release (#20).
+- [x] Validate complete-dataset counts and hierarchy integrity for terminology.
+- [ ] Validate JGP list reference integrity (#30, #31).
 
 ## Domain And Search
 
-- [ ] Define namespaced terminology, grouping-scheme, and release identifiers.
-- [ ] Implement Unicode-aware Polish normalization without changing source
-      text.
-- [ ] Implement exact code and exact normalized-description matches.
-- [ ] Implement indexed prefix/token search and bounded substring fallback.
-- [ ] Define deterministic rank and tie-break rules in tests.
+- [x] Define namespaced terminology and release identifiers.
+- [ ] Define grouping-scheme identifiers (`jgp-szp`) with the first JGP data.
+- [x] Implement Unicode-aware Polish normalization and morphology without
+      changing source text.
+- [x] Implement exact code and exact normalized-description matches.
+- [x] Implement indexed prefix/token search and bounded substring fallback.
+- [x] Define deterministic rank and tie-break rules in tests.
 - [ ] Service-date resolution: given a date, select the governing ruleset
       release; error explicitly when no release covers the date.
 
@@ -337,39 +373,46 @@ day-to-day order.
 
 ## CLI
 
-- [ ] Add `minos data build` and dataset inspection commands.
-- [ ] Add `minos search` with explicit system and dataset selection.
+- [x] Add `minos data build`.
+- [ ] Add dataset inspection commands.
+- [x] Add `minos search` with explicit system and dataset selection.
 - [ ] Add `minos jgp show <group>` with service-date selection.
-- [ ] Add human-readable output, stable exit codes, and versioned JSON output.
-- [ ] Include dataset provenance and the reference-only disclaimer in output.
-- [ ] Verify lookup requires no network access after a dataset is built.
-- [ ] Define checksummed standalone CLI and data-bundle artifacts and promote
-      them from `main` to a release without rebuilding.
+- [x] Add human-readable output, stable exit codes, and versioned JSON output.
+- [x] Include dataset provenance and the reference-only disclaimer in output.
+- [x] Verify lookup requires no network access after a dataset is built.
+- [x] Define checksummed standalone CLI and data-bundle artifacts
+      (`scripts/build_standalone_cli.sh`).
+- [ ] Promote them from `main` to a signed release without rebuilding (#41).
 
 ## HTTP And Web
 
-- [ ] Add `/healthz`, `/readyz`, bounded search, concept detail, and JGP group
-      detail endpoints with explicit service-date parameters.
-- [ ] Add versioned response schemas and consistent error mapping.
-- [ ] Build the responsive interface under `apps/web`: terminology search, JGP
-      group browser, and version diff views; embed its immutable output in the
-      edge image and route API paths to `minos.http` under the same origin.
-- [ ] Display code hierarchy, grouping conditions, point values, source
-      release, and the safety/compliance disclaimer.
-- [ ] Exclude raw query text and encounter payloads from logs and analytics.
-- [ ] Add input, result-count, concurrency, and timeout limits.
+- [x] Add `/healthz`, `/readyz`, and bounded `POST /api/v1/search` (#22).
+- [ ] Add JSON concept detail and JGP group endpoints with explicit
+      service-date parameters (#23, #24).
+- [x] Add versioned response schemas and consistent error mapping.
+- [x] Build the responsive terminology search, dictionary trees, and code pages
+      under `apps/web`; embed its immutable output in the edge image and route
+      API paths to `minos.http` under the same origin (#102).
+- [ ] Add the JGP group browser and version diff views (#26).
+- [x] Display code hierarchy, source release, and the safety/compliance
+      disclaimer.
+- [ ] Display grouping conditions and point values (#26, #32).
+- [x] Exclude raw query text from logs and analytics.
+- [ ] Extend the log-privacy test to encounter payloads (#39).
+- [x] Add input, result-count, concurrency, and timeout limits.
 
 ## Container And Local Runtime
 
-- [ ] Add a multi-stage non-root `linux/amd64` Dockerfile.
-- [ ] Add a separate immutable watcher image or Dockerfile target used by both
+- [x] Add a multi-stage non-root `linux/amd64` Dockerfile.
+- [x] Add a separate immutable watcher image or Dockerfile target used by both
       local and Mikr.us Compose; keep watchers out of the API runtime image.
 - [ ] Embed provenance and the read-only generated database in the API image;
       build static assets as a separate checksummed artifact.
-- [ ] Run with a read-only filesystem and no unnecessary Linux capabilities.
-- [ ] Add `compose.yaml` for Cloudflare Tunnel, edge, API, and watcher services;
-      the edge serves static assets and proxies API paths under the same origin.
-- [ ] Exercise one real search in the container smoke test.
+- [x] Run with a read-only filesystem and no unnecessary Linux capabilities.
+- [x] Compose Cloudflare Tunnel, edge, API, and watcher services; the edge
+      serves static assets and proxies API paths under the same origin
+      (`scripts/render_validation_compose.py` for the validation stack).
+- [x] Exercise one real search in the container smoke test.
 
 ## CI And Release
 
@@ -414,9 +457,10 @@ day-to-day order.
 - [ ] Create the watcher access key manually outside Terraform; store the
       recovery copy in the password manager and install it as a service-
       restricted host file for the pinned watcher UID/GID.
-- [ ] Complete #55: review scoped AWS production and disposable-test operators,
+- [x] Complete #55: review scoped AWS production and disposable-test operators,
       provision the fixed acceptance boundary, and regenerate the production
-      plan under the approved role before any AWS apply.
+      plan under the approved role before any AWS apply. Disposable denial
+      tests carry over to #49.
 - [ ] Authenticate to GHCR with a GitHub token scoped to `read:packages`; use
       AWS OIDC only for GitHub archive reads.
 - [x] Create the Cloudflare Tunnel, back up its scoped credential in 1Password,
