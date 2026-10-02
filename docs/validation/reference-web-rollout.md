@@ -138,6 +138,8 @@ images using a short-lived GitHub token. Publication does not deploy a host or
 upload a medical bundle. Package visibility and pull permission must be verified
 before host activation.
 
+Later updates follow [Validation Deployment Updates](validation-deploy.md).
+
 This temporary validation deployment uses an operator-recorded commit/digest/
 dataset receipt and retained exact previous Compose/static configuration. It
 does not claim #41's independent signatures or signed receipt chain. Only the
