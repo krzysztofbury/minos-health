@@ -45,6 +45,17 @@ class CdpClient {
   }
 }
 
+// DevToolsActivePort can appear before the initial about:blank page target.
+async function pageTarget(port) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
+    const target = targets.find((candidate) => candidate.type === "page");
+    if (target) return target;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Chromium did not expose a page target");
+}
+
 async function connect(profile, process) {
   let port;
   for (let attempt = 0; attempt < 1200; attempt++) {
@@ -55,9 +66,7 @@ async function connect(profile, process) {
     }
   }
   assert.ok(port, "Chromium did not start CDP");
-  const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
-  const target = targets.find((candidate) => candidate.type === "page");
-  assert.ok(target);
+  const target = await pageTarget(port);
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     socket.addEventListener("open", resolve, { once: true });
