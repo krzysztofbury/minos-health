@@ -99,5 +99,6 @@ try {
     browser.kill("SIGKILL");
     await new Promise(resolve => { if (browser.exitCode !== null || browser.signalCode !== null) resolve(); else browser.once("exit", resolve); });
   }
-  await rm(profile, { recursive: true, force: true });
+  // Chromium helpers can still write to the profile briefly after the main exit.
+  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }
