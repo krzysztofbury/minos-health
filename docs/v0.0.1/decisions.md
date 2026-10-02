@@ -1,7 +1,7 @@
 # Decisions
 
 Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
-2026-09-23, and 2026-10-01
+2026-09-23, 2026-10-01, and 2026-10-02
 
 ## Product
 
@@ -266,6 +266,30 @@ support.
 A `ruleset_release` is a composite: zarządzenie plus załącznik versions,
 algorithm version, ICD-9 version, and ICD-10 version paired per reporting
 period (per § 10 of the base act).
+
+### Staged JGP Reference Delivery (2026-10-02)
+
+The first JGP group browser (#17, minimal #18, #24 and #26) reports catalog
+base points without modifiers, not final settlement points. API and UI label
+that limitation and show the act/catalog release governing the selected service
+date. Date resolution never falls back to the latest release.
+
+Minimal #18 retains valid and knowledge time and row-level base-point
+applicability, including 102/2026 section 4(5)'s catalog rows deferred to
+2027-01-01. It represents modifier binding as explicitly unbound. #46 owns
+MODTAR compatibility and binding plus the section 17 coefficient transition
+under sections 4(3) and 4(4). #35 must fail on unbound modifiers before final
+tariff calculation; an unbound source is not an empty set of applicable rules.
+
+The first #26 acceptance is a shareable, date-specific group page with base
+points by settlement mode, time-limited catalog parameters and provenance.
+Version diffs are a separate follow-up depending on #20. Condition-based ICD
+cross-links and reverse lookup belong to #32 after #30. This changes delivery
+order, not the full product scope. Implementation PRs require owner review
+before merge and preserve the #102 shared layout and search-first interface.
+
+See [JGP delivery scope](jgp-delivery-scope.md) for issue ownership and review
+gates.
 
 ### Search Storage
 

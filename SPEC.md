@@ -63,6 +63,12 @@ Two interfaces share the same domain behaviour:
   catalog, with separately attributed exact-code workbook hierarchy evidence.
 - Human-readable and JSON CLI output.
 - A versioned read-only HTTP API and responsive anonymous webpage.
+- The first JGP group pages show catalog base points without modifiers, by
+  settlement mode and service date, with the applicable act/catalog release.
+  Uncovered dates fail explicitly. Base-only rulesets record modifiers as
+  unbound; final tariff calculation must reject that state, not treat it as
+  evidence that no modifiers apply. See the staged acceptance boundaries in
+  [JGP delivery scope](docs/v0.0.1/jgp-delivery-scope.md).
 - One immutable API container and one immutable static web artifact, deployed
   together through Docker Compose locally and on the dedicated Mikr.us host.
 
