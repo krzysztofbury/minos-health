@@ -41,6 +41,8 @@
       .replace(/ł/g, "l");
   }
 
+  // The server's count line comes back when the filter clears.
+  var hint = status ? status.textContent : "";
   var keys = rows.map(function (row) { return fold(row.getAttribute("data-search") || ""); });
   // Chapters the user opened before filtering come back when the filter clears.
   var opened = null;
@@ -65,6 +67,6 @@
     parts.forEach(function (part) {
       part.hidden = part.querySelector(".jgp-chapter:not([hidden])") === null;
     });
-    if (status) status.textContent = query ? "Pasuje: " + shown + " z " + rows.length + " grup" : "";
+    if (status) status.textContent = query ? "Pasuje: " + shown + " z " + rows.length + " grup" : hint;
   });
 })();

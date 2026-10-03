@@ -25,7 +25,7 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
 
 def listed_codes(page: str) -> list[str]:
     return re.findall(
-        r'<li data-search="[^"]*"><a class="jgp-row" href="/jgp/[^/]+/([A-Z0-9]+)"',
+        r'<li data-search="[^"]*"><a class="tree-row jgp-row" href="/jgp/[^/]+/([A-Z0-9]+)"',
         page,
     )
 
@@ -76,7 +76,8 @@ def test_catalog_lists_the_release_for_the_day_by_chapter(client: TestClient) ->
     assert re.findall(r'id="k-(1ae?-\d)"', page) == ["1a-1", "1a-2", "1ae-1"]
     assert f"12{NBSP}871,72{NBSP}pkt" not in page  # list shows hospitalization only
     assert f"13{NBSP}991,00{NBSP}pkt" in page
-    assert '<div class="jgp-filter" hidden>' in page  # shown only by jgp.js
+    assert '<div class="tree-search jgp-filter" hidden>' in page  # shown by jgp.js
+    assert "6 grup w 3 rozdziałach." in page
     assert 'href="/jgp/2026-07-10/zakres/15">chirurgia ogólna</a>' in page
     assert "?" not in "".join(re.findall(r'href="([^"]*)"', page))
 
@@ -97,7 +98,7 @@ def test_scope_filter_follows_the_row_valid_on_the_day(
     # H21's chirurgia ogólna marker belongs to the twin that ends 2026-12-31.
     page = client.get(f"/jgp/{day}/zakres/15").text
     assert listed_codes(page) == codes
-    assert "Zakres świadczeń: chirurgia ogólna" in page
+    assert '<span>chirurgia ogólna</span><span class="tree-toggle"' in page
     assert "pierwszy z zakresów wymienionych w nagłówku" in page
     assert f'href="/jgp/{day}/zakres/15" aria-current="page"' in page
 
@@ -109,10 +110,11 @@ def test_group_page_quotes_source_headers_and_keeps_absent_values(
     assert response.status_code == 200
     page = response.text
     assert (
-        f'<th scope="row">Wartość punktowa - hospitalizacja planowa</th><td>12{NBSP}871,72{NBSP}pkt</td>'
+        "<dt>Wartość punktowa - hospitalizacja planowa</dt>"
+        + f'<dd class="jgp-value">12{NBSP}871,72{NBSP}pkt</dd>'
         in page
     )
-    assert f"<td>21{NBSP}dni</td>" in page
+    assert f'<dd class="jgp-value">21{NBSP}dni</dd>' in page
     assert "brak wartości w katalogu" in page
     assert "Punkty bazowe wg katalogu, bez modyfikatorów" in page
     assert "Grupa zabiegowa (*)" in page
@@ -120,7 +122,9 @@ def test_group_page_quotes_source_headers_and_keeps_absent_values(
     # The day before is governed by the original act, which has PZD02 too.
     assert 'href="/jgp/2026-06-30/PZD02">Zobacz 2026-06-30' in page
     # Quick dates come from the bundle: release starts and the 2027 row switch.
-    assert re.findall(r'<a href="/jgp/([0-9-]+)/PZD02">\1</a>', page) == [
+    assert re.findall(
+        r'<a class="dictionary-tab" href="/jgp/([0-9-]+)/PZD02">\1</a>', page
+    ) == [
         "2026-05-01",
         "2026-07-01",
         "2027-01-01",
