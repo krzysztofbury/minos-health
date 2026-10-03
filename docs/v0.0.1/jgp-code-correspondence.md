@@ -8,10 +8,11 @@ relation. Do not drop a source member because another government catalog lacks
 it. Do not invent an equivalent code, restore a deleted code by medical meaning,
 or extend an ICD family by prefix matching.
 
-Status: #30 implements reference extraction, typed fragments, schema-5 storage,
+Status: #30 implements reference extraction, typed fragments, schema-5 (now 6) storage,
 strict reviewed manifests and dated store correspondence. See the
 [implementation and acceptance record](jgp-conditions-ingest.md). Automated
-manifest PRs (#21) and application consumers (#32) remain separate future work.
+manifest PRs (#21) remain future work. The combined #32/#46 branch adds dated
+application consumers; it does not connect watcher captures to automatic builds.
 This branch does not change the production data selector or deploy conditions.
 
 ## Why This Is Necessary
@@ -149,9 +150,12 @@ every remaining watcher/data-PR feature is already deployed.
 Current implementation: verified attachment 9 bytes can populate a fresh
 reference bundle through the existing `minos data build` command. The reviewed
 #30 selection is composed separately from the unchanged production selector.
-Automated manifest PR creation (#21) and condition consumers (#32) remain
-unimplemented. Archiving a new attachment does not populate live conditions
-automatically.
+Automated manifest PR creation (#21) remains unimplemented. The combined #32/#46
+branch implements dated condition consumers, not watcher-driven data promotion.
+Archiving a new attachment does not populate live conditions automatically; the
+application continues serving its last reviewed immutable bundle. A newer
+document can appear in source provenance before the reference database includes
+it. New captures do not automatically invalidate existing application coverage.
 
 1. **Capture, not live editing (#6-#8).** NFZ discovery (#7) dispatches BAW IDs
    to #8, which captures original/amending/consolidated metadata and attachment

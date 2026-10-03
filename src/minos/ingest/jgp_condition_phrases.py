@@ -21,7 +21,16 @@ REPEAT = r"(?:dwukrotne|dwukrotnie|dwukrone|trzykrotne|trzykrotnie|pięciokrotne
 MARK = re.compile(r"^(\(\*[0-9]{1,2}\)|\*{1,4})\s*(.*)$", re.S)
 UNITS = r"(?:r\.\s*ż\.?|tyg\.\s*ż\.?|tyg\.\s*życia|miesiąca życia|miesięcy życia)"
 AGE = re.compile(
-    r"wiek(?: pacjenta)?\s*" + OP + r"\s*([0-9]{1,4})\.?\s*(" + UNITS + r")"
+    r"wiek(?: pacjenta)?\s*"
+    + OP
+    + r"\s*([0-9]{1,4})\.?\s*("
+    + UNITS
+    + r")"
+    + r"(?:\s*(?:i\s*)?"
+    + OP
+    + r"\s*([0-9]{1,4})\.?\s*("
+    + UNITS
+    + r"))?"
 )
 DURATION = re.compile(
     r"czas (?:pobytu|hospitalizacji)\s*"
@@ -49,6 +58,14 @@ DIAGNOSIS_LIST = re.compile(
     + r")\s+)?rozpozna(?:nia|nie|ń)\s*(zasadniczego|współistniejącego|współistniejących)?\s*z\s+[Ll]isty\s+(?:rozpoznań\s+|dodatkowej\s+)?("
     + NAME
     + r")"
+)
+BELOW_DIAGNOSIS = re.compile(
+    r"rozpoznania\s+(zasadniczego|współistniejącego)\s+z poniższej listy"
+    + r"(?:\s+\("
+    + r"("
+    + NAME
+    + r")"
+    + r"\))?"
 )
 LITERAL = re.compile(
     r"(procedur(?:y|ę)|rozpoznania(?:\s+(zasadniczego|współistniejącego))?)\s+("
@@ -104,6 +121,18 @@ class _State:
         self.sheet = sheet
         self.nodes: list[c.Condition] = []
         self.selectors: list[c.Selector] = []
+        evidence = {e.row: e for e in sheet.evidence}
+        # Exact code/title pairs attested by any ICD-9 list in this sheet.
+        self.procedure_titles: dict[str, set[str]] = {}
+        for item in sheet.lists:
+            if item.system != "icd9-pl":
+                continue
+            for member in item.members:
+                text = " ".join(evidence[member.row].text.split())
+                if text.startswith(member.code + " "):
+                    self.procedure_titles.setdefault(member.code, set()).add(
+                        text[len(member.code) :].strip()
+                    )
 
     def add(
         self,
@@ -166,6 +195,73 @@ class _State:
             c.ListSelector((item.identity,), system),
             tuple(dict.fromkeys((row, item.marker_row, *item.naming_rows))),
         )
+
+    def declared_below(self, group: str, name: str, system: c.System, row: int) -> bool:
+        """`(poniższej)` holds only for the uniquely named list of this same
+        group that physically follows the label; a list above it or in another
+        group's context leaves the suffix unconsumed."""
+        label = "Lista Ogólna" if name == "Ogólnej" else name
+        candidates = [
+            item
+            for item in self.sheet.lists
+            if item.label == label and item.system == system
+        ]
+        return (
+            len(candidates) == 1
+            and candidates[0].context.strip() == group
+            and candidates[0].marker_row > row
+        )
+
+    def below_list(self, group: str, row: int, name: str | None) -> int | None:
+        """Bind a physical declaration, never a guessed list name or prefix."""
+        definitions = {item.marker_row: item for item in self.sheet.lists}
+        for evidence in self.sheet.evidence:
+            if evidence.row <= row:
+                continue
+            if (evidence.context or "").strip() != group or evidence.category in (
+                "title",
+                "label",
+                "connector",
+                "unbound_member",
+            ):
+                return None
+            if evidence.category == "section" and evidence.text.strip():
+                return None
+            if evidence.category == "list_heading" and (
+                name is None or evidence.text.strip() != name
+            ):
+                return None  # a named list in between is not "the list below"
+            item = definitions.get(evidence.row)
+            # Procedure lists conventionally precede the diagnosis list, so the
+            # scan may pass them; the reader's recorded declaration row (below)
+            # is what ties this label to the diagnosis list it binds.
+            if item is not None and item.system == "icd10-pl":
+                if (name is not None and item.label != name) or row not in (
+                    item.naming_rows
+                ):
+                    return None
+                return self.selector(
+                    c.ListSelector((item.identity,), item.system),
+                    tuple(dict.fromkeys((row, item.marker_row, *item.naming_rows))),
+                )
+        return None
+
+    def title_end(self, code: str, text: str, end: int) -> int:
+        titles = self.procedure_titles.get(code, ())
+        for title in sorted(titles, key=len, reverse=True):
+            if not _plain_title(title) or re.search(
+                r"[0-9<>≥≤]|\b(?:wiek|czas|tryb|rozpoznania|procedury|wymagane|minimum|min)\b",
+                title,
+                re.IGNORECASE,
+            ):
+                continue
+            suffix = " " + title
+            following = end + len(suffix)
+            if text.startswith(suffix, end) and (
+                following == len(text) or text[following] in " ,;."
+            ):
+                return following
+        return end
 
     def unknown(
         self,
@@ -350,7 +446,8 @@ def _cell(state: _State, group: str, item: c.Evidence) -> int:
                 reason,
             )
         )
-        spans.append(match.span())
+        end = match.end() if diagnosis else state.title_end(match[3], text, match.end())
+        spans.append((match.start(), end))
     remaining = list(text)
     for a, b in spans:
         remaining[a:b] = " " * (b - a)
@@ -380,21 +477,31 @@ def _scalar_fragments(
     spans: list[tuple[int, int]],
 ) -> None:
     for match in AGE.finditer(text):
-        age_unit: Literal["completed_years", "elapsed_weeks", "calendar_months"] = (
-            "elapsed_weeks"
-            if match[3].startswith("tyg")
-            else "calendar_months"
-            if match[3].startswith("mies")
-            else "completed_years"
-        )
-        result.append(
-            state.add(
-                group,
-                "patient_age",
-                c.Age(COMPARISONS[match[1]], int(match[2]), age_unit),
-                (row,),
+        if match[4] is not None and not _age_range(match):
+            result.append(state.unknown(group, row, "age_bounds_unreviewed"))
+            spans.append(match.span())
+            continue
+        for offset in (0, 3):
+            if match[1 + offset] is None:
+                continue
+            unit = match[3 + offset]
+            age_unit: Literal["completed_years", "elapsed_weeks", "calendar_months"] = (
+                "elapsed_weeks"
+                if unit.startswith("tyg")
+                else "calendar_months"
+                if unit.startswith("mies")
+                else "completed_years"
             )
-        )
+            result.append(
+                state.add(
+                    group,
+                    "patient_age",
+                    c.Age(
+                        COMPARISONS[match[1 + offset]], int(match[2 + offset]), age_unit
+                    ),
+                    (row,),
+                )
+            )
         spans.append(match.span())
     for match in DURATION.finditer(text):
         bounds: tuple[c.DurationBound, ...] = (
@@ -521,7 +628,12 @@ def _list_fragments(
                     group, "procedure_presence", c.Presence(selector, None), (row,)
                 )
             )
-        spans.append(match.span())
+        end = match.end()
+        if text[end:].startswith(" (poniższej)") and state.declared_below(
+            group, match[4], "icd9-pl", row
+        ):
+            end += len(" (poniższej)")
+        spans.append((match.start(), end))
         if selector is not None and text[match.end() :].startswith(
             " (jednokrotnie dla piersi prawej i jednokrotnie dla piersi lewej)"
         ):
@@ -534,6 +646,25 @@ def _list_fragments(
                 )
             )
     _diagnosis_fragments(state, group, row, text, result, spans)
+    below = list(BELOW_DIAGNOSIS.finditer(text))
+    for match in below:
+        # Two "lists below" in one cell do not say which list each one means.
+        selector = None if len(below) > 1 else state.below_list(group, row, match[2])
+        if selector is None:
+            result.append(state.unknown(group, row, "list_reference_unresolved"))
+        else:
+            result.append(
+                state.add(
+                    group,
+                    "diagnosis_presence",
+                    c.Presence(
+                        selector,
+                        "principal" if match[1] == "zasadniczego" else "secondary",
+                    ),
+                    (row,),
+                )
+            )
+        spans.append(match.span())
 
 
 def _diagnosis_fragments(
@@ -750,6 +881,31 @@ def _literal_special_fragments(
             )
         )
         spans.append(match.span())
+
+
+def _age_unit(unit: str) -> str:
+    return (
+        "weeks"
+        if unit.startswith("tyg")
+        else "months"
+        if unit.startswith("mies")
+        else "years"
+    )
+
+
+def _age_range(match: re.Match[str]) -> bool:
+    """A reviewed two-bound age: opposite directions, one unit, non-empty."""
+    first, second = COMPARISONS[match[1]], COMPARISONS[match[4]]
+    if _age_unit(match[3]) != _age_unit(match[6]):
+        return False
+    bounds = {first[0]: (first, int(match[2])), second[0]: (second, int(match[5]))}
+    if set(bounds) != {"g", "l"}:
+        return False
+    (low_op, low), (high_op, high) = bounds["g"], bounds["l"]
+    # gt 17 and lt 66 is a range; gt 65 and lt 2 is empty.
+    smallest = low + (1 if low_op == "gt" else 0)
+    largest = high - (1 if high_op == "lt" else 0)
+    return smallest <= largest
 
 
 def _plain_title(gap: str) -> bool:

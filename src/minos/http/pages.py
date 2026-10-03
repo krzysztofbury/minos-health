@@ -167,6 +167,8 @@ def code_page(
     version: str,
     supporting: bool,
     rank_evidence: dict[str, object] | None = None,
+    jgp_section: str = "",
+    dated_path: str | None = None,
 ) -> str:
     code = cast(str, node["code"])
     label = " ".join(cast(str, node["label"]).split())
@@ -222,6 +224,8 @@ def code_page(
         )
     if rank_evidence is not None:
         parts.extend(_rank_section(rank_evidence))
+    if jgp_section:
+        parts.append(jgp_section)
     for kind in ("includes", "excludes", "term", "modifier", "note"):
         group = [note for note in notes if note["kind"] == kind]
         if not group:
@@ -309,6 +313,8 @@ def code_page(
             },
         ]
     )
+    if jgp_section:
+        head += '    <script src="/jgp.js" defer></script>\n'
     context = next(
         (cast(str, step["label"]) for step in path if step.get("code")), dictionary.name
     )
@@ -319,10 +325,10 @@ def code_page(
     return _page(
         title=f"{code} {label} - {dictionary.name} - Minos Health",
         description=description,
-        path=code_path(dictionary, code),
+        path=dated_path or code_path(dictionary, code),
         content="\n".join(parts),
         head=head,
-        robots="index, follow",
+        robots="noindex, follow" if dated_path else "index, follow",
     )
 
 

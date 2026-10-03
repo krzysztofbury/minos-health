@@ -133,3 +133,44 @@ strings): `/jgp/{service_date}`, `/jgp/{service_date}/{code}` and
 redirect to today in Europe/Warsaw. Page errors use the same cases as the API,
 rendered as uncached HTML; see the
 [JGP page decision](v0.0.1/decisions.md#jgp-group-browser-pages-2026-10-03).
+
+### Dated condition reference (combined #32 / #46 branch)
+
+Group answers add `conditions`. Its status is `fully_interpreted` only when
+every stored node of the group is proposed. `nodes`, `roots` and `selectors`
+are empty for `not_yet_interpreted`; `source_text` retains the original clauses
+and cited cell evidence. Separate roots do not imply a conjunction. These are
+reference fragments, not executable encounter qualification. Older base-only
+bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
+
+- `GET /api/v1/jgp/{service_date}/lists/{catalog}/{identity}/pages/{page}`
+  returns at most 100 physical member occurrences, original code/title text,
+  source rows, marks and exact dictionary correspondence. Repeated cells remain
+  separate evidence. Identities are local to the selected release and catalog.
+- `/jgp/{service_date}/listy/{catalog}/{identity}/{page}` renders that page.
+- Existing `/slowniki/icd-9/{code}` and `/slowniki/icd-10/{code}` remain intact.
+  Additive `/slowniki/{dictionary}/{code}/jgp/{service_date}` pages show dated
+  "Występuje w grupach" membership. Further membership pages use
+  `/jgp/{service_date}/{catalog}/{page}` after the code-page path. Changing the
+  date resets membership pagination. Dated variants are `noindex, follow`.
+
+Reverse lookup includes explicit group-local lists and lists reached through
+stored condition selectors, including unsupported source evidence. It never
+expands classification families or code prefixes. Its coverage is not an
+eligibility determination, and absence is not proof of exclusion. Codes with
+`not_in_reference` correspondence remain visible but get no fabricated concept
+link. List members, conditions and reverse links use the same selected day.
+
+Each answer carries the exact characteristics release, worksheet, act, source
+checksum, applicability evidence and reviewed knowledge horizon. An uncovered
+dated ICD context returns uncached 404 `no_characteristics_for_date`, never
+latest. Undated code pages with a today's membership section are `no-store`;
+explicit dated pages are cacheable for the immutable bundle. A group present
+only in characteristics has `product_code: null`, no base values and
+`catalog_row_status: not_on_date`, not invented catalog data.
+
+Schema 6 stores pinned MODTAR source rows and optional research candidates.
+`ruleset.modifiers.review_candidate` records the explicitly selected source and
+`pending_legal_review` evidence when present. **Binding remains `unbound`.**
+The candidate is neither an approved compatible binding nor a set of eligible
+modifiers. See [the modifier review gate](v0.0.1/jgp-modifiers-ingest.md).

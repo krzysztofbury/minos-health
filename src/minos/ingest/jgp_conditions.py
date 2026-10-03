@@ -229,6 +229,21 @@ def _list_name(
     for item in reversed(evidence[-16:]):
         if (item.context or "").strip() != context:
             break
+        previous_marker = MARKER.fullmatch(item.text.strip())
+        if (
+            previous_marker is not None
+            and ("icd9-pl" if previous_marker[1] == "9" else "icd10-pl") == system
+        ):
+            break
+        below = re.search(
+            r"rozpoznania (?:zasadniczego|współistniejącego) z poniższej listy"
+            + r"(?:\s+\(([A-Z]{1,4}[0-9]{1,3}[A-Za-z]{0,3})\))?",
+            item.text,
+        )
+        if below is not None and system == "icd10-pl":
+            # A source-local unnamed declaration must not alias a named list
+            # elsewhere in the same group. Its row supplies physical identity.
+            return below[1] or "poniższa lista", (item.row,)
         matches = re.findall(
             r"z listy (?:procedur |rozpoznań )?([A-Z][A-Za-z0-9]+) \(poniższej\)",
             item.text,

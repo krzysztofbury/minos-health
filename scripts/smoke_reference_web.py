@@ -39,6 +39,7 @@ def fixture(root: Path) -> Path:
         default_sheets,
         stage_catalog,
     )
+    from tests.fixtures.jgp_conditions import stage as stage_conditions
     from tests.fixtures.komunikat import stage_komunikat
 
     manifest = DatasetManifest.model_validate_json(
@@ -63,12 +64,26 @@ def fixture(root: Path) -> Path:
     archive.mkdir(parents=True)
     for source, content in sources:
         _ = (archive / source.sha256).write_bytes(content)
+    catalog = stage_catalog(
+        root,
+        catalog_workbook(default_sheets()),
+        release={
+            "baw_document_id": 44042,
+            "document_url": "https://baw.nfz.gov.pl/NFZ/document/44042/Synthetic",
+        },
+    )
+    characteristics = stage_conditions(root).model_copy(
+        update={"catalog_release_id": catalog.release_id}
+    )
     manifest = DatasetManifest.model_validate(
         {
             **manifest.model_dump(),
             "sources": tuple(source for source, _ in sources),
             "komunikaty": (stage_komunikat(root, canonical.release_id),),
-            "catalogs": (stage_catalog(root, catalog_workbook(default_sheets())),),
+            "catalogs": (catalog,),
+            "characteristics": (characteristics,),
+            "characteristics_knowledge_as_of": date(2026, 10, 2),
+            "characteristics_knowledge_evidence": "Synthetic reviewed attachment 9 lineage.",
             "catalog_knowledge_as_of": date(2026, 10, 2),
             "catalog_knowledge_evidence": "Synthetic lineage review on 2026-10-02.",
         },
@@ -139,6 +154,19 @@ def browser_checks(arguments: Arguments, bundle: Path, port: int, output: Path) 
             env=environment,
         )
         dataset = read_artifact_manifest(bundle).dataset
+        if dataset.characteristics:
+            _ = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "tests/browser/jgp-conditions-browser.mjs"),
+                    arguments.chromium,
+                    f"http://minoshealth.pl:{port}/",
+                    str(output),
+                ],
+                timeout=90,
+                check=True,
+                env=environment,
+            )
         if dataset.catalogs:
             _ = subprocess.run(
                 [
@@ -306,6 +334,29 @@ def main(arguments: Arguments) -> None:
         assert get_page(base, "/jgp/2026-07-10?x=1")[0] == 404
         assert get_page(base, "/jgp/2026-07-10/zakres/1000")[0] == 404
         assert len(get_page(base, group_route)[1]) == 1  # was doubled before #26
+        if cast(dict[str, object], manifest["dataset"]).get("characteristics"):
+            for route, status, cache in (
+                # Today's JGP data: cached until midnight in Poland, at most 1 h.
+                ("/slowniki/icd-10/E11.0", 200, "public, max-age="),
+                ("/slowniki/icd-10/E11.0/jgp/2026-07-10", 200, "public"),
+                ("/slowniki/icd-10/E11.0/jgp/2026-06-30", 404, "no-store"),
+                ("/jgp/2026-07-10/listy/1a/2/1", 200, "public"),
+                ("/jgp/2026-07-10/listy/1a/2/2", 404, "no-store"),
+            ):
+                answer = get_page(base, route)
+                assert (
+                    answer[0] == status
+                    and len(answer[1]) == 1
+                    and answer[1][0].startswith(cache)
+                ), (route, answer)
+            assert get_json(base, "/api/v1/jgp/2026-07-10/lists/1a/2/pages/1")[0] == 200
+            assert (
+                get_page(
+                    base,
+                    "/slowniki/icd-10/E11.0/jgp/2026-07-10?x=PRIVATE_QUERY_SENTINEL",
+                )[0]
+                == 404
+            )
         logs = docker("logs", api)
         assert "badania moczu" not in logs and '"query"' not in logs
         assert '"request_id"' in logs

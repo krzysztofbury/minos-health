@@ -28,9 +28,9 @@
       "sheets": {
         "1a": {
           "groups": 702, "evidence_cells": 40042, "unbound_member_occurrences": 46,
-          "lists": 892, "member_occurrences": 35081, "unique_members": 35058, "conditions": 3358,
-          "kind_counts": {"all": 524, "any": 186, "clinical_measure": 8, "diagnosis_count": 2, "diagnosis_presence": 686, "discharge_mode": 47, "episode_duration": 163, "external_disease_code": 1, "not": 9, "patient_age": 355, "procedure_all_members": 7, "procedure_count": 105, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_list_coverage": 2, "procedure_presence": 854, "unsupported": 348, "ward_duration": 2, "when": 57},
-          "unsupported_reasons": {"alternative_scope_unreviewed": 1, "ancestor_interpretation_unsupported": 931, "boolean_scope_unreviewed": 90, "child_interpretation_unsupported": 158, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 12, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 4, "list_reference_unresolved": 101, "rank_compatibility_unbound": 29, "unconsumed_source_text": 148},
+           "lists": 892, "member_occurrences": 35081, "unique_members": 35058, "conditions": 3406,
+           "kind_counts": {"all": 582, "any": 186, "clinical_measure": 8, "diagnosis_count": 2, "diagnosis_presence": 779, "discharge_mode": 47, "episode_duration": 163, "external_disease_code": 1, "not": 9, "patient_age": 362, "procedure_all_members": 7, "procedure_count": 105, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_list_coverage": 2, "procedure_presence": 854, "unsupported": 238, "ward_duration": 2, "when": 57},
+           "unsupported_reasons": {"alternative_scope_unreviewed": 1, "ancestor_interpretation_unsupported": 812, "boolean_scope_unreviewed": 90, "child_interpretation_unsupported": 89, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 13, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 4, "list_reference_unresolved": 49, "rank_compatibility_unbound": 29, "unconsumed_source_text": 90},
           "unmatched_codes": 19
         }
       }
@@ -40,7 +40,7 @@
       "baw_document_id": 43943,
       "lineage_document_id": 43868,
       "supersedes": "jgp-conditions-46-2026-original-915c13de1b40",
-      "act_number": "46/2026/DSOZ after 74/2026/DSOZ",
+      "act_number": "46/2026/DSOZ (tekst po zmianach 74/2026/DSOZ)",
       "layout": "nfz-9-102-2026",
       "valid_from": "2026-07-01",
       "valid_to": null,
@@ -62,16 +62,16 @@
       "sheets": {
         "1a": {
           "groups": 627, "evidence_cells": 37133, "unbound_member_occurrences": 438,
-          "lists": 872, "member_occurrences": 32130, "unique_members": 32109, "conditions": 3260,
-          "kind_counts": {"all": 495, "any": 180, "clinical_measure": 11, "diagnosis_count": 2, "diagnosis_presence": 668, "discharge_mode": 47, "episode_duration": 126, "external_disease_code": 1, "not": 10, "patient_age": 327, "procedure_all_members": 8, "procedure_count": 173, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_laterality": 1, "procedure_list_coverage": 2, "procedure_presence": 809, "unsupported": 338, "ward_duration": 2, "when": 58},
-          "unsupported_reasons": {"alternative_scope_unreviewed": 1, "ancestor_interpretation_unsupported": 946, "boolean_scope_unreviewed": 92, "child_interpretation_unsupported": 148, "classification_family_unbound": 3, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 12, "exemption_trigger_unbound": 5, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 6, "list_reference_unresolved": 100, "rank_compatibility_unbound": 29, "secondary_exemption_scope_unbound": 1, "title_only_qualifier": 5, "unconsumed_source_text": 129},
+           "lists": 872, "member_occurrences": 32130, "unique_members": 32109, "conditions": 3293,
+           "kind_counts": {"all": 535, "any": 180, "clinical_measure": 11, "diagnosis_count": 2, "diagnosis_presence": 730, "discharge_mode": 47, "episode_duration": 126, "external_disease_code": 1, "not": 10, "patient_age": 331, "procedure_all_members": 8, "procedure_count": 173, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_laterality": 1, "procedure_list_coverage": 2, "procedure_presence": 809, "unsupported": 265, "ward_duration": 2, "when": 58},
+           "unsupported_reasons": {"alternative_scope_unreviewed": 1, "ancestor_interpretation_unsupported": 861, "boolean_scope_unreviewed": 92, "child_interpretation_unsupported": 103, "classification_family_unbound": 3, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 13, "exemption_trigger_unbound": 5, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 6, "list_reference_unresolved": 67, "rank_compatibility_unbound": 29, "secondary_exemption_scope_unbound": 1, "title_only_qualifier": 5, "unconsumed_source_text": 89},
           "unmatched_codes": 19
         },
         "1ae": {
           "groups": 121, "evidence_cells": 10418, "unbound_member_occurrences": 0,
-          "lists": 176, "member_occurrences": 9540, "unique_members": 9532, "conditions": 443,
-          "kind_counts": {"all": 88, "any": 26, "diagnosis_presence": 94, "episode_duration": 36, "patient_age": 36, "procedure_all_members": 1, "procedure_count": 33, "procedure_presence": 96, "unsupported": 33},
-          "unsupported_reasons": {"ancestor_interpretation_unsupported": 81, "boolean_scope_unreviewed": 5, "child_interpretation_unsupported": 17, "list_reference_unresolved": 8, "unconsumed_source_text": 20},
+           "lists": 176, "member_occurrences": 9540, "unique_members": 9532, "conditions": 453,
+           "kind_counts": {"all": 100, "any": 26, "diagnosis_presence": 109, "episode_duration": 36, "patient_age": 39, "procedure_all_members": 1, "procedure_count": 33, "procedure_presence": 96, "unsupported": 13},
+           "unsupported_reasons": {"ancestor_interpretation_unsupported": 63, "boolean_scope_unreviewed": 5, "child_interpretation_unsupported": 6, "unconsumed_source_text": 8},
           "unmatched_codes": 12
         }
       }
@@ -81,7 +81,7 @@
       "baw_document_id": 44042,
       "lineage_document_id": 43868,
       "supersedes": "jgp-conditions-46-2026-after-74-f5e360996b3c",
-      "act_number": "46/2026/DSOZ after 102/2026/DSOZ",
+      "act_number": "46/2026/DSOZ (tekst po zmianach 102/2026/DSOZ)",
       "layout": "nfz-9-102-2026",
       "valid_from": "2026-07-01",
       "valid_to": null,
@@ -103,16 +103,16 @@
       "sheets": {
         "1a": {
           "groups": 629, "evidence_cells": 37461, "unbound_member_occurrences": 438,
-          "lists": 877, "member_occurrences": 32437, "unique_members": 32423, "conditions": 3306,
-          "kind_counts": {"all": 498, "any": 184, "clinical_measure": 11, "diagnosis_count": 2, "diagnosis_presence": 682, "discharge_mode": 51, "episode_duration": 129, "external_disease_code": 1, "not": 10, "patient_age": 328, "procedure_all_members": 8, "procedure_count": 172, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_laterality": 1, "procedure_list_coverage": 2, "procedure_presence": 827, "program_membership": 2, "unsupported": 336, "ward_duration": 2, "when": 58},
-          "unsupported_reasons": {"alternative_scope_unreviewed": 1, "ancestor_interpretation_unsupported": 979, "boolean_scope_unreviewed": 96, "child_interpretation_unsupported": 145, "classification_family_unbound": 3, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 12, "exemption_trigger_unbound": 5, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 6, "list_reference_unresolved": 94, "rank_compatibility_unbound": 29, "secondary_exemption_scope_unbound": 1, "title_only_qualifier": 5, "unconsumed_source_text": 129},
+           "lists": 877, "member_occurrences": 32437, "unique_members": 32423, "conditions": 3339,
+           "kind_counts": {"all": 540, "any": 184, "clinical_measure": 11, "diagnosis_count": 2, "diagnosis_presence": 744, "discharge_mode": 51, "episode_duration": 129, "external_disease_code": 1, "not": 10, "patient_age": 332, "procedure_all_members": 8, "procedure_count": 172, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_laterality": 1, "procedure_list_coverage": 2, "procedure_presence": 827, "program_membership": 2, "unsupported": 261, "ward_duration": 2, "when": 58},
+           "unsupported_reasons": {"alternative_scope_unreviewed": 1, "ancestor_interpretation_unsupported": 882, "boolean_scope_unreviewed": 96, "child_interpretation_unsupported": 100, "classification_family_unbound": 3, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 13, "exemption_trigger_unbound": 5, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 6, "list_reference_unresolved": 61, "rank_compatibility_unbound": 29, "secondary_exemption_scope_unbound": 1, "title_only_qualifier": 5, "unconsumed_source_text": 87},
           "unmatched_codes": 19
         },
         "1ae": {
           "groups": 121, "evidence_cells": 10413, "unbound_member_occurrences": 0,
-          "lists": 176, "member_occurrences": 9535, "unique_members": 9534, "conditions": 443,
-          "kind_counts": {"all": 88, "any": 26, "diagnosis_presence": 94, "episode_duration": 36, "patient_age": 36, "procedure_all_members": 1, "procedure_count": 33, "procedure_presence": 96, "unsupported": 33},
-          "unsupported_reasons": {"ancestor_interpretation_unsupported": 81, "boolean_scope_unreviewed": 5, "child_interpretation_unsupported": 17, "list_reference_unresolved": 8, "unconsumed_source_text": 20},
+           "lists": 176, "member_occurrences": 9535, "unique_members": 9534, "conditions": 453,
+           "kind_counts": {"all": 100, "any": 26, "diagnosis_presence": 109, "episode_duration": 36, "patient_age": 39, "procedure_all_members": 1, "procedure_count": 33, "procedure_presence": 96, "unsupported": 13},
+           "unsupported_reasons": {"ancestor_interpretation_unsupported": 63, "boolean_scope_unreviewed": 5, "child_interpretation_unsupported": 6, "unconsumed_source_text": 8},
           "unmatched_codes": 12
         }
       }

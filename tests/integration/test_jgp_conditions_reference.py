@@ -46,7 +46,8 @@ def test_reference_bundle_roundtrip_keeps_source_local_codes_out_of_canonical_se
     selected = conditions_manifest(tmp_path, original=original)
     bundle = tmp_path / "bundle"
     built = build_reference_artifact(selected, tmp_path, bundle)
-    assert built.schema_version == 5
+    # Conditions build as schema 6 so the dated consumers' indexes exist.
+    assert built.schema_version == 6
     assert built.row_counts["group_condition"] == (5 if original else 6)
     identity = selected.characteristics[0].release_id
     with open_reference_bundle(bundle) as (connection, _):

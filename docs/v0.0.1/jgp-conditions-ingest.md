@@ -32,8 +32,8 @@ The [reviewed taxonomy](jgp-conditions.md) and
   candidate for later executable review only when every reference root is
   `proposed`: currently 455 of 629 groups in 1a (72%) and 98 of 121 in 1ae
   (81%); the original 46/2026 sheet has 518 of 702 (74%).
-- The existing `minos data build` publishes schema 5 only when characteristics
-  are selected. Earlier source manifests keep their schema version. Ingestion
+- The existing `minos data build` publishes schema 6 when characteristics are
+  selected (schema 5 before the #32/#46 consumers added their indexes). Earlier source manifests keep their schema version. Ingestion
   remains offline, transactional and deterministic; failure publishes no bundle.
 - Bundle opening rechecks manifest bindings, dictionaries, counts, provenance,
   payload types, graph order/arity/depth, source occurrences and exact catalog
@@ -212,3 +212,60 @@ All current source text fits the tightened guard, gap and connector shapes
 the two corrections above. Remaining unsupported text is genuine: contextual
 `z poniższej listy` references, procedure titles after literal codes, second
 age bounds and source wording outside the taxonomy.
+
+## Conservative Consumer Follow-Up (#32 / #46 Branch)
+
+The combined branch recognizes a second explicitly unit-labelled age bound,
+binds `z poniższej listy` to the next physical ICD-10 declaration in the same
+group, and consumes a procedure title only when an exact code/title pair is
+already present in an explicit source list. Ambiguous clause text, exceptions,
+connector crossings, missing units and unmatched titles remain unsupported.
+Unnamed below-list declarations have their own physical identity; they do not
+alias a same-group named list. Blank spacer cells are retained as evidence.
+
+With unchanged pinned workbook bytes and member/evidence counts, fully
+structured current coverage increases from 455/629 to 491/629 in 1a and from
+98/121 to 109/121 in 1ae. The original 1a is 569/702, and after-74 1a is 486/627.
+Reviewed structural/count expectations and the transformation version change
+explicitly. These figures are reference interpretation coverage, not grouper
+or settlement accuracy.
+
+Dated API/UI consumers apply a whole-group gate: one unsupported node suppresses
+all structured rule display. Source clauses and cited evidence remain readable;
+list membership remains source evidence, never encounter qualification.
+Physical list pages preserve duplicates, marks and exact missing-correspondence
+states, and reverse lookup uses the same dated characteristics release. The
+additive code-page path leaves existing dictionary URLs and shared layout intact.
+See [the API contract](../api.md#dated-condition-reference-combined-32--46-branch).
+
+The combined MODTAR research build uses schema 6 and measured 253018112 database
+bytes, compared with the historical schema-5 measurements above. It is not the
+production bundle. VPS startup/memory evidence, public activation and reviewed
+modifier binding remain pending; see [the modifier gate](jgp-modifiers-ingest.md).
+
+### Owner Review Of The Consumer Branch (2026-10-03)
+
+The review rebuilt the production manifest (byte-identical deployed schema-4
+database), compared main and branch responses on it, rebuilt the full-source
+schema-6 bundle twice (identical) and inspected the new pages in Chromium. It
+changed, with a failing test per item:
+
+- Parser: `(poniższej)` is consumed only for the uniquely named list of the
+  same group that physically follows the label; `z poniższej listy` binds only
+  the ICD-10 list whose recorded declaration row is this label, never across a
+  named list heading, and a cell with two such references stays unsupported; a
+  second age bound must be in the opposite direction, in the same unit and
+  leave a non-empty range (`age_bounds_unreviewed` otherwise); procedure-title
+  keywords are matched case-insensitively. Real-source counts are unchanged.
+- MODTAR input must be UTF-8: a UTF-16/32 byte-order mark or NUL byte is
+  refused (expat honours a byte-order mark over a requested encoding).
+- Pages: no "Warunki grupy" text when the deployed data has no characteristics
+  (the API still returns `not_in_bundle`); uncovered dated ICD pages render the
+  branded HTML error; a missing time-zone database omits only the JGP section
+  of an undated ICD page; undated ICD pages with JGP data are cached until
+  midnight in Poland (at most an hour) instead of `no-store`.
+- Display: structured rules render as a nested tree from each source root
+  without internal node numbers; Polish count agreement; list pages show each
+  code once; release identity and checksum moved into the collapsed provenance
+  details; condition act text in Polish; ICD-10 pages note that procedure-led
+  groups (for example adult hernia repair, F73) do not list the diagnosis.
