@@ -302,6 +302,46 @@ before merge and preserve the #102 shared layout and search-first interface.
 See [JGP delivery scope](jgp-delivery-scope.md) for issue ownership and review
 gates.
 
+### JGP Group Browser Pages (2026-10-03)
+
+Owner-approved in #26: JGP groups get their own top-level section, "Grupy
+JGP" at `/jgp`, next to the dictionaries instead of under them. A JGP group is
+a settlement category, not a terminology code, so the never-built "Procedury
+medyczne" dictionary placeholder (home chip and dictionaries card) is removed
+rather than repurposed; no issue tracked it.
+
+- URLs carry the service date as a path segment like the #24 API:
+  `/jgp/{date}` (catalog), `/jgp/{date}/{CODE}` (group) and
+  `/jgp/{date}/zakres/{n}` (catalog limited to one "Zakres świadczeń" column).
+  No query string is accepted, and the date picker navigates by path because
+  the CSP forbids form submission.
+- `/jgp` and `/jgp/{CODE}` redirect (302, `no-store`) to today in
+  Europe/Warsaw; missing time-zone data is an explicit 503, never a UTC guess.
+  Dates after the knowledge horizon show the horizon notice. Lowercase codes
+  redirect permanently to the uppercase URL.
+- Pages are server-rendered from one bundle lease per request and complete
+  without JavaScript. `jgp.js` adds the date picker and a local code/name
+  filter (case and Polish diacritics folded) that sends no request, writes no
+  URL and stores nothing. The zakres filter is a server-side page because it
+  must use the scope markers of the row valid on the date: a section 4(5)
+  twin and its deferred 2027-01-01 row can carry different markers.
+- Pages are `noindex, follow` until the validation launch decides otherwise.
+  Dated pages use the page cache policy; redirects and errors are `no-store`.
+  The edge cache map passes the application's `Cache-Control` through for
+  `/jgp` and `/api/v1/jgp/`, which also removes the duplicate header the JGP
+  API carried after #24.
+- Measure labels quote the reviewed source column headers, empty catalog cells
+  read "brak wartości w katalogu" (never 0), and every page states "punkty
+  bazowe wg katalogu, bez modyfikatorów" with the governing act, BAW document,
+  service-start evidence, knowledge horizon and workbook checksum.
+- A group page links to the next row window when its row ends, and to the
+  previous day only when the row starts inside its release; before a release
+  start the group may not exist, so only the date picker reaches that day.
+
+The layout follows WikiJGP and the UHC grouper reference tools (version first,
+code-or-name lookup, base points, zakres filter) inside the #102 shared site
+shell.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with
