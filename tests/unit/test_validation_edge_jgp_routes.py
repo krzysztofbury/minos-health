@@ -3,7 +3,7 @@ from typing import cast
 
 import pytest
 
-from minos.http.jgp import JGP_ROUTE
+from minos.http.jgp import JGP_PAGE_ROUTE, JGP_ROUTE
 from scripts.build_validation_edge import _routes  # pyright: ignore[reportPrivateUsage]
 
 CORPUS = (
@@ -46,3 +46,43 @@ def test_edge_and_api_accept_exactly_the_same_jgp_paths(path: str) -> None:
 def test_corpus_covers_both_accepted_and_refused_paths() -> None:
     accepted = [path for path in CORPUS if JGP_ROUTE.fullmatch(path)]
     assert 0 < len(accepted) < len(CORPUS)
+
+
+PAGE_CORPUS = (
+    "/jgp",
+    "/jgp/2026-10-02",
+    "/jgp/2026-10-02/PZD02",
+    "/jgp/2026-10-02/pzd02",
+    "/jgp/2026-10-02/DU05III",
+    "/jgp/2026-10-02/zakres/15",
+    "/jgp/H21",
+    "/jgp/h21",
+    "/jgp/",
+    "/jgp/2026-10-02/",
+    "/jgp/2026-10-02/zakres/0",
+    "/jgp/2026-10-02/zakres/1000",
+    "/jgp/2026-10-02/zakres",
+    "/jgp/2026-10-02/1A01",
+    "/jgp/1999-10-02",
+    "/jgp/2026-10-02/PZD02/extra",
+    "/jgp.js",
+    "/jgpx",
+)
+
+
+def edge_page_pattern() -> re.Pattern[str]:
+    locations = cast(list[str], re.findall(r'location ~ "(\^/jgp\(/[^"]+)"', _routes()))
+    assert len(locations) == 1
+    return re.compile(locations[0])
+
+
+@pytest.mark.parametrize("path", PAGE_CORPUS)
+def test_edge_and_app_accept_exactly_the_same_jgp_pages(path: str) -> None:
+    assert bool(edge_page_pattern().search(path)) == bool(
+        JGP_PAGE_ROUTE.fullmatch(path)
+    )
+
+
+def test_page_corpus_covers_both_accepted_and_refused_paths() -> None:
+    accepted = [path for path in PAGE_CORPUS if JGP_PAGE_ROUTE.fullmatch(path)]
+    assert 0 < len(accepted) < len(PAGE_CORPUS)

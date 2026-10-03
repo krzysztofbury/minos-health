@@ -96,17 +96,21 @@ def _release_provenance(
 ) -> dict[str, object]:
     with query_budget(connection):
         release = cast(
-            tuple[str, int, str, str, str, str, str, str | None, str, str] | None,
+            tuple[str, int, str, str, str, str, str, str | None, str, str, str] | None,
             connection.execute(
                 """SELECT act_number, baw_document_id, act_date, published_on,
                     service_from, service_evidence, modifier_binding, supersedes,
-                    workbook_sha256, recorded_at
+                    workbook_sha256, recorded_at,
+                    json_extract(manifest_json, '$.document_url')
                 FROM catalog_release WHERE id = ?""",
                 (release_id,),
             ).fetchone(),
         )
     if release is None or release[6] != "unbound":
         raise ArtifactError("resolved catalog release is inconsistent")
+    # Checked again on read: pages turn this URL into a link.
+    if not release[10].startswith(f"https://baw.nfz.gov.pl/NFZ/document/{release[1]}/"):
+        raise ArtifactError("catalog release document URL is not its BAW document")
     return {
         "release_id": release_id,
         "act_number": release[0],
@@ -118,6 +122,7 @@ def _release_provenance(
         "supersedes": release[7],
         "workbook_sha256": release[8],
         "recorded_at": release[9],
+        "document_url": release[10],
     }
 
 
@@ -133,12 +138,24 @@ def catalog_group(
         rows = cast(
             list[
                 tuple[
-                    str, int, int, str, str, int, str, str | None, str, str | None, str
+                    str,
+                    int,
+                    int,
+                    str,
+                    str,
+                    int,
+                    str,
+                    str | None,
+                    str,
+                    str | None,
+                    str,
+                    int,
                 ]
             ],
             connection.execute(
                 """SELECT catalog, source_row, ordinal, product_code, name, procedural,
-                    chapter, notes, service_from, service_to, applicability_evidence
+                    chapter, notes, service_from, service_to, applicability_evidence,
+                    chapter_position
                 FROM group_definition
                 WHERE release_id = ? AND code = ? AND service_from <= ?
                   AND (service_to IS NULL OR ? <= service_to)""",
@@ -162,6 +179,7 @@ def catalog_group(
             "name": row[4],
             "procedural": bool(row[5]),
             "chapter": row[6],
+            "chapter_position": row[11],
             "notes": row[7],
             "applicability": {
                 "service_from": row[8],
@@ -322,3 +340,115 @@ def catalog_section(
 def points_display(hundredths: int) -> str:
     """Exact decimal text for integer hundredths; clients never divide floats."""
     return f"{hundredths // 100}.{hundredths % 100:02d}"
+
+
+# About 773 groups per reviewed release; well above it means a source change.
+MAX_INDEX_GROUPS = 2_000
+MAX_CALENDAR_DAYS = 50
+
+
+def catalog_calendar(connection: sqlite3.Connection) -> list[str]:
+    """Every day on which the bundle's catalog answer can change, ascending.
+
+    Release starts plus row window edges (102/2026 section 4(5) rows switch on
+    2027-01-01). The first day is the earliest covered service date.
+    """
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[str]],
+            connection.execute(
+                """SELECT day FROM (
+                    SELECT service_from AS day FROM catalog_release
+                    UNION SELECT service_from FROM group_definition
+                    UNION SELECT date(service_to, '+1 day') FROM group_definition
+                    WHERE service_to IS NOT NULL
+                ) ORDER BY day LIMIT ?""",
+                (MAX_CALENDAR_DAYS + 1,),
+            ).fetchall(),
+        )
+    if not rows or len(rows) > MAX_CALENDAR_DAYS:
+        raise ArtifactError("catalog calendar is empty or exceeds its bound")
+    return [day for (day,) in rows]
+
+
+def catalog_scope_labels(
+    connection: sqlite3.Connection, ruleset: dict[str, object]
+) -> list[dict[str, object]]:
+    """The "Zakresy świadczeń" columns of the governing release, in source order.
+
+    Both catalogs share one reviewed label list, so positions name the same
+    scope in 1a and 1ae.
+    """
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[int, str]],
+            connection.execute(
+                """SELECT DISTINCT position, label FROM catalog_scope
+                WHERE release_id = ? ORDER BY position LIMIT 201""",
+                (ruleset["release_id"],),
+            ).fetchall(),
+        )
+    if len({position for position, _ in rows}) != len(rows) or len(rows) > 200:
+        raise ArtifactError("catalog scope labels differ between catalogs")
+    return [{"position": position, "label": label} for position, label in rows]
+
+
+def catalog_index(
+    connection: sqlite3.Connection,
+    ruleset: dict[str, object],
+    scope_position: int | None,
+) -> list[dict[str, object]]:
+    """Every group applying on the date, optionally only those marked for one
+    "zakres świadczeń", with chapter placement and hospitalization points."""
+    service_date = cast(str, ruleset["service_date"])
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[str, int, str, str, str, str, int, int | None, int | None]],
+            connection.execute(
+                """SELECT grouped.catalog, grouped.chapter_position, grouped.chapter,
+                    grouped.code, grouped.product_code, grouped.name, grouped.procedural,
+                    value.amount,
+                    (SELECT mark.marker FROM group_scope AS mark
+                     WHERE mark.release_id = grouped.release_id
+                       AND mark.catalog = grouped.catalog
+                       AND mark.source_row = grouped.source_row
+                       AND mark.position = :scope)
+                FROM group_definition AS grouped
+                LEFT JOIN group_base_value AS value
+                  ON value.release_id = grouped.release_id
+                 AND value.catalog = grouped.catalog
+                 AND value.source_row = grouped.source_row
+                 AND value.measure = 'hospitalization'
+                WHERE grouped.release_id = :release AND grouped.service_from <= :day
+                  AND (grouped.service_to IS NULL OR :day <= grouped.service_to)
+                  AND (:scope IS NULL OR EXISTS (SELECT 1 FROM group_scope AS mark
+                    WHERE mark.release_id = grouped.release_id
+                      AND mark.catalog = grouped.catalog
+                      AND mark.source_row = grouped.source_row
+                      AND mark.position = :scope))
+                ORDER BY grouped.catalog, grouped.chapter_position, grouped.source_row
+                LIMIT :limit""",
+                {
+                    "release": ruleset["release_id"],
+                    "day": service_date,
+                    "scope": scope_position,
+                    "limit": MAX_INDEX_GROUPS + 1,
+                },
+            ).fetchall(),
+        )
+    if len(rows) > MAX_INDEX_GROUPS:
+        raise ArtifactError("catalog index exceeds its bound")
+    return [
+        {
+            "catalog": catalog,
+            "chapter_position": chapter_position,
+            "chapter": chapter,
+            "code": code,
+            "product_code": product,
+            "name": name,
+            "procedural": bool(procedural),
+            "hospitalization_hundredths": hospitalization,
+            "scope_marker": marker,
+        }
+        for catalog, chapter_position, chapter, code, product, name, procedural, hospitalization, marker in rows
+    ]

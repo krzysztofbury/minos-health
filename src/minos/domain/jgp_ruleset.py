@@ -36,7 +36,22 @@ class SectionNotOnDate(ReferenceError):
     """The catalog has no chapter at that source position."""
 
 
+class TimeZoneUnavailable(ReferenceError):
+    """The Europe/Warsaw time zone database is missing; no UTC substitute."""
+
+
 MAX_RELEASES = 64
+
+
+def today_in_poland() -> date:
+    """Service dates are Polish calendar dates; UTC is wrong around midnight."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        return datetime.now(ZoneInfo("Europe/Warsaw")).date()
+    except ZoneInfoNotFoundError:
+        raise TimeZoneUnavailable("Europe/Warsaw time zone data is missing") from None
 
 
 @dataclass(frozen=True)

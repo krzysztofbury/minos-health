@@ -125,3 +125,11 @@ state. Attachment 1a publishes no AOTMiT tariff flag, so none is returned.
 
 See [JGP catalog ingestion](v0.0.1/jgp-catalog-ingestion.md) for the release
 evidence, row windows and knowledge horizon.
+
+The same data is served as HTML pages under `/jgp` (`GET` only, no query
+strings): `/jgp/{service_date}`, `/jgp/{service_date}/{code}` and
+`/jgp/{service_date}/zakres/{position}`, where `position` is the 1-based
+"Zakres świadczeń" column of the reviewed layout. `/jgp` and `/jgp/{code}`
+redirect to today in Europe/Warsaw. Page errors use the same cases as the API,
+rendered as uncached HTML; see the
+[JGP page decision](v0.0.1/decisions.md#jgp-group-browser-pages-2026-10-03).

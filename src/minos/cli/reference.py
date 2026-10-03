@@ -4,7 +4,7 @@ import json
 import sys
 from argparse import ArgumentParser
 from collections.abc import Sequence
-from datetime import date, datetime
+from datetime import date
 from importlib.metadata import version
 from pathlib import Path
 from typing import ClassVar, Literal, NoReturn, Protocol, cast, override
@@ -16,6 +16,8 @@ from minos.domain.jgp_ruleset import (
     GroupNotOnDate,
     KnowledgeBeyondBundle,
     NoRulesetForDate,
+    TimeZoneUnavailable,
+    today_in_poland,
 )
 from minos.domain.reference import ArtifactError, QueryLimitError, ReferenceError
 from minos.domain.search import (
@@ -170,7 +172,7 @@ def execute_reference(arguments: dict[str, object]) -> int:
         return _error(
             8, "no_jgp_catalog", "This bundle contains no JGP catalog.", output_json
         )
-    except _TimeZoneUnavailable:
+    except TimeZoneUnavailable:
         return _error(
             2,
             "timezone_unavailable",
@@ -243,22 +245,8 @@ def _build(arguments: _BuildArguments) -> int:
     return 0
 
 
-class _TimeZoneUnavailable(Exception):
-    pass
-
-
 class _NoCatalogInBundle(Exception):
     pass
-
-
-def _today_in_poland() -> date:
-    # Service dates are Polish calendar dates; UTC would be wrong around midnight.
-    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
-    try:
-        return datetime.now(ZoneInfo("Europe/Warsaw")).date()
-    except ZoneInfoNotFoundError:
-        raise _TimeZoneUnavailable from None
 
 
 def _given_date(value: str | None) -> date | None:
@@ -281,7 +269,7 @@ def _group(arguments: _GroupArguments) -> int:
     service_date = _given_date(arguments.service_date)
     known_on = _given_date(arguments.known_on)
     # One clock reading, so both defaults agree even across midnight.
-    today = _today_in_poland() if service_date is None or known_on is None else None
+    today = today_in_poland() if service_date is None or known_on is None else None
     selection = {
         "service_date": "explicit" if service_date else "default_today_europe_warsaw",
         "known_on": "explicit" if known_on else "default_today_europe_warsaw",

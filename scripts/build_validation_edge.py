@@ -18,7 +18,7 @@ PAGE_ROUTES = (
     ("/slowniki/icd-10", "dictionary-icd-10.html"),
     ("/slowniki/icd-9", "dictionary-icd-9.html"),
 )
-ASSET_ROUTES = ("/search.js", "/dictionary.js")
+ASSET_ROUTES = ("/search.js", "/dictionary.js", "/jgp.js")
 
 
 def _routes() -> str:
@@ -111,6 +111,16 @@ def _routes() -> str:
             if ($request_uri ~ "\\?") { return 404; }
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
             proxy_hide_header Cache-Control;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        # JGP pages: today-redirects, dated catalog, group and scope pages.
+        # Lowercase codes pass so the API can redirect them to uppercase.
+        location ~ "^/jgp(/(20[0-9]{2}-[0-9]{2}-[0-9]{2}(/([A-Za-z]{1,4}[0-9]{2,3}[A-Za-z]{0,3}|zakres/[1-9][0-9]{0,2}))?|[A-Za-z]{1,4}[0-9]{2,3}[A-Za-z]{0,3}))?$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method != GET) { return 405; }
             proxy_pass http://reference-api:8081;
             proxy_connect_timeout 1s;
             proxy_read_timeout 3s;

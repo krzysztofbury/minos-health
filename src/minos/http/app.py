@@ -25,7 +25,12 @@ from minos.domain.search import (
     SearchRequest,
     prepare_query,
 )
-from minos.http.jgp import JGP_ROUTE, register_jgp_routes
+from minos.http.jgp import (
+    JGP_PAGE_ROUTE,
+    JGP_ROUTE,
+    register_jgp_pages,
+    register_jgp_routes,
+)
 from minos.http.pages import (
     CODE_PATTERN,
     DICTIONARIES,
@@ -258,6 +263,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                     if RANK_ROUTE.fullmatch(request.url.path)
                     else "/api/v1/jgp"
                     if JGP_ROUTE.fullmatch(request.url.path)
+                    else "/jgp"
+                    if JGP_PAGE_ROUTE.fullmatch(request.url.path)
                     else "unmatched",
                     "method": request.method
                     if request.method in ("GET", "POST", "HEAD", "OPTIONS")
@@ -466,6 +473,7 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
     register_jgp_routes(
         app, failure=failure, disclaimer=DISCLAIMER, cache_control=PAGE_CACHE
     )
+    register_jgp_pages(app, cache_control=PAGE_CACHE)
     return app
 
 

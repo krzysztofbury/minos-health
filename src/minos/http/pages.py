@@ -54,8 +54,8 @@ DICTIONARIES: Final = {
 }
 
 
-def _shell() -> str:
-    return files("minos.http").joinpath("page_shell.html").read_text(encoding="utf-8")
+def _shell(name: str = "page_shell.html") -> str:
+    return files("minos.http").joinpath(name).read_text(encoding="utf-8")
 
 
 def _e(value: object) -> str:
@@ -72,7 +72,14 @@ def _json_ld(value: object) -> str:
 
 
 def _page(
-    *, title: str, description: str, path: str, content: str, head: str, robots: str
+    *,
+    title: str,
+    description: str,
+    path: str,
+    content: str,
+    head: str,
+    robots: str,
+    template: str = "page_shell.html",
 ) -> str:
     values = {
         "title": html.escape(title),
@@ -82,7 +89,9 @@ def _page(
         "head_extra": head,
         "content": content,
     }
-    return re.sub(r"\{\{([a-z_]+)\}\}", lambda match: values[match.group(1)], _shell())
+    return re.sub(
+        r"\{\{([a-z_]+)\}\}", lambda match: values[match.group(1)], _shell(template)
+    )
 
 
 def code_path(dictionary: Dictionary, code: str) -> str:

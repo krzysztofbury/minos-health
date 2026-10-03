@@ -37,7 +37,11 @@ def test_nginx_exposes_only_the_exact_public_projection_endpoint() -> None:
     cache_map = configuration.split("map $request_uri $minos_cache_control {", 1)[1]
     cache_map = cache_map.split("}", 1)[0]
     assert 'default "no-store";' in cache_map
-    assert "api" not in cache_map and "provenance" not in cache_map
+    assert "provenance" not in cache_map
+    # The edge never makes an API response cacheable; JGP API entries only pass
+    # the application's own header through (an empty value adds nothing).
+    api_entries = [line.strip() for line in cache_map.splitlines() if "api" in line]
+    assert api_entries == ['~^/api/v1/jgp/ "";']
     assert "img-src 'self' data:" in configuration
     assert (
         'add_header Cross-Origin-Opener-Policy "same-origin" always;' in configuration

@@ -67,7 +67,7 @@ try {
     await send("Page.navigate", { url: home });
     await wait('document.querySelector("#query") && !document.querySelector("#query").disabled && !document.querySelector(\'input[value="icd9-pl"]\').disabled');
     assert.equal(await evaluate('document.querySelector(\'input[value="icd10-pl"]\').checked'), true);
-    assert.equal(await evaluate("document.querySelectorAll('.filter-soon').length"), 2);
+    assert.equal(await evaluate("document.querySelectorAll('.filter-soon').length"), 1); // ICD-11 only; JGP has its own section since #26
     await evaluate('document.querySelector(\'input[value="icd9-pl"]\').click()');
     await evaluate('document.querySelector("#query").focus(); document.querySelector("#query").value="badania moczu"; document.querySelector("#query").dispatchEvent(new Event("input",{bubbles:true}))');
     await wait('document.querySelectorAll("#suggestions .suggestion").length > 0');
