@@ -1,9 +1,10 @@
 # JGP Attachment 9 Condition Taxonomy
 
-Status: #29 research complete, proposed model awaiting owner review. Inspected
-2026-10-03. This is not a condition importer, a reviewed executable ruleset,
-or evidence of settlement accuracy. #30 must not start before this taxonomy
-is reviewed. #32 remains responsible for date-consistent reference links.
+Status: #29 research complete and reviewed on 2026-10-03 against the pinned
+sources (see [Review Verification](#review-verification)); #30 may start from
+this taxonomy. This is not a condition importer, a reviewed executable ruleset,
+or evidence of settlement accuracy. #32 remains responsible for
+date-consistent reference links.
 
 ## Findings
 
@@ -21,7 +22,11 @@ The difficult cases are not just procedure counts:
 - Some labels require procedures from different lists, different dates, both
   breasts, a minimum procedure duration, or every member of a list repeatedly.
 - N09 and N11 are KOC-only characteristics without matching current catalog 1a
-  rows. They must not be discarded or turned into invented base-point products.
+  rows (the original 46/2026 catalog had both). They must not be discarded or
+  turned into invented base-point products.
+- Five current groups state a condition only in the group title, with no
+  matching label clause: N03, N03A, N06A and N06B (`> 2 dni`) and PD01
+  (`< 18 r.ż.`). A label-only parser would silently drop them.
 - 1a and 1ae have separate shared lists, including different `Lista Ogólna`
   membership. Identical names do not establish interchangeable list identities.
 - DiLO/oncology exceptions and grouper preprocessing are not completely described
@@ -75,13 +80,17 @@ No Office application, macro, external resource or formula was executed.
 
 ### Physical Layout
 
-| Document / worksheet | Last physical row | XML last column | Expanded package bytes |
+| Document / worksheet | Last XML row | XML last column | Expanded package bytes |
 | --- | ---: | --- | ---: |
 | 43868 / `Charakterystyka` | 40,046 | I | 10,237,310 |
 | 43943 / `Charakterystyka 1a` | 37,138 | F | 12,381,316 (whole workbook) |
 | 43943 / `Charakterystyka 1ae` | 10,421 | C | same package |
 | 44042 / `Charakterystyka 1a` | 37,466 | G | 12,478,037 (whole workbook) |
 | 44042 / `Charakterystyka 1ae` | 10,416 | F | same package |
+
+The last XML row includes trailing formatted empty rows: the last nonempty row
+is 40,044 / 37,136 / 37,464 for the three 1a-context sheets above and equal to
+the XML row for both 1ae sheets.
 
 Columns A/B/C hold section, group/list context, and text respectively. All
 values beyond C are empty in these captures; saved worksheet dimensions alone
@@ -97,6 +106,8 @@ ICD-9a, then a later alternative with ICD-10b/ICD-9b. E31's marker changed from
 `ICD-10 (B)` to `ICD-10b`. A first-ICD-marker stop or a blank-row separator would
 lose conditions. Titles of ICD codes are not label predicates: P07.0's title
 contains weight and `lub`, which must not create an extra age/weight/OR rule.
+Group titles are a separate case, covered in
+[Group Title Qualifiers](#group-title-qualifiers).
 
 ## Proposed Row Contract
 
@@ -222,7 +233,9 @@ alternatives, repeated annotation text or shared-list reuse. They overlap:
 procedure presence includes count/all-members/guard evidence; nontrivial count
 means explicit cardinality greater than one or repetition, not every `1
 procedury` spelling. Duration in a procedure's code title is not an additional
-episode-length predicate. These are research counts, not #30 import acceptance
+episode-length predicate. The counts cover label clauses only: they exclude
+the five title-only qualifiers listed in
+[Group Title Qualifiers](#group-title-qualifiers). These are research counts, not #30 import acceptance
 counts. The [census recipe](jgp-conditions-census.md) makes their lexical scope
 and exact source pins reproducible without parsing executable conditions.
 
@@ -265,7 +278,7 @@ Paragraph numbers are capture-local evidence, not official legal numbering.
 
 | Algorithm evidence | Taxonomy consequence / owner |
 | --- | --- |
-| Glossary, paragraphs 65-79 | Directional procedure/diagnosis lists and ranks define candidate routing, not clinical priority. Rank 0 is ignored, ranks 1-3 are once-only, and rank 4 permits reviewed repeated use. Missing rank is not zero. #33 supplies evidence, #34-#36 execute. |
+| Glossary, paragraphs 64-79 | Directional procedure/diagnosis lists and ranks define candidate routing, not clinical priority. Rank 0 is ignored, ranks 1-3 are once-only, and rank 4 permits reviewed repeated use. Missing rank is not zero. #33 supplies evidence, #34-#36 execute. |
 | 4.1, paragraphs 97-103 | Whole-episode conditions, negative lists and oncology exceptions. The rehabilitation-specific distinct-code/distinct-day rule must not be generalized to SZP. |
 | 4.2-4.3, paragraphs 105-113 | Procedure-first routing, conservative fallback and the special marker described for N24. An `any` label is not a cheapest/highest-points selection algorithm; provider selection among valid groups remains distinct. |
 | 4.5-4.6, paragraphs 119-129 | Specialty/service/code exclusions remove data and sometimes duration before evaluation. Missing specialty row means no listed exclusion, not rank zero. Adult continuation consent can bypass the pediatric age restriction only after consent-type verification. |
@@ -316,6 +329,40 @@ Paragraph numbers are capture-local evidence, not official legal numbering.
    interpretation. Retain the original expression and require reviewed scope
    where syntax does not establish it; do not infer a generic Polish precedence
    grammar from commas or `lub` alone.
+
+7. **Group-title qualifiers can be the only source of a condition.** See
+   [Group Title Qualifiers](#group-title-qualifiers).
+
+### Group Title Qualifiers
+
+Algorithm paragraph 64 defines a group as having a code, a name and a
+characteristic described by parameters; the name is not itself a parameter.
+In the original 46/2026 workbook every comparative qualifier in a group title
+also appears as a label clause (206 age titles, 46 duration titles). In the
+current 1a sheet, 188 of 189 age titles and 41 of 45 duration titles do, but
+five do not:
+
+| Group | Title qualifier | Current label | Evidence |
+| --- | --- | --- | --- |
+| N03, N03A | `z porodem > 2 dni` | no duration clause | Original N03 label C20416 ended `czas pobytu > 5 dni`; after 74 the title became `> 2 dni` and the clause was removed |
+| N06A, N06B | `leczenie > 2 dni`, `leczenie zabiegowe > 2 dni` | no duration clause | Current C18769-C18772, C18945-C18946 |
+| PD01 | `< 18 r.ż.` | no age clause | Current C22424-C22425; new group after 74 |
+
+The catalog (attachment 1a) names carry the same qualifiers, so this is
+consistent source wording, not a workbook typo. Whether such a qualifier is an
+eligibility condition, an algorithm routing artifact or a naming remnant is
+not established by attachment 9. #30 must record it as a typed
+`title_qualifier` evidence node with `interpretation_status = unsupported`
+until reviewed. It must neither drop it nor promote it to an executable
+`episode_duration`/`patient_age` node from the title alone.
+
+Descriptive title qualifiers are a different class: ward (`w oddziale
+udarowym` in A48/A48T, `przed przeniesieniem do oddziału specjalistycznego` in
+J29), complications (`z powikłaniami`, `bez pw`) and newborn wording appear in
+titles without the same words in labels. They are realized, if at all, by
+lists (for example the Dpw/Epw complication lists), group precedence or the
+contract/specialty gate (algorithm 4.8), and stay title evidence rather than
+parsed predicates.
 
 ### DiLO / Oncology Boundary
 
@@ -371,15 +418,16 @@ not #20's production version-diff implementation.
 | DL03 | C4257 adds another alternative requiring a DD01a procedure. |
 | N03/N03A | C18428/C18472/C18474 add parentheses around `(88.781 lub 88.789)` inside the mandatory subset. |
 | HK11A/PZB01 | C13456 changes HK11 to HK11a; C25357-C25393 changes PZB01 sublist labels/markers and adds the secondary diagnosis list. Exact reference identity changes. |
-| D46/D50/DL01/DL02 | Procedure-list membership changes although main label text is unchanged. D50 also moves a member between physical lists. |
+| D46/D50/DL01/DL02 | Procedure-list membership changes although main label text is unchanged: each gains 33.22 and 33.24 (D52A also gains them, plus 34.041). D50 also moves 99.998 between physical lists. |
 | G1/H96D | G1 gains 88.976, affecting G36 indirectly; H96D gains M30.1/M31.0/M31.3, also used by H96C. |
-| `Lista Ogólna` in both sheets | Both remove M46.0/M46.1/M46.2/M46.3/M46.4/M46.5/M46.8. 1ae additionally gains J98.4/J98.8. Unchanged group labels still have changed qualification evidence. |
+| `Lista Ogólna` in both sheets | Both drop the second occurrence of M46.0/M46.1/M46.2/M46.3/M46.4/M46.5/M46.8, each listed twice after 74; 1a membership is unchanged. 1ae gains J98.4/J98.8, so unchanged 1ae group labels still have changed qualification evidence. Duplicate members are source evidence, not extra list entries. |
 | DD01/DD03/D19/D20/E31 | Whitespace/reordering, procedure-title casing and an ICD-list-marker spelling change. Preserve them; do not label all raw changes as medical-semantic changes. |
 
 The ten existing 1a groups with changed label/annotation strings are D45,
 D52A, D55, DD01, DD03, DL03, HK11A, N03, N03A and PZB01. The full 20 changed
 contexts additionally include D19, D20, D46, D50, DL01, DL02, E31, G1, H96D
-and `Lista Ogólna`. No 1ae group label changed, but its shared general list did.
+and `Lista Ogólna`. No 1ae group label changed, but its shared general list
+gained two members.
 Counts alone would miss these changes.
 
 ## Review And #30 Handoff
@@ -399,6 +447,9 @@ Required #30 fixtures and build checks:
 - N22/N24 marked membership guards, E05G clinical guards, D52A's limited
   secondary-diagnosis exemption, N03's included mandatory subset, E11 dates,
   J02BO sites and K47L's per-member repetition.
+- The five title-only qualifiers (N03, N03A, N06A, N06B, PD01) as unsupported
+  `title_qualifier` evidence, and a duplicated list member (current
+  `Lista Ogólna` history) kept as evidence without changing set membership.
 - N09/N11 characteristics without catalog values, unspecified diagnosis roles,
   missing measurements/units and ambiguous inline alternatives. Unknown is not
   false, true, zero, or evidence that a condition does not apply.
@@ -413,3 +464,22 @@ the lexical census. #32 may expose source-backed list membership with these
 limitations; membership alone never establishes encounter eligibility. No
 database schema, ingestion behavior, API, UI, deployment, Cloudflare setting,
 MODTAR binding or settlement calculation changes in #29.
+
+## Review Verification
+
+The 2026-10-03 review reproduced, against the pinned captures and the
+deployed reference bundle, rather than trusting the research output:
+
+- all four SHA-256 values and the DOCX pin in the #33 manifests;
+- all five census tables, exactly, from the published recipe;
+- 55 cited cell references (sheet, group context and quoted text);
+- the rank facts (85.261 SZP rank 3; L91 only in `AOS 2026`, rank 4, row 1175)
+  and catalog counts (1a 646 rows / 627 codes, 1ae 127 / 121; N09/N11 only in
+  the original catalog);
+- the cited algorithm paragraphs, including paragraph 111's N24-only marker;
+- the 43943 to 44042 drift: 20 changed and 2 added 1a contexts, 10 changed
+  label strings, one changed 1ae context, and every membership claim above.
+
+It corrected two statements: `Lista Ogólna` lost duplicate rows, not members,
+in 1a; and group-title qualifiers, absent from the first draft, can be the only
+source of a condition.

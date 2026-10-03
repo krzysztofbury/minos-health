@@ -63,6 +63,8 @@ put unverified points in front of users.
        Delivered as /jgp (#118, deployed to the validation host 2026-10-03).
 3. [ ] #29 in parallel with step 2, since it is the schedule risk; then #30
        and #32 for the "występuje w grupach" reverse lookup from any ICD code.
+       #29 done: [condition taxonomy](docs/v0.0.1/jgp-conditions.md), reviewed
+       2026-10-03 (#121); #30 is next.
 4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
        before final points. #35 must reject unbound modifiers, never interpret
        that state as no modifiers applying or return base points as final.
