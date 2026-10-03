@@ -109,7 +109,9 @@ text (BAW `akt.xml`) and the BAW watcher's publication evidence:
 
 | Release | Services from | Published (knowledge) | Supersedes | Evidence |
 | --- | --- | --- | --- | --- |
-| Original 46/2026 | 2026-05-01 | 2026-04-30 | none | "Zarządzenie wchodzi w życie z dniem 1 maja 2026 r." (repeals 101/2025) |
+| Original 101/2025 | 2026-01-01 | 2025-12-23 | none | 101/2025 § 30: "Zarządzenie wchodzi w życie z dniem 1 stycznia 2026 r." (repeals 37/2024) |
+| 101/2025 after 14/2026 | 2026-01-01 | 2026-02-09 | original 101/2025 | 14/2026 § 5: "stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2026 r."; § 1 pkt 2 replaces attachment 1a |
+| Original 46/2026 | 2026-05-01 | 2026-04-30 | 101/2025 after 14 (repeal) | "Zarządzenie wchodzi w życie z dniem 1 maja 2026 r." (repeals 101/2025) |
 | After 74/2026 | 2026-07-01 | 2026-07-23 | original | 74/2026 § 4: "stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r." |
 | After 102/2026 | 2026-07-01 | 2026-09-23 | after 74 | 102/2026 § 4 ust. 1: the same date "z zastrzeżeniem ust. 2-5" |
 
@@ -117,8 +119,24 @@ A service date resolves against the releases that cover it and were
 published by the chosen knowledge date. Candidates explicitly superseded by
 another candidate drop out, and exactly one must remain. Otherwise the answer
 is `NoRulesetForDate` (nothing covers the date) or `AmbiguousRuleset`
-(unsuperseded overlap). Services before 2026-05-01 belong to the unpinned
-101/2025 lineage and fail explicitly.
+(unsuperseded overlap). Services before 2026-01-01 (37/2024) are not covered
+and fail explicitly.
+
+101/2025 was amended by 1/2026 (adds attachment 3), 14/2026 (replaces
+attachment 1a) and 32/2026 (replaces attachments 1b and 3a). Only 14/2026
+changes attachment 1a: its replacement workbook is byte-identical to the
+consolidated attachment 1a after 14/2026 and after 32/2026, and 682 of 702
+groups change value (A01 hospitalization 13 507.00 to 13 586.00 points). Both
+101/2025 workbooks use the reviewed `nfz-1a-46-2026` layout, and the after-14
+values equal the original 46/2026 catalog exactly. 14/2026 § 2 adds a
+correction coefficient (old divided by new points) from 2026-01-01 to
+2026-08-31 for providers not meeting the food-service standard; that is a
+modifier (#46), recorded as a notice and never folded into base points.
+
+Supersession within one act's lineage may apply retroactively (14/2026,
+74/2026). A different act may supersede only by repealing it going forward:
+46/2026 supersedes 101/2025 after 14 from 2026-05-01, and the manifest refuses a
+cross-act supersession from the same or an earlier service start.
 
 Release windows have no end date because a later act may never come. To keep
 that from becoming a silent latest-release fallback, the dataset manifest pins

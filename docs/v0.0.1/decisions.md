@@ -358,6 +358,25 @@ The layout follows WikiJGP and the UHC grouper reference tools (version first,
 code-or-name lookup, base points, zakres filter) inside the #102 shared site
 shell.
 
+### JGP Coverage From January 2026 And MODTAR References (2026-10-03)
+
+Owner decisions:
+
+- The reviewed catalog lineage now starts at 2026-01-01 with 101/2025/DSOZ
+  (original and after 14/2026, the only amendment that replaced attachment
+  1a). 46/2026 supersedes it by repeal from 2026-05-01. Cross-act
+  supersession is allowed only forward in service time; amendments within one
+  act may still apply retroactively.
+- MODTAR binding resolves each mapping against the catalog governing that
+  mapping's own months. One trailing `.` or `_` is removed when the resulting
+  group exists there (`C14.`, `P42.`, `P52_`). `Z01_S` has no public
+  definition and is read as Z01 by explicit owner assumption for exactly that
+  literal. Every 2026 MODTAR group reference now resolves; binding still
+  requires a reviewed legal overlay.
+
+See [JGP catalog ingestion](jgp-catalog-ingestion.md) and
+[MODTAR ingestion](jgp-modifiers-ingest.md).
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with

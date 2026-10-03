@@ -58,6 +58,7 @@ def _reference_lines(
     matched against a later catalog."""
     exact: set[str] = set()
     normalized: dict[str, str] = {}
+    assumed: dict[str, str] = {}
     unresolved: dict[str, set[str]] = {}
     uncovered: set[str] = set()
     for row in rows:
@@ -84,12 +85,17 @@ def _reference_lines(
                 unresolved.setdefault(literal, set()).add(window.release_id)
             elif match[1] == "exact":
                 exact.add(literal)
+            elif match[1] == "owner_assumption":
+                assumed[literal] = match[0]
             else:
                 normalized[literal] = match[0]
     return [
         f"  - {len(exact)} references resolve exactly in the catalog governing their months.",
         f"  - {len(normalized)} resolve after removing one trailing '.' or '_' (owner rule 2026-10-03): "
         + (", ".join(f"{k} -> {v}" for k, v in sorted(normalized.items())) or "none")
+        + ".",
+        f"  - {len(assumed)} read by explicit owner assumption without public NFZ evidence: "
+        + (", ".join(f"{k} -> {v}" for k, v in sorted(assumed.items())) or "none")
         + ".",
         f"  - {len(unresolved)} remain unresolved: "
         + (

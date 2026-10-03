@@ -165,16 +165,25 @@ def test_dataset_supersession_must_point_back_within_one_lineage() -> None:
             ).read_text()
         ),
     )
+    # The reviewed lineage: 101/2025 -> 14/2026 consolidation, repealed going
+    # forward by 46/2026 from 2026-05-01, then 74/2026 and 102/2026.
     _ = DatasetManifest.model_validate_json(json.dumps(reviewed))
-    for index, field, value, message in (
-        (2, "supersedes", "jgp-catalog-missing", "is not pinned"),
-        (1, "supersedes", reviewed["catalogs"][2]["release_id"], "later publication"),
-        (1, "source_document_id", 43718, "another lineage"),
+    ids = [cast(str, item["release_id"]) for item in reviewed["catalogs"]]
+    after_14 = next(i for i in ids if "101-2025-after-14" in i)
+    original_46 = next(i for i in ids if "46-2026-original" in i)
+    after_102 = next(i for i in ids if "46-2026-after-102" in i)
+    for target, field, value, message in (
+        (after_102, "supersedes", "jgp-catalog-missing", "is not pinned"),
+        (after_14, "supersedes", after_102, "later publication"),
+        # Another act may supersede only going forward, never from the same
+        # (or an earlier) service start: that would rewrite the repealed act.
+        (original_46, "service_from", "2026-01-01", "another lineage"),
     ):
         changed = cast(
             dict[str, list[dict[str, object]]], json.loads(json.dumps(reviewed))
         )
-        changed["catalogs"][index][field] = value
+        item = next(i for i in changed["catalogs"] if i["release_id"] == target)
+        item[field] = value
         with pytest.raises(ValidationError, match=message):
             _ = DatasetManifest.model_validate_json(json.dumps(changed))
 
@@ -202,3 +211,28 @@ def test_override_on_a_repeated_ordinal_is_refused(tmp_path: Path) -> None:
     parsed = parse_catalog_workbook(BytesIO(content), manifest)
     with pytest.raises(SourceError, match="missing or ambiguous"):
         _ = row_windows(parsed, manifest)
+
+
+def test_a_repealing_act_governs_only_from_its_own_start() -> None:
+    releases = (
+        ReleaseWindow("101-original", date(2026, 1, 1), date(2025, 12, 23), None),
+        ReleaseWindow(
+            "101-after-14", date(2026, 1, 1), date(2026, 2, 9), "101-original"
+        ),
+        ReleaseWindow(
+            "46-original", date(2026, 5, 1), date(2026, 4, 30), "101-after-14"
+        ),
+    )
+    horizon = date(2026, 10, 2)
+
+    def governing(day: date, known_on: date = horizon) -> str:
+        return resolve_release(releases, day, known_on).release_id
+
+    # 14/2026 is retroactive to January once published; before that, the
+    # original 101/2025 still answered.
+    assert governing(date(2026, 1, 15), date(2026, 2, 8)) == "101-original"
+    assert governing(date(2026, 1, 15)) == "101-after-14"
+    assert governing(date(2026, 4, 30)) == "101-after-14"
+    assert governing(date(2026, 5, 1)) == "46-original"
+    with pytest.raises(NoRulesetForDate):
+        _ = governing(date(2025, 12, 31))

@@ -156,7 +156,15 @@ class CatalogWindow:
     groups: frozenset[str]
 
 
-type Resolution = Literal["exact", "trailing_punctuation_removed"]
+type Resolution = Literal["exact", "trailing_punctuation_removed", "owner_assumption"]
+
+# Literal references with no public definition, read by explicit owner decision.
+# Z01_S (2026-10-03): no meaning of "_S" found in the MODTAR XML, the CZS
+# dictionary-service documentation or the CZS MODTAR browser; it occurs only
+# under section 17 (17.1, 17.18) and KON_1 (comprehensive oncology) modifiers.
+# Read as Z01 until NFZ evidence says otherwise. Exactly this literal; no
+# general "_S" rule.
+OWNER_ASSUMPTIONS: dict[str, str] = {"Z01_S": "Z01"}
 
 
 def resolve_group_reference(
@@ -165,13 +173,17 @@ def resolve_group_reference(
     """Exact group, or one trailing `.` / `_` removed when that group exists.
 
     Owner rule (2026-10-03): MODTAR's `C14.`, `P42.` and `P52_` are read as
-    C14, P42 and P52 only when the governing catalog has that group. Nothing
-    else is normalized: `Z01_S` or a prefix family stays unresolved.
+    C14, P42 and P52 only when the governing catalog has that group. `Z01_S`
+    is read as Z01 only through the explicit OWNER_ASSUMPTIONS entry. No other
+    suffix is stripped and no prefix family is derived.
     """
     if literal in groups:
         return literal, "exact"
     if literal[-1:] in (".", "_") and literal[:-1] in groups:
         return literal[:-1], "trailing_punctuation_removed"
+    assumed = OWNER_ASSUMPTIONS.get(literal)
+    if assumed is not None and assumed in groups:
+        return assumed, "owner_assumption"
     return None
 
 

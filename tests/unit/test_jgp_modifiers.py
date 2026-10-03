@@ -199,7 +199,9 @@ def test_incompatible_or_unreviewed_binding_cannot_qualify_as_complete(
         ("C14.", {"C14"}, ("C14", "trailing_punctuation_removed")),
         ("P52_", {"P52"}, ("P52", "trailing_punctuation_removed")),
         ("C14.", {"C15"}, None),  # only when the stripped group exists
-        ("Z01_S", {"Z01"}, None),  # meaning of _S unknown: never stripped
+        ("Z01_S", {"Z01"}, ("Z01", "owner_assumption")),  # explicit owner decision
+        ("Z01_S", {"Z02"}, None),  # only when Z01 exists in the governing catalog
+        ("C14_S", {"C14"}, None),  # no general "_S" rule
         ("C14..", {"C14"}, None),  # one character only
         ("C1", {"C14"}, None),  # never a prefix family
     ],
