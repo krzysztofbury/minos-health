@@ -98,7 +98,7 @@ def date_bar(service_date: str, suffix: str, calendar: list[str]) -> str:
     first is the earliest covered service date.
     """
     links = "".join(
-        f'<a class="dictionary-tab" href="/jgp/{_e(day)}{_e(suffix)}">{_e(day)}</a>'
+        f'<li><a class="dictionary-tab" href="/jgp/{_e(day)}{_e(suffix)}">{_e(day)}</a></li>'
         for day in calendar
         if day != service_date
     )
@@ -109,7 +109,7 @@ def date_bar(service_date: str, suffix: str, calendar: list[str]) -> str:
         + f'<input class="tree-search-input" type="date" id="jgp-date" value="{_e(service_date)}"'
         + f' min="{_e(calendar[0])}" data-suffix="{_e(suffix)}">'
         + (
-            f'<span class="jgp-quick" role="list" aria-label="Dni zmian w katalogu">{links}</span>'
+            f'<ul class="jgp-quick" aria-label="Dni zmian w katalogu">{links}</ul>'
             if links
             else ""
         )
@@ -192,7 +192,7 @@ def index_page(
     status = (
         f"{len(groups)} {plural_pl(len(groups), 'grupa', 'grupy', 'grup')} w {chapters}"
         + f" {'rozdziale' if chapters == 1 else 'rozdziałach'}."
-        + " Rozwiń rozdział strzałką lub kliknięciem."
+        + " Rozwiń rozdział kliknięciem lub klawiszem Enter."
         if groups
         else "Brak grup dla tego wyboru w tym dniu."
     )
@@ -214,12 +214,14 @@ def index_page(
         + ' spellcheck="false"></div></div>\n',
         f'        <p class="tree-status jgp-filter-status" role="status" aria-live="polite">{status}</p>\n',
         '        <div class="tree-layout">\n',
-        '          <div class="tree-pane">\n',
     ]
-    parts.extend(_catalog_lists(service_date, groups, scope is not None))
+    # No groups: the status line says so; an empty bordered pane would not.
+    if groups:
+        parts.append('          <div class="tree-pane">\n')
+        parts.extend(_catalog_lists(service_date, groups, scope is not None))
+        parts.append("          </div>\n")
     parts.append(
-        "          </div>\n"
-        + '          <aside class="detail jgp-release" aria-label="Wydanie katalogu">'
+        '          <aside class="detail jgp-release" aria-label="Wydanie katalogu">'
         + f'<p class="jgp-points-note"><strong>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}.</strong>'
         + f" {_e(MODIFIERS_NOTE)}</p>"
         + provenance(ruleset)
@@ -258,7 +260,8 @@ def _scope_picker(
         '        <div class="jgp-scope">\n'
         + '          <span class="tree-search-label" id="jgp-scope-label">Zakres świadczeń</span>\n'
         + '          <details class="jgp-scopes"><summary class="tree-search-input"'
-        + f' aria-describedby="jgp-scope-label"><span>{chosen}</span>{CHEVRON}</summary>'
+        + ' aria-labelledby="jgp-scope-label jgp-scope-value">'
+        + f'<span id="jgp-scope-value">{chosen}</span>{CHEVRON}</summary>'
         + f"<ul>{reset}{links}</ul></details>\n"
         + "        </div>\n"
     )

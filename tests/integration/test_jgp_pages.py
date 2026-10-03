@@ -98,7 +98,7 @@ def test_scope_filter_follows_the_row_valid_on_the_day(
     # H21's chirurgia ogólna marker belongs to the twin that ends 2026-12-31.
     page = client.get(f"/jgp/{day}/zakres/15").text
     assert listed_codes(page) == codes
-    assert '<span>chirurgia ogólna</span><span class="tree-toggle"' in page
+    assert '<span id="jgp-scope-value">chirurgia ogólna</span>' in page
     assert "pierwszy z zakresów wymienionych w nagłówku" in page
     assert f'href="/jgp/{day}/zakres/15" aria-current="page"' in page
 

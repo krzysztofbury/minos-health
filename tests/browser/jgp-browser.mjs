@@ -70,7 +70,7 @@ try {
   const noOverflow = async () => assert.equal(await evaluate("document.documentElement.scrollWidth > window.innerWidth"), false);
   const listed = "[...document.querySelectorAll('.jgp-list li[data-search]')].filter(row => !row.hidden).map(row => row.querySelector('.code-chip').textContent)";
   await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable"); await send("Log.enable");
-  for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]]) {
+  for (const [name, width, height] of [["desktop", 1440, 1000], ["laptop", 1024, 768], ["mobile", 390, 844]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
 
     // Catalog: chapters closed, filter revealed only by jgp.js, base-points label.
@@ -85,11 +85,14 @@ try {
     // Filter: case and diacritics folded, local only, no request and no URL change.
     // A chapter opened by hand before filtering is open again once it clears.
     await evaluate("document.getElementById('k-1ae-1').open = true");
+    // A collapsed catalog opens for matches and closes again afterwards.
+    await evaluate("document.querySelector('.jgp-catalog-part details').open = false");
     const before = requests.length;
     await send("Runtime.evaluate", { expression: "document.getElementById('jgp-filter').focus()" });
     await send("Input.insertText", { text: "DUZE" });
     await wait("document.querySelector('.jgp-filter-status').textContent === 'Pasuje: 1 z 6 grup'");
     assert.deepEqual(await evaluate(listed), ["PZD02"]);
+    assert.equal(await evaluate("document.querySelector('.jgp-catalog-part details').open"), true);
     assert.equal(await evaluate("[...document.querySelectorAll('.jgp-chapter')].filter(chapter => !chapter.hidden && chapter.open).length"), 1);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.jgp-catalog-part')].filter(part => !part.hidden).map(part => part.querySelector('.jgp-catalog-title').textContent)"), ["Katalog grup 1a"]);
     assert.equal(await evaluate("location.href"), new URL("/jgp/2026-07-10", url).href);
@@ -101,8 +104,9 @@ try {
     await noOverflow();
     await shot(`jgp-filter-${name}`);
     await evaluate("const box = document.getElementById('jgp-filter'); box.value = ''; box.dispatchEvent(new Event('input'))");
-    assert.equal(await evaluate("document.querySelector('.jgp-filter-status').textContent"), "6 grup w 2 rozdziałach. Rozwiń rozdział strzałką lub kliknięciem.");
+    assert.equal(await evaluate("document.querySelector('.jgp-filter-status').textContent"), "6 grup w 2 rozdziałach. Rozwiń rozdział kliknięciem lub klawiszem Enter.");
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.jgp-chapter')].map(chapter => chapter.id + ':' + chapter.open + ':' + chapter.hidden)"), ["k-1a-1:false:false", "k-1ae-1:true:false"]);
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('.jgp-catalog-part > details')].map(branch => branch.open)"), [false, true]);
 
     // Keyboard date change navigates by path, never by query string.
     await send("Runtime.evaluate", { expression: "document.getElementById('jgp-date').focus()" });
@@ -121,6 +125,9 @@ try {
     await wait("document.querySelector('.jgp-scopes').open");
     await noOverflow();
     await shot(`jgp-scopes-${name}`);
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+    await wait("!document.querySelector('.jgp-scopes').open && document.activeElement === document.querySelector('.jgp-scopes > summary')");
 
     // Scope filter: zakres 15 keeps only groups marked for chirurgia ogólna.
     await visit("/jgp/2026-07-10/zakres/15", "document.querySelector('.jgp-row')");
