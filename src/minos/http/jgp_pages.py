@@ -76,6 +76,21 @@ def marker_meaning(marker: object) -> str:
     return MARKERS[marker]
 
 
+CHEVRON: Final = (
+    '<span class="tree-toggle" aria-hidden="true">'
+    + '<svg viewBox="0 0 12 12"><path d="M4 2l4 4-4 4"/></svg></span>'
+)
+
+
+def plural_pl(count: int, one: str, few: str, many: str) -> str:
+    """Polish count agreement: 1 grupa, 2 grupy, 5 grup, 22 grupy, 12 grup."""
+    if count == 1:
+        return one
+    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return few
+    return many
+
+
 def date_bar(service_date: str, suffix: str, calendar: list[str]) -> str:
     """Date choice without a form or query string: links, enhanced by jgp.js.
 
@@ -83,35 +98,37 @@ def date_bar(service_date: str, suffix: str, calendar: list[str]) -> str:
     first is the earliest covered service date.
     """
     links = "".join(
-        f'<a href="/jgp/{_e(day)}{_e(suffix)}">{_e(day)}</a>'
+        f'<li><a class="dictionary-tab" href="/jgp/{_e(day)}{_e(suffix)}">{_e(day)}</a></li>'
         for day in calendar
         if day != service_date
     )
     return (
-        '        <div class="jgp-datebar">\n'
-        + '          <label for="jgp-date">Dzień udzielenia świadczenia</label>\n'
-        + f'          <input type="date" id="jgp-date" value="{_e(service_date)}"'
-        + f' min="{_e(calendar[0])}" data-suffix="{_e(suffix)}">\n'
-        + f'          <p class="jgp-quick">Inny dzień: {links}</p>\n'
+        '        <div class="jgp-date">\n'
+        + '          <label class="tree-search-label" for="jgp-date">Dzień udzielenia świadczenia</label>\n'
+        + '          <div class="jgp-date-row">'
+        + f'<input class="tree-search-input" type="date" id="jgp-date" value="{_e(service_date)}"'
+        + f' min="{_e(calendar[0])}" data-suffix="{_e(suffix)}">'
+        + (
+            f'<ul class="jgp-quick" aria-label="Dni zmian w katalogu">{links}</ul>'
+            if links
+            else ""
+        )
+        + "</div>\n"
         + "        </div>\n"
     )
 
 
-def ruleset_notice(ruleset: dict[str, object]) -> str:
-    parts = [
-        f'        <p class="jgp-points-note"><strong>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}.</strong>'
-        + f" {_e(MODIFIERS_NOTE)}</p>\n"
-    ]
-    if ruleset["service_date_after_knowledge"] is True:
-        parts.append(
-            '        <p class="badge badge-warn jgp-horizon">Stan wiedzy Minos: '
-            + f"{_e(ruleset['knowledge_as_of'])}. Dla tego dnia może obowiązywać"
-            + " późniejsze zarządzenie, którego Minos jeszcze nie uwzględnia.</p>\n"
-        )
-    return "".join(parts)
+def horizon_badge(ruleset: dict[str, object]) -> str:
+    if ruleset["service_date_after_knowledge"] is not True:
+        return ""
+    return (
+        '        <p class="badge badge-warn jgp-horizon">Stan wiedzy Minos: '
+        + f"{_e(ruleset['knowledge_as_of'])}. Późniejsze zarządzenie może jeszcze"
+        + " nie być uwzględnione.</p>\n"
+    )
 
 
-def provenance(ruleset: dict[str, object]) -> str:
+def provenance(ruleset: dict[str, object], *, heading: str = "h2") -> str:
     facts = [
         ("Zarządzenie Prezesa NFZ", ruleset["act_number"]),
         ("Opublikowano", ruleset["published_on"]),
@@ -132,19 +149,17 @@ def provenance(ruleset: dict[str, object]) -> str:
         else ""
     )
     return (
-        '        <section class="detail-notes jgp-provenance"><h2>Wydanie katalogu na ten dzień</h2>'
-        + f'<dl class="detail-facts">{rows}</dl>{link}</section>\n'
+        f"<{heading}>Wydanie katalogu na ten dzień</{heading}>"
+        + f'<dl class="detail-facts">{rows}</dl>{link}'
     )
 
 
-def _head(crumbs: list[str], title_html: str, lead: str) -> str:
+def _head(crumbs: list[str]) -> str:
     return (
         '      <div class="shell page-head page-head-compact">\n'
         + '        <nav class="breadcrumbs" aria-label="Okruszki">'
         + '<span aria-hidden="true">/</span>'.join(crumbs)
         + "</nav>\n"
-        + f"        <h1>{title_html}</h1>\n"
-        + (f'        <p class="page-lead">{lead}</p>\n' if lead else "")
     )
 
 
@@ -155,35 +170,64 @@ def index_page(
     scope: dict[str, object] | None,
     calendar: list[str],
 ) -> str:
+    """The dictionary-tree layout of /slowniki: catalog, chapter, group."""
     service_date = cast(str, ruleset["service_date"])
     suffix = f"/zakres/{scope['position']}" if scope else ""
     crumbs = [
         '<a href="/jgp">Grupy JGP</a>',
-        f'<a href="/jgp/{service_date}">{service_date}</a>',
+        f'<a href="/jgp/{service_date}">{service_date}</a>'
+        if scope
+        else f'<span aria-current="page">{service_date}</span>',
     ]
     if scope:
-        crumbs.append(_e(scope["label"]))
+        crumbs.append(f'<span aria-current="page">{_e(scope["label"])}</span>')
     lead = (
-        f"Grupy z oznaczeniem w zakresie świadczeń „{_e(scope['label'])}”."
+        f"Grupy oznaczone w katalogu dla zakresu „{_e(scope['label'])}”"
+        + " na wybrany dzień udzielenia świadczenia."
         if scope
-        else "Załącznik 1a do zarządzenia Prezesa NFZ: katalog grup na wybrany dzień"
-        + " udzielenia świadczenia."
+        else f"Załączniki 1a i 1ae do zarządzenia {_e(ruleset['act_number'])}:"
+        + " grupy i punkty bazowe na wybrany dzień udzielenia świadczenia."
+    )
+    chapters = len({(item["catalog"], item["chapter_position"]) for item in groups})
+    status = (
+        f"{len(groups)} {plural_pl(len(groups), 'grupa', 'grupy', 'grup')} w {chapters}"
+        + f" {'rozdziale' if chapters == 1 else 'rozdziałach'}."
+        + " Rozwiń rozdział kliknięciem lub klawiszem Enter."
+        if groups
+        else "Brak grup dla tego wyboru w tym dniu."
     )
     parts = [
-        _head(crumbs, "Katalog grup JGP", lead),
+        _head(crumbs),
+        "        <h1>Katalog grup JGP</h1>\n",
+        f'        <p class="page-lead">{lead}</p>\n',
+        horizon_badge(ruleset),
+        '        <div class="jgp-controls">\n',
         date_bar(service_date, suffix, calendar),
-        ruleset_notice(ruleset),
+        _scope_picker(service_date, scopes, scope),
+        "        </div>\n",
         "      </div>\n",
         '      <div class="shell jgp-catalog">\n',
-        _scope_picker(service_date, scopes, scope),
-        '        <div class="jgp-filter" hidden><label for="jgp-filter">Filtruj: kod lub nazwa grupy</label>'
-        + '<input type="search" id="jgp-filter" autocomplete="off" spellcheck="false">'
-        + '<p class="jgp-filter-status" role="status" aria-live="polite"></p></div>\n',
+        '        <div class="tree-search jgp-filter" hidden>'
+        + '<label class="tree-search-label" for="jgp-filter">Szukaj w katalogu grup</label>'
+        + '<div class="tree-search-row"><input class="tree-search-input" type="search"'
+        + ' id="jgp-filter" placeholder="np. H21 albo endoproteza" autocomplete="off"'
+        + ' spellcheck="false"></div></div>\n',
+        f'        <p class="tree-status jgp-filter-status" role="status" aria-live="polite">{status}</p>\n',
+        '        <div class="tree-layout">\n',
     ]
-    parts.extend(_catalog_lists(service_date, groups, scope is not None))
+    # No groups: the status line says so; an empty bordered pane would not.
+    if groups:
+        parts.append('          <div class="tree-pane">\n')
+        parts.extend(_catalog_lists(service_date, groups, scope is not None))
+        parts.append("          </div>\n")
     parts.append(
-        f'        <p class="detail-source">{_e(LEGEND[0])}</p>\n'
+        '          <aside class="detail jgp-release" aria-label="Wydanie katalogu">'
+        + f'<p class="jgp-points-note"><strong>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}.</strong>'
+        + f" {_e(MODIFIERS_NOTE)}</p>"
         + provenance(ruleset)
+        + f'<p class="detail-source">{_e(LEGEND[0])}</p>'
+        + "</aside>\n"
+        + "        </div>\n"
         + "      </div>"
     )
     title = f"Katalog grup JGP na {service_date} - Minos Health"
@@ -209,14 +253,17 @@ def _scope_picker(
         for item in scopes
     )
     reset = (
-        f'<p><a class="button button-quiet" href="/jgp/{service_date}">Pokaż wszystkie zakresy</a></p>'
-        if scope
-        else ""
+        f'<li><a href="/jgp/{service_date}">Wszystkie zakresy</a></li>' if scope else ""
     )
+    chosen = _e(scope["label"]) if scope else "Wszystkie zakresy"
     return (
-        '        <details class="jgp-scopes"><summary>Zakres świadczeń'
-        + (f": {_e(scope['label'])}" if scope else "")
-        + f"</summary>{reset}<ul>{links}</ul></details>\n"
+        '        <div class="jgp-scope">\n'
+        + '          <span class="tree-search-label" id="jgp-scope-label">Zakres świadczeń</span>\n'
+        + '          <details class="jgp-scopes"><summary class="tree-search-input"'
+        + ' aria-labelledby="jgp-scope-label jgp-scope-value">'
+        + f'<span id="jgp-scope-value">{chosen}</span>{CHEVRON}</summary>'
+        + f"<ul>{reset}{links}</ul></details>\n"
+        + "        </div>\n"
     )
 
 
@@ -224,46 +271,53 @@ def _catalog_lists(
     service_date: str, groups: list[dict[str, object]], with_markers: bool
 ) -> list[str]:
     if not groups:
-        return [
-            '        <p class="empty-state">Brak grup dla tego wyboru w tym dniu.</p>\n'
-        ]
+        return []
     counts = Counter((item["catalog"], item["chapter_position"]) for item in groups)
-    parts: list[str] = []
+    totals = Counter(item["catalog"] for item in groups)
+    parts: list[str] = ['            <ul class="jgp-tree">\n']
     catalog: object = None
     chapter: object = None
     seen: set[tuple[object, object]] = set()
     for group in groups:
         if group["catalog"] != catalog:
             if chapter is not None:
-                parts.append("</ul></details></section>\n")
+                parts.append("</ul></details></li></ul></details></li>\n")
             catalog, chapter = group["catalog"], None
-            # A section per catalog, so jgp.js can hide a heading left empty.
+            # One open branch per catalog, so jgp.js can hide one left empty.
             parts.append(
-                '        <section class="jgp-catalog-part">'
-                + f'<h2 class="jgp-catalog-title">Katalog grup {_e(catalog)}</h2>\n'
+                '            <li class="jgp-catalog-part"><details open>'
+                + f'<summary class="tree-row">{CHEVRON}<span class="tree-text">'
+                + f'<span class="tree-label jgp-catalog-title">Katalog grup {_e(catalog)}</span></span>'
+                + f'<span class="result-count">{totals[catalog]}</span></summary>'
+                + '<ul class="jgp-branch">\n'
             )
         if group["chapter_position"] != chapter:
             if chapter is not None:
-                parts.append("</ul></details>\n")
+                parts.append("</ul></details></li>\n")
             chapter = group["chapter_position"]
             # Rows arrive by chapter; a reopened chapter would duplicate its id.
             if (catalog, chapter) in seen:
                 raise ArtifactError("catalog index rows are not grouped by chapter")
             seen.add((catalog, chapter))
-            count = counts[(catalog, chapter)]
             parts.append(
-                f'        <details class="jgp-chapter" id="k-{_e(catalog)}-{chapter}">'
-                + f'<summary>{_e(group["chapter"])} <span class="result-count">{count}</span></summary>'
-                + '<ul class="jgp-list">'
+                f'              <li><details class="jgp-chapter" id="k-{_e(catalog)}-{chapter}">'
+                + f'<summary class="tree-row">{CHEVRON}<span class="tree-text">'
+                + f'<span class="tree-label">{_e(group["chapter"])}</span></span>'
+                + f'<span class="result-count">{counts[(catalog, chapter)]}</span></summary>'
+                + '<ul class="jgp-branch jgp-list">'
             )
         parts.append(_group_row(service_date, group, with_markers))
-    parts.append("</ul></details></section>\n")
+    parts.append("</ul></details></li></ul></details></li>\n            </ul>\n")
     return parts
 
 
 def _group_row(service_date: str, group: dict[str, object], with_marker: bool) -> str:
     points = cast(int | None, group["hospitalization_hundredths"])
-    shown = f"{points_pl(points)}{NBSP}pkt" if points is not None else "brak wartości"
+    shown = (
+        f"{points_pl(points)}{NBSP}pkt"
+        if points is not None
+        else '<span class="jgp-absent">brak wartości</span>'
+    )
     note = (
         f'<span class="jgp-marker">{_e(marker_meaning(group["scope_marker"]))}</span>'
         if with_marker
@@ -271,7 +325,8 @@ def _group_row(service_date: str, group: dict[str, object], with_marker: bool) -
     )
     search = f"{group['code']} {group['name']}"
     return (
-        f'<li data-search="{_e(search)}"><a class="jgp-row" href="/jgp/{service_date}/{_e(group["code"])}">'
+        f'<li data-search="{_e(search)}"><a class="tree-row jgp-row" href="/jgp/{service_date}/{_e(group["code"])}">'
+        + '<span class="tree-spacer"></span>'
         + f'<span class="code-chip">{_e(group["code"])}</span>'
         + f'<span class="jgp-name">{_e(group["name"])}{note}</span>'
         + f'<span class="jgp-points">{shown}</span></a></li>'
@@ -281,7 +336,8 @@ def _group_row(service_date: str, group: dict[str, object], with_marker: bool) -
 def group_page(
     answer: dict[str, object], calendar: list[str], neighbours: list[tuple[str, str]]
 ) -> str:
-    """`neighbours` are (label, day) links already verified to have this group."""
+    """The /slowniki code-page layout. `neighbours` are (label, day) links
+    already verified to have this group."""
     ruleset = cast(dict[str, object], answer["ruleset"])
     group = cast(dict[str, object], answer["group"])
     service_date = cast(str, ruleset["service_date"])
@@ -290,29 +346,33 @@ def group_page(
     crumbs = [
         '<a href="/jgp">Grupy JGP</a>',
         f'<a href="/jgp/{service_date}">{service_date}</a>',
-        _e(code),
+        f'<span aria-current="page">{_e(code)}</span>',
     ]
     badges = [
         f'<span class="code-chip">{_e(code)}</span>',
-        f'<span class="badge badge-muted">Katalog {_e(catalog)}</span>',
-        f'<span class="badge badge-muted">Produkt {_e(group["product_code"])}</span>',
+        f'<span class="badge badge-muted">Katalog {_e(catalog)}, produkt {_e(group["product_code"])}</span>',
     ]
     if group["procedural"] is True:
         badges.append('<span class="badge badge-muted">Grupa zabiegowa (*)</span>')
     parts = [
-        _head(crumbs, _e(group["name"]), ""),
+        _head(crumbs),
         f'        <p class="detail-code">{" ".join(badges)}</p>\n',
+        f"        <h1>{_e(group['name'])}</h1>\n",
+        horizon_badge(ruleset),
+        '        <div class="jgp-controls">\n',
         date_bar(service_date, f"/{code}", calendar),
-        ruleset_notice(ruleset),
+        "        </div>\n",
+        '        <p class="code-actions">'
+        + f'<a class="button" href="/jgp/{service_date}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">Pokaż w katalogu</a>'
+        + f'<a class="button button-quiet" href="/jgp/{service_date}">Wszystkie grupy na {service_date}</a></p>\n',
         "      </div>\n",
         '      <div class="shell code-page jgp-group">\n',
-        _values_table(answer, catalog),
+        _values(answer, catalog),
         _row_window(code, group, neighbours),
         _scopes(cast(list[dict[str, object]], answer["scopes"])),
         _notes(cast(str | None, group["notes"])),
-        provenance(ruleset),
-        f'        <p class="code-actions"><a class="button" href="/jgp/{service_date}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">'
-        + "Pokaż w katalogu</a></p>\n",
+        f'        <section class="detail-notes jgp-provenance">{provenance(ruleset)}</section>\n',
+        f'        <p class="detail-source">{_e(LEGEND[0])}</p>\n',
         "      </div>",
     ]
     return _jgp_page(
@@ -323,7 +383,7 @@ def group_page(
     )
 
 
-def _values_table(answer: dict[str, object], catalog: str) -> str:
+def _values(answer: dict[str, object], catalog: str) -> str:
     values = {
         cast(str, value["measure"]): value
         for value in cast(list[dict[str, object]], answer["base_values"])
@@ -331,18 +391,19 @@ def _values_table(answer: dict[str, object], catalog: str) -> str:
     rows: list[str] = []
     for measure, label in measure_labels(LAYOUTS[catalog]).items():
         value = values.get(measure)
-        if value is None:
-            shown = '<span class="jgp-absent">brak wartości w katalogu</span>'
         # Built from integers, so not escaped: _e would fold the NBSP to a space.
+        if value is None:
+            shown = '<dd class="jgp-absent">brak wartości w katalogu</dd>'
         elif value["unit"] == "days":
-            shown = days_pl(cast(int, value["amount"]))
+            shown = f'<dd class="jgp-value">{days_pl(cast(int, value["amount"]))}</dd>'
         else:
-            shown = f"{points_pl(cast(int, value['amount']))}{NBSP}pkt"
-        rows.append(f'<tr><th scope="row">{_e(label)}</th><td>{shown}</td></tr>')
+            shown = f'<dd class="jgp-value">{points_pl(cast(int, value["amount"]))}{NBSP}pkt</dd>'
+        rows.append(f"<div><dt>{_e(label)}</dt>{shown}</div>")
     return (
-        '        <table class="jgp-values"><caption>'
-        + f"{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}</caption>"
-        + f"<tbody>{''.join(rows)}</tbody></table>\n"
+        '        <section class="detail-notes jgp-values">'
+        + f"<h2>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}</h2>"
+        + f'<p class="jgp-note">{_e(MODIFIERS_NOTE)}</p>'
+        + f'<dl class="detail-facts">{"".join(rows)}</dl></section>\n'
     )
 
 
@@ -357,29 +418,31 @@ def _row_window(
         + (f" do {_e(end)}" if end else "")
         + "."
     )
-    links = [
-        f'<a href="/jgp/{_e(day)}/{_e(code)}">{_e(label)}</a>'
+    links = "".join(
+        f'<a class="button button-quiet" href="/jgp/{_e(day)}/{_e(code)}">{_e(label)}</a>'
         for label, day in neighbours
-    ]
+    )
     return (
         '        <section class="detail-notes jgp-window"><h2>Obowiązywanie wiersza</h2>'
-        + f'<p>{text}</p><p class="detail-source">{_e(window["evidence"])}</p>'
-        + (f"<p>{' '.join(links)}</p>" if links else "")
+        + f"<p>{text}</p>"
+        + (f'<p class="code-actions">{links}</p>' if links else "")
+        + f'<p class="detail-source">{_e(window["evidence"])}</p>'
         + "</section>\n"
     )
 
 
 def _scopes(scopes: list[dict[str, object]]) -> str:
     items = "".join(
-        f'<li>{_e(scope["label"])} <span class="jgp-marker">{_e(marker_meaning(scope["marker"]))}</span></li>'
+        f'<li><span class="result-label">{_e(scope["label"])}'
+        + f'<span class="jgp-marker">{_e(marker_meaning(scope["marker"]))}</span></span></li>'
         for scope in scopes
     )
     return (
-        '        <section class="detail-notes"><h2>Zakresy świadczeń</h2>'
+        '        <section class="code-children"><h2>Zakresy świadczeń</h2>'
         + (
-            f'<ul class="jgp-scope-list">{items}</ul>'
+            f'<ul class="code-list jgp-scope-list">{items}</ul>'
             if items
-            else "<p>Brak oznaczeń w katalogu.</p>"
+            else '<p class="detail-empty">Brak oznaczeń w katalogu.</p>'
         )
         + "</section>\n"
     )

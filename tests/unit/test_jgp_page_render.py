@@ -90,6 +90,7 @@ def test_after_horizon_dates_carry_a_visible_notice() -> None:
     )
     assert 'jgp-horizon">Stan wiedzy Minos: 2026-10-02' in page
     assert "Brak grup dla tego wyboru w tym dniu." in page
+    assert "tree-pane" not in page  # no empty bordered box
 
 
 def test_error_pages_explain_without_substituting_another_release() -> None:
@@ -143,7 +144,7 @@ def test_catalog_markup_is_balanced_and_quotes_stay_in_attributes() -> None:
         group("1ae", 1, "AU35C", "Trzecia"),
         group("1ae", 2, "SU52", "Czwarta"),
     ]
-    scope: dict[str, object] = {"position": 9, "label": "chirurgia dziecięca"}
+    scope: dict[str, object] = {"position": 9, "label": 'chirurgia <dziecięca> & "x"'}
     page = index_page(RULESET, groups, [scope], scope, CALENDAR)
     parser = Balance()
     parser.feed(page)
@@ -151,6 +152,10 @@ def test_catalog_markup_is_balanced_and_quotes_stay_in_attributes() -> None:
     assert parser.open == []
     assert ("data-search", "A01 Nazwa \"cudzysłów\" i 'apostrof'") in parser.attributes
     assert page.count('class="jgp-catalog-part"') == 2
+    assert (
+        '<span id="jgp-scope-value">chirurgia &lt;dziecięca&gt; &amp; &quot;x&quot;</span>'
+        in page
+    )
     assert page.count("drugi z zakresów wymienionych w nagłówku") == 4
 
 
