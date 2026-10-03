@@ -51,7 +51,7 @@ put unverified points in front of users.
 
 1. [x] #33: procedure ranks per ruleset release, shown on ICD-9 code pages
        (#106, deployed to the validation host 2026-10-02).
-2. [ ] #17, a minimal #18, then #24 and #26: JGP group pages with points per
+2. [x] #17, a minimal #18, then #24 and #26: JGP group pages with points per
        settlement mode, selectable by service date. These are catalog base
        points without modifiers, labelled as such in API and UI. #18 retains
        bitemporal provenance, explicit uncovered-date errors and per-provision
@@ -60,6 +60,7 @@ put unverified points in front of users.
        #46 owns MODTAR binding and section 17 coefficient applicability.
        #26 first delivers shareable date-specific group pages with the governing
        act/catalog identity, not diffs or condition-based ICD cross-links.
+       Delivered as /jgp (#118, deployed to the validation host 2026-10-03).
 3. [ ] #29 in parallel with step 2, since it is the schedule risk; then #30
        and #32 for the "występuje w grupach" reverse lookup from any ICD code.
 4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
@@ -410,7 +411,7 @@ UI remain the baseline.
 - [x] Build the responsive terminology search, dictionary trees, and code pages
       under `apps/web`; embed its immutable output in the edge image and route
       API paths to `minos.http` under the same origin (#102).
-- [ ] Add the shareable service-date JGP group browser with labelled catalog
+- [x] Add the shareable service-date JGP group browser with labelled catalog
       base points and governing act/catalog provenance (#26).
 - [ ] Add JGP version diff views in #104 after #20 and the first #26 delivery.
 - [x] Display code hierarchy, source release, and the safety/compliance
