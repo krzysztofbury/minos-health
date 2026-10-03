@@ -34,14 +34,14 @@ def test_nginx_exposes_only_the_exact_public_projection_endpoint() -> None:
     assert "default_type application/json;" in configuration
     # Uncacheable unless a public page or static asset is explicitly listed.
     assert "add_header Cache-Control $minos_cache_control always;" in configuration
-    cache_map = configuration.split("map $request_uri $minos_cache_control {", 1)[1]
+    cache_map = configuration.split("map $request_uri $minos_cache_route {", 1)[1]
     cache_map = cache_map.split("}", 1)[0]
     assert 'default "no-store";' in cache_map
     assert "provenance" not in cache_map
     # The edge never makes an API response cacheable; JGP API entries only pass
     # the application's own header through (an empty value adds nothing).
     api_entries = [line.strip() for line in cache_map.splitlines() if "api" in line]
-    assert api_entries == ['~^/api/v1/jgp/ "";']
+    assert api_entries == ['~^/api/v1/jgp/ "upstream";']
     assert "img-src 'self' data:" in configuration
     assert (
         'add_header Cross-Origin-Opener-Policy "same-origin" always;' in configuration
@@ -196,6 +196,17 @@ def test_pinned_nginx_serves_only_canonical_public_route(tmp_path: Path) -> None
         )
         for path in rejected:
             assert _curl(port, path, "minoshealth.pl").endswith("STATUS:404")
+        # JGP routes pass the application's header through; the edge's own
+        # refusals there have no upstream header and must still be no-store.
+        for path in (
+            "/jgp/2026-07-10?x=1",
+            "/jgp/2026-07-10/A01/extra",
+            "/jgp?x=1",
+            "/api/v1/jgp/x",
+        ):
+            refused = _curl(port, path, "minoshealth.pl").lower()
+            assert refused.endswith("status:404"), path
+            assert refused.count("cache-control: no-store") == 1, path
         assert _curl(port, "/api/v1/provenance/rsk", "untrusted.invalid").endswith(
             "STATUS:404"
         )
