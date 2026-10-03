@@ -15,6 +15,8 @@ model.
   search, grouping, API, and runtime.
 - [data-sources.md](data-sources.md): every upstream source, its endpoints,
   cadence, and the watcher/archive rules.
+- [jgp-conditions.md](jgp-conditions.md): source-backed attachment 9 taxonomy,
+  proposed typed conditions, frequency census and #30 review boundaries.
 - [data-and-licensing.md](data-and-licensing.md): provenance requirements and
   the code/data licensing boundary, including the Art. 4 position.
 - [deployment.md](deployment.md): image lifecycle, CI/CD, the Mikr.us Compose
