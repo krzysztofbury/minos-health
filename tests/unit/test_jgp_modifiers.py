@@ -5,10 +5,13 @@ from io import BytesIO
 import pytest
 
 from minos.domain.jgp_modifiers import (
+    CatalogWindow,
     LegalMapping,
     LegalOverlay,
+    governing_windows,
     mappings,
     reconcile_legal_overlay,
+    resolve_group_reference,
     select_reviewed_mappings,
 )
 from minos.domain.reference import SourceError
@@ -106,13 +109,23 @@ def test_non_catalog_source_references_survive_without_substitution(
     assert release.modifiers[0].periods[0].groups == ("A01", code.decode())
 
 
+# Two catalog releases in one calendar year, like 46/2026 and its July
+# consolidation: MODTAR months are checked against the catalog of each window.
+WINDOWS = (
+    CatalogWindow(
+        "catalog-first", date(2026, 1, 1), date(2026, 6, 30), frozenset({"A01", "A02"})
+    ),
+    CatalogWindow("catalog-second", date(2026, 7, 1), None, frozenset({"A01", "A02"})),
+)
+
+
 def overlay_for_source() -> LegalOverlay:
     release = parse_modifiers(BytesIO(XML), year=2026, generation=100)
     return LegalOverlay(
         2026,
         100,
         "SZP",
-        "catalog-synthetic",
+        ("catalog-first", "catalog-second"),
         date(2026, 10, 3),
         ("Synthetic owner-reviewed legal clauses, not real NFZ acceptance",),
         tuple(
@@ -137,16 +150,15 @@ def test_explicit_legal_windows_override_publication_and_the_july_month_field() 
             release,
             overlay,
             date.fromisoformat(day),
-            catalog_release_id="catalog-synthetic",
-            catalog_groups=frozenset({"A01", "A02"}),
+            catalog_windows=WINDOWS,
         )
         for day in ("2026-06-30", "2026-07-01", "2026-09-30", "2026-10-01")
     }
-    assert {row[5] for row in selected["2026-06-30"]} == {"1.025"}
-    assert {row[5] for row in selected["2026-07-01"]} == {"1.20"}
-    assert {row[0] for row in selected["2026-09-30"]} == {"M1"}
-    assert {row[0] for row in selected["2026-10-01"]} == {"M1", "M6a"}
-    assert all(row[2] == "A" for rows in selected.values() for row in rows)
+    assert {row[5] for row, _ in selected["2026-06-30"]} == {"1.025"}
+    assert {row[5] for row, _ in selected["2026-07-01"]} == {"1.20"}
+    assert {row[0] for row, _ in selected["2026-09-30"]} == {"M1"}
+    assert {row[0] for row, _ in selected["2026-10-01"]} == {"M1", "M6a"}
+    assert all(row[2] == "A" for rows in selected.values() for row, _ in rows)
 
 
 @pytest.mark.parametrize(
@@ -157,15 +169,10 @@ def test_incompatible_or_unreviewed_binding_cannot_qualify_as_complete(
 ) -> None:
     release = parse_modifiers(BytesIO(XML), year=2026, generation=100)
     overlay = overlay_for_source()
-    groups = frozenset({"A01", "A02"})
+    windows = WINDOWS
     if failure == "unbound":
         with pytest.raises(SourceError, match="unbound"):
-            _ = reconcile_legal_overlay(
-                release,
-                None,
-                catalog_release_id="catalog-synthetic",
-                catalog_groups=groups,
-            )
+            _ = reconcile_legal_overlay(release, None, catalog_windows=windows)
         return
     elif failure == "year":
         overlay = replace(overlay, year=2025)
@@ -179,11 +186,87 @@ def test_incompatible_or_unreviewed_binding_cannot_qualify_as_complete(
             overlay, rows=(replace(overlay.rows[0], mapping=changed), *overlay.rows[1:])
         )
     else:
-        groups = frozenset({"A01"})
+        # A02 is gone from the July catalog, but its mapping reaches July.
+        windows = (WINDOWS[0], replace(WINDOWS[1], groups=frozenset({"A01"})))
     with pytest.raises(SourceError):
-        _ = reconcile_legal_overlay(
-            release,
-            overlay,
-            catalog_release_id="catalog-synthetic",
-            catalog_groups=groups,
+        _ = reconcile_legal_overlay(release, overlay, catalog_windows=windows)
+
+
+@pytest.mark.parametrize(
+    ("literal", "groups", "expected"),
+    [
+        ("C14", {"C14"}, ("C14", "exact")),
+        ("C14.", {"C14"}, ("C14", "trailing_punctuation_removed")),
+        ("P52_", {"P52"}, ("P52", "trailing_punctuation_removed")),
+        ("C14.", {"C15"}, None),  # only when the stripped group exists
+        ("Z01_S", {"Z01"}, None),  # meaning of _S unknown: never stripped
+        ("C14..", {"C14"}, None),  # one character only
+        ("C1", {"C14"}, None),  # never a prefix family
+    ],
+)
+def test_group_references_follow_the_owner_normalization_rule(
+    literal: str, groups: set[str], expected: tuple[str, str] | None
+) -> None:
+    assert resolve_group_reference(literal, frozenset(groups)) == expected
+
+
+def test_a_dropped_group_is_valid_only_in_the_months_of_its_own_catalog() -> None:
+    xml = XML.replace(
+        b'<okres mies_od="7" mies_do="12" wart_wsp="1.20"><grupy_jgp kod_jgp="A02"/></okres>',
+        b'<okres mies_od="1" mies_do="6" wart_wsp="1.20"><grupy_jgp kod_jgp="C14."/></okres>',
+    )
+    release = parse_modifiers(BytesIO(xml), year=2026, generation=100)
+    windows = (
+        replace(WINDOWS[0], groups=frozenset({"A01", "A02", "C14"})),
+        WINDOWS[1],  # the July catalog no longer has C14
+    )
+
+    def overlay(end: date) -> LegalOverlay:
+        return replace(
+            overlay_for_source(),
+            rows=tuple(
+                LegalMapping(
+                    row,
+                    date(2026, 1, 1),
+                    end if row[6] == "C14." else date(2026, 12, 31),
+                    "Synthetic reviewed window",
+                )
+                for row in mappings(release)
+            ),
         )
+
+    # January-June mapping to C14. resolves (one trailing '.' removed) in the
+    # catalog governing those months, never against the July catalog.
+    _ = reconcile_legal_overlay(
+        release, overlay(date(2026, 6, 30)), catalog_windows=windows
+    )
+    selected = select_reviewed_mappings(
+        release, overlay(date(2026, 6, 30)), date(2026, 3, 2), catalog_windows=windows
+    )
+    assert ("C14.", "C14") in {(row[6], group) for row, group in selected}
+    # Reviewing the same mapping into July would claim a group July lacks.
+    with pytest.raises(SourceError, match="governing its window"):
+        _ = reconcile_legal_overlay(
+            release, overlay(date(2026, 7, 31)), catalog_windows=windows
+        )
+
+
+def test_days_without_a_reviewed_catalog_refuse_instead_of_borrowing() -> None:
+    later = (replace(WINDOWS[0], service_from=date(2026, 5, 1)), WINDOWS[1])
+    with pytest.raises(SourceError, match="not covered"):
+        _ = governing_windows(later, date(2026, 1, 1), date(2026, 6, 30))
+    assert governing_windows(later, date(2026, 5, 1), date(2026, 7, 2)) == later
+    gap = (replace(WINDOWS[0], service_to=date(2026, 6, 29)), WINDOWS[1])
+    with pytest.raises(SourceError, match="not covered"):
+        _ = governing_windows(gap, date(2026, 6, 1), date(2026, 7, 5))
+
+
+def test_overlay_must_name_exactly_the_catalogs_its_windows_cross() -> None:
+    release = parse_modifiers(BytesIO(XML), year=2026, generation=100)
+    for named in (("catalog-second",), ("catalog-first", "catalog-second", "x")):
+        with pytest.raises(SourceError, match="catalog releases conflict"):
+            _ = reconcile_legal_overlay(
+                release,
+                replace(overlay_for_source(), catalog_release_ids=named),
+                catalog_windows=WINDOWS,
+            )

@@ -47,26 +47,34 @@ checksums and structural checks still run when a connection opens. A changed
 coefficient, header, group reference or missing inactive row fails validation,
 even after an artifact checksum is recomputed.
 
-Research candidates explicitly select generation 100 for the after-74 catalog
-and generation 102 for the after-102 catalog. They are **pending**, not compatible
-bindings. Each candidate contains 71 distinct literal group references absent
-from its selected catalog. `review.txt` enumerates them. The operational source
+Research candidates point generation 100 at the after-74 catalog and
+generation 102 at the after-102 catalog for the API's `review_candidate`. They
+are **pending** research pointers, not compatible bindings. Checked against one selected catalog, each candidate showed 71
+absent literal group references; `review.txt` now classifies every reference
+per catalog window instead (below). The operational source
 also cites other governing acts; it has no explicit section 17(6a) citation.
 These discrepancies block complete binding and require legal/source review.
 
-Owner review (2026-10-03) traced most of them: 67 of the 71 are groups of the
-original 46/2026 catalog that the after-74 consolidation dropped, and in both
-generations every one of their 149 mappings carries January-June months only
-(1-1, 1-6 or 2-6), never July-December. MODTAR is therefore a calendar-year
-dictionary spanning several catalog releases, not a companion of one catalog.
-Binding must resolve each mapping against the catalog release governing the
-mapping's own service window (original 46/2026 from 2026-05-01, after-74 and
-after-102 from 2026-07-01; January-April falls under 101/2025, which the bundle
-does not cover), not against a single selected catalog. The one-catalog check
-in `reconcile_legal_overlay` encodes the latter and must change before an
-overlay is accepted. Four references remain unexplained source identifiers:
-`C14.`, `P42.`, `P52_` and `Z01_S` (the last two also carry July-December
-months); they are preserved literally and need NFZ evidence.
+Owner review (2026-10-03) traced them: 67 of the 71 are groups of the
+original 46/2026 catalog that the after-74 consolidation dropped, and every one
+of their 149 mappings carries January-June months only. MODTAR is a
+calendar-year dictionary spanning several catalog releases, so binding resolves
+each mapping against the catalog release governing the mapping's own service
+window, never against one selected catalog (`CatalogWindow`,
+`governing_windows`, `reconcile_legal_overlay`).
+
+Owner rule for literal references (2026-10-03): one trailing `.` or `_` is
+removed only when the resulting code is a group in the governing window's
+catalog, and the literal is kept beside the resolved code. `Z01_S` is not
+normalized: the meaning of `_S` is unknown. No prefix family is ever derived.
+
+With both pinned generations, per window of each mapping's months: 532
+(generation 100) and 534 (generation 102) references resolve exactly; `C14.`,
+`P42.` and `P52_` resolve to C14, P42 and P52 under the owner rule; only
+`Z01_S` remains unresolved (it blocks binding of its own mappings); and 421
+references also carry January-April months, which fall under 101/2025 and stay
+unbound because the bundle has no reviewed catalog for them. `review.txt`
+reports these classes per generation.
 
 The domain reconciliation boundary requires exact source inventory, matching
 year, generation, grouper type and catalog identity, plus explicit reviewed

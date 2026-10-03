@@ -83,7 +83,7 @@ def resolve_ruleset(
     )
     modifiers: dict[str, object] = dict(unbound_modifiers())
     if connection.execute("PRAGMA user_version").fetchone()[0] >= 6:
-        from minos.store.jgp_modifiers import modifier_review_candidate
+        from minos.store.jgp_modifier_candidate import modifier_review_candidate
 
         candidate = modifier_review_candidate(connection, governing.release_id)
         if candidate is not None:
