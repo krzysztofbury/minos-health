@@ -181,8 +181,10 @@ It tightened source/payload reconstruction, guard occurrences, parent status,
 scalar bounds and canonical codec refusal, and separated markerless member
 evidence from predicates. The extraction/reader functions slightly exceed 70
 lines to keep one finite layout scan and its error/cleanup boundary together;
-they are not recursive grammars. Human review is still required before merge;
-deployment needs separate approval. No UI change needs a browser check in #30.
+they are not recursive grammars. Owner review (below) corrected the importer
+before merge; #122 merged and deployed to the validation host on 2026-10-03 as
+a code change only, since the production manifest still selects schema 4. No
+UI change needs a browser check in #30.
 
 ## Owner Review (2026-10-03)
 

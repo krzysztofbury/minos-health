@@ -1,8 +1,8 @@
 # JGP Attachment 9 Condition Taxonomy
 
 Status: #29 research complete and reviewed on 2026-10-03 against the pinned
-sources (see [Review Verification](#review-verification)); #30 may start from
-this taxonomy. This is not a condition importer, a reviewed executable ruleset,
+sources (see [Review Verification](#review-verification)). #30 implements it:
+see [condition import](jgp-conditions-ingest.md) (#122). This is not a condition importer, a reviewed executable ruleset,
 or evidence of settlement accuracy. #32 remains responsible for
 date-consistent reference links.
 

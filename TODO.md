@@ -64,7 +64,9 @@ put unverified points in front of users.
 3. [ ] #29 in parallel with step 2, since it is the schedule risk; then #30
        and #32 for the "występuje w grupach" reverse lookup from any ICD code.
        #29 done: [condition taxonomy](docs/v0.0.1/jgp-conditions.md), reviewed
-       2026-10-03 (#121); #30 is next.
+       2026-10-03 (#121). #30 done: [source-traced condition import](docs/v0.0.1/jgp-conditions-ingest.md)
+       (#122, deployed to the validation host 2026-10-03; the public bundle
+       stays schema 4 until #32). #32 is next.
 4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
        before final points. #35 must reject unbound modifiers, never interpret
        that state as no modifiers applying or return base points as final.
@@ -332,8 +334,8 @@ UI remain the baseline.
 
 - [x] Download and fixture the RSK ICD-10 XML (HCD `00CD10`) and the NFZ ICD-9
       PL XML/XLSX.
-- [ ] Fixture załącznik 9 (charakterystyka JGP, #29/#30) and CZS MODTAR XML
-      (#46). The watchers already archive the source bytes. Komunikat algorithm
+- [ ] Fixture CZS MODTAR XML (#46). Załącznik 9 fixtures landed with #30
+      (synthetic in-repo, pinned private captures opt-in). The watchers already archive the source bytes. Komunikat algorithm
       and rank fixtures landed with #33; załącznik 1a catalog fixtures with #17.
 - [x] Record source identity for every archived file: URL or UUID, byte size,
       computed SHA-256, upstream timestamps, publisher, and disclaimers, without
@@ -344,8 +346,8 @@ UI remain the baseline.
 - [x] Define terminology, concept, description, and source-release tables.
 - [ ] Define group, base-tariff and ruleset-release tables with bitemporal
       fields and per-provision applicability (#18, including the 102/2026
-      deferred catalog rows); add conditions in #30 and modifiers/binding in
-      #46. Base-only rulesets explicitly record modifiers as unbound.
+      deferred catalog rows); conditions landed in #30 (schema 5);
+      modifiers/binding remain in #46. Base-only rulesets explicitly record modifiers as unbound.
 - [x] Implement streaming XML parsing with explicit validation errors; reject
       DTDs and external entities; bound depth, value size, record count,
       source bytes, and parser resource use.
@@ -361,12 +363,15 @@ UI remain the baseline.
       and mandatory review; reconcile it against CZS MODTAR mappings.
 - [x] Reject duplicate codes, broken parents, missing descriptions, and unknown
       structural elements that affect meaning in terminology sources.
-- [ ] Reject unresolved JGP list references (#30).
+- [x] Reject unresolved JGP list references (#30): persisted selectors always
+      resolve; an unresolvable reference is unsupported evidence, never a
+      dangling selector.
 - [x] Build the database transactionally and reproducibly; emit a
       machine-readable artifact manifest and database checksum.
 - [ ] Emit a human-readable diff against the previous release (#20).
 - [x] Validate complete-dataset counts and hierarchy integrity for terminology.
-- [ ] Validate JGP list reference integrity (#30, #31).
+- [ ] Validate JGP list reference integrity across versions (#31); within one
+      release it is enforced by #30.
 
 ## Domain And Search
 
