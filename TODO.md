@@ -66,10 +66,16 @@ put unverified points in front of users.
        #29 done: [condition taxonomy](docs/v0.0.1/jgp-conditions.md), reviewed
        2026-10-03 (#121). #30 done: [source-traced condition import](docs/v0.0.1/jgp-conditions-ingest.md)
        (#122, deployed to the validation host 2026-10-03; the public bundle
-       stays schema 4 until #32). #32 is next.
+       stays schema 4 until #32). #32 and conservative interpretation gaps are
+       in progress on the combined #32/#46 branch; source/API validation is local,
+       not public schema activation.
 4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
        before final points. #35 must reject unbound modifiers, never interpret
-       that state as no modifiers applying or return base points as final.
+        that state as no modifiers applying or return base points as final.
+        #46 source import now preserves pinned generations 100/102 and pending
+        reconciliation. [Legal-overlay and compatible-binding review](docs/v0.0.1/jgp-modifiers-ingest.md)
+        remains required; neither research candidates nor synthetic transition
+        tests close that gate.
 5. [ ] External: show steps 1-2 to the practitioner from #4 and request the
        complete anonymized encounters needed by #37 and #38.
 

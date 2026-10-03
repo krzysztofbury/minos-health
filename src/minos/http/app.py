@@ -9,6 +9,7 @@ import uuid
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
@@ -18,6 +19,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from minos.cli.reference_output import search_envelope
+from minos.domain import jgp_conditions as c
+from minos.domain.jgp_ruleset import (
+    NoRulesetForDate,
+    TimeZoneUnavailable,
+    today_in_poland,
+)
 from minos.domain.reference import ArtifactError, QueryLimitError
 from minos.domain.search import (
     SEARCH_VERSION,
@@ -31,6 +38,8 @@ from minos.http.jgp import (
     register_jgp_pages,
     register_jgp_routes,
 )
+from minos.http.jgp_condition_pages import membership_section
+from minos.http.jgp_pages import date_bar
 from minos.http.pages import (
     CODE_PATTERN,
     DICTIONARIES,
@@ -40,6 +49,10 @@ from minos.http.pages import (
 )
 from minos.http.reference import CapacityError, ReferencePool
 from minos.store.artifact import dataset_identity
+from minos.store.jgp_condition_reference import (
+    characteristics_calendar,
+    code_memberships,
+)
 from minos.store.komunikat import procedure_rank_evidence
 from minos.store.search import search_reference
 from minos.store.tree import (
@@ -53,7 +66,9 @@ from minos.store.tree import (
 
 LOGGER = logging.getLogger("minos.http")
 TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
-PAGE_ROUTE = re.compile(r"/slowniki/icd-(?:10|9)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}")
+PAGE_ROUTE = re.compile(
+    r"/slowniki/icd-(?:10|9)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/[1-9][0-9]{0,1})?)?"
+)
 SITEMAP_ROUTE = re.compile(r"/sitemap-icd-(?:10|9)\.xml")
 RANK_ROUTE = re.compile(
     r"/api/v1/procedure-ranks/[a-z0-9-]{1,80}/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}"
@@ -137,7 +152,13 @@ def load_trees(pool: ReferencePool) -> dict[str, Tree]:
 
 
 def render_code(
-    pool: ReferencePool, trees: dict[str, Tree], slug: str, code: str
+    pool: ReferencePool,
+    trees: dict[str, Tree],
+    slug: str,
+    code: str,
+    service_date: date | None = None,
+    membership_catalog: str | None = None,
+    membership_page: int = 1,
 ) -> tuple[int, str]:
     dictionary = DICTIONARIES[slug]
     tree = next(
@@ -176,8 +197,49 @@ def render_code(
             if canonical_icd9 and node.get("canonical") is not False
             else None
         )
+        jgp_section = ""
+        if pool.manifest.dataset.characteristics:
+            day = service_date or today_in_poland()
+            memberships: list[dict[str, object]] = []
+            for catalog in ("1a", "1ae"):
+                try:
+                    answer = code_memberships(
+                        lease.connection,
+                        cast(c.System, dictionary.system),
+                        code,
+                        catalog,
+                        day,
+                        membership_page if membership_catalog == catalog else 1,
+                    )
+                    memberships.append({"status": "covered", **answer})
+                except NoRulesetForDate:
+                    memberships.append(
+                        {"status": "context_not_covered", "catalog": catalog}
+                    )
+            if service_date is not None and all(
+                a["status"] != "covered" for a in memberships
+            ):
+                raise NoRulesetForDate("no characteristics cover the selected day")
+            jgp_section = date_bar(
+                day.isoformat(),
+                "",
+                characteristics_calendar(lease.connection),
+                prefix=f"/slowniki/{slug}/{code}/jgp/",
+            )
+            jgp_section += membership_section(
+                memberships, slug=slug, code=code, day=day.isoformat()
+            )
+        elif service_date is not None:
+            raise NoRulesetForDate("bundle has no characteristics")
     return 200, code_page(
-        dictionary, node, children, tree.version, tree.hierarchy.supporting, ranks
+        dictionary,
+        node,
+        children,
+        tree.version,
+        tree.hierarchy.supporting,
+        ranks,
+        jgp_section,
+        f"/slowniki/{slug}/{code}/jgp/{service_date}" if service_date else None,
     )
 
 
@@ -393,13 +455,40 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
         except ArtifactError, OSError:
             return failure(503, "unavailable")
 
-    async def dictionary_page(dictionary: str, code: str) -> Response:
+    async def dictionary_page(
+        dictionary: str,
+        code: str,
+        service_date: str | None = None,
+        membership_catalog: str | None = None,
+        membership_page: str | None = None,
+    ) -> Response:
         # Codes are public identifiers, never typed free text; no query strings.
         if dictionary not in DICTIONARIES or not CODE_PATTERN.fullmatch(code):
             return failure(404, "not_found")
+        if membership_catalog is not None and (
+            membership_catalog not in ("1a", "1ae")
+            or membership_page is None
+            or not re.fullmatch(r"[1-9][0-9]?", membership_page)
+        ):
+            return failure(404, "not_found")
+        selected: date | None = None
+        if service_date is not None:
+            if not re.fullmatch(r"20[0-9]{2}-[0-9]{2}-[0-9]{2}", service_date):
+                return failure(404, "not_found")
+            try:
+                selected = date.fromisoformat(service_date)
+            except ValueError:
+                return failure(404, "not_found")
         if code != code.upper():
             return RedirectResponse(
-                f"/slowniki/{dictionary}/{code.upper()}", status_code=301
+                f"/slowniki/{dictionary}/{code.upper()}"
+                + (f"/jgp/{service_date}" if service_date else "")
+                + (
+                    f"/{membership_catalog}/{membership_page}"
+                    if membership_catalog
+                    else ""
+                ),
+                status_code=301,
             )
         try:
             status, page = await run_in_threadpool(
@@ -408,7 +497,14 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                 cast(dict[str, Tree], app.state.trees),
                 dictionary,
                 code,
+                selected,
+                membership_catalog,
+                int(membership_page) if membership_page else 1,
             )
+        except NoRulesetForDate:
+            return failure(404, "no_characteristics_for_date")
+        except TimeZoneUnavailable:
+            return failure(503, "timezone_unavailable")
         except SearchInputError:
             return failure(404, "not_found")
         except CapacityError:
@@ -420,7 +516,17 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
         return HTMLResponse(
             page,
             status_code=status,
-            headers={"Cache-Control": PAGE_CACHE if status == 200 else "no-store"},
+            headers={
+                "Cache-Control": PAGE_CACHE
+                if status == 200
+                and (
+                    service_date is not None
+                    or not cast(
+                        ReferencePool, app.state.pool
+                    ).manifest.dataset.characteristics
+                )
+                else "no-store"
+            },
         )
 
     def dictionary_sitemap(dictionary: str) -> Response:
@@ -466,6 +572,16 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
     app.add_api_route("/api/v1/search", search, methods=["POST"])
     app.add_api_route("/api/v1/tree/{release_id}/{node}", tree, methods=["GET"])
     app.add_api_route("/slowniki/{dictionary}/{code}", dictionary_page, methods=["GET"])
+    app.add_api_route(
+        "/slowniki/{dictionary}/{code}/jgp/{service_date}",
+        dictionary_page,
+        methods=["GET"],
+    )
+    app.add_api_route(
+        "/slowniki/{dictionary}/{code}/jgp/{service_date}/{membership_catalog}/{membership_page}",
+        dictionary_page,
+        methods=["GET"],
+    )
     app.add_api_route("/sitemap-{dictionary}", dictionary_sitemap, methods=["GET"])
     app.add_api_route(
         "/api/v1/procedure-ranks/{release_id}/{code}", procedure_rank, methods=["GET"]

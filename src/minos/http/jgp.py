@@ -9,7 +9,7 @@ import re
 import sqlite3
 from collections.abc import Callable
 from datetime import date, timedelta
-from typing import cast
+from typing import Literal, cast
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -28,6 +28,7 @@ from minos.domain.search import SearchInputError
 from minos.http.jgp_pages import error_page, group_page, index_page
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.jgp_catalog import GROUP_CODE_REGEX
+from minos.store.jgp_condition_reference import list_members, reference_group
 from minos.store.jgp_ruleset import (
     catalog_calendar,
     catalog_group,
@@ -45,12 +46,14 @@ POSITION_REGEX = r"[1-9][0-9]{0,2}"
 # both accepting exactly the same paths.
 JGP_ROUTE = re.compile(
     rf"/api/v1/jgp/{SERVICE_DATE_REGEX}"
-    + rf"/(?:groups/{GROUP_CODE_REGEX}|sections|sections/1ae?/{POSITION_REGEX})"
+    + rf"/(?:groups/{GROUP_CODE_REGEX}|sections|sections/1ae?/{POSITION_REGEX}"
+    + r"|lists/1ae?/[1-9][0-9]{0,3}/pages/[1-9][0-9]{0,2})"
 )
 # Page paths, mirrored by the validation edge; lowercase codes are redirected.
 ANY_CASE_CODE_REGEX = r"[A-Za-z]{1,4}[0-9]{2,3}[A-Za-z]{0,3}"
 JGP_PAGE_ROUTE = re.compile(
-    rf"/jgp(?:/(?:{SERVICE_DATE_REGEX}(?:/(?:{ANY_CASE_CODE_REGEX}|zakres/{POSITION_REGEX}))?"
+    rf"/jgp(?:/(?:{SERVICE_DATE_REGEX}(?:/(?:{ANY_CASE_CODE_REGEX}|zakres/{POSITION_REGEX}"
+    + r"|listy/1ae?/[1-9][0-9]{0,3}/[1-9][0-9]{0,2}))?"
     + rf"|{ANY_CASE_CODE_REGEX}))?"
 )
 SERVICE_DATE = re.compile(SERVICE_DATE_REGEX)
@@ -119,7 +122,38 @@ def register_jgp_routes(
         return jgp_answer(
             service_date,
             lambda connection, ruleset: with_display(
-                catalog_group(connection, ruleset, code)
+                reference_group(
+                    connection,
+                    ruleset,
+                    code,
+                    available=bool(
+                        cast(
+                            ReferencePool, app.state.pool
+                        ).manifest.dataset.characteristics
+                    ),
+                )
+            ),
+        )
+
+    def jgp_list(
+        service_date: str, catalog: str, identity: str, page: str
+    ) -> JSONResponse:
+        if (
+            catalog not in ("1a", "1ae")
+            or not re.fullmatch(r"[1-9][0-9]{0,3}", identity)
+            or not POSITION.fullmatch(page)
+            or cast(ReferencePool, app.state.pool).manifest.schema_version < 5
+        ):
+            return failure(404, "not_found")
+        selected_catalog: Literal["1a", "1ae"] = "1a" if catalog == "1a" else "1ae"
+        return jgp_answer(
+            service_date,
+            lambda connection, ruleset: list_members(
+                connection,
+                selected_catalog,
+                int(identity),
+                date.fromisoformat(cast(str, ruleset["service_date"])),
+                int(page),
             ),
         )
 
@@ -146,6 +180,11 @@ def register_jgp_routes(
         "/api/v1/jgp/{service_date}/groups/{code}", jgp_group, methods=["GET"]
     )
     app.add_api_route(
+        "/api/v1/jgp/{service_date}/lists/{catalog}/{identity}/pages/{page}",
+        jgp_list,
+        methods=["GET"],
+    )
+    app.add_api_route(
         "/api/v1/jgp/{service_date}/sections", jgp_sections, methods=["GET"]
     )
     app.add_api_route(
@@ -161,6 +200,8 @@ def verified_neighbours(
     """Links to the days just outside this row's window, only where the group
     has a row then (the day before may belong to a release without it)."""
     group = cast(dict[str, object], answer["group"])
+    if group["applicability"] is None:
+        return []
     window = cast(dict[str, object], group["applicability"])
     end = cast(str | None, window["service_to"])
     start = date.fromisoformat(cast(str, window["service_from"]))
@@ -296,7 +337,14 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
             ruleset: dict[str, object],
             calendar: list[str],
         ) -> str:
-            answer = catalog_group(connection, ruleset, code)
+            answer = reference_group(
+                connection,
+                ruleset,
+                code,
+                available=bool(
+                    cast(ReferencePool, app.state.pool).manifest.dataset.characteristics
+                ),
+            )
             neighbours = verified_neighbours(connection, code, answer)
             return group_page(answer, calendar, neighbours)
 
@@ -307,9 +355,44 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
             return error(404, "not_found")
         return catalog(service_date, int(position))
 
+    def jgp_list_page(
+        service_date: str, catalog: str, identity: str, page_number: str
+    ) -> Response:
+        from minos.http.jgp_pages import directional_list_page
+
+        if (
+            catalog not in ("1a", "1ae")
+            or not re.fullmatch(r"[1-9][0-9]{0,3}", identity)
+            or not POSITION.fullmatch(page_number)
+            or cast(ReferencePool, app.state.pool).manifest.schema_version < 5
+        ):
+            return error(404, "not_found")
+        selected_catalog: Literal["1a", "1ae"] = "1a" if catalog == "1a" else "1ae"
+
+        def page(
+            connection: sqlite3.Connection,
+            ruleset: dict[str, object],
+            _calendar: list[str],
+        ) -> str:
+            answer = list_members(
+                connection,
+                selected_catalog,
+                int(identity),
+                date.fromisoformat(cast(str, ruleset["service_date"])),
+                int(page_number),
+            )
+            return directional_list_page(answer)
+
+        return render(service_date, None, page)
+
     app.add_api_route("/jgp", jgp_root, methods=["GET"])
     app.add_api_route("/jgp/{segment}", jgp_segment, methods=["GET"])
     app.add_api_route("/jgp/{service_date}/{code}", jgp_group_page, methods=["GET"])
     app.add_api_route(
         "/jgp/{service_date}/zakres/{position}", jgp_scope_page, methods=["GET"]
+    )
+    app.add_api_route(
+        "/jgp/{service_date}/listy/{catalog}/{identity}/{page_number}",
+        jgp_list_page,
+        methods=["GET"],
     )

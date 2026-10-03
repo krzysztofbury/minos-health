@@ -1,0 +1,86 @@
+{
+  "modifiers": [
+    {
+      "release_id": "modtar-2026-szp-gen-100-c41d8741deb6",
+      "year": 2026,
+      "generation": 100,
+      "grouper_type": "SZP",
+      "xml": {
+        "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=MODTAR&nrGen=100",
+        "sha256": "c41d8741deb6afb333d130b9846be54668e854303839249c7f28f97e5f08d83c",
+        "size_bytes": 520252,
+        "fetched_at": "2026-10-03T17:28:02.522298+00:00"
+      },
+      "display": {
+        "page_id": 7297,
+        "label": "202662",
+        "published_on": "2026-08-20",
+        "dictionary_valid_from": "2026-08-20",
+        "file": {
+          "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/Index/7297?kod=MODTAR",
+          "sha256": "97bf05c86f944793edd1569e67360e317727a72412c10cc2f77b71826bab2f51",
+          "size_bytes": 187805,
+          "fetched_at": "2026-10-03T17:28:02.586718+00:00"
+        }
+      },
+      "expected_modifiers": 1608,
+      "expected_periods": 1607,
+      "expected_group_mappings": 1607,
+      "expected_inactive_empty": 1,
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; noncommercial reference research, not commercial legal clearance",
+      "notices": [
+        "Pinned CZS MODTAR source evidence, not reviewed tariff eligibility. Dictionary publication and validity dates are not reporting-period applicability.",
+        "Inactive empty records and repeated symbols are preserved. Legal-overlay review and compatible catalog binding remain pending."
+      ]
+    },
+    {
+      "release_id": "modtar-2026-szp-gen-102-22595df09b3a",
+      "year": 2026,
+      "generation": 102,
+      "grouper_type": "SZP",
+      "xml": {
+        "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=MODTAR&nrGen=102",
+        "sha256": "22595df09b3aac1af31a2db5450267fc9c352e7f30672079ab767e78f78611c1",
+        "size_bytes": 521552,
+        "fetched_at": "2026-10-03T17:28:02.911280+00:00"
+      },
+      "display": {
+        "page_id": 7364,
+        "label": "202664",
+        "published_on": "2026-09-24",
+        "dictionary_valid_from": "2026-09-24",
+        "file": {
+          "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/Index/7364?kod=MODTAR",
+          "sha256": "da1dd2d71f4c7b02d11f0a48849503e949be27f040feabc4f1617b354a225e7b",
+          "size_bytes": 187805,
+          "fetched_at": "2026-10-03T17:28:02.969861+00:00"
+        }
+      },
+      "expected_modifiers": 1612,
+      "expected_periods": 1611,
+      "expected_group_mappings": 1611,
+      "expected_inactive_empty": 1,
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; noncommercial reference research, not commercial legal clearance",
+      "notices": [
+        "Pinned CZS MODTAR source evidence, not reviewed tariff eligibility. Dictionary publication and validity dates are not reporting-period applicability.",
+        "Inactive empty records and repeated symbols are preserved. Legal-overlay review and compatible catalog binding remain pending."
+      ]
+    }
+  ],
+  "modifier_candidates": [
+    {
+      "catalog_release_id": "jgp-catalog-46-2026-after-74-fbe73d5fb7a3",
+      "modifier_release_id": "modtar-2026-szp-gen-100-c41d8741deb6",
+      "status": "pending_legal_review",
+      "evidence": "Research candidate only. Complete legal overlays, exact catalog correspondence and service applicability have not been approved. This does not change the catalog's unbound modifier state."
+    },
+    {
+      "catalog_release_id": "jgp-catalog-46-2026-after-102-32dc947fc6ac",
+      "modifier_release_id": "modtar-2026-szp-gen-102-22595df09b3a",
+      "status": "pending_legal_review",
+      "evidence": "Research candidate only. Section 4(3) quality transition, section 4(4) and the missing explicit section 17(6a) citation, external governing acts and non-catalog source references require owner review. No final-tariff capability is asserted."
+    }
+  ]
+}

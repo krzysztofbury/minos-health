@@ -21,7 +21,16 @@ REPEAT = r"(?:dwukrotne|dwukrotnie|dwukrone|trzykrotne|trzykrotnie|pięciokrotne
 MARK = re.compile(r"^(\(\*[0-9]{1,2}\)|\*{1,4})\s*(.*)$", re.S)
 UNITS = r"(?:r\.\s*ż\.?|tyg\.\s*ż\.?|tyg\.\s*życia|miesiąca życia|miesięcy życia)"
 AGE = re.compile(
-    r"wiek(?: pacjenta)?\s*" + OP + r"\s*([0-9]{1,4})\.?\s*(" + UNITS + r")"
+    r"wiek(?: pacjenta)?\s*"
+    + OP
+    + r"\s*([0-9]{1,4})\.?\s*("
+    + UNITS
+    + r")"
+    + r"(?:\s*(?:i\s*)?"
+    + OP
+    + r"\s*([0-9]{1,4})\.?\s*("
+    + UNITS
+    + r"))?"
 )
 DURATION = re.compile(
     r"czas (?:pobytu|hospitalizacji)\s*"
@@ -49,6 +58,14 @@ DIAGNOSIS_LIST = re.compile(
     + r")\s+)?rozpozna(?:nia|nie|ń)\s*(zasadniczego|współistniejącego|współistniejących)?\s*z\s+[Ll]isty\s+(?:rozpoznań\s+|dodatkowej\s+)?("
     + NAME
     + r")"
+)
+BELOW_DIAGNOSIS = re.compile(
+    r"rozpoznania\s+(zasadniczego|współistniejącego)\s+z poniższej listy"
+    + r"(?:\s+\("
+    + r"("
+    + NAME
+    + r")"
+    + r"\))?"
 )
 LITERAL = re.compile(
     r"(procedur(?:y|ę)|rozpoznania(?:\s+(zasadniczego|współistniejącego))?)\s+("
@@ -104,6 +121,17 @@ class _State:
         self.sheet = sheet
         self.nodes: list[c.Condition] = []
         self.selectors: list[c.Selector] = []
+        evidence = {e.row: e for e in sheet.evidence}
+        self.procedure_titles: dict[str, set[str]] = {}
+        for item in sheet.lists:
+            if item.system != "icd9-pl":
+                continue
+            for member in item.members:
+                text = " ".join(evidence[member.row].text.split())
+                if text.startswith(member.code + " "):
+                    self.procedure_titles.setdefault(member.code, set()).add(
+                        text[len(member.code) :].strip()
+                    )
 
     def add(
         self,
@@ -166,6 +194,46 @@ class _State:
             c.ListSelector((item.identity,), system),
             tuple(dict.fromkeys((row, item.marker_row, *item.naming_rows))),
         )
+
+    def below_list(self, group: str, row: int, name: str | None) -> int | None:
+        """Bind a physical declaration, never a guessed list name or prefix."""
+        definitions = {item.marker_row: item for item in self.sheet.lists}
+        for evidence in self.sheet.evidence:
+            if evidence.row <= row:
+                continue
+            if (evidence.context or "").strip() != group or evidence.category in (
+                "title",
+                "label",
+                "connector",
+                "unbound_member",
+            ):
+                return None
+            if evidence.category == "section" and evidence.text.strip():
+                return None
+            item = definitions.get(evidence.row)
+            if item is not None and item.system == "icd10-pl":
+                if name is not None and item.label != name:
+                    return None
+                return self.selector(
+                    c.ListSelector((item.identity,), item.system),
+                    tuple(dict.fromkeys((row, item.marker_row, *item.naming_rows))),
+                )
+        return None
+
+    def title_end(self, code: str, text: str, end: int) -> int:
+        for title in sorted(self.procedure_titles.get(code, ()), key=len, reverse=True):
+            if not _plain_title(title) or re.search(
+                r"[0-9<>≥≤]|\b(?:wiek|czas|tryb|rozpoznania|procedury|wymagane|minimum|min)\b",
+                title,
+            ):
+                continue
+            suffix = " " + title
+            following = end + len(suffix)
+            if text.startswith(suffix, end) and (
+                following == len(text) or text[following] in " ,;."
+            ):
+                return following
+        return end
 
     def unknown(
         self,
@@ -350,7 +418,8 @@ def _cell(state: _State, group: str, item: c.Evidence) -> int:
                 reason,
             )
         )
-        spans.append(match.span())
+        end = match.end() if diagnosis else state.title_end(match[3], text, match.end())
+        spans.append((match.start(), end))
     remaining = list(text)
     for a, b in spans:
         remaining[a:b] = " " * (b - a)
@@ -380,21 +449,27 @@ def _scalar_fragments(
     spans: list[tuple[int, int]],
 ) -> None:
     for match in AGE.finditer(text):
-        age_unit: Literal["completed_years", "elapsed_weeks", "calendar_months"] = (
-            "elapsed_weeks"
-            if match[3].startswith("tyg")
-            else "calendar_months"
-            if match[3].startswith("mies")
-            else "completed_years"
-        )
-        result.append(
-            state.add(
-                group,
-                "patient_age",
-                c.Age(COMPARISONS[match[1]], int(match[2]), age_unit),
-                (row,),
+        for offset in (0, 3):
+            if match[1 + offset] is None:
+                continue
+            unit = match[3 + offset]
+            age_unit: Literal["completed_years", "elapsed_weeks", "calendar_months"] = (
+                "elapsed_weeks"
+                if unit.startswith("tyg")
+                else "calendar_months"
+                if unit.startswith("mies")
+                else "completed_years"
             )
-        )
+            result.append(
+                state.add(
+                    group,
+                    "patient_age",
+                    c.Age(
+                        COMPARISONS[match[1 + offset]], int(match[2 + offset]), age_unit
+                    ),
+                    (row,),
+                )
+            )
         spans.append(match.span())
     for match in DURATION.finditer(text):
         bounds: tuple[c.DurationBound, ...] = (
@@ -521,7 +596,10 @@ def _list_fragments(
                     group, "procedure_presence", c.Presence(selector, None), (row,)
                 )
             )
-        spans.append(match.span())
+        end = match.end()
+        if text[end:].startswith(" (poniższej)"):
+            end += len(" (poniższej)")
+        spans.append((match.start(), end))
         if selector is not None and text[match.end() :].startswith(
             " (jednokrotnie dla piersi prawej i jednokrotnie dla piersi lewej)"
         ):
@@ -534,6 +612,23 @@ def _list_fragments(
                 )
             )
     _diagnosis_fragments(state, group, row, text, result, spans)
+    for match in BELOW_DIAGNOSIS.finditer(text):
+        selector = state.below_list(group, row, match[2])
+        if selector is None:
+            result.append(state.unknown(group, row, "list_reference_unresolved"))
+        else:
+            result.append(
+                state.add(
+                    group,
+                    "diagnosis_presence",
+                    c.Presence(
+                        selector,
+                        "principal" if match[1] == "zasadniczego" else "secondary",
+                    ),
+                    (row,),
+                )
+            )
+        spans.append(match.span())
 
 
 def _diagnosis_fragments(

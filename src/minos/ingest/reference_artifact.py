@@ -157,6 +157,15 @@ def _build_database(
             import_characteristics(connection, item, archive_root, database.parent)
         if manifest.characteristics:
             record_conditions_knowledge(connection, manifest)
+        from minos.store.jgp_modifiers_build import (
+            import_modifiers,
+            record_modifier_candidates,
+        )
+
+        for modifier in sorted(manifest.modifiers, key=lambda item: item.release_id):
+            import_modifiers(connection, modifier, archive_root, database.parent)
+        if manifest.modifiers:
+            record_modifier_candidates(connection, manifest)
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options
@@ -225,6 +234,9 @@ def _review_summary(
 
     lines.extend(reconciliation_lines(database_path, manifest))
     lines.extend(conditions_reconciliation_lines(database_path, manifest))
+    from minos.store.jgp_modifiers import modifier_reconciliation_lines
+
+    lines.extend(modifier_reconciliation_lines(database_path, manifest))
     for item in manifest.komunikaty:
         lines.append(
             f"Algorithm evidence: {item.release_id} / {item.algorithm_version}"

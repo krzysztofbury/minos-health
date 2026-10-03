@@ -15,7 +15,7 @@
     var go = function () {
       typing = false;
       if (!DATE.test(dateInput.value) || dateInput.value === current) return;
-      window.location.assign("/jgp/" + dateInput.value + (dateInput.dataset.suffix || ""));
+      window.location.assign((dateInput.dataset.prefix || "/jgp/") + dateInput.value + (dateInput.dataset.suffix || ""));
     };
     dateInput.addEventListener("keydown", function (event) {
       if (event.key === "Enter") go(); else typing = true;

@@ -212,3 +212,33 @@ All current source text fits the tightened guard, gap and connector shapes
 the two corrections above. Remaining unsupported text is genuine: contextual
 `z poniższej listy` references, procedure titles after literal codes, second
 age bounds and source wording outside the taxonomy.
+
+## Conservative Consumer Follow-Up (#32 / #46 Branch)
+
+The combined branch recognizes a second explicitly unit-labelled age bound,
+binds `z poniższej listy` to the next physical ICD-10 declaration in the same
+group, and consumes a procedure title only when an exact code/title pair is
+already present in an explicit source list. Ambiguous clause text, exceptions,
+connector crossings, missing units and unmatched titles remain unsupported.
+Unnamed below-list declarations have their own physical identity; they do not
+alias a same-group named list. Blank spacer cells are retained as evidence.
+
+With unchanged pinned workbook bytes and member/evidence counts, fully
+structured current coverage increases from 455/629 to 491/629 in 1a and from
+98/121 to 109/121 in 1ae. The original 1a is 569/702, and after-74 1a is 486/627.
+Reviewed structural/count expectations and the transformation version change
+explicitly. These figures are reference interpretation coverage, not grouper
+or settlement accuracy.
+
+Dated API/UI consumers apply a whole-group gate: one unsupported node suppresses
+all structured rule display. Source clauses and cited evidence remain readable;
+list membership remains source evidence, never encounter qualification.
+Physical list pages preserve duplicates, marks and exact missing-correspondence
+states, and reverse lookup uses the same dated characteristics release. The
+additive code-page path leaves existing dictionary URLs and shared layout intact.
+See [the API contract](../api.md#dated-condition-reference-combined-32--46-branch).
+
+The combined MODTAR research build uses schema 6 and measured 253018112 database
+bytes, compared with the historical schema-5 measurements above. It is not the
+production bundle. VPS startup/memory evidence, public activation and reviewed
+modifier binding remain pending; see [the modifier gate](jgp-modifiers-ingest.md).

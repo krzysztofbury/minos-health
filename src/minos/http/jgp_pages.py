@@ -9,6 +9,7 @@ from collections import Counter
 from typing import Final, cast
 
 from minos.domain.reference import ArtifactError
+from minos.http.jgp_condition_pages import code_link, conditions_section, source_facts
 from minos.http.pages import _e, _page  # pyright: ignore[reportPrivateUsage]
 from minos.ingest.jgp_catalog_layout import (
     LEGEND,
@@ -91,14 +92,16 @@ def plural_pl(count: int, one: str, few: str, many: str) -> str:
     return many
 
 
-def date_bar(service_date: str, suffix: str, calendar: list[str]) -> str:
+def date_bar(
+    service_date: str, suffix: str, calendar: list[str], *, prefix: str = "/jgp/"
+) -> str:
     """Date choice without a form or query string: links, enhanced by jgp.js.
 
     `calendar` lists the days on which the bundle's answer can change; the
     first is the earliest covered service date.
     """
     links = "".join(
-        f'<li><a class="dictionary-tab" href="/jgp/{_e(day)}{_e(suffix)}">{_e(day)}</a></li>'
+        f'<li><a class="dictionary-tab" href="{_e(prefix)}{_e(day)}{_e(suffix)}">{_e(day)}</a></li>'
         for day in calendar
         if day != service_date
     )
@@ -107,7 +110,7 @@ def date_bar(service_date: str, suffix: str, calendar: list[str]) -> str:
         + '          <label class="tree-search-label" for="jgp-date">Dzień udzielenia świadczenia</label>\n'
         + '          <div class="jgp-date-row">'
         + f'<input class="tree-search-input" type="date" id="jgp-date" value="{_e(service_date)}"'
-        + f' min="{_e(calendar[0])}" data-suffix="{_e(suffix)}">'
+        + f' min="{_e(calendar[0])}" data-prefix="{_e(prefix)}" data-suffix="{_e(suffix)}">'
         + (
             f'<ul class="jgp-quick" aria-label="Dni zmian w katalogu">{links}</ul>'
             if links
@@ -350,7 +353,13 @@ def group_page(
     ]
     badges = [
         f'<span class="code-chip">{_e(code)}</span>',
-        f'<span class="badge badge-muted">Katalog {_e(catalog)}, produkt {_e(group["product_code"])}</span>',
+        f'<span class="badge badge-muted">Katalog {_e(catalog)}'
+        + (
+            f", produkt {_e(group['product_code'])}"
+            if group["product_code"]
+            else ", bez wiersza katalogu na ten dzień"
+        )
+        + "</span>",
     ]
     if group["procedural"] is True:
         badges.append('<span class="badge badge-muted">Grupa zabiegowa (*)</span>')
@@ -371,6 +380,9 @@ def group_page(
         _row_window(code, group, neighbours),
         _scopes(cast(list[dict[str, object]], answer["scopes"])),
         _notes(cast(str | None, group["notes"])),
+        conditions_section(cast(dict[str, object], answer["conditions"]))
+        if "conditions" in answer
+        else "",
         f'        <section class="detail-notes jgp-provenance">{provenance(ruleset)}</section>\n',
         f'        <p class="detail-source">{_e(LEGEND[0])}</p>\n',
         "      </div>",
@@ -410,6 +422,8 @@ def _values(answer: dict[str, object], catalog: str) -> str:
 def _row_window(
     code: str, group: dict[str, object], neighbours: list[tuple[str, str]]
 ) -> str:
+    if group["applicability"] is None:
+        return '<section class="detail-notes"><h2>Wiersz katalogu</h2><p>Charakterystyka zawiera grupę, lecz katalog nie ma dla niej wiersza na wybrany dzień. Nie oznacza to wartości zero ani możliwości rozliczenia.</p></section>'
     window = cast(dict[str, object], group["applicability"])
     start = cast(str, window["service_from"])
     end = cast(str | None, window["service_to"])
@@ -453,6 +467,59 @@ def _notes(notes: str | None) -> str:
         return ""
     lines = "".join(f"<p>{_e(line)}</p>" for line in notes.splitlines() if line.strip())
     return f'        <section class="detail-notes"><h2>Uwagi</h2>{lines}</section>\n'
+
+
+def directional_list_page(answer: dict[str, object]) -> str:
+    source = cast(dict[str, object], answer["source"])
+    day, catalog = cast(str, source["service_date"]), cast(str, source["catalog"])
+    identity, page = cast(int, answer["id"]), cast(int, answer["page"])
+    title = f"Lista {_e(answer['label'])} - katalog {_e(catalog)}"
+    rows = "".join(
+        "<li>"
+        + code_link(
+            cast(str, answer["system"]),
+            cast(str, member["code"]),
+            day,
+            member["correspondence"] == "matched",
+        )
+        + f" <span>{_e(member['source_text'])}</span>"
+        + f' <span class="detail-source">(wiersz {_e(member["row"])})</span></li>'
+        for member in cast(list[dict[str, object]], answer["members"])
+    )
+    links: list[str] = []
+    for label, target in (
+        ("Poprzednia strona", page - 1),
+        ("Następna strona", page + 1),
+    ):
+        if target >= 1 and (target - 1) * cast(int, answer["page_size"]) < cast(
+            int, answer["total_occurrences"]
+        ):
+            links.append(
+                f'<a class="button" href="/jgp/{day}/listy/{catalog}/{identity}/{target}">{label}</a>'
+            )
+    content = (
+        _head(
+            [
+                '<a href="/jgp">Grupy JGP</a>',
+                f'<a href="/jgp/{day}">{day}</a>',
+                '<span aria-current="page">Lista źródłowa</span>',
+            ]
+        )
+        + f'<h1>{title}</h1><p class="page-lead">Dzień świadczenia: {_e(day)}. '
+        + f"{_e(answer['total_occurrences'])} pozycji źródłowych, strona {page}.</p></div>"
+        + f'<div class="shell code-page"><section class="code-children"><ul class="code-list">{rows}</ul></section>'
+        + "<p>Powtórzenia i oznaczenia pozostają dowodami źródłowymi, nie dodatkowym zliczeniem procedur. "
+        + "Obecność kodu na liście nie oznacza kwalifikacji przypadku. Numery list są lokalne dla wydania.</p>"
+        + f'<nav class="code-actions" aria-label="Strony listy">{" ".join(links)}</nav>'
+        + source_facts(source)
+        + "</div>"
+    )
+    return _jgp_page(
+        title=f"Lista {answer['label']} na {day} - Minos Health",
+        description=f"Jawna lista załącznika 9 dla świadczeń z {day}.",
+        path=f"/jgp/{day}/listy/{catalog}/{identity}/{page}",
+        content=content,
+    )
 
 
 def error_page(

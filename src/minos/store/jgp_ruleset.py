@@ -81,13 +81,20 @@ def resolve_ruleset(
         service_date,
         known_on,
     )
+    modifiers: dict[str, object] = dict(unbound_modifiers())
+    if connection.execute("PRAGMA user_version").fetchone()[0] >= 6:
+        from minos.store.jgp_modifiers import modifier_review_candidate
+
+        candidate = modifier_review_candidate(connection, governing.release_id)
+        if candidate is not None:
+            modifiers["review_candidate"] = candidate
     return {
         "service_date": service_date.isoformat(),
         "known_on": known_on.isoformat(),
         "knowledge_as_of": horizon.isoformat(),
         "service_date_after_knowledge": service_date > horizon,
         **_release_provenance(connection, governing.release_id),
-        "modifiers": unbound_modifiers(),
+        "modifiers": modifiers,
     }
 
 

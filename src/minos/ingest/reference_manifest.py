@@ -10,6 +10,7 @@ from minos.ingest.jgp_conditions_manifest import (
     ConditionsManifest,
     validate_conditions_windows,
 )
+from minos.ingest.jgp_modifiers_manifest import ModifierCandidate, ModifierManifest
 from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.manifest_types import Digest as Digest
 from minos.ingest.manifest_types import Identifier as Identifier
@@ -90,6 +91,12 @@ class DatasetManifest(BaseModel):
     characteristics: Annotated[tuple[ConditionsManifest, ...], Field(max_length=8)] = (
         Field(default=(), exclude_if=empty_evidence)
     )
+    modifiers: Annotated[tuple[ModifierManifest, ...], Field(max_length=8)] = Field(
+        default=(), exclude_if=empty_evidence
+    )
+    modifier_candidates: Annotated[
+        tuple[ModifierCandidate, ...], Field(max_length=8)
+    ] = Field(default=(), exclude_if=empty_evidence)
     characteristics_knowledge_as_of: date | None = Field(
         default=None, exclude_if=absent_context
     )
@@ -117,6 +124,7 @@ class DatasetManifest(BaseModel):
         catalog_ids = [item.release_id for item in self.catalogs]
         all_ids = identities + evidence_ids + catalog_ids
         all_ids += [item.release_id for item in self.characteristics]
+        all_ids += [item.release_id for item in self.modifiers]
         if len(set(all_ids)) != len(all_ids):
             raise ValueError("duplicate catalog release identity")
         for characteristic in self.characteristics:
@@ -145,6 +153,22 @@ class DatasetManifest(BaseModel):
         ):
             raise ValueError("a catalog release is published after the horizon")
         catalogs = {catalog.release_id: catalog for catalog in self.catalogs}
+        modifiers = {item.release_id: item for item in self.modifiers}
+        if len({item.catalog_release_id for item in self.modifier_candidates}) != len(
+            self.modifier_candidates
+        ):
+            raise ValueError("catalog has multiple MODTAR review candidates")
+        for candidate in self.modifier_candidates:
+            catalog = catalogs.get(candidate.catalog_release_id)
+            modifier = modifiers.get(candidate.modifier_release_id)
+            if (
+                catalog is None
+                or modifier is None
+                or catalog.service_from.year != modifier.year
+            ):
+                raise ValueError(
+                    "MODTAR review candidate has absent or incompatible source pins"
+                )
         for catalog in self.catalogs:
             if catalog.supersedes is None:
                 continue
