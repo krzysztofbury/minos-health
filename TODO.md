@@ -352,7 +352,7 @@ UI remain the baseline.
 - [x] Define terminology, concept, description, and source-release tables.
 - [ ] Define group, base-tariff and ruleset-release tables with bitemporal
       fields and per-provision applicability (#18, including the 102/2026
-      deferred catalog rows); conditions landed in #30 (schema 5);
+      deferred catalog rows); conditions landed in #30 (schema 5, now 6);
       modifiers/binding remain in #46. Base-only rulesets explicitly record modifiers as unbound.
 - [x] Implement streaming XML parsing with explicit validation errors; reject
       DTDs and external entities; bound depth, value size, record count,

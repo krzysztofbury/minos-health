@@ -54,6 +54,20 @@ from its selected catalog. `review.txt` enumerates them. The operational source
 also cites other governing acts; it has no explicit section 17(6a) citation.
 These discrepancies block complete binding and require legal/source review.
 
+Owner review (2026-10-03) traced most of them: 67 of the 71 are groups of the
+original 46/2026 catalog that the after-74 consolidation dropped, and in both
+generations every one of their 149 mappings carries January-June months only
+(1-1, 1-6 or 2-6), never July-December. MODTAR is therefore a calendar-year
+dictionary spanning several catalog releases, not a companion of one catalog.
+Binding must resolve each mapping against the catalog release governing the
+mapping's own service window (original 46/2026 from 2026-05-01, after-74 and
+after-102 from 2026-07-01; January-April falls under 101/2025, which the bundle
+does not cover), not against a single selected catalog. The one-catalog check
+in `reconcile_legal_overlay` encodes the latter and must change before an
+overlay is accepted. Four references remain unexplained source identifiers:
+`C14.`, `P42.`, `P52_` and `Z01_S` (the last two also carry July-December
+months); they are preserved literally and need NFZ evidence.
+
 The domain reconciliation boundary requires exact source inventory, matching
 year, generation, grouper type and catalog identity, plus explicit reviewed
 service windows and legal evidence. Missing, extra or conflicting mappings and
@@ -66,19 +80,22 @@ legal windows. They **do not** prove real 102/2026 section 4(3)/4(4) compliance.
 Before #46 completion, the owner must review historical/out-of-scope group
 references, governing acts, the quality transition, section 17(6a), and the
 complete binding/applicability overlay. Approved overlay persistence and an
-approved-binding API state remain subsequent work on this same branch.
+approved-binding API state remain #46 work.
 
 ## Composition And Validation
 
 ```sh
 uv run python scripts/compose_conditions_manifest.py \
-  /owned/research-manifest.json \
+  --output /owned/research-manifest.json \
   --base manifests/sources/reference-catalog-public-validation.json \
   --conditions manifests/sources/jgp-conditions-reference.json \
   --modifiers manifests/sources/jgp-modtar-reference.json
 ```
 
-Composition without `--modifiers` remains a conditions-only schema-5 build.
+Composition without `--modifiers` is a conditions-only build. Since the owner
+review it is also schema 6 (with empty modifier tables), because the dated
+condition consumers rely on schema 6's lookup indexes; schema 5 bundles remain
+readable.
 Neither form changes the production selector. Full-source schema-6 builds on
 this branch were byte-identical across two runs: 253018112 database bytes.
 Dated APIs, structured and unsupported group pages, conditions-only N09,

@@ -87,6 +87,13 @@ def test_modifiers_refuse_dtd_entities_and_excess_bytes() -> None:
         )
 
 
+def test_modifiers_refuse_utf16_even_without_an_xml_declaration() -> None:
+    body = XML.split(b"?>", 1)[1].decode("utf-8")
+    for source in (body.encode("utf-16"), XML.decode("utf-8").encode("utf-16")):
+        with pytest.raises(SourceError):
+            _ = parse_modifiers(BytesIO(source), year=2026, generation=100)
+
+
 @pytest.mark.parametrize("code", [b"C14.", b"P42.", b"P52_", b"Z01_S"])
 def test_non_catalog_source_references_survive_without_substitution(
     code: bytes,

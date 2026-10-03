@@ -385,10 +385,11 @@ def test_dated_concept_routes_keep_dates_errors_cache_and_query_privacy(
         assert dated.headers["cache-control"].startswith("public")
         assert 'content="noindex, follow"' in dated.text
         undated = client.get("/slowniki/icd-10/E11.0")
-        assert (
-            undated.status_code == 200
-            and undated.headers["cache-control"] == "no-store"
-        )
+        # "Today" changes at midnight in Poland: cacheable, but never past it.
+        assert undated.status_code == 200
+        cache = undated.headers["cache-control"]
+        assert cache.startswith("public, max-age=")
+        assert 0 < int(cache.rsplit("=", 1)[1]) <= 3600
         assert (
             '<link rel="canonical" href="https://minoshealth.pl/slowniki/icd-10/E11.0/jgp/2026-07-01">'
             in dated.text
@@ -400,6 +401,10 @@ def test_dated_concept_routes_keep_dates_errors_cache_and_query_privacy(
                 response.status_code == 404
                 and response.headers["cache-control"] == "no-store"
             )
+        uncovered = client.get("/slowniki/icd-10/E11.0/jgp/2026-06-30")
+        # A page for people: branded HTML, not an API error envelope.
+        assert uncovered.headers["content-type"].startswith("text/html")
+        assert "Brak zweryfikowanego katalogu JGP dla tego dnia" in uncovered.text
         refused = client.get(
             "/slowniki/icd-10/E11.0/jgp/2026-07-01?query=PRIVATE_QUERY_SENTINEL"
         )
@@ -444,3 +449,75 @@ def test_pending_modifier_candidate_never_changes_catalog_binding(
         assert "final_points" not in answer
     report = (tmp_path / "candidate-bundle/review.txt").read_text()
     assert "A02" in report and "Absence blocks complete binding" in report
+
+
+def test_undated_concept_page_survives_a_missing_time_zone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from minos.domain.jgp_ruleset import TimeZoneUnavailable
+
+    def unavailable() -> object:
+        raise TimeZoneUnavailable("no tzdata")
+
+    monkeypatch.setattr("minos.http.app.today_in_poland", unavailable)
+    with TestClient(create_app(consumer_bundle(tmp_path))) as client:
+        page = client.get("/slowniki/icd-10/E11.0")
+    # The ICD page never depended on the clock; only its JGP section is omitted.
+    assert page.status_code == 200
+    assert "E11.0" in page.text and 'id="jgp-date"' not in page.text
+
+
+def test_group_page_without_characteristics_shows_no_build_jargon(
+    tmp_path: Path,
+) -> None:
+    from tests.integration.test_jgp_api import lineage_bundle
+
+    with TestClient(create_app(lineage_bundle(tmp_path))) as client:
+        page = client.get("/jgp/2026-07-10/PZD02")
+        api = cast(
+            dict[str, object],
+            client.get("/api/v1/jgp/2026-07-10/groups/PZD02").json(),
+        )
+    assert page.status_code == 200
+    assert "Warunki grupy" not in page.text and "pakiet" not in page.text
+    assert api["conditions"] == {"status": "not_in_bundle"}
+
+
+def test_structured_rules_read_as_a_nested_tree_in_polish(tmp_path: Path) -> None:
+    with TestClient(create_app(consumer_bundle(tmp_path))) as client:
+        group = client.get("/jgp/2026-07-01/A01").text
+        listing = client.get("/jgp/2026-07-01/listy/1a/1/1").text
+        diagnosis = client.get("/slowniki/icd-10/E11.0/jgp/2026-07-01").text
+    rules = group[group.index('<ul class="jgp-rules">') :]
+    # Children nest under their conjunction; no internal node ids are shown.
+    assert rules.startswith(
+        '<ul class="jgp-rules"><li><strong>Wszystkie poniższe elementy</strong>'
+    )
+    assert "<ul><li><strong>Wskazanie procedury</strong>" in rules
+    assert " - zapisy " not in group and "Korzenie" not in group
+    assert "2 pozycje źródłowe" in group and "pozycji źródłowych)" not in group
+    # Inline row references never borrow the bordered block style.
+    assert '<span class="detail-source">' not in group + listing
+    # The code is shown once, as the chip, not repeated in the title text.
+    assert '<span class="code-chip">100.01</span>' in listing
+    assert "<span>100.01 " not in listing
+    # Release identity sits in the collapsed provenance, not the visible line.
+    visible = group.split("<details><summary>Pochodzenie", 1)[0]
+    assert "SHA-256 skoroszytu" not in visible
+    assert "Grupy zabiegowe kierowane procedurą" in diagnosis
+
+
+@pytest.mark.parametrize(
+    ("count", "text"),
+    [
+        (1, "1 pozycja źródłowa"),
+        (3, "3 pozycje źródłowe"),
+        (5, "5 pozycji źródłowych"),
+        (12, "12 pozycji źródłowych"),
+        (22, "22 pozycje źródłowe"),
+    ],
+)
+def test_source_position_counts_agree_in_polish(count: int, text: str) -> None:
+    from minos.http.jgp_condition_pages import source_positions
+
+    assert source_positions(count) == text

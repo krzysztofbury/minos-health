@@ -336,7 +336,8 @@ def main(arguments: Arguments) -> None:
         assert len(get_page(base, group_route)[1]) == 1  # was doubled before #26
         if cast(dict[str, object], manifest["dataset"]).get("characteristics"):
             for route, status, cache in (
-                ("/slowniki/icd-10/E11.0", 200, "no-store"),
+                # Today's JGP data: cached until midnight in Poland, at most 1 h.
+                ("/slowniki/icd-10/E11.0", 200, "public, max-age="),
                 ("/slowniki/icd-10/E11.0/jgp/2026-07-10", 200, "public"),
                 ("/slowniki/icd-10/E11.0/jgp/2026-06-30", 404, "no-store"),
                 ("/jgp/2026-07-10/listy/1a/2/1", 200, "public"),

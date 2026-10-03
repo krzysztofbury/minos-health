@@ -1,4 +1,5 @@
 import json
+from collections.abc import Sequence
 from dataclasses import replace
 from io import BytesIO
 from typing import TYPE_CHECKING, cast
@@ -792,12 +793,14 @@ def test_second_age_bound_is_preserved_with_its_explicit_unit(separator: str) ->
 
 
 def test_below_list_binds_the_next_explicit_marker_in_the_same_group() -> None:
+    base = phrase_sheet(
+        "A01",
+        "rozpoznania współistniejącego z poniższej listy",
+        lists=(("A01", "icd10-pl"),),
+    )
+    # The reader records the declaring label row (see the public-reader test).
     sheet = interpret_sheet(
-        phrase_sheet(
-            "A01",
-            "rozpoznania współistniejącego z poniższej listy",
-            lists=(("A01", "icd10-pl"),),
-        )
+        replace(base, lists=(replace(base.lists[0], naming_rows=(5,)),))
     )
     validate_characteristics(sheet)
     assert sheet.conditions[0].status == "proposed"
@@ -885,4 +888,144 @@ def test_second_age_bound_never_consumes_missing_units_or_exceptions(
     suffix: str,
 ) -> None:
     sheet = interpret_sheet(phrase_sheet("A01", "wiek > 17 r.ż." + suffix))
+    assert all(n.status == "unsupported" for n in sheet.conditions)
+
+
+def _sheet(
+    group: str,
+    rows: Sequence[tuple[int, str, str, str]],
+    lists: list[c.DirectionalList],
+) -> c.Characteristics:
+    """Hand-built evidence (row, context, text, category) for list placement."""
+    evidence = tuple(
+        c.Evidence(r, "X", ctx, text, cast(c.EvidenceCategory, cat))
+        for r, ctx, text, cat in rows
+    )
+    return c.Characteristics(
+        "1a",
+        "Charakterystyka 1a",
+        evidence,
+        (c.Group(group, 4, ()),),
+        tuple(lists),
+        (),
+        (),
+    )
+
+
+def _icd9_list(
+    identity: int, label: str, context: str, marker: int
+) -> c.DirectionalList:
+    return c.DirectionalList(
+        identity,
+        label,
+        "icd9-pl",
+        context,
+        marker,
+        (),
+        (c.Member(marker + 1, "00.36", ()),),
+    )
+
+
+@pytest.mark.parametrize(
+    "placement", ["below_same_group", "above_label", "other_group"]
+)
+def test_ponizszej_suffix_needs_the_named_list_below_in_the_same_group(
+    placement: str,
+) -> None:
+    label = "procedury z listy procedur A01a (poniższej)"
+    title = (4, "A01", "A01 Synthetic group", "title")
+    if placement == "below_same_group":
+        rows = [
+            title,
+            (5, "A01", label, "label"),
+            (6, "A01", "ICD-9", "marker"),
+            (7, "A01", "00.36 Synthetic member", "member"),
+        ]
+        lists = [_icd9_list(1, "A01a", "A01", 6)]
+    elif placement == "above_label":
+        rows = [
+            title,
+            (5, "A01", "ICD-9", "marker"),
+            (6, "A01", "00.36 Synthetic member", "member"),
+            (7, "A01", label, "label"),
+        ]
+        lists = [_icd9_list(1, "A01a", "A01", 5)]
+    else:
+        rows = [
+            title,
+            (5, "A01", label, "label"),
+            (6, "B02", "ICD-9", "marker"),
+            (7, "B02", "00.36 Synthetic member", "member"),
+        ]
+        lists = [_icd9_list(1, "A01a", "B02", 6)]
+    sheet = interpret_sheet(_sheet("A01", rows, lists))
+    validate_characteristics(sheet)
+    statuses = {n.status for n in sheet.conditions}
+    assert statuses == (
+        {"proposed"} if placement == "below_same_group" else {"unsupported"}
+    )
+
+
+@pytest.mark.parametrize(
+    "case", ["two_references", "named_heading_between", "declared_elsewhere"]
+)
+def test_below_list_never_guesses_which_list_is_meant(case: str) -> None:
+    text = "rozpoznania zasadniczego z poniższej listy"
+    if case == "two_references":
+        text += " oraz rozpoznania współistniejącego z poniższej listy"
+    rows = [(4, "A01", "A01 Synthetic group", "title"), (5, "A01", text, "label")]
+    marker = 6
+    if case == "named_heading_between":
+        rows.append((6, "A01", "A01b", "list_heading"))
+        marker = 7
+    rows += [
+        (marker, "A01", "ICD-10", "marker"),
+        (marker + 1, "A01", "E11.0 Synthetic", "member"),
+    ]
+    naming = (4,) if case == "declared_elsewhere" else (5,)
+    definition = c.DirectionalList(
+        1,
+        "poniższa lista",
+        "icd10-pl",
+        "A01",
+        marker,
+        naming,
+        (c.Member(marker + 1, "E11.0", ()),),
+    )
+    sheet = interpret_sheet(_sheet("A01", rows, [definition]))
+    validate_characteristics(sheet)
+    assert not any(n.status == "proposed" for n in sheet.conditions)
+    assert not sheet.selectors
+
+
+@pytest.mark.parametrize(
+    "clause",
+    [
+        "wiek < 2 r.ż. i > 65 r.ż.",
+        "wiek > 17 r.ż. > 18 r.ż.",
+        "wiek > 17 r.ż. < 18 miesięcy życia",
+        "wiek > 17 r.ż. i < 18 r.ż.",
+    ],
+)
+def test_two_age_bounds_must_form_a_reviewed_range(clause: str) -> None:
+    sheet = interpret_sheet(phrase_sheet("A01", clause))
+    validate_characteristics(sheet)
+    assert all(n.status == "unsupported" for n in sheet.conditions)
+    assert any(n.reason == "age_bounds_unreviewed" for n in sheet.conditions)
+
+
+def test_a_valid_two_bound_age_range_stays_proposed() -> None:
+    sheet = interpret_sheet(phrase_sheet("A01", "wiek > 17 r.ż. i < 66 r.ż."))
+    ages = [n for n in sheet.conditions if n.kind == "patient_age"]
+    assert len(ages) == 2 and all(n.status == "proposed" for n in ages)
+
+
+def test_procedure_title_with_a_capitalised_condition_word_is_not_consumed() -> None:
+    rows = [
+        (4, "A01", "A01 Synthetic group", "title"),
+        (5, "A01", "wymagane wskazanie procedury 00.36 Zabieg Wiek dziecięcy", "label"),
+        (6, "A01", "ICD-9", "marker"),
+        (7, "A01", "00.36 Zabieg Wiek dziecięcy", "member"),
+    ]
+    sheet = interpret_sheet(_sheet("A01", rows, [_icd9_list(1, "A01a", "A01", 6)]))
     assert all(n.status == "unsupported" for n in sheet.conditions)

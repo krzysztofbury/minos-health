@@ -172,6 +172,14 @@ def parse_modifiers(source: BinaryIO, *, year: int, generation: int) -> Modifier
     size_bytes = 0
     try:
         while content := source.read(64 * 1024):
+            # UTF-8 only. Expat honours a UTF-16/32 byte-order mark over any
+            # requested encoding, and the declaration check cannot see a file
+            # without a declaration, so refuse such bytes directly: XML 1.0 has
+            # no NUL character, and every UTF-16/32 text contains NUL bytes.
+            if (size_bytes == 0 and content.startswith((b"\xff\xfe", b"\xfe\xff"))) or (
+                b"\x00" in content
+            ):
+                raise SourceError("MODTAR XML is not UTF-8")
             size_bytes += len(content)
             if size_bytes > 4 * 1024 * 1024:
                 raise SourceError("MODTAR XML exceeds byte bound")

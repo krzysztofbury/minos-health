@@ -39,7 +39,7 @@ from minos.http.jgp import (
     register_jgp_routes,
 )
 from minos.http.jgp_condition_pages import membership_section
-from minos.http.jgp_pages import date_bar
+from minos.http.jgp_pages import date_bar, error_page
 from minos.http.pages import (
     CODE_PATTERN,
     DICTIONARIES,
@@ -74,6 +74,25 @@ RANK_ROUTE = re.compile(
     r"/api/v1/procedure-ranks/[a-z0-9-]{1,80}/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}"
 )
 PAGE_CACHE = "public, max-age=3600"
+
+
+def until_polish_midnight() -> str:
+    """Undated ICD pages show JGP data for today, which changes at midnight in
+    Poland; cache them until then (at most an hour), never across the change."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        now = datetime.now(ZoneInfo("Europe/Warsaw"))
+    except ZoneInfoNotFoundError:
+        return "no-store"
+    midnight = (now + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    seconds = int((midnight - now).total_seconds())
+    return f"public, max-age={min(3600, seconds)}" if seconds > 0 else "no-store"
+
+
 DISCLAIMER = "Validation only. Reference data, not medical advice or a binding settlement decision. Code documented care only; never infer billability."
 
 
@@ -198,8 +217,15 @@ def render_code(
             else None
         )
         jgp_section = ""
-        if pool.manifest.dataset.characteristics:
-            day = service_date or today_in_poland()
+        day: date | None = service_date
+        if day is None and pool.manifest.dataset.characteristics:
+            try:
+                day = today_in_poland()
+            except TimeZoneUnavailable:
+                # The ICD page itself never depended on the clock; only its
+                # dated JGP section is omitted when "today" is unknown.
+                day = None
+        if day is not None and pool.manifest.dataset.characteristics:
             memberships: list[dict[str, object]] = []
             for catalog in ("1a", "1ae"):
                 try:
@@ -502,9 +528,12 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                 int(membership_page) if membership_page else 1,
             )
         except NoRulesetForDate:
-            return failure(404, "no_characteristics_for_date")
-        except TimeZoneUnavailable:
-            return failure(503, "timezone_unavailable")
+            # A page route: a branded HTML error, never a JSON envelope.
+            return HTMLResponse(
+                error_page(404, "no_ruleset_for_date", None, None),
+                status_code=404,
+                headers={"Cache-Control": "no-store"},
+            )
         except SearchInputError:
             return failure(404, "not_found")
         except CapacityError:
@@ -517,15 +546,14 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             page,
             status_code=status,
             headers={
-                "Cache-Control": PAGE_CACHE
-                if status == 200
-                and (
-                    service_date is not None
-                    or not cast(
-                        ReferencePool, app.state.pool
-                    ).manifest.dataset.characteristics
-                )
-                else "no-store"
+                "Cache-Control": "no-store"
+                if status != 200
+                else PAGE_CACHE
+                if service_date is not None
+                or not cast(
+                    ReferencePool, app.state.pool
+                ).manifest.dataset.characteristics
+                else until_polish_midnight()
             },
         )
 

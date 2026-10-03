@@ -9,7 +9,12 @@ from collections import Counter
 from typing import Final, cast
 
 from minos.domain.reference import ArtifactError
-from minos.http.jgp_condition_pages import code_link, conditions_section, source_facts
+from minos.http.jgp_condition_pages import (
+    code_link,
+    conditions_section,
+    source_facts,
+    source_positions,
+)
 from minos.http.pages import _e, _page  # pyright: ignore[reportPrivateUsage]
 from minos.ingest.jgp_catalog_layout import (
     LEGEND,
@@ -469,6 +474,12 @@ def _notes(notes: str | None) -> str:
     return f'        <section class="detail-notes"><h2>Uwagi</h2>{lines}</section>\n'
 
 
+def _without_code(text: str, code: str) -> str:
+    """The code is already shown as a chip; keep only the source title."""
+    text = " ".join(text.split())
+    return text[len(code) :].strip() if text.startswith(code + " ") else text
+
+
 def directional_list_page(answer: dict[str, object]) -> str:
     source = cast(dict[str, object], answer["source"])
     day, catalog = cast(str, source["service_date"]), cast(str, source["catalog"])
@@ -482,8 +493,8 @@ def directional_list_page(answer: dict[str, object]) -> str:
             day,
             member["correspondence"] == "matched",
         )
-        + f" <span>{_e(member['source_text'])}</span>"
-        + f' <span class="detail-source">(wiersz {_e(member["row"])})</span></li>'
+        + f" <span>{_e(_without_code(cast(str, member['source_text']), cast(str, member['code'])))}</span>"
+        + f' <span class="jgp-rows">(wiersz {_e(member["row"])})</span></li>'
         for member in cast(list[dict[str, object]], answer["members"])
     )
     links: list[str] = []
@@ -506,7 +517,7 @@ def directional_list_page(answer: dict[str, object]) -> str:
             ]
         )
         + f'<h1>{title}</h1><p class="page-lead">Dzień świadczenia: {_e(day)}. '
-        + f"{_e(answer['total_occurrences'])} pozycji źródłowych, strona {page}.</p></div>"
+        + f"{_e(source_positions(cast(int, answer['total_occurrences'])))}, strona {page}.</p></div>"
         + f'<div class="shell code-page"><section class="code-children"><ul class="code-list">{rows}</ul></section>'
         + "<p>Powtórzenia i oznaczenia pozostają dowodami źródłowymi, nie dodatkowym zliczeniem procedur. "
         + "Obecność kodu na liście nie oznacza kwalifikacji przypadku. Numery list są lokalne dla wydania.</p>"

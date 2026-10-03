@@ -90,10 +90,10 @@ def reference_sql(relative_path: str) -> str:
 
 def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3, 4, 5, 6]:
     # Each schema is a superset of the previous one, so older bundles stay valid.
-    if manifest.modifiers:
+    # Conditions build as 6 even without MODTAR: the dated condition consumers
+    # rely on schema 6's lookup indexes. Schema 5 bundles stay readable.
+    if manifest.modifiers or manifest.characteristics:
         return 6
-    if manifest.characteristics:
-        return 5
     if manifest.catalogs:
         return 4
     return 3 if manifest.komunikaty else 2

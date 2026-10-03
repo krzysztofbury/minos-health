@@ -8,7 +8,7 @@ relation. Do not drop a source member because another government catalog lacks
 it. Do not invent an equivalent code, restore a deleted code by medical meaning,
 or extend an ICD family by prefix matching.
 
-Status: #30 implements reference extraction, typed fragments, schema-5 storage,
+Status: #30 implements reference extraction, typed fragments, schema-5 (now 6) storage,
 strict reviewed manifests and dated store correspondence. See the
 [implementation and acceptance record](jgp-conditions-ingest.md). Automated
 manifest PRs (#21) remain future work. The combined #32/#46 branch adds dated

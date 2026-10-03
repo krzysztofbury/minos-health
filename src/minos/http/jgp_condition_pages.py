@@ -58,11 +58,12 @@ def source_facts(source: Json) -> str:
             if source["service_date_after_knowledge"]
             else ""
         )
-        + f'<p class="detail-source">Załącznik 9, {_e(source["act_number"])}, '
-        + f"{_e(source['worksheet'])}. Stan wiedzy: {_e(source['knowledge_as_of'])}. "
-        + f"Wydanie: {_e(source['release_id'])}. SHA-256: {_e(source['sha256'])}.</p>"
-        + f'<p><a href="{_e(source["source_url"])}">Oficjalny skoroszyt NFZ</a></p>'
-        + f"<details><summary>Pochodzenie i warunki źródła</summary><p>{_e(source['publisher'])}. {_e(source['license'])}</p>"
+        + f'<p class="detail-source">Źródło: załącznik 9 do zarządzenia {_e(source["act_number"])}, '
+        + f"{_e(source['worksheet'])}. Stan wiedzy Minos: {_e(source['knowledge_as_of'])}. "
+        + f'<a href="{_e(source["source_url"])}">Oficjalny skoroszyt NFZ</a></p>'
+        + "<details><summary>Pochodzenie i warunki źródła</summary>"
+        + f"<p>Wydanie: {_e(source['release_id'])}. SHA-256 skoroszytu: {_e(source['sha256'])}.</p>"
+        + f"<p>{_e(source['publisher'])}. {_e(source['license'])}</p>"
         + "<ul>"
         + "".join(
             f"<li>{_e(notice)}</li>" for notice in cast(list[str], source["notices"])
@@ -86,7 +87,7 @@ def _selector_links(answer: Json) -> dict[int, str]:
         if item["kind"] == "list":
             result[identity] = ", ".join(
                 f'<a href="/jgp/{_e(day)}/listy/{_e(catalog)}/{i}/1">'
-                + f"{_e(lists[i]['label'])} ({lists[i]['occurrences']} pozycji źródłowych)</a>"
+                + f"{_e(lists[i]['label'])} ({source_positions(cast(int, lists[i]['occurrences']))})</a>"
                 for i in cast(list[int], body["list_ids"])
             )
         elif item["kind"] == "codes":
@@ -200,8 +201,68 @@ def _payload(node: c.Condition, selectors: dict[int, str]) -> str:
     raise ArtifactError("unsupported condition reached structured display")
 
 
+def source_positions(count: int) -> str:
+    """Polish agreement: 1 pozycja, 2-4 pozycje, 5+ pozycji (12-14 pozycji)."""
+    if count == 1:
+        return "1 pozycja źródłowa"
+    if count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return f"{count} pozycje źródłowe"
+    return f"{count} pozycji źródłowych"
+
+
+def _rule_tree(
+    roots: list[int],
+    nodes: dict[int, c.Condition],
+    selectors: dict[int, str],
+    rendered: int,
+) -> str:
+    """Nested rules from each source root, without internal node numbers.
+
+    An explicit stack instead of recursion; depth is already bounded by
+    validation and output by MAX_SECTION_CHARACTERS.
+    """
+    out: list[str] = ['<ul class="jgp-rules">']
+    stack: list[int | str] = ["</ul>", *reversed(roots)]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, str):
+            out.append(item)
+            continue
+        node = nodes.get(item)
+        if node is None or node.kind is None:
+            raise ArtifactError("structured rule tree references a missing node")
+        children = (
+            node.payload.children
+            if isinstance(node.payload, c.Expression)
+            else node.payload.included_node_ids
+            if isinstance(node.payload, c.Count)
+            else ()
+        )
+        details = "" if node.kind in ("all", "any") else _payload(node, selectors)
+        rows = ", ".join(map(str, node.source_rows))
+        out.append(
+            f"<li><strong>{_e(LABELS[node.kind])}</strong>"
+            + (f": {details}" if details else "")
+            + f' <span class="jgp-rows">(wiersz {_e(rows)})</span>'
+        )
+        if children:
+            out.append("<ul>")
+            stack.append("</ul></li>")
+            stack.extend(reversed(children))
+        else:
+            out.append("</li>")
+        rendered += len(out[-1]) + len(out[-2])
+        if rendered > MAX_SECTION_CHARACTERS:
+            raise ArtifactError("condition section display exceeds bound")
+    return "".join(out)
+
+
 def conditions_section(answer: Json) -> str:
     status = answer["status"]
+    if status == "not_in_bundle":
+        # Nothing to say to a visitor when the deployed data has no
+        # characteristics; the API still reports the state explicitly.
+        return ""
     if status not in ("fully_interpreted", "not_yet_interpreted"):
         labels = {
             "not_in_bundle": "Ten pakiet nie zawiera charakterystyki JGP.",
@@ -222,10 +283,7 @@ def conditions_section(answer: Json) -> str:
         import json
 
         selectors = _selector_links(answer)
-        parts.append(
-            '<p>Wszystkie zapisy grupy mają strukturę. Zasady zliczania, granic i wykonania nadal wymagają osobnej weryfikacji przed uruchomieniem grupera.</p><ol class="jgp-rules">'
-        )
-        rendered_characters = sum(map(len, parts))
+        nodes: dict[int, c.Condition] = {}
         for raw in cast(list[Json], answer["nodes"]):
             node = decode_condition(
                 json.dumps(
@@ -234,28 +292,16 @@ def conditions_section(answer: Json) -> str:
             )
             if node.status != "proposed" or node.kind is None:
                 raise ArtifactError("whole-group interpretation gate is inconsistent")
-            details = _payload(node, selectors)
-            children = (
-                node.payload.children
-                if isinstance(node.payload, c.Expression)
-                else node.payload.included_node_ids
-                if isinstance(node.payload, c.Count)
-                else ()
-            )
-            links = ", ".join(f'<a href="#warunek-{i}">{i}</a>' for i in children)
-            parts.append(
-                f'<li id="warunek-{node.identity}" value="{node.identity}"><strong>{_e(LABELS[node.kind])}</strong>: {details}'
-                + (f" - zapisy {links}" if links else "")
-                + f' <span class="detail-source">(wiersze {_e(", ".join(map(str, node.source_rows)))})</span></li>'
-            )
-            rendered_characters += len(parts[-1])
-            if rendered_characters > MAX_SECTION_CHARACTERS:
-                raise ArtifactError("condition section display exceeds bound")
+            nodes[node.identity] = node
         parts.append(
-            "</ol><p>Korzenie zapisów źródłowych: "
-            + _e(", ".join(map(str, cast(list[int], answer["roots"]))))
-            + ". Oddzielne korzenie nie tworzą domyślnej koniunkcji.</p>"
+            "<p>Wszystkie zapisy grupy mają strukturę. Zasady zliczania, granic i wykonania nadal wymagają osobnej weryfikacji przed uruchomieniem grupera.</p>"
         )
+        roots = cast(list[int], answer["roots"])
+        if len(roots) > 1:
+            parts.append(
+                "<p>Grupa ma kilka odrębnych zapisów źródłowych; nie łączymy ich domyślnie w jeden warunek.</p>"
+            )
+        parts.append(_rule_tree(roots, nodes, selectors, sum(map(len, parts))))
     else:
         parts.append(
             '<p class="badge badge-warn">Jeszcze nie zinterpretowano całej grupy. Pokazujemy zapis źródłowy, bez częściowych reguł strukturalnych.</p>'
@@ -263,7 +309,7 @@ def conditions_section(answer: Json) -> str:
     parts.append("<details open><summary>Zapis źródłowy</summary><ul>")
     rendered_characters = sum(map(len, parts))
     for item in cast(list[Json], answer["source_text"]):
-        text = f'<li><span class="detail-source">Wiersz {_e(item["row"])}</span>: {_e(item["text"])}</li>'
+        text = f'<li><span class="jgp-rows">Wiersz {_e(item["row"])}</span>: {_e(item["text"])}</li>'
         rendered_characters += len(text)
         if rendered_characters > MAX_SECTION_CHARACTERS:
             raise ArtifactError("condition source display exceeds bound")
@@ -278,6 +324,12 @@ def membership_section(answers: list[Json], *, slug: str, code: str, day: str) -
         '<section class="code-children jgp-memberships"><h2>Występuje w grupach</h2>',
         f"<p>Dzień świadczenia: {_e(day)}. Dowód obecności w jawnych listach załącznika 9, nie kwalifikacja przypadku. Brak pozycji nie dowodzi wykluczenia.</p>",
     ]
+    if slug == "icd-10":
+        # Procedure-led groups (for example hernia repair) often have no
+        # diagnosis list, so a diagnosis alone never shows them here.
+        parts.append(
+            '<p class="jgp-note">Grupy zabiegowe kierowane procedurą często nie wymieniają rozpoznania na liście. Sprawdź także stronę wykonanej procedury ICD-9.</p>'
+        )
     for answer in answers:
         if answer["status"] != "covered":
             parts.append(
