@@ -1,7 +1,7 @@
 # Decisions
 
 Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
-2026-09-23, 2026-10-01, and 2026-10-02
+2026-09-23, 2026-10-01, 2026-10-02, and 2026-10-03
 
 ## Product
 
@@ -301,6 +301,22 @@ before merge and preserve the #102 shared layout and search-first interface.
 
 See [JGP delivery scope](jgp-delivery-scope.md) for issue ownership and review
 gates.
+
+### JGP Source-Local Code Correspondence (2026-10-03)
+
+Owner-approved during #30: NFZ attachment 9 list members retain release-local
+NFZ code/title identities even when the selected RSK ICD-10 release lacks an
+exact counterpart. Source-local references must resolve; dictionary
+correspondence is separately attributed and explicitly matched or absent.
+Absence from RSK does not prove invalidity and never authorizes substitution,
+deletion or extending canonical dictionary search. This refines #29's
+reference-build gate, not the future service-date/executable ruleset gate.
+
+See [the evidence and population contract](jgp-code-correspondence.md) for
+the 19 observed source differences, independent government evidence and the
+watcher/archive -> reviewed manifest PR -> deterministic rebuild -> immutable
+application artifact -> #32 consumer path. Watchers never patch live conditions
+or silently resolve a source disagreement.
 
 ### JGP Group Browser Pages (2026-10-03)
 

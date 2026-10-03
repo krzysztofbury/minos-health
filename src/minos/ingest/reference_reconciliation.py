@@ -4,6 +4,7 @@ import sqlite3
 from pathlib import Path
 from typing import cast
 
+from minos.domain.reference import ArtifactError
 from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.reference_build import reference_sql
 
@@ -62,3 +63,51 @@ def reconciliation_lines(database: Path, manifest: DatasetManifest) -> list[str]
     finally:
         connection.close()
     return lines
+
+
+def conditions_reconciliation_lines(
+    database: Path, manifest: DatasetManifest
+) -> list[str]:
+    if not manifest.characteristics:
+        return []
+    connection = sqlite3.connect(
+        database.resolve().as_uri() + "?mode=ro&immutable=1", uri=True
+    )
+    try:
+        codes = cast(
+            list[tuple[str, str, str, str, int, int]],
+            connection.execute(
+                """SELECT local.release_id, local.catalog, local.system, local.correspondence,
+                count(*), sum((SELECT count(*) FROM characteristics_code_evidence AS evidence
+                    WHERE evidence.release_id=local.release_id AND evidence.catalog=local.catalog
+                      AND evidence.system=local.system AND evidence.code=local.code))
+            FROM characteristics_code AS local
+            GROUP BY local.release_id, local.catalog, local.system, local.correspondence
+            ORDER BY local.release_id, local.catalog, local.system, local.correspondence LIMIT 65"""
+            ).fetchall(),
+        )
+        catalogs = cast(
+            list[tuple[str, str, str, int]],
+            connection.execute(
+                """SELECT release_id, catalog, correspondence, count(*)
+            FROM characteristics_group_catalog GROUP BY release_id, catalog, correspondence
+            ORDER BY release_id, catalog, correspondence LIMIT 49"""
+            ).fetchall(),
+        )
+        if len(codes) > 64 or len(catalogs) > 48:
+            raise ArtifactError("characteristics review summary exceeds release bounds")
+        lines = [
+            "",
+            "Attachment 9 correspondence: exact source identities, not clinical equivalence.",
+        ]
+        lines.extend(
+            f"{release} / {catalog} / {system} / {status}: {count} distinct codes; {occurrences} code/cell evidence edges"
+            for release, catalog, system, status, count, occurrences in codes
+        )
+        lines.extend(
+            f"{release} / {catalog} / {status}: {count} characteristics groups"
+            for release, catalog, status, count in catalogs
+        )
+        return lines
+    finally:
+        connection.close()

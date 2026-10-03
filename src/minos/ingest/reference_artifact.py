@@ -48,6 +48,12 @@ def build_reference_artifact(
     """
     if output.exists() or output.is_symlink():
         raise ArtifactError("reference output already exists")
+    try:
+        manifest.validate_characteristics()
+    except ValueError as error:
+        raise SourceError(
+            "characteristics manifest or supersession is incompatible"
+        ) from error
     for source in manifest.sources:
         if (source.system, source.origin) not in (
             ("icd10-pl", "rsk"),
@@ -139,6 +145,18 @@ def _build_database(
         ):
             import_catalog(connection, catalog, archive_root, database.parent)
         record_catalog_knowledge(connection, manifest)
+        from minos.store.jgp_conditions_build import (
+            import_characteristics,
+            record_conditions_knowledge,
+        )
+
+        for item in sorted(
+            manifest.characteristics,
+            key=lambda item: (item.published_on, item.release_id),
+        ):
+            import_characteristics(connection, item, archive_root, database.parent)
+        if manifest.characteristics:
+            record_conditions_knowledge(connection, manifest)
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options
@@ -200,9 +218,13 @@ def _review_summary(
         lines.append(f"Pinned bytes: {source.sha256} / {source.size_bytes}")
         lines.append(f"License: {source.license}")
         lines.extend(f"Notice: {notice}" for notice in source.notices)
-    from minos.ingest.reference_reconciliation import reconciliation_lines
+    from minos.ingest.reference_reconciliation import (
+        conditions_reconciliation_lines,
+        reconciliation_lines,
+    )
 
     lines.extend(reconciliation_lines(database_path, manifest))
+    lines.extend(conditions_reconciliation_lines(database_path, manifest))
     for item in manifest.komunikaty:
         lines.append(
             f"Algorithm evidence: {item.release_id} / {item.algorithm_version}"
@@ -231,6 +253,32 @@ def _review_summary(
                     name, sheet.layout, *reviewed
                 )
             )
+    for characteristic in manifest.characteristics:
+        lines.append(
+            f"Characteristics: {characteristic.release_id} / {characteristic.act_number} / BAW {characteristic.baw_document_id}"
+        )
+        lines.append(
+            f"Pinned attachment 9: {characteristic.workbook.sha256} / {characteristic.workbook.size_bytes}"
+        )
+        lines.append(
+            "NFZ-local identities, separate exact dictionary correspondence. Not an executable ruleset."
+        )
+        lines.append(
+            f"Publisher: {characteristic.publisher}; license: {characteristic.license}"
+        )
+        lines.extend(f"Notice: {notice}" for notice in characteristic.notices)
+        lines.append(
+            f"Exact reference pins: {characteristic.icd9_release_id}, {characteristic.icd10_release_id}; catalog: {characteristic.catalog_release_id}"
+        )
+        lines.append(
+            f"Applicability: {characteristic.valid_from} through {characteristic.valid_to}; published {characteristic.published_on}"
+        )
+        for context, expected in sorted(characteristic.sheets.items()):
+            lines.append(f"Characteristics {context}: {expected.model_dump_json()}")
+    if manifest.characteristics:
+        lines.append(
+            f"Characteristics knowledge horizon: {manifest.characteristics_knowledge_as_of}; {manifest.characteristics_knowledge_evidence}"
+        )
     return ("\n".join(lines) + "\n").encode()
 
 

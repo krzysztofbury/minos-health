@@ -6,6 +6,10 @@ from typing import Annotated, ClassVar, Literal, Self
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from minos.ingest.jgp_catalog_manifest import CatalogManifest
+from minos.ingest.jgp_conditions_manifest import (
+    ConditionsManifest,
+    validate_conditions_windows,
+)
 from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.manifest_types import Digest as Digest
 from minos.ingest.manifest_types import Identifier as Identifier
@@ -83,6 +87,15 @@ class DatasetManifest(BaseModel):
     catalogs: Annotated[tuple[CatalogManifest, ...], Field(max_length=8)] = Field(
         default=(), exclude_if=empty_evidence
     )
+    characteristics: Annotated[tuple[ConditionsManifest, ...], Field(max_length=8)] = (
+        Field(default=(), exclude_if=empty_evidence)
+    )
+    characteristics_knowledge_as_of: date | None = Field(
+        default=None, exclude_if=absent_context
+    )
+    characteristics_knowledge_evidence: SourceText | None = Field(
+        default=None, exclude_if=absent_context
+    )
     # Reviewed date through which the catalog lineage is known complete. No
     # answer may claim knowledge beyond it.
     catalog_knowledge_as_of: date | None = Field(
@@ -103,8 +116,20 @@ class DatasetManifest(BaseModel):
             raise ValueError("duplicate komunikat release identity")
         catalog_ids = [item.release_id for item in self.catalogs]
         all_ids = identities + evidence_ids + catalog_ids
+        all_ids += [item.release_id for item in self.characteristics]
         if len(set(all_ids)) != len(all_ids):
             raise ValueError("duplicate catalog release identity")
+        for characteristic in self.characteristics:
+            for release_id, system, origin in (
+                (characteristic.icd9_release_id, "icd9-pl", "czs"),
+                (characteristic.icd10_release_id, "icd10-pl", "rsk"),
+            ):
+                target = sources.get(release_id)
+                if target is None or (target.system, target.origin) != (system, origin):
+                    raise ValueError(
+                        "characteristics require explicit canonical dictionary pins"
+                    )
+        self.validate_characteristics()
         documents = [item.baw_document_id for item in self.catalogs]
         if len(set(documents)) != len(documents):
             raise ValueError("a BAW document is pinned twice")
@@ -151,6 +176,37 @@ class DatasetManifest(BaseModel):
             ):
                 raise ValueError("invalid supporting source binding")
         return self
+
+    def validate_characteristics(self) -> None:
+        horizon = self.characteristics_knowledge_as_of
+        if bool(self.characteristics) != (horizon is not None) or (horizon is None) != (
+            self.characteristics_knowledge_evidence is None
+        ):
+            raise ValueError(
+                "characteristics require their own reviewed knowledge horizon"
+            )
+        catalogs = {item.release_id: item for item in self.catalogs}
+        releases = {item.release_id: item for item in self.characteristics}
+        for item in self.characteristics:
+            if horizon is None or item.published_on > horizon:
+                raise ValueError("characteristics publication exceeds reviewed horizon")
+            if item.catalog_release_id is not None:
+                target = catalogs.get(item.catalog_release_id)
+                if target is None or target.baw_document_id != item.baw_document_id:
+                    raise ValueError(
+                        "characteristics catalog correspondence requires the same reviewed document"
+                    )
+            if item.supersedes is not None:
+                previous = releases.get(item.supersedes)
+                if (
+                    previous is None
+                    or previous.published_on >= item.published_on
+                    or previous.lineage_document_id != item.lineage_document_id
+                ):
+                    raise ValueError(
+                        "characteristics supersession is missing, later or another lineage"
+                    )
+        validate_conditions_windows(self.characteristics)
 
 
 def utc_text(value: datetime | None) -> str | None:

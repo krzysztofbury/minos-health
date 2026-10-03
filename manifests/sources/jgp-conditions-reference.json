@@ -1,0 +1,121 @@
+{
+  "characteristics_knowledge_as_of": "2026-10-02",
+  "characteristics_knowledge_evidence": "Reviewed 46/2026 lineage through 102/2026, using the existing 2026-10-02 horizon. Research capture on 2026-10-03 does not advance knowledge coverage.",
+  "characteristics": [
+    {
+      "release_id": "jgp-conditions-46-2026-original-915c13de1b40",
+      "baw_document_id": 43868,
+      "lineage_document_id": 43868,
+      "act_number": "46/2026/DSOZ",
+      "layout": "nfz-9-46-2026",
+      "valid_from": "2026-05-01",
+      "valid_to": null,
+      "published_on": "2026-04-30",
+      "applicability_evidence": "46/2026 enters into force on 2026-05-01, replacing 101/2025, which is not covered. Attachment 9 applicability is separate from attachment 1a row windows.",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial reference development, not commercial legal clearance",
+      "notices": ["Source: NFZ BAW, attachment 9 to 46/2026/DSOZ. Original descriptions and cell evidence retained.", "Reference evidence only. Unsupported interpretation is not encounter eligibility or an executable ruleset. Exact RSK enrichment retains its own attribution and noncommercial terms."],
+      "icd9_release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "icd10_release_id": "icd10-rsk-013-f3dc9811520e",
+      "catalog_release_id": "jgp-catalog-46-2026-original-3d4197ceb459",
+      "correspondence": "source_local_exact_reference",
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/29652",
+        "sha256": "915c13de1b40ced7a45ce61d371b66ea5a1bb0aceb76d3162a7f880dca73636b",
+        "size_bytes": 1237745,
+        "fetched_at": "2026-10-03T13:31:14.383025Z"
+      },
+      "sheets": {
+        "1a": {
+          "groups": 702, "evidence_cells": 40042, "unbound_member_occurrences": 46,
+          "lists": 892, "member_occurrences": 35081, "unique_members": 35058, "conditions": 3358,
+          "kind_counts": {"all": 423, "any": 186, "clinical_measure": 8, "diagnosis_count": 2, "diagnosis_presence": 686, "discharge_mode": 47, "episode_duration": 163, "external_disease_code": 1, "not": 9, "patient_age": 355, "procedure_all_members": 7, "procedure_count": 105, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_list_coverage": 2, "procedure_presence": 854, "unsupported": 449, "ward_duration": 2, "when": 57},
+          "unsupported_reasons": {"alternative_scope_unreviewed": 1, "boolean_scope_unreviewed": 90, "child_interpretation_unsupported": 178, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 12, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 4, "list_reference_unresolved": 101, "rank_compatibility_unbound": 29, "unconsumed_source_text": 249},
+          "unmatched_codes": 19
+        }
+      }
+    },
+    {
+      "release_id": "jgp-conditions-46-2026-after-74-f5e360996b3c",
+      "baw_document_id": 43943,
+      "lineage_document_id": 43868,
+      "supersedes": "jgp-conditions-46-2026-original-915c13de1b40",
+      "act_number": "46/2026/DSOZ after 74/2026/DSOZ",
+      "layout": "nfz-9-102-2026",
+      "valid_from": "2026-07-01",
+      "valid_to": null,
+      "published_on": "2026-07-23",
+      "applicability_evidence": "74/2026 section 4 applies to services from 2026-07-01. Replacement attachment 9 (BAW 43942/30976) is byte-identical to consolidated 43943/31015. The two-sheet reviewed layout also matches after 102.",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial reference development, not commercial legal clearance",
+      "notices": ["Source: NFZ BAW, attachment 9 after 74/2026/DSOZ. Original descriptions and cell evidence retained.", "Reference evidence only. Unsupported interpretation is not encounter eligibility or an executable ruleset. Exact RSK enrichment retains its own attribution and noncommercial terms."],
+      "icd9_release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "icd10_release_id": "icd10-rsk-013-f3dc9811520e",
+      "catalog_release_id": "jgp-catalog-46-2026-after-74-fbe73d5fb7a3",
+      "correspondence": "source_local_exact_reference",
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/31015",
+        "sha256": "f5e360996b3c2b9fb2d12469a1fd06576ebb9cb20a4856162a0341771bfb5dcf",
+        "size_bytes": 1502155,
+        "fetched_at": "2026-10-03T13:31:41.761120Z"
+      },
+      "sheets": {
+        "1a": {
+          "groups": 627, "evidence_cells": 37133, "unbound_member_occurrences": 438,
+          "lists": 872, "member_occurrences": 32130, "unique_members": 32109, "conditions": 3260,
+          "kind_counts": {"all": 380, "any": 180, "clinical_measure": 11, "diagnosis_count": 2, "diagnosis_presence": 668, "discharge_mode": 47, "episode_duration": 126, "external_disease_code": 1, "not": 10, "patient_age": 327, "procedure_all_members": 8, "procedure_count": 173, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_laterality": 1, "procedure_list_coverage": 2, "procedure_presence": 809, "unsupported": 453, "ward_duration": 2, "when": 58},
+          "unsupported_reasons": {"alternative_scope_unreviewed": 1, "boolean_scope_unreviewed": 92, "child_interpretation_unsupported": 164, "classification_family_unbound": 3, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 12, "exemption_trigger_unbound": 5, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 6, "list_reference_unresolved": 100, "rank_compatibility_unbound": 29, "secondary_exemption_scope_unbound": 1, "title_only_qualifier": 5, "unconsumed_source_text": 244},
+          "unmatched_codes": 19
+        },
+        "1ae": {
+          "groups": 121, "evidence_cells": 10418, "unbound_member_occurrences": 0,
+          "lists": 176, "member_occurrences": 9540, "unique_members": 9532, "conditions": 443,
+          "kind_counts": {"all": 80, "any": 26, "diagnosis_presence": 94, "episode_duration": 36, "patient_age": 36, "procedure_all_members": 1, "procedure_count": 33, "procedure_presence": 96, "unsupported": 41},
+          "unsupported_reasons": {"boolean_scope_unreviewed": 5, "child_interpretation_unsupported": 17, "list_reference_unresolved": 8, "unconsumed_source_text": 28},
+          "unmatched_codes": 12
+        }
+      }
+    },
+    {
+      "release_id": "jgp-conditions-46-2026-after-102-618a476ab3d1",
+      "baw_document_id": 44042,
+      "lineage_document_id": 43868,
+      "supersedes": "jgp-conditions-46-2026-after-74-f5e360996b3c",
+      "act_number": "46/2026/DSOZ after 102/2026/DSOZ",
+      "layout": "nfz-9-102-2026",
+      "valid_from": "2026-07-01",
+      "valid_to": null,
+      "published_on": "2026-09-23",
+      "applicability_evidence": "102/2026 section 1(8) replaces attachment 9 with attachment 6 (44041/32989), byte-identical to 44042/33027. Section 4(1) applies from 2026-07-01. Section 4(5) defers selected attachment 1a catalog rows, not attachment 9 as a whole.",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial reference development, not commercial legal clearance",
+      "notices": ["Source: NFZ BAW, attachment 9 after 102/2026/DSOZ. Original descriptions and cell evidence retained.", "Reference evidence only. Unsupported interpretation is not encounter eligibility or an executable ruleset. Exact RSK enrichment retains its own attribution and noncommercial terms."],
+      "icd9_release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "icd10_release_id": "icd10-rsk-013-f3dc9811520e",
+      "catalog_release_id": "jgp-catalog-46-2026-after-102-32dc947fc6ac",
+      "correspondence": "source_local_exact_reference",
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/33027",
+        "sha256": "618a476ab3d11f9935a2a74d66db1ce77b2fb5376af776d36afa189f712405c4",
+        "size_bytes": 1517326,
+        "fetched_at": "2026-10-03T13:31:46.861897Z"
+      },
+      "sheets": {
+        "1a": {
+          "groups": 629, "evidence_cells": 37461, "unbound_member_occurrences": 438,
+          "lists": 877, "member_occurrences": 32437, "unique_members": 32423, "conditions": 3306,
+          "kind_counts": {"all": 383, "any": 184, "clinical_measure": 11, "diagnosis_count": 2, "diagnosis_presence": 682, "discharge_mode": 51, "episode_duration": 129, "external_disease_code": 1, "not": 10, "patient_age": 328, "procedure_all_members": 8, "procedure_count": 172, "procedure_date_relation": 1, "procedure_duration": 1, "procedure_laterality": 1, "procedure_list_coverage": 2, "procedure_presence": 827, "program_membership": 2, "unsupported": 451, "ward_duration": 2, "when": 58},
+          "unsupported_reasons": {"alternative_scope_unreviewed": 1, "boolean_scope_unreviewed": 96, "child_interpretation_unsupported": 165, "classification_family_unbound": 3, "clinical_unit_missing": 4, "date_allocation_unreviewed": 1, "diagnosis_role_unspecified": 12, "exemption_trigger_unbound": 5, "guard_intro_scope_unreviewed": 4, "guard_occurrence_scope_unreviewed": 57, "list_definition_unbound": 6, "list_reference_unresolved": 94, "rank_compatibility_unbound": 29, "secondary_exemption_scope_unbound": 1, "title_only_qualifier": 5, "unconsumed_source_text": 244},
+          "unmatched_codes": 19
+        },
+        "1ae": {
+          "groups": 121, "evidence_cells": 10413, "unbound_member_occurrences": 0,
+          "lists": 176, "member_occurrences": 9535, "unique_members": 9534, "conditions": 443,
+          "kind_counts": {"all": 80, "any": 26, "diagnosis_presence": 94, "episode_duration": 36, "patient_age": 36, "procedure_all_members": 1, "procedure_count": 33, "procedure_presence": 96, "unsupported": 41},
+          "unsupported_reasons": {"boolean_scope_unreviewed": 5, "child_interpretation_unsupported": 17, "list_reference_unresolved": 8, "unconsumed_source_text": 28},
+          "unmatched_codes": 12
+        }
+      }
+    }
+  ]
+}

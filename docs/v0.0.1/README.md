@@ -17,6 +17,11 @@ model.
   cadence, and the watcher/archive rules.
 - [jgp-conditions.md](jgp-conditions.md): source-backed attachment 9 taxonomy,
   proposed typed conditions, frequency census and #30 review boundaries.
+- [jgp-code-correspondence.md](jgp-code-correspondence.md): source-local NFZ
+  member identities, separately attributed dictionary links and watcher-to-app
+  population/review gates.
+- [jgp-conditions-ingest.md](jgp-conditions-ingest.md): #30 reference importer,
+  schema, conservative source gaps, dated correspondence and reproducible checks.
 - [data-and-licensing.md](data-and-licensing.md): provenance requirements and
   the code/data licensing boundary, including the Art. 4 position.
 - [deployment.md](deployment.md): image lifecycle, CI/CD, the Mikr.us Compose

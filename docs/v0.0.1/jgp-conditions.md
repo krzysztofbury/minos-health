@@ -6,6 +6,10 @@ this taxonomy. This is not a condition importer, a reviewed executable ruleset,
 or evidence of settlement accuracy. #32 remains responsible for
 date-consistent reference links.
 
+The separate [#30 implementation record](jgp-conditions-ingest.md) now describes
+the reference importer and its acceptance evidence; the taxonomy and lexical
+census below remain #29 research rather than parser output counts.
+
 ## Findings
 
 The inspected current attachment requires **16 atomic condition kinds**, plus
@@ -27,8 +31,10 @@ The difficult cases are not just procedure counts:
 - Five current groups state a condition only in the group title, with no
   matching label clause: N03, N03A, N06A and N06B (`> 2 dni`) and PD01
   (`< 18 r.ż.`). A label-only parser would silently drop them.
-- 1a and 1ae have separate shared lists, including different `Lista Ogólna`
-  membership. Identical names do not establish interchangeable list identities.
+- 1a and 1ae have separate shared lists. After 74, `Lista Ogólna` differs by
+  J98.4/J98.8; after 102 its exact-code sets coincide (2,750 codes), while its
+  physical identities remain independent. Identical names or membership do not
+  establish interchangeable list identities.
 - DiLO/oncology exceptions and grouper preprocessing are not completely described
   in attachment 9. The algorithm and other attachments are additional evidence.
 
@@ -150,8 +156,12 @@ into one identity. Resolve a contextual `poniższej listy`, list range such as
 requires paired-classification evidence, never unrestricted string-prefix
 matching or a generated code family from a title.
 
-The future reference build must reject dangling selectors, unknown phrasing,
-cycles, conflicting windows and unresolved terminology correspondence. Known
+The future reference build must reject dangling selectors, cycles and
+conflicting windows. Unknown phrasing remains unsupported evidence, never an
+implicitly accepted rule. The owner-approved #30
+[source-local correspondence decision](jgp-code-correspondence.md) refines the
+original terminology gate: source-local references must resolve fully, while
+exact dictionary correspondence is explicitly matched or absent. Known
 source omissions, such as an unspecified diagnosis role/unit, remain explicit
 typed evidence. Promotion to an executable ruleset must additionally reject
 ambiguous boolean grouping and unreviewed interpretation policies. Raw evidence
@@ -453,7 +463,8 @@ Required #30 fixtures and build checks:
 - N09/N11 characteristics without catalog values, unspecified diagnosis roles,
   missing measurements/units and ambiguous inline alternatives. Unknown is not
   false, true, zero, or evidence that a condition does not apply.
-- Paired-code resolution, exact original code/title/marker preservation, bounds,
+- Source-local code resolution plus explicit exact dictionary correspondence,
+  exact original code/title/marker preservation, bounds,
   duplicate identities, invalid/dangling list references, and checksum drift.
 - Date-specific condition/ICD/catalog correspondence without inheriting the
   latest source or 2027 catalog exceptions indiscriminately. Binding of
