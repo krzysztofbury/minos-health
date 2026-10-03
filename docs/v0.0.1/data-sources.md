@@ -20,10 +20,15 @@ domain and per reporting period.
 | Effective legal lineage | BAW source, amendment, and consolidated document graph | Act text and NFZ announcement metadata |
 | Grouper algorithm and procedure ranks | NFZ Komunikaty JGP | General NFZ provider news may add operational guidance |
 | ICD-9 PL | NFZ Centralne Zasoby Słownikowe (CZS) | NFZ ICD-9 page and general announcements; RSK is secondary and may lag |
-| ICD-10 PL | RSK HCD `00CD10` | JGP attachment 9 contains the billing-relevant subset |
+| ICD-10 PL | RSK HCD `00CD10` | JGP attachment 9 retains separately maintained NFZ membership; not every NFZ member has an exact RSK counterpart |
 | JGP tariff modifier mapping | NFZ CZS `MODTAR`, discovered by year/type and pinned by generation | Governing NFZ act text controls legal applicability |
 | Tariff signals | AOTMiT obwieszczenia | Issued NFZ catalog remains controlling |
 | Competitor output | Never authoritative | SGA, CGM/UHC, Asseco, Comarch, and KAMSOFT are review oracles only |
+
+For JGP list membership, NFZ attachment 9 code/title identities remain
+source-local and authoritative even where RSK lacks an exact code. Dictionary
+correspondence is separate, not a reason to drop a member or manufacture a
+replacement. See [the #30 decision and population contract](jgp-code-correspondence.md).
 
 The NFZ and AOTMiT publication pages do not expose a useful RSS or Atom change
 feed. That does not mean every source requires HTML scraping: BAW exposes

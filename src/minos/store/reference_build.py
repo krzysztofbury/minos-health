@@ -34,6 +34,22 @@ CATALOG_TABLES = (
     "group_base_value",
     "group_scope",
 )
+CONDITIONS_MIGRATION = "005_jgp_conditions.sql"
+CONDITIONS_TABLES = (
+    "characteristics_release",
+    "characteristics_knowledge",
+    "characteristics_sheet",
+    "characteristics_evidence",
+    "characteristics_group",
+    "characteristics_group_catalog",
+    "characteristics_catalog_row",
+    "directional_list",
+    "characteristics_code",
+    "characteristics_code_evidence",
+    "directional_member",
+    "condition_selector",
+    "group_condition",
+)
 REFERENCE_APPLICATION_ID = 0x4D494E52
 TABLES = (
     "source_release",
@@ -64,20 +80,23 @@ def reference_sql(relative_path: str) -> str:
     )
 
 
-def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3, 4]:
+def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3, 4, 5]:
     # Each schema is a superset of the previous one, so older bundles stay valid.
+    if manifest.characteristics:
+        return 5
     if manifest.catalogs:
         return 4
     return 3 if manifest.komunikaty else 2
 
 
 def migrations_for(schema_version: int) -> tuple[str, ...]:
-    if schema_version not in (2, 3, 4):
+    if schema_version not in (2, 3, 4, 5):
         raise ArtifactError("incompatible reference schema version")
     return (
         MIGRATIONS
         + ((KOMUNIKAT_MIGRATION,) if schema_version >= 3 else ())
         + ((CATALOG_MIGRATION,) if schema_version >= 4 else ())
+        + ((CONDITIONS_MIGRATION,) if schema_version >= 5 else ())
     )
 
 
@@ -87,6 +106,7 @@ def tables_for(schema_version: int) -> tuple[str, ...]:
         TABLES
         + (KOMUNIKAT_TABLES if schema_version >= 3 else ())
         + (CATALOG_TABLES if schema_version >= 4 else ())
+        + (CONDITIONS_TABLES if schema_version >= 5 else ())
     )
 
 
@@ -382,6 +402,13 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
     )
     result = dict(counts)
     version = cast(tuple[int], connection.execute("PRAGMA user_version").fetchone())[0]
+    if version >= 5:
+        for table in CONDITIONS_TABLES:
+            # Identifiers come only from the fixed schema tuple, never input.
+            result[table] = cast(
+                tuple[int],
+                connection.execute(f"SELECT count(*) FROM {table}").fetchone(),  # nosec B608
+            )[0]
     if version >= 4:
         result.update(
             cast(

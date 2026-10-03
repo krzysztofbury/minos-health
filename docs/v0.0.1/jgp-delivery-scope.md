@@ -86,6 +86,13 @@ Condition-based group-to-ICD links and the ICD-page reverse lookup belong to
 #32 after #30. They must use the same selected date/release and distinguish
 list membership from full qualification conditions.
 
+The owner-approved [#30 correspondence contract](jgp-code-correspondence.md)
+keeps NFZ attachment code/title identities source-local and stores exact
+dictionary matches or absence separately. An unmatched member remains visible;
+it must not disappear, become an invented dictionary concept or link to an
+unreviewed replacement. The same contract defines watcher capture, reviewed
+manifest changes, rebuilding and immutable-artifact publication across consumers.
+
 ## UI And Review Gates
 
 The 2026-10-01 #102 interface is the baseline, not the superseded #101 page.

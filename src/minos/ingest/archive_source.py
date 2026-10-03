@@ -11,6 +11,7 @@ from typing import BinaryIO
 
 from minos.domain.reference import SourceError
 from minos.ingest.jgp_catalog_manifest import CatalogFile
+from minos.ingest.jgp_conditions_manifest import ConditionsFile
 from minos.ingest.komunikat_manifest import KomunikatFile
 from minos.ingest.reference_manifest import SourceManifest
 
@@ -18,7 +19,7 @@ from minos.ingest.reference_manifest import SourceManifest
 @contextmanager
 def verified_source(
     archive_root: Path,
-    source: SourceManifest | KomunikatFile | CatalogFile,
+    source: SourceManifest | KomunikatFile | CatalogFile | ConditionsFile,
     *,
     staging_directory: Path,
 ) -> Generator[BinaryIO]:

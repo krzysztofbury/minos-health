@@ -1,5 +1,6 @@
 """Verified read-only reference access with typed, bounded hierarchy queries."""
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -39,6 +40,10 @@ from minos.store.reference_build import (
     schema_version_for,
     tables_for,
 )
+
+# (database SHA-256, dataset SHA-256) pairs whose conditions this process has
+# already reconstructed and verified; bounded by the bundles a process opens.
+_VALIDATED_CONDITIONS: set[tuple[str, str]] = set()
 
 
 def read_artifact_manifest(bundle: Path) -> ArtifactManifest:
@@ -113,6 +118,24 @@ def open_reference_bundle(
                 from minos.store.jgp_catalog_build import validate_catalog_bindings
 
                 validate_catalog_bindings(connection, manifest.dataset)
+            if manifest.schema_version >= 5:
+                from minos.store.jgp_conditions_build import (
+                    validate_conditions_bindings,
+                )
+
+                # Re-interpreting every release takes seconds. The database
+                # is immutable and its digest was verified above, so one
+                # successful check per process covers every later connection
+                # (a pool opens several) for this exact database and dataset.
+                key = (
+                    manifest.database_sha256,
+                    hashlib.sha256(
+                        manifest.dataset.model_dump_json().encode()
+                    ).hexdigest(),
+                )
+                if key not in _VALIDATED_CONDITIONS:
+                    validate_conditions_bindings(connection, manifest.dataset)
+                    _VALIDATED_CONDITIONS.add(key)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources
