@@ -7,12 +7,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import uuid
 from datetime import date
+from email.message import Message
 from http.client import HTTPResponse
 from pathlib import Path
-from typing import cast, final
+from typing import IO, cast, final, override
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -80,6 +82,34 @@ def fixture(root: Path) -> Path:
     return bundle
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    @override
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: Message,
+        newurl: str,
+    ) -> None:
+        return None  # the redirect itself is the answer under test
+
+
+def get_page(base: str, route: str) -> tuple[int, list[str]]:
+    """Status and every Cache-Control header, without following redirects."""
+    opener = urllib.request.build_opener(_NoRedirect)
+    request = urllib.request.Request(base + route, headers={"Host": "minoshealth.pl"})
+    try:
+        with cast(HTTPResponse, opener.open(request, timeout=5)) as response:
+            _ = response.read(1_048_577)
+            return response.status, response.headers.get_all("Cache-Control") or []
+    except urllib.error.HTTPError as error:
+        headers = error.headers.get_all("Cache-Control") or []
+        error.close()
+        return error.code, headers
+
+
 def docker(*arguments: str) -> str:
     return subprocess.check_output(
         ["docker", *arguments], text=True, timeout=120
@@ -108,7 +138,21 @@ def browser_checks(arguments: Arguments, bundle: Path, port: int, output: Path) 
             check=True,
             env=environment,
         )
-        if not read_artifact_manifest(bundle).dataset.komunikaty:
+        dataset = read_artifact_manifest(bundle).dataset
+        if dataset.catalogs:
+            _ = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "tests/browser/jgp-browser.mjs"),
+                    arguments.chromium,
+                    f"http://minoshealth.pl:{port}/",
+                    str(output),
+                ],
+                timeout=90,
+                check=True,
+                env=environment,
+            )
+        if not dataset.komunikaty:
             return
         with open_reference_bundle(bundle) as (connection, _):
             sample = cast(
@@ -243,6 +287,25 @@ def main(arguments: Arguments) -> None:
         status, refused, _ = get_json(base, group_route + "?date=2026-07-10")
         assert (status, refused) == (404, {})  # nginx refuses queries before the API
         assert get_json(base, group_route, {})[0] == 405
+        # JGP pages: dated pages cache like other pages, "today" never does, and
+        # the edge adds no second Cache-Control to the API's own header.
+        for route, status, cache in (
+            ("/jgp/2026-07-10", 200, "public"),
+            ("/jgp/2026-07-10/PZD02", 200, "public"),
+            ("/jgp/2026-07-10/zakres/15", 200, "public"),
+            ("/jgp", 302, "no-store"),
+            ("/jgp/2026-06-30/PZD02", 404, "no-store"),
+            ("/jgp/2026-07-10/zakres/69", 404, "no-store"),
+        ):
+            answer = get_page(base, route)
+            assert answer[0] == status, (route, answer)
+            assert len(answer[1]) == 1 and answer[1][0].startswith(cache), (
+                route,
+                answer,
+            )
+        assert get_page(base, "/jgp/2026-07-10?x=1")[0] == 404
+        assert get_page(base, "/jgp/2026-07-10/zakres/1000")[0] == 404
+        assert len(get_page(base, group_route)[1]) == 1  # was doubled before #26
         logs = docker("logs", api)
         assert "badania moczu" not in logs and '"query"' not in logs
         assert '"request_id"' in logs

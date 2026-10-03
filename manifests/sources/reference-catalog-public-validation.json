@@ -152,7 +152,7 @@
       "entry_into_force": "2026-05-01",
       "published_on": "2026-04-30",
       "service_from": "2026-05-01",
-      "service_evidence": "46/2026/DSOZ: \"Zarządzenie wchodzi w życie z dniem 1 maja 2026 r.\"; it repeals 101/2025/DSOZ, whose lineage is not ingested.",
+      "service_evidence": "Zarządzenie 46/2026/DSOZ: „Zarządzenie wchodzi w życie z dniem 1 maja 2026 r.”; uchyla zarządzenie 101/2025/DSOZ, którego Minos nie obejmuje.",
       "supersedes": null,
       "row_applicability": [],
       "modifier_binding": "unbound",
@@ -192,7 +192,7 @@
       "entry_into_force": "2026-07-24",
       "published_on": "2026-07-23",
       "service_from": "2026-07-01",
-      "service_evidence": "74/2026/DSOZ § 4: \"Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r.\" Published 2026-07-23 (BAW 43942).",
+      "service_evidence": "§ 4 zarządzenia 74/2026/DSOZ: „Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r.” Opublikowane 2026-07-23 (BAW 43942).",
       "supersedes": "jgp-catalog-46-2026-original-3d4197ceb459",
       "row_applicability": [],
       "modifier_binding": "unbound",
@@ -238,7 +238,7 @@
       "entry_into_force": "2026-09-24",
       "published_on": "2026-09-23",
       "service_from": "2026-07-01",
-      "service_evidence": "102/2026/DSOZ § 4 ust. 1: \"Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r. z zastrzeżeniem ust. 2-5.\" Published 2026-09-23 (BAW 44041). Ust. 2-4 concern coefficients (#46).",
+      "service_evidence": "§ 4 ust. 1 zarządzenia 102/2026/DSOZ: „Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r. z zastrzeżeniem ust. 2-5.” Opublikowane 2026-09-23 (BAW 44041). Ust. 2-4 dotyczą współczynników korygujących.",
       "supersedes": "jgp-catalog-46-2026-after-74-fbe73d5fb7a3",
       "row_applicability": [
         {
@@ -267,7 +267,7 @@
           "service_from": "2027-01-01",
           "service_to": null,
           "note_marker": "od 1.01.2027",
-          "evidence": "102/2026/DSOZ § 4 ust. 5: \"Przepisy lp. 245, 247, 249, 253, 255, 297, 302, 304, 306, 308, 310, 378, 380, 382, 384, 389, 398, 400, 403 w Katalogu grup 1a oraz lp. 32, 34, 36, 53, 75 i 79 w Katalogu grup 1ae załącznika nr 1 do niniejszego zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2027 r.\""
+          "evidence": "§ 4 ust. 5 zarządzenia 102/2026/DSOZ: „Przepisy lp. 245, 247, 249, 253, 255, 297, 302, 304, 306, 308, 310, 378, 380, 382, 384, 389, 398, 400, 403 w Katalogu grup 1a oraz lp. 32, 34, 36, 53, 75 i 79 w Katalogu grup 1ae załącznika nr 1 do niniejszego zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2027 r.”"
         },
         {
           "catalog": "1a",
@@ -295,7 +295,7 @@
           "service_from": null,
           "service_to": "2026-12-31",
           "note_marker": "do 31.12.2026",
-          "evidence": "Superseded from 2027-01-01 by its deferred twin under 102/2026/DSOZ § 4 ust. 5; the catalog note limits reporting to 31.12.2026."
+          "evidence": "Od 2027-01-01 zastąpiony wierszem odroczonym na podstawie § 4 ust. 5 zarządzenia 102/2026/DSOZ; uwaga w katalogu ogranicza sprawozdawanie do 31.12.2026."
         },
         {
           "catalog": "1ae",
@@ -310,7 +310,7 @@
           "service_from": "2027-01-01",
           "service_to": null,
           "note_marker": "od 1.01.2027",
-          "evidence": "102/2026/DSOZ § 4 ust. 5: \"Przepisy lp. 245, 247, 249, 253, 255, 297, 302, 304, 306, 308, 310, 378, 380, 382, 384, 389, 398, 400, 403 w Katalogu grup 1a oraz lp. 32, 34, 36, 53, 75 i 79 w Katalogu grup 1ae załącznika nr 1 do niniejszego zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2027 r.\""
+          "evidence": "§ 4 ust. 5 zarządzenia 102/2026/DSOZ: „Przepisy lp. 245, 247, 249, 253, 255, 297, 302, 304, 306, 308, 310, 378, 380, 382, 384, 389, 398, 400, 403 w Katalogu grup 1a oraz lp. 32, 34, 36, 53, 75 i 79 w Katalogu grup 1ae załącznika nr 1 do niniejszego zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2027 r.”"
         },
         {
           "catalog": "1ae",
@@ -325,7 +325,7 @@
           "service_from": null,
           "service_to": "2026-12-31",
           "note_marker": "do 31.12.2026",
-          "evidence": "Superseded from 2027-01-01 by its deferred twin under 102/2026/DSOZ § 4 ust. 5; the catalog note limits reporting to 31.12.2026."
+          "evidence": "Od 2027-01-01 zastąpiony wierszem odroczonym na podstawie § 4 ust. 5 zarządzenia 102/2026/DSOZ; uwaga w katalogu ogranicza sprawozdawanie do 31.12.2026."
         }
       ],
       "modifier_binding": "unbound",

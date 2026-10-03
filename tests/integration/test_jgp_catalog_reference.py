@@ -10,6 +10,7 @@ from typing import cast
 
 import pytest
 
+from minos.domain.jgp_ruleset import today_in_poland
 from minos.domain.reference import ArtifactError, SourceError
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
@@ -237,8 +238,13 @@ def test_cli_reports_dates_unbound_modifiers_and_explicit_errors(
     defaulted_run = _cli(bundle, "--code", "PZD02")
     assert defaulted_run.returncode == 0, defaulted_run.stderr
     defaulted = cast(dict[str, object], json.loads(defaulted_run.stdout))
+    # The real clock passes the bundle's 2026-10-02 horizon; the CLI then caps
+    # knowledge at the horizon and says so instead of claiming today.
+    capped = today_in_poland() > date(2026, 10, 2)
     assert defaulted["date_selection"] == {
-        "known_on": "default_today_europe_warsaw",
+        "known_on": "default_capped_to_bundle_knowledge"
+        if capped
+        else "default_today_europe_warsaw",
         "service_date": "default_today_europe_warsaw",
     }
     uncovered = _cli(bundle, "--code", "PZD02", "--service-date", "2026-06-30")

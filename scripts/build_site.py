@@ -18,6 +18,7 @@ WEB = ROOT / "apps/web"
 SITE = WEB / "site"
 MAINTENANCE_OUTPUT = ROOT / "infra/ansible/files"
 PAGE_SHELL = ROOT / "src/minos/http/page_shell.html"
+JGP_PAGE_SHELL = ROOT / "src/minos/http/page_shell_jgp.html"
 type Mode = Literal["maintenance", "validation"]
 PLAUSIBLE = (
     '    <script src="/plausible-init.js"></script>\n'
@@ -100,13 +101,18 @@ def _dictionary_tabs(current: str) -> str:
         tabs.append(
             f'          <a class="dictionary-tab" role="listitem" href="{path}"{state}>{label}</a>'
         )
-    for label in ("Procedury medyczne", "ICD-11"):
+    for label in ("ICD-11",):
         tabs.append(
             '          <span class="dictionary-tab is-soon" role="listitem"'
             + f' title="W przygotowaniu" aria-disabled="true">{label}</span>'
         )
     return "\n".join(tabs)
 
+
+JGP_SHORTCUT = (
+    '          <li><a class="start-link" href="/jgp"><strong>Grupy JGP</strong>'
+    + "<span>Punkty bazowe grup na wybrany dzień</span></a></li>\n"
+)
 
 ICD10_NOTE = (
     "<p>Źródłem jest Rejestr Systemów Kodowania (RSK, Centrum e-Zdrowia) i Biuro"
@@ -138,7 +144,12 @@ PAGES = (
         "/",
         ("maintenance",),
         body_class="page-home",
-        values={"search_disabled": " disabled", "search_help": UNAVAILABLE_HELP},
+        values={
+            "search_disabled": " disabled",
+            "search_help": UNAVAILABLE_HELP,
+            # The maintenance edge has no reference API, so no JGP pages.
+            "jgp_shortcut": "",
+        },
     ),
     Page(
         "index.html",
@@ -153,7 +164,11 @@ PAGES = (
         script="/search.js",
         body_class="page-home",
         head_extra=SITE_JSON_LD,
-        values={"search_disabled": "", "search_help": LIVE_HELP},
+        values={
+            "search_disabled": "",
+            "search_help": LIVE_HELP,
+            "jgp_shortcut": JGP_SHORTCUT,
+        },
     ),
     Page(
         "dictionaries.html",
@@ -262,6 +277,7 @@ def _nav(mode: Mode, current: str | None) -> str:
     items = [("/", "Wyszukiwarka")]
     if mode == "validation":
         items.append(("/slowniki", "Słowniki"))
+        items.append(("/jgp", "Grupy JGP"))
     items.append(("/zrodla", "Źródła danych"))
     links: list[str] = []
     for path, label in items:
@@ -336,7 +352,7 @@ def render_site(mode: Mode) -> dict[str, bytes]:
     else:
         files["site.css"] = stylesheet
     if mode == "validation":
-        for name in ("search.js", "dictionary.js"):
+        for name in ("search.js", "dictionary.js", "jgp.js"):
             files[name] = (WEB / name).read_bytes()
         for name in FONTS:
             files[f"fonts/{name}"] = (WEB / "fonts" / name).read_bytes()
@@ -366,6 +382,11 @@ LLMS = """# Minos Health
   Zawiera nazwę, miejsce w hierarchii, kody podrzędne, uwagi „obejmuje” i
   „nie obejmuje” oraz źródło. Pełne listy kodów są w mapach witryny:
   https://minoshealth.pl/sitemap-icd-10.xml i https://minoshealth.pl/sitemap-icd-9.xml.
+- [Grupy JGP](https://minoshealth.pl/jgp): katalog grup JGP (załącznik 1a do
+  zarządzenia Prezesa NFZ 46/2026/DSOZ) na wybrany dzień udzielenia świadczenia.
+  Strona grupy: `https://minoshealth.pl/jgp/{RRRR-MM-DD}/{KOD}`, np.
+  /jgp/2026-10-02/A01. Wartości to punkty bazowe wg katalogu, bez modyfikatorów,
+  nie punkty do rozliczenia.
 - [Źródła danych](https://minoshealth.pl/zrodla): wersje słowników i zarządzenia NFZ.
 
 ## API (JSON, bez klucza)
@@ -374,6 +395,10 @@ LLMS = """# Minos Health
 - `POST /api/v1/search` z JSON `{"system":"icd10-pl"|"icd9-pl","release_id":"...","query":"...","limit":1-20}`.
   Zapytanie tylko w treści żądania, nigdy w adresie URL.
 - `GET /api/v1/tree/{release_id}/{node}`: dzieci pozycji drzewa (`0` to poziom główny).
+- `GET /api/v1/jgp/{RRRR-MM-DD}/groups/{KOD}`: grupa JGP z wydaniem katalogu
+  obowiązującym w tym dniu; `GET /api/v1/jgp/{RRRR-MM-DD}/sections` oraz
+  `/sections/{1a|1ae}/{n}`: rozdziały katalogu. Data bez dopasowanego wydania
+  zwraca błąd `no_ruleset_for_date`, nigdy innego wydania.
 
 ## Zasady
 
@@ -416,8 +441,11 @@ def _crawler_files() -> dict[str, bytes]:
     }
 
 
-def render_page_shell() -> str:
-    """Layout for API-rendered dictionary pages; {{...}} values stay for the API."""
+def render_page_shell(nav: str = "/slowniki", body_class: str = "page-code") -> str:
+    """Layout for API-rendered pages; {{...}} values stay for the API.
+
+    One shell per section keeps the navigation defined only in this script.
+    """
     page = Page(
         "page_shell.html",
         "",
@@ -425,10 +453,10 @@ def render_page_shell() -> str:
         "{{title}}",
         "{{description}}",
         "index, follow",
-        "/slowniki",
+        nav,
         ("validation",),
         analytics=False,
-        body_class="page-code",
+        body_class=body_class,
         head_extra="{{head_extra}}",
     )
     layout = (SITE / "layout.html").read_text(encoding="utf-8")
@@ -476,6 +504,7 @@ def main() -> None:
         for name, content in render_site("maintenance").items()
     }
     outputs[PAGE_SHELL] = render_page_shell().encode()
+    outputs[JGP_PAGE_SHELL] = render_page_shell("/jgp", "page-jgp").encode()
     for target, content in outputs.items():
         name = target.name
         if arguments.check:
