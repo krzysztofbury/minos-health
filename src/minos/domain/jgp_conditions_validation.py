@@ -331,6 +331,12 @@ def _graph(
             nodes[t].status == "unsupported" for t in targets
         ):
             raise SourceError("unsupported child cannot be hidden by proposed parent")
+        # The reverse too: a `proposed` row under an unsupported ancestor would
+        # read as a complete requirement to any consumer filtering on status.
+        if node.status == "unsupported" and any(
+            nodes[t].status == "proposed" for t in targets
+        ):
+            raise SourceError("proposed child cannot sit under unsupported parent")
         depth = 1 + max((depths[t] for t in targets), default=0)
         if depth > MAX_DEPTH:
             raise SourceError("condition graph exceeds depth bound")

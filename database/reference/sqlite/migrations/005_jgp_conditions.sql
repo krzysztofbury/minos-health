@@ -134,10 +134,11 @@ CREATE TABLE group_condition (
     id INTEGER NOT NULL CHECK (id BETWEEN 1 AND 20000),
     source_order INTEGER NOT NULL CHECK (source_order BETWEEN 1 AND 20000),
     group_code TEXT NOT NULL,
-    kind TEXT,
+    kind TEXT CHECK (kind IS NULL OR kind IN ('procedure_presence', 'procedure_count', 'procedure_all_members', 'procedure_list_coverage', 'procedure_date_relation', 'procedure_laterality', 'procedure_duration', 'diagnosis_presence', 'diagnosis_count', 'patient_age', 'episode_duration', 'ward_duration', 'discharge_mode', 'clinical_measure', 'program_membership', 'external_disease_code', 'all', 'any', 'not', 'when')),
     interpretation_status TEXT NOT NULL CHECK (interpretation_status IN ('proposed', 'unsupported')),
     payload_json TEXT NOT NULL CHECK (json_valid(payload_json) AND length(payload_json) <= 65536),
     PRIMARY KEY (release_id, catalog, id),
     UNIQUE (release_id, catalog, source_order),
+    CHECK (kind IS NOT NULL OR interpretation_status = 'unsupported'),
     FOREIGN KEY (release_id, catalog, group_code) REFERENCES characteristics_group(release_id, catalog, code)
 ) STRICT;

@@ -332,3 +332,62 @@ def test_dictionary_only_rebuild_changes_correspondence_not_nfz_identity(
     with pytest.raises(ArtifactError, match="pin is absent"):
         _ = build_reference_artifact(missing, tmp_path, tmp_path / "missing")
     assert not (tmp_path / "missing").exists()
+
+
+def test_conditions_are_reconstructed_once_per_verified_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import minos.store.jgp_conditions_build as build
+    import minos.store.reference as reference
+
+    calls: list[str] = []
+    real = build.validate_conditions_bindings
+
+    def counted(connection: sqlite3.Connection, dataset: DatasetManifest) -> None:
+        calls.append("validated")
+        real(connection, dataset)
+
+    monkeypatch.setattr(build, "validate_conditions_bindings", counted)
+    monkeypatch.setattr(reference, "_VALIDATED_CONDITIONS", set[tuple[str, str]]())
+    bundle = tmp_path / "bundle"
+    _ = build_reference_artifact(conditions_manifest(tmp_path), tmp_path, bundle)
+    for _ in range(3):  # a pool opens several connections to one bundle
+        with open_reference_bundle(bundle):
+            pass
+    assert calls == ["validated"]
+    # A changed database has another verified digest and is reconstructed again.
+    with sqlite3.connect(bundle / "minos.db") as connection:
+        _ = connection.execute(
+            "UPDATE characteristics_evidence SET source_text='unreviewed magic'"
+            + " WHERE category='label' AND context='A01'"
+        )
+    checksum, size = file_identity(bundle / "minos.db")
+    changed = read_artifact_manifest(bundle).model_copy(
+        update={"database_sha256": checksum, "database_size_bytes": size}
+    )
+    _ = (bundle / "manifest.json").write_bytes(canonical_json(changed))
+    with pytest.raises(ArtifactError, match="structure is invalid"):
+        with open_reference_bundle(bundle):
+            pass
+    assert calls == ["validated", "validated"]
+
+
+@pytest.mark.parametrize(
+    "update",
+    [
+        "SET kind = 'magic'",
+        "SET kind = NULL, interpretation_status = 'proposed'",
+    ],
+)
+def test_schema_refuses_unknown_kinds_and_kindless_proposed_rows(
+    tmp_path: Path, update: str
+) -> None:
+    bundle = tmp_path / "bundle"
+    _ = build_reference_artifact(conditions_manifest(tmp_path), tmp_path, bundle)
+    with sqlite3.connect(bundle / "minos.db") as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="CHECK"):
+            _ = connection.execute(
+                f"UPDATE group_condition {update}"  # nosec B608 - fixed test SQL
+                + " WHERE rowid = (SELECT min(rowid) FROM group_condition"
+                + " WHERE kind IS NOT NULL)"
+            )

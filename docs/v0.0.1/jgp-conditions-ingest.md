@@ -24,6 +24,14 @@ The [reviewed taxonomy](jgp-conditions.md) and
   dangling selector. Family expansion stays unbound. Annotation guards bind
   exact marked physical members, not every use of the same code. Missing
   diagnosis roles and clinical units are unsupported, not defaults.
+- Status is uniform down every subtree: a typed node beneath an unsupported
+  node keeps its payload as evidence but is itself unsupported, with reason
+  `ancestor_interpretation_unsupported`. Selecting `proposed` rows therefore
+  never yields part of a requirement whose whole is not interpreted. Validation
+  enforces this in both directions at build and on every reopen. A group is a
+  candidate for later executable review only when every reference root is
+  `proposed`: currently 455 of 629 groups in 1a (72%) and 98 of 121 in 1ae
+  (81%); the original 46/2026 sheet has 518 of 702 (74%).
 - The existing `minos data build` publishes schema 5 only when characteristics
   are selected. Earlier source manifests keep their schema version. Ingestion
   remains offline, transactional and deterministic; failure publishes no bundle.
@@ -145,17 +153,20 @@ markerless code titles, unknown phrases, dates/sites and missing units/roles.
 The opt-in compatibility test checks pinned complete sources and literal cells.
 Neither suite is a patient fixture or external grouper validation.
 
-Two actual full-source CLI builds on the development workstation took 24.89 s
-and 23.81 s; peak child-process RSS was 176,180 KiB. Repository-wide checks ran
-concurrently during this measurement. Both builds produced the same
+Two actual full-source CLI builds on the development workstation took 24.1 s
+and 25.5 s after the owner-review corrections (24.89 s / 23.81 s and peak
+child-process RSS 176,180 KiB before them). Both builds produced the same
 database SHA-256:
 
 ```text
-914b94ee810c4e7ad7789d562b3394ab7a5eb4e6f3efb896a52eb12069bdee75
+15ae400b6c1608a9d10aba2f1626c1b64bcc8cbd2e476cddb9d517bc4acea218
 ```
 
-Validated bundle opening plus dated reads and one reconstructed current sheet
-took 5.19 s. The real offline search CLI returned the exact E11 result against
+Reconstruction runs once per process for each verified database digest and
+dataset; the API's four-connection pool reuses it. Application startup on the
+schema-5 bundle plus four page/API requests took 4.7 s (18.6 s when every
+connection reconstructed all releases); the production schema-4 bundle is
+unaffected at 0.4 s. The real offline search CLI returned the exact E11 result against
 that schema-5 bundle.
 These are bounded local acquisition/build/read measurements, not API latency,
 incumbent comparisons, production throughput or VPS suitability. Revalidation
@@ -172,3 +183,30 @@ evidence from predicates. The extraction/reader functions slightly exceed 70
 lines to keep one finite layout scan and its error/cleanup boundary together;
 they are not recursive grammars. Human review is still required before merge;
 deployment needs separate approval. No UI change needs a browser check in #30.
+
+## Owner Review (2026-10-03)
+
+The review rebuilt the production manifest with this code (identical
+schema-4 database SHA-256 to the deployed bundle), rebuilt the full-source
+bundle twice, reran the private acceptance test and measured the API. It
+corrected the importer, with a failing test per change:
+
+- Typed fragments of unsupported cells were persisted as `proposed` (1,386 of
+  2,579 proposed current 1a nodes). They are now unsupported evidence, see the
+  uniform-status rule above.
+- Commas between enumerated clauses were left as residue, so 123 fully
+  recognized current 1a cells became `unconsumed_source_text`. They are now
+  separators like `oraz`; any `lub`/`albo` still keeps a cell unsupported.
+- Guard consequences require the reviewed whole-text shapes instead of a
+  keyword plus every code in the annotation; procedure-title gaps are bounded
+  and may not contain codes or clause words; title qualifiers compare each
+  (comparison, threshold, unit) bound; a connector must lie between the
+  alternatives it joins.
+- `group_condition` checks kinds against the reviewed 20 and refuses a
+  kind-less `proposed` row.
+
+All current source text fits the tightened guard, gap and connector shapes
+(no count change from them); the reviewed count expectations changed only by
+the two corrections above. Remaining unsupported text is genuine: contextual
+`z poniższej listy` references, procedure titles after literal codes, second
+age bounds and source wording outside the taxonomy.

@@ -86,6 +86,7 @@ def test_missing_marker_preserves_code_titles_without_parsing_them_as_conditions
                 "unsupported": 2,
             },
             "unsupported_reasons": {
+                "ancestor_interpretation_unsupported": 1,
                 "list_reference_unresolved": 1,
                 "child_interpretation_unsupported": 1,
                 "list_definition_unbound": 1,
@@ -152,7 +153,12 @@ def test_contextual_below_list_uses_its_cited_declaration_not_a_case_folded_name
                 "program_membership": 2,
                 "unsupported": 1,
             },
-            "unsupported_reasons": {"unconsumed_source_text": 1},
+            # The two typed fragments of the unconsumed cell stay as evidence
+            # but cannot be selected as proposed requirements.
+            "unsupported_reasons": {
+                "ancestor_interpretation_unsupported": 2,
+                "unconsumed_source_text": 1,
+            },
         }
     )
     selected = selected.model_copy(
@@ -341,9 +347,16 @@ def test_missing_unit_and_role_are_explicit_unsupported_evidence() -> None:
             lists=(("A47", "icd10-pl"),),
         )
     )
+    # NYHA is typed, but it sits under the unsupported conjunction, so it is
+    # unsupported evidence too rather than a stand-alone proposed requirement.
     assert {
         node.reason for node in sheet.conditions if node.kind not in (None, "all")
-    } == {"diagnosis_role_unspecified", "clinical_unit_missing", None}
+    } == {
+        "diagnosis_role_unspecified",
+        "clinical_unit_missing",
+        "ancestor_interpretation_unsupported",
+    }
+    assert all(node.status == "unsupported" for node in sheet.conditions)
     assert any(
         node.kind == "all" and node.status == "unsupported" for node in sheet.conditions
     )
@@ -586,3 +599,199 @@ def test_bounded_flat_graph_rejects_depth_and_boolean_thresholds() -> None:
     cast(dict[str, object], malformed["payload"])["threshold"] = True
     with pytest.raises(ArtifactError, match="stored"):
         _ = decode_condition(json.dumps(malformed))
+
+
+def _guard_sheet(annotation: str) -> c.Characteristics:
+    base = phrase_sheet("N22", annotation, lists=(("N22a", "icd9-pl"),))
+    evidence = (
+        *base.evidence[:2],
+        c.Evidence(6, "X", "N22", "ICD-9a", "marker"),
+        c.Evidence(7, "X", "N22", "39.271 Synthetic member (*1)", "member"),
+    )
+    definition = c.DirectionalList(
+        1, "N22a", "icd9-pl", "N22", 6, (), (c.Member(7, "39.271", ("(*1)",)),)
+    )
+    return interpret_sheet(replace(base, evidence=evidence, lists=(definition,)))
+
+
+def _reachable_from_unsupported(sheet: c.Characteristics) -> set[int]:
+    from minos.domain.jgp_conditions_validation import children
+
+    nodes = {n.identity: n for n in sheet.conditions}
+    pending = [n.identity for n in sheet.conditions if n.status == "unsupported"]
+    seen: set[int] = set()
+    while pending:
+        for child in children(nodes[pending.pop()]):
+            if child not in seen:
+                seen.add(child)
+                pending.append(child)
+    return seen
+
+
+@pytest.mark.parametrize(
+    "clause",
+    [
+        "wiek > 17 r.ż. and unreviewed clinical magic",
+        "wiek > 17 r.ż. lub tryb wypisu 9",
+        "rozpoznania z listy rozpoznań A01; NYHA > II",
+    ],
+)
+def test_no_proposed_requirement_hides_under_an_unsupported_one(clause: str) -> None:
+    sheet = interpret_sheet(phrase_sheet("A01", clause, lists=(("A01", "icd10-pl"),)))
+    validate_characteristics(sheet)
+    nodes = {n.identity: n for n in sheet.conditions}
+    below = _reachable_from_unsupported(sheet)
+    assert below  # each clause leaves typed fragments under an unsupported root
+    assert all(nodes[i].status == "unsupported" for i in below)
+    assert all(n.kind is not None for i, n in nodes.items() if i in below)
+
+
+def test_validation_refuses_a_proposed_child_of_an_unsupported_parent() -> None:
+    sheet = interpret_sheet(phrase_sheet("A01", "wiek > 17 r.ż. and unreviewed"))
+    fragment = next(n for n in sheet.conditions if n.kind == "patient_age")
+    reopened = replace(fragment, status="proposed", reason=None)
+    tampered = tuple(
+        reopened if n.identity == fragment.identity else n for n in sheet.conditions
+    )
+    with pytest.raises(SourceError, match="under unsupported parent"):
+        validate_characteristics(replace(sheet, conditions=tampered))
+
+
+def test_commas_enumerate_clauses_like_oraz_but_never_decide_alternatives() -> None:
+    lists: tuple[tuple[str, c.System], ...] = (
+        ("A01a", "icd9-pl"),
+        ("A01", "icd10-pl"),
+    )
+    enumerated = interpret_sheet(
+        phrase_sheet(
+            "A01",
+            "wymagane wskazanie procedury z listy procedur A01a, rozpoznania zasadniczego z listy rozpoznań A01, wiek > 17 r.ż.",
+            lists=lists,
+        )
+    )
+    validate_characteristics(enumerated)
+    root = next(
+        n for n in enumerated.conditions if n.identity == enumerated.groups[0].roots[0]
+    )
+    assert root.kind == "all" and root.status == "proposed"
+    alternative = interpret_sheet(
+        phrase_sheet(
+            "A01",
+            "procedury z listy procedur A01a, wiek > 17 r.ż. lub rozpoznania zasadniczego z listy rozpoznań A01",
+            lists=lists,
+        )
+    )
+    root = next(
+        n
+        for n in alternative.conditions
+        if n.identity == alternative.groups[0].roots[0]
+    )
+    assert root.status == "unsupported" and root.reason == "boolean_scope_unreviewed"
+
+
+@pytest.mark.parametrize(
+    "annotation",
+    [
+        "(*1) brak możliwości wykazania łącznie z procedurą 39.951 w ciągu 30 dni",
+        "(*1) brak możliwości wykazania łącznie z procedurą 39.951, chyba że 99.152",
+        "(*1) wykazanie wyłącznie z procedurą 93.90 lub 93.91 po 7 dniach",
+    ],
+)
+def test_guard_consequence_needs_the_whole_reviewed_shape(annotation: str) -> None:
+    sheet = _guard_sheet(annotation)
+    validate_characteristics(sheet)
+    # Extra wording must not turn numbers into codes or drop an exception.
+    assert not any(n.kind == "not" for n in sheet.conditions)
+    selectors = {s.identity: s for s in sheet.selectors}
+    assert not any(
+        "30" in s.body.codes or "7" in s.body.codes
+        for s in selectors.values()
+        if isinstance(s.body, c.CodeSelector)
+    )
+
+
+def test_reviewed_guard_shapes_keep_their_exact_codes() -> None:
+    sheet = _guard_sheet(
+        "(*1) brak możliwości wykazania łacznie z z procedurami: 39.651,39.652, 93.91"
+    )
+    negated = next(n for n in sheet.conditions if n.kind == "not")
+    assert isinstance(negated.payload, c.Expression)
+    present = next(
+        n for n in sheet.conditions if n.identity == negated.payload.children[0]
+    )
+    assert isinstance(present.payload, c.Presence)
+    selector = next(
+        s for s in sheet.selectors if s.identity == present.payload.selector_id
+    )
+    assert isinstance(selector.body, c.CodeSelector)
+    assert selector.body.codes == ("39.651", "39.652", "93.91")
+
+
+@pytest.mark.parametrize(
+    "gap",
+    [
+        "Fototerapia oraz inna terapia",
+        "Fototerapia bez nadzoru",
+        "Fototerapia nie dłużej niż",
+        "Fototerapia 99.832",
+        "Fototerapia; wiek > 2 dni",
+    ],
+)
+def test_procedure_title_gaps_cannot_hide_codes_or_clauses(gap: str) -> None:
+    # The gap between a code and its duration qualifier may only be a title;
+    # otherwise 99.831 gets no duration node at all (not merely an unsupported
+    # one). A code adjacent to the qualifier may still bind to it.
+    sheet = interpret_sheet(
+        phrase_sheet("N24", f"procedur: 99.831 {gap} (czas trwania min 24h)(min 1 raz)")
+    )
+    selectors = {s.identity: s.body for s in sheet.selectors}
+    timed = {
+        code
+        for n in sheet.conditions
+        if isinstance(n.payload, c.ProcedureDuration)
+        for code in cast(c.CodeSelector, selectors[n.payload.selector_id]).codes
+    }
+    assert "99.831" not in timed
+
+
+@pytest.mark.parametrize(
+    ("title", "label", "title_only"),
+    [
+        ("A32E Synthetic > 65 r.ż.", "wiek > 17 r.ż.", True),
+        ("D10EF Synthetic > 17 r.ż.", "wiek > 17. r.ż.", False),
+        ("A48T Synthetic > 3 dni < 8 dni", "czas pobytu > 3 dni i < 8 dni", False),
+        ("A48T Synthetic > 3 dni < 8 dni", "czas pobytu > 3 dni", True),
+    ],
+)
+def test_title_bounds_must_each_appear_in_the_label(
+    title: str, label: str, title_only: bool
+) -> None:
+    sheet = interpret_sheet(phrase_sheet(title.split()[0], label, title=title))
+    flagged = any(n.reason == "title_only_qualifier" for n in sheet.conditions)
+    assert flagged is title_only
+
+
+def test_a_connector_outside_its_alternatives_is_not_an_any() -> None:
+    base = phrase_sheet("A01", "wiek > 17 r.ż.")
+    evidence = (
+        base.evidence[0],
+        c.Evidence(5, "X", "A01", "lub", "connector"),
+        c.Evidence(6, "X", "A01", "wiek > 17 r.ż.", "label"),
+        c.Evidence(7, "X", "A01", "czas pobytu > 2 dni", "label"),
+        *base.evidence[2:],
+    )
+    shifted = tuple(
+        replace(e, row=e.row + 2) if e.category in ("marker", "member") else e
+        for e in evidence
+    )
+    lists = tuple(
+        replace(
+            item,
+            marker_row=item.marker_row + 2,
+            members=tuple(replace(m, row=m.row + 2) for m in item.members),
+        )
+        for item in base.lists
+    )
+    sheet = interpret_sheet(replace(base, evidence=shifted, lists=lists))
+    assert not any(n.kind == "any" for n in sheet.conditions)
+    assert any(n.reason == "alternative_scope_unreviewed" for n in sheet.conditions)

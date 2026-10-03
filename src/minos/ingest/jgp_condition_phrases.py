@@ -55,6 +55,10 @@ LITERAL = re.compile(
     + CODE
     + r")(?=\s|$)"
 )
+# A procedure title between a code and its qualifier: bounded, no digits,
+# parentheses or clause separators, so no code or condition can hide in it.
+TITLE_GAP = r"(?: [^0-9();,]{1,160}?)? ?"
+CODE_LIST = CODE + r"(?:\s*(?:,|lub)\s*" + CODE + r")*"
 COMPARISONS: dict[str, c.Comparison] = {
     ">": "gt",
     "<": "lt",
@@ -204,7 +208,7 @@ def interpret_sheet(sheet: c.Characteristics) -> c.Characteristics:
                     branches.append(_cell(state, group.code, item))
         if not branches:
             branches.append(state.unknown(group.code, group.title_row, "missing_label"))
-        if connectors and len(connectors) == len(branches) - 1:
+        if connectors and _connectors_separate(state, branches, connectors):
             branch_rows = tuple(
                 sorted(
                     {
@@ -240,11 +244,48 @@ def interpret_sheet(sheet: c.Characteristics) -> c.Characteristics:
             )
         roots.extend(_title_qualifiers(state, group, items))
         groups.append(replace(group, roots=tuple(roots)))
+    _propagate_unsupported(state.nodes)
     return replace(
         sheet,
         groups=tuple(groups),
         selectors=tuple(state.selectors),
         conditions=_ordered_nodes(state.nodes),
+    )
+
+
+def _propagate_unsupported(nodes: list[c.Condition]) -> None:
+    """Typed fragments under an unsupported node keep their payload as evidence
+    but are unsupported too: a consumer selecting `proposed` rows must never
+    receive part of a requirement whose whole is not interpreted."""
+    from minos.domain.jgp_conditions_validation import children
+
+    # Walk down from every unsupported node; a shared child (guard consequence)
+    # can have a higher identity than one of its parents, so no single ordered
+    # pass is enough. Each node is demoted at most once, bounding the walk.
+    pending = [node.identity for node in nodes if node.status == "unsupported"]
+    while pending:
+        for child in children(nodes[pending.pop() - 1]):
+            if nodes[child - 1].status == "proposed":
+                nodes[child - 1] = replace(
+                    nodes[child - 1],
+                    status="unsupported",
+                    reason="ancestor_interpretation_unsupported",
+                )
+                pending.append(child)
+
+
+def _connectors_separate(
+    state: _State, branches: list[int], connectors: list[int]
+) -> bool:
+    if len(connectors) != len(branches) - 1:
+        return False
+    spans = sorted(
+        (min(state.nodes[b - 1].source_rows), max(state.nodes[b - 1].source_rows))
+        for b in branches
+    )
+    return all(
+        spans[index][1] < row < spans[index + 1][0]
+        for index, row in enumerate(sorted(connectors))
     )
 
 
@@ -315,6 +356,8 @@ def _cell(state: _State, group: str, item: c.Evidence) -> int:
         remaining[a:b] = " " * (b - a)
     residue = "".join(remaining)
     residue = re.sub(r"\b(?:wymagane wskazanie|wskazanie|oraz|i)\b", " ", residue)
+    if not re.search(r"\blub\b|\balbo\b", text):
+        residue = residue.replace(",", " ")
     residue = residue.strip(" ;.\n")
     if residue or not fragments:
         reason = (
@@ -631,14 +674,22 @@ def _literal_special_fragments(
     spans: list[tuple[int, int]],
 ) -> None:
     for match in re.finditer(
-        r"(" + CODE + r")[^;]*?\(czas trwania min ([0-9]+)h\)\(min ([0-9]+) raz\)", text
+        r"("
+        + CODE
+        + r")("
+        + TITLE_GAP
+        + r")\(czas trwania min ([0-9]{1,3})h\)"
+        + r"\(min ([0-9]{1,3}) raz\)",
+        text,
     ):
+        if not _plain_title(match[2]):
+            continue
         selector = state.codes((match[1],), "icd9-pl", row)
         result.append(
             state.add(
                 group,
                 "procedure_duration",
-                c.ProcedureDuration(selector, int(match[2]), int(match[3])),
+                c.ProcedureDuration(selector, int(match[3]), int(match[4])),
                 (row,),
             )
         )
@@ -665,10 +716,19 @@ def _literal_special_fragments(
         )
         spans.append(match.span())
     all_members = re.search(
-        r"obu procedur ze zbioru \((" + CODE + r") .*? i (" + CODE + r") [^)]*\)", text
+        r"obu procedur ze zbioru \(("
+        + CODE
+        + r")("
+        + TITLE_GAP
+        + r")i ("
+        + CODE
+        + r")("
+        + TITLE_GAP
+        + r")\)",
+        text,
     )
-    if all_members:
-        selector = state.codes((all_members[1], all_members[2]), "icd9-pl", row)
+    if all_members and _plain_title(all_members[2]) and _plain_title(all_members[4]):
+        selector = state.codes((all_members[1], all_members[3]), "icd9-pl", row)
         result.append(
             state.add(group, "procedure_all_members", c.AllMembers(selector, 1), (row,))
         )
@@ -690,6 +750,10 @@ def _literal_special_fragments(
             )
         )
         spans.append(match.span())
+
+
+def _plain_title(gap: str) -> bool:
+    return not re.search(r"\b(?:lub|albo|oraz|nie|bez|chyba)\b", gap)
 
 
 def _included_subset(
@@ -804,8 +868,29 @@ def _guard_consequence(
     state: _State, group: str, item: c.Evidence, text: str, rows: tuple[int, ...]
 ) -> int:
     consequence: int
-    codes = tuple(re.findall(CODE, text))
-    if "brak możliwości wykazania" in text and codes:
+    text = " ".join(text.split())
+    exclusion = re.fullmatch(
+        r"brak możliwości wykazania ł[aą]cznie z (?:z )?procedur(?:ą|ami):? ("
+        + CODE_LIST
+        + r")",
+        text,
+    )
+    only_procedures = re.fullmatch(
+        r"wykazanie wyłącznie z procedur(?:ą|ami):? (" + CODE_LIST + r")", text
+    )
+    only_diagnoses = re.fullmatch(
+        r"wykazanie wyłącznie z rozpoznaniami:? (" + CODE_LIST + r")", text
+    )
+    required = re.fullmatch(
+        r"wymagane sprawozdanie procedury wg\. ICD 9: ("
+        + CODE
+        + r")("
+        + TITLE_GAP
+        + r")",
+        text,
+    )
+    if exclusion:
+        codes = tuple(re.findall(CODE, exclusion[1]))
         present = state.add(
             group,
             "procedure_presence",
@@ -813,14 +898,16 @@ def _guard_consequence(
             (item.row,),
         )
         consequence = state.add(group, "not", c.Expression((present,)), rows)
-    elif "wykazanie wyłącznie z procedur" in text and codes:
+    elif only_procedures:
+        codes = tuple(re.findall(CODE, only_procedures[1]))
         consequence = state.add(
             group,
             "procedure_presence",
             c.Presence(state.codes(codes, "icd9-pl", item.row), None),
             rows,
         )
-    elif "wykazanie wyłącznie z rozpoznaniami" in text and codes:
+    elif only_diagnoses:
+        codes = tuple(re.findall(CODE, only_diagnoses[1]))
         consequence = state.add(
             group,
             "diagnosis_presence",
@@ -831,11 +918,11 @@ def _guard_consequence(
     elif re.fullmatch(r"wykazanie min\. 3 krotnie podczas hospitalizacji", text):
         # Each guard gets its own repeat-sensitive consequence below.
         consequence = 0
-    elif "wymagane sprawozdanie procedury wg. ICD 9:" in text and len(codes) == 1:
+    elif required and _plain_title(required[2]):
         consequence = state.add(
             group,
             "procedure_presence",
-            c.Presence(state.codes(codes, "icd9-pl", item.row), None),
+            c.Presence(state.codes((required[1],), "icd9-pl", item.row), None),
             rows,
         )
     else:
@@ -957,18 +1044,36 @@ def _secondary_exemption(
     spans.append(match.span())
 
 
+def _bounds(text: str) -> set[tuple[str, int, str]]:
+    found: set[tuple[str, int, str]] = set()
+    for match in re.finditer(
+        OP + r"\s*([0-9]{1,4})\.?\s*(r\.\s*ż|tyg|mies|d(?:ni|nia|zień)\b)", text
+    ):
+        unit = match[3]
+        found.add(
+            (
+                COMPARISONS[match[1]],
+                int(match[2]),
+                "years"
+                if unit.startswith("r")
+                else "weeks"
+                if unit == "tyg"
+                else "months"
+                if unit == "mies"
+                else "days",
+            )
+        )
+    return found
+
+
 def _title_qualifiers(
     state: _State, group: c.Group, evidence: list[c.Evidence]
 ) -> list[int]:
     title = next(e.text for e in evidence if e.row == group.title_row)
     labels = " ".join(e.text for e in evidence if e.category == "label")
-    has_age = AGE.search(labels) is not None
-    has_duration = (
-        DURATION.search(labels) is not None or WARD.search(labels) is not None
-    )
-    if (re.search(OP + r"\s*[0-9]+\s*" + UNITS, title) and not has_age) or (
-        re.search(OP + r"\s*[0-9]+\s*d(?:ni|nia)\b", title) and not has_duration
-    ):
+    # Compare (comparison, threshold, unit) bounds, not merely "some age": a
+    # title `> 65 r.ż.` beside a label `wiek > 17 r.ż.` is still title-only.
+    if not _bounds(title) <= _bounds(labels):
         return [
             state.unknown(
                 group.code,
