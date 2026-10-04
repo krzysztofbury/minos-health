@@ -23,7 +23,16 @@ validation deployment.
 `scripts/render_validation_compose.py` covers only the first cutover from the
 maintenance edge: it refuses a base that already contains `reference-api`.
 Every later update edits the live Compose file instead, swapping the three
-identities and nothing else.
+identities and the API startup grace period described below.
+
+The update path migrates the known legacy `reference-api` healthcheck
+`start_period` from `20s` to `120s`, matching the first-install renderer and
+the measured full-conditions startup. An existing `120s` stays unchanged;
+an unknown startup policy is refused rather than overwritten. Probe command,
+interval, timeout and retries are preserved. Rollback restores the exact prior
+Compose, including its prior startup policy. On 2026-10-04 the first #32/#130
+cutover rolled back because the old update path had retained `20s` despite a
+116-second isolated startup measurement. This migration fixes that path.
 
 ## Inputs
 
@@ -91,7 +100,8 @@ Run from the repository root with the materialized inventory described in
 6. **Render** `validation-stage/<revision>/compose.json` by loading the live
    file and asserting the expected previous API image, edge image,
    `MINOS_REFERENCE_DATABASE_SHA256` and the single read-only `/app/data`
-   bind source before replacing those four values. Any other starting state
+   bind source before replacing those four values and migrating the known API
+   startup grace to 120 seconds. Any other starting state
    is refused.
 7. **Pull** both digests into `image-pull.log`.
 8. **Activate.** Record the operational container IDs and restart counts
