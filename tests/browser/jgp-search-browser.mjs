@@ -24,7 +24,7 @@ try {
   assert.ok(target);
   socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
-  let id = 0;
+  let id = 0, pausedScript;
   const pending = new Map(), errors = [], requests = [];
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
@@ -33,6 +33,7 @@ try {
       if (message.error) callback.reject(new Error("browser protocol failed")); else callback.resolve(message.result);
     } else if (message.method === "Runtime.exceptionThrown") errors.push("runtime exception");
     else if (message.method === "Network.requestWillBeSent") requests.push(message.params.request);
+    else if (message.method === "Fetch.requestPaused") pausedScript = message.params.requestId;
   });
   const send = (method, params = {}) => new Promise((resolve, reject) => { const value = ++id; pending.set(value, { resolve, reject }); socket.send(JSON.stringify({ id: value, method, params })); });
   const evaluate = async expression => {
@@ -60,7 +61,15 @@ try {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     await send("Page.navigate", { url: "about:blank" });
     await wait('location.href === "about:blank" && !document.querySelector("#query")');
+    pausedScript = undefined;
+    await send("Fetch.enable", { patterns: [{ urlPattern: "*/search.js", requestStage: "Request" }] });
     await send("Page.navigate", { url: new URL("/", url).href });
+    await wait('Boolean(document.querySelector("#query"))');
+    for (let attempt = 0; !pausedScript && attempt < 300; attempt++) await new Promise(resolve => setTimeout(resolve, 50));
+    assert.ok(pausedScript, "Search script must be held before it initializes");
+    assert.ok(await evaluate('document.querySelector("#query").disabled && document.querySelector("#search-submit").disabled'), "Search must stay disabled until its script and release metadata are ready");
+    await send("Fetch.continueRequest", { requestId: pausedScript });
+    await send("Fetch.disable");
     await wait('document.querySelector("#query") && !document.querySelector("#query").disabled');
     assert.equal(await evaluate('document.querySelector("input[value=jgp]").disabled'), false);
     // Focus, Space, Tab and Enter exercise native chip and result navigation.
