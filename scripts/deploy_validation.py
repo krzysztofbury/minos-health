@@ -22,7 +22,7 @@ import urllib.error
 import urllib.request
 from http.client import HTTPResponse
 from pathlib import Path
-from typing import Annotated, ClassVar, cast, final
+from typing import Annotated, ClassVar, Literal, cast, final
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -112,6 +112,8 @@ class Plan(BaseModel):
     rank_sample: tuple[str, int] | None
     # (service date, group code, governing release) for catalog bundles.
     jgp_sample: tuple[str, str, str] | None = None
+    jgp_modifier_binding: Literal["unbound", "reviewed"] = "unbound"
+    conditions_sample: tuple[str, str, str, str] | None = None
     planned_at: str
 
 
@@ -300,6 +302,21 @@ def plan(arguments: Arguments) -> Plan:
     live = cast(dict[str, str], state["live"])
     if live["api_image"] == release.api_image and live["database_sha256"] == database:
         raise DeployError("this release and bundle are already live")
+    group_sample = jgp_sample(bundle)
+    modifier_state: Literal["unbound", "reviewed"] = "unbound"
+    if group_sample is not None:
+        from datetime import date
+
+        from minos.store.jgp_ruleset import resolve_ruleset
+
+        with open_reference_bundle(bundle) as (connection, _):
+            ruleset = resolve_ruleset(
+                connection, date.fromisoformat(group_sample[0]), None
+            )
+            modifier_state = cast(
+                Literal["unbound", "reviewed"],
+                cast(dict[str, object], ruleset["modifiers"])["binding"],
+            )
     result = Plan(
         deployment=Deployment(
             api_image=release.api_image,
@@ -318,7 +335,9 @@ def plan(arguments: Arguments) -> Plan:
         dataset_id=dataset_id,
         bundle=str(bundle),
         rank_sample=sample,
-        jgp_sample=jgp_sample(bundle),
+        jgp_sample=group_sample,
+        jgp_modifier_binding=modifier_state,
+        conditions_sample=conditions_sample(bundle),
         planned_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     )
     path = plan_path(release.source_revision)
@@ -404,12 +423,18 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
                 "desktop and mobile rank acceptance passed; review screenshots"
             )
     if value.jgp_sample is not None:
-        checks["jgp_group"] = verify_jgp(base, value.jgp_sample)
+        checks["jgp_group"] = verify_jgp(
+            base, value.jgp_sample, value.jgp_modifier_binding
+        )
+    if value.conditions_sample is not None:
+        checks["conditions_group"] = verify_conditions(base, value.conditions_sample)
     report("verified", checks)
     return checks
 
 
-def verify_jgp(base: str, sample: tuple[str, str, str]) -> str:
+def verify_jgp(
+    base: str, sample: tuple[str, str, str], expected_binding: str = "unbound"
+) -> str:
     service_date, code, release_id = sample
     status, body = get(f"{base}/api/v1/jgp/{service_date}/groups/{code}")
     answer = cast(dict[str, object], json.loads(body)) if status == 200 else {}
@@ -418,10 +443,60 @@ def verify_jgp(base: str, sample: tuple[str, str, str]) -> str:
     if (
         ruleset.get("release_id") != release_id
         or answer.get("points_kind") != "catalog_base_points_without_modifiers"
-        or modifiers.get("binding") != "unbound"
+        or modifiers.get("binding") != expected_binding
     ):
         raise DeployError(f"public JGP group {code} is wrong: {status}")
-    return f"{code} on {service_date} from {release_id}, base points, modifiers unbound"
+    return f"{code} on {service_date} from {release_id}, base points, modifiers {expected_binding}"
+
+
+def conditions_sample(bundle: Path) -> tuple[str, str, str, str] | None:
+    from minos.domain.jgp_ruleset import GroupNotOnDate
+    from minos.store.jgp_condition_reference import reference_group
+    from minos.store.jgp_ruleset import catalog_knowledge, resolve_ruleset
+
+    manifest = read_artifact_manifest(bundle)
+    if not manifest.dataset.characteristics:
+        return None
+    with open_reference_bundle(bundle) as (connection, _):
+        day = catalog_knowledge(connection)
+        ruleset = resolve_ruleset(connection, day, None)
+        # The sample must actually be covered, not just have a catalog row.
+        codes = cast(
+            list[tuple[str]],
+            connection.execute(
+                "SELECT DISTINCT code FROM characteristics_group ORDER BY code LIMIT 64"
+            ).fetchall(),
+        )
+        for (code,) in codes:
+            try:
+                answer = reference_group(connection, ruleset, code, available=True)
+            except GroupNotOnDate:
+                continue
+            conditions = cast(dict[str, object], answer["conditions"])
+            status = conditions.get("status")
+            if status in ("fully_interpreted", "not_yet_interpreted"):
+                source = cast(dict[str, object], conditions["source"])
+                return (
+                    day.isoformat(),
+                    code,
+                    cast(str, source["release_id"]),
+                    status,
+                )
+    raise DeployError("conditions bundle has no bounded covered verification sample")
+
+
+def verify_conditions(base: str, sample: tuple[str, str, str, str]) -> str:
+    day, code, release_id, expected_status = sample
+    status, body = get(f"{base}/api/v1/jgp/{day}/groups/{code}")
+    answer = cast(dict[str, object], json.loads(body)) if status == 200 else {}
+    conditions = cast(dict[str, object], answer.get("conditions", {}))
+    source = cast(dict[str, object], conditions.get("source", {}))
+    if (
+        source.get("release_id") != release_id
+        or conditions.get("status") != expected_status
+    ):
+        raise DeployError("public conditions do not match the planned dated source")
+    return f"{code} on {day} from {release_id}, {expected_status}"
 
 
 def write_receipt(value: Plan, checks: dict[str, object]) -> None:
