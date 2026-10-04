@@ -389,7 +389,7 @@ try {
     overflow: document.documentElement.scrollWidth > innerWidth,
   }))()`);
   assert.equal(home.sources, true);
-  assert.match(home.value, /Znajdź kod/);
+  assert.match(home.value, /Znajdź rozpoznanie, procedurę lub grupę JGP/);
   assert.equal(home.disabled, true);
   assert.equal(home.overflow, false);
   await screenshot(client, "home-mobile.png");

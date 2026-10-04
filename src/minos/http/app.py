@@ -52,6 +52,7 @@ from minos.store.jgp_condition_reference import (
     characteristics_calendar,
     code_memberships,
 )
+from minos.store.jgp_search import search_groups
 from minos.store.komunikat import procedure_rank_evidence
 from minos.store.search import search_reference
 from minos.store.tree import (
@@ -98,7 +99,7 @@ DISCLAIMER = "Validation only. Reference data, not medical advice or a binding s
 class Lookup(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
     system: Annotated[str, Field(min_length=1, max_length=80)]
-    release_id: Annotated[str, Field(min_length=1, max_length=80)]
+    release_id: Annotated[str, Field(min_length=1, max_length=80)] | None = None
     query: Annotated[str, Field(min_length=1, max_length=256)]
     language: Literal["pl", "en"] = "pl"
     limit: Annotated[int, Field(ge=1, le=20)] = 10
@@ -112,6 +113,38 @@ def failure(status: int, code: str) -> JSONResponse:
 
 
 def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
+    if payload.system == "jgp":
+        if (
+            payload.release_id is not None
+            or payload.service_date is not None
+            or payload.language != "pl"
+        ):
+            raise SearchInputError("group search selects today's catalog on the server")
+        day = today_in_poland()
+        query = prepare_query(payload.query)
+        with pool.borrow() as lease:
+            try:
+                if not pool.group_index:
+                    raise NoRulesetForDate("bundle has no group catalogs")
+                return search_groups(
+                    lease.connection,
+                    pool.group_index,
+                    query,
+                    day,
+                    lease.analyzer,
+                    limit=payload.limit,
+                )
+            except NoRulesetForDate:
+                return {
+                    "api": 1,
+                    "system": "jgp-szp",
+                    "status": "not_covered",
+                    "service_date": day.isoformat(),
+                    "results": [],
+                    "truncated": False,
+                }
+    if payload.release_id is None:
+        raise SearchInputError("dictionary release is required")
     with pool.borrow() as lease:
         result = search_reference(
             lease.connection,
@@ -408,6 +441,7 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             "mode": "validation",
             "disclaimer": DISCLAIMER,
             "dataset_id": dataset_identity(pool.manifest.dataset),
+            "jgp_search": bool(pool.group_index),
             "releases": [
                 {
                     "release_id": source.release_id,
@@ -462,7 +496,7 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             return failure(429, "busy")
         except QueryLimitError, TimeoutError:
             return failure(429, "limit_exceeded")
-        except ArtifactError, OSError:
+        except ArtifactError, OSError, TimeZoneUnavailable:
             return failure(503, "unavailable")
 
     _ = app.middleware("http")(guard)

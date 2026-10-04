@@ -199,6 +199,18 @@ def browser_checks(arguments: Arguments, bundle: Path, port: int, output: Path) 
             _ = subprocess.run(
                 [
                     "node",
+                    str(ROOT / "tests/browser/jgp-search-browser.mjs"),
+                    arguments.chromium,
+                    f"http://minoshealth.pl:{port}/",
+                    str(output),
+                ],
+                timeout=90,
+                check=True,
+                env=environment,
+            )
+            _ = subprocess.run(
+                [
+                    "node",
                     str(ROOT / "tests/browser/jgp-browser.mjs"),
                     arguments.chromium,
                     f"http://minoshealth.pl:{port}/",

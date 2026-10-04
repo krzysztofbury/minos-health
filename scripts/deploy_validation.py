@@ -428,6 +428,25 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
         )
     if value.conditions_sample is not None:
         checks["conditions_group"] = verify_conditions(base, value.conditions_sample)
+    if value.jgp_sample is not None and chromium is not None:
+        output = WORK_ROOT / value.deployment.source_revision / "browser"
+        output.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="cb-") as browser_temp:
+            _ = run(
+                [
+                    "node",
+                    str(ROOT / "tests/browser/jgp-search-browser.mjs"),
+                    str(chromium),
+                    base + "/",
+                    str(output),
+                    "conditions" if value.conditions_sample is not None else "catalog",
+                ],
+                timeout_s=180,
+                environment={**os.environ, "TMPDIR": browser_temp},
+            )
+        checks["jgp_search_browser"] = (
+            "desktop/mobile search and dated links passed; review screenshots"
+        )
     report("verified", checks)
     return checks
 

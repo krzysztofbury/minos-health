@@ -1,7 +1,7 @@
       <section class="search-hero" aria-labelledby="search-title">
         <div class="shell shell-narrow">
-          <h1 id="search-title" class="search-title">Znajdź kod rozpoznania lub procedury</h1>
-          <p class="search-lead">Wpisz kod albo kilka słów opisu. Szukamy w oficjalnych słownikach ICD-10 i ICD-9.</p>
+          <h1 id="search-title" class="search-title">Znajdź rozpoznanie, procedurę lub grupę JGP</h1>
+          <p class="search-lead">Wpisz kod albo kilka słów opisu. Szukamy w słownikach ICD-10, ICD-9 i katalogu grup JGP.</p>
           <form class="search-form" id="search-form" role="search" autocomplete="off" novalidate>
             <div class="search-box" id="search-box">
               <label class="visually-hidden" for="query">Kod lub opis</label>
@@ -18,6 +18,7 @@
               <legend class="visually-hidden">Słowniki, w których szukasz</legend>
               <label class="filter"><input type="checkbox" name="system" value="icd10-pl" checked{{search_disabled}}><span><strong>ICD-10</strong> rozpoznania</span></label>
               <label class="filter"><input type="checkbox" name="system" value="icd9-pl"{{search_disabled}}><span><strong>ICD-9</strong> procedury</span></label>
+              <label class="filter"><input type="checkbox" name="system" value="jgp"{{search_disabled}}><span><strong>JGP</strong> grupy</span></label>
               <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>ICD-11</strong> <em>w przygotowaniu</em></span></span>
             </fieldset>
           </form>

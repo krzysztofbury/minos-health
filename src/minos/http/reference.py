@@ -10,6 +10,7 @@ from typing import NamedTuple, final
 from minos.domain.morphology import PolishMorphology
 from minos.domain.reference import ArtifactError
 from minos.store.artifact import DATABASE_NAME, ArtifactManifest
+from minos.store.jgp_search import GroupIndex, build_group_index
 from minos.store.reference import open_reference_bundle
 
 
@@ -42,6 +43,11 @@ class ReferencePool:
                 # exclusive lease keeps concurrent requests independent.
                 self._leases.append(Lease(connection, PolishMorphology()))
                 self.manifest = manifest
+            self.group_index: GroupIndex = {}
+            if self.manifest.dataset.catalogs:
+                self.group_index = build_group_index(
+                    self._leases[0].connection, self._leases[0].analyzer
+                )
             self._identity = self._file_identity()
         except BaseException:
             self._stack.close()

@@ -5,9 +5,10 @@
 
   var SYSTEMS = {
     "icd10-pl": { name: "ICD-10", group: "Rozpoznania (ICD-10)", empty: "Brak wyników w ICD-10.", path: "/slowniki/icd-10" },
-    "icd9-pl": { name: "ICD-9", group: "Procedury (ICD-9)", empty: "Brak wyników w ICD-9.", path: "/slowniki/icd-9" }
+    "icd9-pl": { name: "ICD-9", group: "Procedury (ICD-9)", empty: "Brak wyników w ICD-9.", path: "/slowniki/icd-9" },
+    "jgp": { name: "JGP", group: "JGP grupy", empty: "Brak pasujących grup JGP.", path: "/jgp" }
   };
-  var ORDER = ["icd10-pl", "icd9-pl"];
+  var ORDER = ["icd10-pl", "icd9-pl", "jgp"];
   var FIRST_PAGE = 10;
   var MAX_RESULTS = 20;
   var SUGGEST_LIMIT = 4;
@@ -80,7 +81,7 @@
     return fetch("/api/v1/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ system: system, release_id: release.release_id, query: query, limit: limit }),
+      body: JSON.stringify({ system: system, release_id: system === "jgp" ? undefined : release.release_id, query: query, limit: limit }),
       cache: "no-store",
       credentials: "omit",
       signal: signal
@@ -119,7 +120,7 @@
   }
 
   function openOption(option) {
-    window.location.assign(dictionaryHref(option.system, option.code));
+    window.location.assign(option.href || dictionaryHref(option.system, option.code));
   }
 
   function showSuggestions(items) {
@@ -137,7 +138,7 @@
       );
       node.addEventListener("mousedown", function (event) { event.preventDefault(); });
       node.addEventListener("click", function () { openOption(item); });
-      options.push({ node: node, system: item.system, code: item.code });
+      options.push({ node: node, system: item.system, code: item.code, href: item.href });
       list.append(node);
     });
     active = -1;
@@ -155,7 +156,7 @@
     var signal = suggestController.signal;
     Promise.all(systems.map(function (system) {
       return lookup(system, query, SUGGEST_LIMIT, signal)
-        .then(function (answer) { return answer.results.map(function (hit) { return { system: system, code: hit.code, label: hit.label }; }); })
+        .then(function (answer) { return answer.results.map(function (hit) { return { system: system, code: hit.code, label: hit.label, href: system === "jgp" ? hit.href : undefined }; }); })
         .catch(function () { return []; });
     })).then(function (perSystem) {
       if (signal.aborted || normalize(input.value) !== query) return;
@@ -183,7 +184,7 @@
     answer.results.forEach(function (hit) {
       var item = element("li");
       var link = element("a", "result");
-      link.href = dictionaryHref(system, hit.code) + (hit.jgp_membership && hit.jgp_membership.service_date ? "/jgp/" + encodeURIComponent(hit.jgp_membership.service_date) : "");
+      link.href = system === "jgp" ? hit.href : dictionaryHref(system, hit.code) + (hit.jgp_membership && hit.jgp_membership.service_date ? "/jgp/" + encodeURIComponent(hit.jgp_membership.service_date) : "");
       link.append(element("span", "code-chip", hit.code || "-"), element("span", "result-label", normalize(hit.label || "")));
       var matched = normalize((hit.match && hit.match.text) || "");
       if (matched && matched.toLowerCase() !== normalize(hit.label || "").toLowerCase()) {
@@ -191,6 +192,7 @@
       }
       var badge = badgeFor(hit, system);
       var meta = element("span", "result-meta");
+      if (system === "jgp") meta.append(element("span", "badge badge-muted", hit.catalog), element("span", "", hit.act_number));
       if (hit.jgp_membership && hit.jgp_membership.group_count) {
         var membership = element("span", "badge badge-muted", "występuje w " + hit.jgp_membership.group_count + " " + plural(hit.jgp_membership.group_count, "grupie", "grupach", "grupach") + " JGP");
         membership.title = "Obecność na jawnych listach załącznika 9 na " + hit.jgp_membership.service_date + "; nie oznacza kwalifikacji ani typowego leczenia";
@@ -218,7 +220,7 @@
     var foot = element("div", "result-group-foot");
     foot.hidden = true;
     section.append(head, body, foot);
-    return { section: section, count: count, body: body, foot: foot };
+    return { section: section, title: title, count: count, body: body, foot: foot };
   }
 
   function handOff(system, query) {
@@ -229,9 +231,18 @@
   function fillGroup(group, system, query, answer, limit) {
     var shown = answer.results.length;
     group.foot.replaceChildren();
+    if (system === "jgp") {
+      group.title.textContent = SYSTEMS[system].group + " - stan na " + answer.service_date;
+      var advanced = element("a", "button button-quiet", "Więcej opcji");
+      advanced.href = "/jgp/" + encodeURIComponent(answer.service_date);
+      group.foot.append(advanced);
+      if (answer.ruleset && answer.ruleset.service_date_after_knowledge) {
+        group.foot.append(element("p", "group-message", "Według źródeł sprawdzonych do " + answer.ruleset.knowledge_as_of + "."));
+      }
+    }
     if (shown === 0) {
       group.count.textContent = "0 wyników";
-      group.body.replaceChildren(element("li", "group-message", SYSTEMS[system].empty));
+      group.body.replaceChildren(element("li", "group-message", answer.status === "not_covered" ? "Brak katalogu JGP obejmującego ten dzień." : SYSTEMS[system].empty));
       if (Array.isArray(answer.suggestions) && answer.suggestions.length) {
         group.foot.append(element("span", "", "Czy chodziło o:"));
         answer.suggestions.slice(0, 3).forEach(function (suggestion) {
@@ -244,7 +255,7 @@
         });
         group.foot.hidden = group.foot.childElementCount <= 1;
       } else {
-        group.foot.hidden = true;
+        group.foot.hidden = group.foot.childElementCount === 0;
       }
       return;
     }
@@ -268,7 +279,7 @@
       });
       group.foot.append(more);
     }
-    if (answer.truncated) {
+    if (answer.truncated && system !== "jgp") {
       var open = element("button", "button button-quiet", "Szukaj w pełnym słowniku " + SYSTEMS[system].name);
       open.type = "button";
       open.addEventListener("click", function () { handOff(system, query); });
@@ -351,6 +362,7 @@
       event.preventDefault();
       highlight(active <= 0 ? options.length - 1 : active - 1);
     } else if (event.key === "Escape") {
+      event.preventDefault();
       closeSuggestions();
     } else if (event.key === "Enter" && active >= 0 && options[active]) {
       event.preventDefault();
@@ -390,6 +402,7 @@
       answer.releases.forEach(function (release) {
         if (SYSTEMS[release.system] && !releases[release.system]) releases[release.system] = release;
       });
+      if (answer.jgp_search) releases.jgp = { system: "jgp" };
       ORDER.forEach(function (system) {
         var box = boxes.filter(function (candidate) { return candidate.value === system; })[0];
         if (box && !releases[system]) { box.checked = false; box.disabled = true; }
