@@ -124,6 +124,36 @@ def test_folded_profile_keeps_exact_precedence_and_legacy_bundle_compatibility(
         assert not legacy.hits
 
 
+@pytest.mark.parametrize("elapsed_seconds,refused", [(0.3, False), (0.401, True)])
+def test_search_has_one_bounded_400ms_deadline(
+    search_bundle: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    elapsed_seconds: float,
+    refused: bool,
+) -> None:
+    import time
+
+    from minos.domain.reference import QueryLimitError
+
+    clock = iter((0.0,))
+    monkeypatch.setattr(time, "monotonic", lambda: next(clock, elapsed_seconds))
+    with open_reference_connection(search_bundle) as connection:
+        if refused:
+            with pytest.raises(QueryLimitError, match="execution limit"):
+                _ = search_reference(
+                    connection, SearchRequest("icd10-pl", prepare_query("E11"))
+                )
+        else:
+            assert (
+                search_reference(
+                    connection, SearchRequest("icd10-pl", prepare_query("E11"))
+                )
+                .hits[0]
+                .code
+                == "E11"
+            )
+
+
 @pytest.mark.parametrize("reviewed", [False, True])
 def test_synonym_rewrite_requires_review_keeps_qualifiers_and_preserves_source_evidence(
     tmp_path: Path, search_source: DatasetManifest, reviewed: bool

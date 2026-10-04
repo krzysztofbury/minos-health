@@ -40,7 +40,9 @@ def search_reference(
     *,
     analyzer: PolishMorphology | None = None,
 ) -> SearchResult:
-    with query_budget(connection) as budget:
+    # Shared across all stages, including Python hydration. Keep the operation
+    # cap unchanged; allow the accepted 400 ms ceiling on the small VPS.
+    with query_budget(connection, seconds=0.4) as budget:
         search_version = cast(
             tuple[str] | None,
             connection.execute(

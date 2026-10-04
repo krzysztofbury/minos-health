@@ -112,3 +112,27 @@ gold evaluation requires the private licensed bundle: ordinary CI exercises the
 synthetic evaluator and the new profile's real container/browser paths, but does
 not fetch that licensed dataset or claim a full-gold CI score. A private-bundle
 CI report remains an explicit integration gap.
+
+## Live Timeout Investigation
+
+On 2026-10-04, 44 sequential non-patient gold probes against the deployed
+revision `3f62ca46dd2f5329ad595db212674b5c5878b5dc` reproduced a
+`429 limit_exceeded` for G07 (267 ms end-to-end). The container was healthy,
+limited to one CPU, and reported no cgroup CPU throttling. A separate read-only
+profiler found 139,000 SQL operations for that path, far below the two-million
+operation cap: the reproduced failure was the wall deadline, not operation
+exhaustion. The warm profiler did not reproduce the timeout, so host scheduling
+or cold-cache contribution remains unconfirmed.
+
+The substring fallback now materializes matches from the narrow covering text
+index before loading source documents and graph owners. On the deployed
+dataset the empty-fallback query used 114,000 operations instead of 137,000,
+about 17% less work. Host wall timings varied substantially; they are not a
+general latency guarantee. Search alone now has the owner-accepted 400 ms shared
+deadline; the operation cap and other reference-query budgets stay unchanged.
+
+Candidate code was exercised in a separate read-only VPS process on the live
+legacy dataset, not injected into the serving process. Two sequential 44-case
+runs had no errors, maximum 112.6 ms, and G07 took 5.1 and 8.1 ms. This supports
+the bounded regression path, not concurrent-load suitability. Live activation
+and production verification remain pending owner review.

@@ -1,13 +1,18 @@
-WITH candidates(ordinal, document_id, title_rank, prefix_rank) AS (
+-- Filter the narrow covering text index before loading source documents and
+-- their graph owners. Empty fallbacks must not walk the wide document table.
+WITH matching(document_id) AS MATERIALIZED (
+    SELECT id FROM search_document
+    WHERE source_release_id = :release_id AND language = :language
+      AND instr(normalized_text, :text) > 0
+), candidates(ordinal, document_id, title_rank, prefix_rank) AS (
     SELECT coalesce(owner.concept_ordinal, document.node_ordinal), document.id,
            CASE WHEN document.description_type <> 'context'
                 AND document.node_ordinal = coalesce(owner.concept_ordinal, document.node_ordinal)
            THEN 0 ELSE 1 END,
            CASE WHEN substr(document.normalized_text, 1, length(:text)) = :text THEN 0 ELSE 1 END
-    FROM search_document AS document
+    FROM matching CROSS JOIN search_document AS document ON document.id = matching.document_id
     LEFT JOIN search_owner AS owner ON owner.source_release_id = document.source_release_id AND owner.document_id = document.id
     WHERE document.source_release_id = :release_id AND document.language = :language
-      AND instr(document.normalized_text, :text) > 0
       AND NOT EXISTS (
           SELECT 1 FROM json_each(:ranges) AS requested
           WHERE NOT json_extract(requested.value, '$.prefix') AND NOT EXISTS (
