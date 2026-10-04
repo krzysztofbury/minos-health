@@ -252,10 +252,11 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .detail-notes li { margin: 0.2rem 0; }
 .detail-source { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--text-sm); }
 .jgp-conditions, .jgp-memberships, .page-jgp .detail-source { overflow-wrap: anywhere; }
+.jgp-conditions .badge, .jgp-memberships .badge { white-space: normal; }
 .jgp-rules, .jgp-rules ul { margin: 0.5rem 0 0; padding-left: 1.4rem; }
 .jgp-rules ul { border-left: 1px solid var(--line); margin-left: 0.2rem; padding-left: 1rem; }
 .jgp-rules li { padding: 0.3rem 0; }
-.jgp-rows { color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
+.jgp-rows { color: var(--muted); font-size: var(--text-sm); }
 .jgp-memberships .code-list li { display: block; }
 .unplaced { margin-top: 1rem; padding: 1rem 0.5rem 0.5rem; border-top: 1px solid var(--line); }
 .unplaced h2 { font-size: var(--text-lg); }
@@ -269,8 +270,8 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 
 /* Server-rendered code pages (reference API). */
 .code-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.1rem; }
-.code-page { display: grid; gap: 1.25rem; }
-.code-page > * { max-width: 52rem; margin: 0; }
+.code-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+.code-page > * { min-width: 0; max-width: 52rem; margin: 0; }
 .code-facts { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
 .code-facts div:first-child { padding-top: 0; border-top: 0; }
 .code-page .detail-notes, .code-children { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }

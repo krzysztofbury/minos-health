@@ -1,0 +1,18 @@
+{
+  "service_date": "2026-10-04",
+  "notice": "Source-catalog lookup, not eligibility or treatment ranking. Expected codes independently checked against pinned 1a/1ae names. Colloquial device-to-procedure rewrites remain explicit gaps.",
+  "cases": [
+    {"id":"JG01","kind":"exact_code","query":"h21","expected":"H21","max_rank":1},
+    {"id":"JG02","kind":"code_prefix","query":"H2","expected":"H21","max_rank":1},
+    {"id":"JG03","kind":"code_prefix_1ae","query":"AU35","expected":"AU35C","max_rank":1},
+    {"id":"JG04","kind":"name_words","query":"endoprotezoplastyka pierwotna całkowita biodra","expected":"H13","max_rank":1},
+    {"id":"JG05","kind":"morphology","query":"rekonstrukcją implantów mocujących","expected":"H21","max_rank":1},
+    {"id":"JG06","kind":"colloquial","query":"przepuklina","expected":"F72","max_rank":5},
+    {"id":"JG07","kind":"colloquial_1ae","query":"zaćma","expected":"BU18G","max_rank":5},
+    {"id":"JG08","kind":"no_diacritics","query":"porod","expected":"N01","max_rank":5},
+    {"id":"JG09","kind":"no_diacritics_1ae","query":"niedobory odpornosci","expected":"SU52","max_rank":5},
+    {"id":"JG10","kind":"name_prefix","query":"endoprotez","expected":"H13","max_rank":5},
+    {"id":"JG11","kind":"unsupported_colloquial","query":"endoproteza","expected":"H13","max_rank":5,"known_gap":true},
+    {"id":"JG12","kind":"preserved_qualifier","query":"przepuklina bez wszczepu","expected":null,"max_rank":1}
+  ]
+}
