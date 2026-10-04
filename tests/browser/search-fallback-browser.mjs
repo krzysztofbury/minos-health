@@ -31,12 +31,14 @@ try {
   const pending = new Map();
   const requests = [];
   const errors = [];
+  const searchStatuses = [];
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
     if (message.id) {
       const callback = pending.get(message.id); pending.delete(message.id);
       if (message.error) callback.reject(new Error("browser protocol failed")); else callback.resolve(message.result);
     } else if (message.method === "Network.requestWillBeSent") requests.push(message.params.request);
+    else if (message.method === "Network.responseReceived" && message.params.response.url.endsWith("/api/v1/search")) searchStatuses.push(message.params.response.status);
     else if (message.method === "Runtime.exceptionThrown") errors.push("runtime exception");
   });
   const send = (method, params = {}) => new Promise((resolve, reject) => { const value = ++id; pending.set(value, { resolve, reject }); socket.send(JSON.stringify({ id: value, method, params })); });
@@ -52,11 +54,19 @@ try {
   await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable");
   for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
+    // Page.navigate acknowledges navigation before replacing the old DOM.
+    // Do not satisfy the next viewport's readiness check with the prior page.
+    await send("Page.navigate", { url: "about:blank" });
+    await wait('location.href === "about:blank" && !document.querySelector("#query")');
     await send("Page.navigate", { url: new URL("/", url).href });
     await wait('document.querySelector("#query") && !document.querySelector("#query").disabled');
     for (const [label, query, expected] of [["folded", "etykieta lodz", "bez polskich znaków"], ["synonym", "syntetyczna nazwa", "synonim:"], ["membership", "wariant", "występuje w 1 grupie JGP"]]) {
       await evaluate(`document.querySelector("#query").value=${JSON.stringify(query)}; document.getElementById("search-form").requestSubmit()`);
-      await wait(`document.querySelector("#results").textContent.includes(${JSON.stringify(expected)})`);
+      try {
+        await wait(`document.querySelector("#results").textContent.includes(${JSON.stringify(expected)})`);
+      } catch {
+        throw new Error(`Synthetic ${name}/${label} acceptance failed; search statuses ${searchStatuses.join(",")}; runtime errors ${errors.length}`);
+      }
       assert.equal(await evaluate("document.documentElement.scrollWidth > window.innerWidth"), false);
       if (label === "membership") {
         const links = await evaluate('[...document.querySelectorAll(".result")].map((link) => link.getAttribute("href"))');

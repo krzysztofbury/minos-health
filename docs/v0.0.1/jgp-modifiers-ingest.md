@@ -169,8 +169,9 @@ Synthetic tests prove January/July month selection and independent October
 legal windows. They **do not** prove real 102/2026 section 4(3)/4(4) compliance.
 Before #46 completion, the owner must review historical/out-of-scope group
 references, governing acts, the quality transition, section 17(6a), and the
-complete binding/applicability overlay. Approved overlay persistence and an
-approved-binding API state remain #46 work.
+complete binding/applicability overlay. Approved overlay persistence and the
+approved-binding API state are implemented and tested at the synthetic boundary;
+real-source approval and source-backed transition acceptance remain #46 work.
 
 ## Composition And Validation
 
@@ -190,9 +191,13 @@ Neither form changes the production selector. Full-source schema-6 builds on
 this branch were byte-identical across two runs: 253018112 database bytes.
 Dated APIs, structured and unsupported group pages, conditions-only N09,
 ICD-9/ICD-10 reverse pages and uncovered-date refusal were exercised locally.
-This is local reference validation, not representative VPS performance evidence.
-The larger bundle still requires separately authorized startup/memory
-measurements before public activation, without a stress test or deployment.
+The conditions-only schema 6 selector was subsequently measured in an isolated
+VPS container with the installed API image, without live activation. Startup
+plus the first three successful probes took 96.02 and 109.99 seconds in two
+runs; process RSS was about 189 MiB. These are startup/sequential-probe results,
+not concurrent-load suitability. Schema 8's optional search-expanded bundle is
+418 MiB and has not had that VPS measurement; the schema 6 result does not
+authorize its activation. See [search improvements](search-improvements.md).
 
 Raw sources and generated databases remain private and uncommitted. Receipts
 for this investigation are retained under the ignored
