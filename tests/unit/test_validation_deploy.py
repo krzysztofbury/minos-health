@@ -49,6 +49,13 @@ def compose(root: Path, api: str, edge: str, database: str) -> dict[str, object]
             "edge": {"image": edge, "networks": {"edge": None, "reference": None}},
             "reference-api": {
                 "image": api,
+                "healthcheck": {
+                    "test": ["CMD", "python", "probe.py"],
+                    "interval": "10s",
+                    "timeout": "3s",
+                    "retries": 3,
+                    "start_period": "20s",
+                },
                 "environment": {"MINOS_REFERENCE_DATABASE_SHA256": database},
                 "volumes": [
                     {
@@ -195,10 +202,18 @@ def staged(site: tuple[Path, Path, Path], host: Host) -> dict[str, object]:
     return params
 
 
+@pytest.mark.parametrize("start_period", ["20s", "120s"])
 def test_update_changes_only_validation_services_and_is_resumable(
     site: tuple[Path, Path, Path],
+    start_period: str,
 ) -> None:
     root, _, _ = site
+    live = cast(dict[str, object], json.loads((root / "compose.yaml").read_bytes()))
+    services = cast(dict[str, dict[str, object]], live["services"])
+    cast(dict[str, object], services["reference-api"]["healthcheck"])[
+        "start_period"
+    ] = start_period
+    _ = (root / "compose.yaml").write_text(json.dumps(live))
     host = host_for(site)
     before = (root / "compose.yaml").read_bytes()
     params = staged(site, host)
@@ -219,6 +234,7 @@ def test_update_changes_only_validation_services_and_is_resumable(
     services["reference-api"]["image"] = NEW_API
     services["edge"]["image"] = NEW_EDGE
     api = services["reference-api"]
+    cast(dict[str, object], api["healthcheck"])["start_period"] = "120s"
     cast(dict[str, str], api["environment"])["MINOS_REFERENCE_DATABASE_SHA256"] = (
         database
     )
@@ -401,6 +417,18 @@ def test_identity_swap_requires_one_read_only_planned_bind(
     mutate(cast(list[dict[str, object]], services["reference-api"]["volumes"]))
     with pytest.raises(HostError, match=message):
         _ = swap_identities(live, PREVIOUS, deployment("2" * 64), tmp_path)
+
+
+def test_identity_swap_refuses_unknown_startup_policy(tmp_path: Path) -> None:
+    live = compose(tmp_path, OLD_API, OLD_EDGE, OLD_DB)
+    services = cast(dict[str, dict[str, object]], live["services"])
+    cast(dict[str, object], services["reference-api"]["healthcheck"])[
+        "start_period"
+    ] = "5m"
+    with pytest.raises(HostError, match="startup grace is unexpected"):
+        _ = swap_identities(
+            live, PREVIOUS, deployment("2" * 64), tmp_path / "reference"
+        )
 
 
 def test_bundle_archive_is_byte_reproducible(tmp_path: Path) -> None:

@@ -185,7 +185,7 @@ def swap_identities(
     deployment: dict[str, str],
     reference_root: Path,
 ) -> dict[str, object]:
-    """Replace exactly the API image, edge image, database digest and bind."""
+    """Replace validation identities and migrate the known API startup grace."""
     current = live_identities(compose)
     require(
         current["api_image"] == previous["api_image"],
@@ -207,6 +207,15 @@ def swap_identities(
     services = cast(dict[str, dict[str, object]], result["services"])
     services["reference-api"]["image"] = deployment["api_image"]
     services["edge"]["image"] = deployment["edge_image"]
+    health = services["reference-api"].get("healthcheck")
+    require(isinstance(health, dict), "API healthcheck is missing")
+    health = cast(dict[str, object], health)
+    require(
+        health.get("start_period") in ("20s", "120s"), "API startup grace is unexpected"
+    )
+    # Existing hosts retain their old Compose configuration during an image
+    # swap. Apply the measured conditions grace here, not only on first install.
+    health["start_period"] = "120s"
     cast(dict[str, str], services["reference-api"]["environment"])[
         DATABASE_VARIABLE
     ] = deployment["database_sha256"]
