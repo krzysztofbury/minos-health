@@ -12,6 +12,7 @@ from typing import BinaryIO
 from minos.domain.reference import SourceError
 from minos.ingest.jgp_catalog_manifest import CatalogFile
 from minos.ingest.jgp_conditions_manifest import ConditionsFile
+from minos.ingest.jgp_modifier_binding_manifest import LegalOverlayFile
 from minos.ingest.jgp_modifiers_manifest import DisplayFile, ModifierFile
 from minos.ingest.komunikat_manifest import KomunikatFile
 from minos.ingest.reference_manifest import SourceManifest
@@ -25,7 +26,8 @@ def verified_source(
     | CatalogFile
     | ConditionsFile
     | ModifierFile
-    | DisplayFile,
+    | DisplayFile
+    | LegalOverlayFile,
     *,
     staging_directory: Path,
 ) -> Generator[BinaryIO]:

@@ -26,6 +26,7 @@ RULESET: dict[str, object] = {
     "workbook_sha256": "a" * 64,
     "baw_document_id": 43943,
     "document_url": "https://baw.nfz.gov.pl/NFZ/document/43943/X",
+    "modifiers": {"binding": "unbound"},
 }
 
 

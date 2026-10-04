@@ -45,6 +45,7 @@ from minos.store.reference_build import (
 # already reconstructed and verified; bounded by the bundles a process opens.
 _VALIDATED_CONDITIONS: set[tuple[str, str]] = set()
 _VALIDATED_MODIFIERS: set[tuple[str, str]] = set()
+_VALIDATED_MODIFIER_BINDINGS: set[tuple[str, str]] = set()
 
 
 def read_artifact_manifest(bundle: Path) -> ArtifactManifest:
@@ -151,6 +152,20 @@ def open_reference_bundle(
                     if len(_VALIDATED_MODIFIERS) >= 16:
                         _VALIDATED_MODIFIERS.clear()
                     _VALIDATED_MODIFIERS.add(key)
+            if manifest.schema_version >= 7:
+                from minos.store.jgp_modifier_binding import validate_modifier_bindings
+
+                key = (
+                    manifest.database_sha256,
+                    hashlib.sha256(
+                        manifest.dataset.model_dump_json().encode()
+                    ).hexdigest(),
+                )
+                if key not in _VALIDATED_MODIFIER_BINDINGS:
+                    validate_modifier_bindings(connection, manifest.dataset)
+                    if len(_VALIDATED_MODIFIER_BINDINGS) >= 16:
+                        _VALIDATED_MODIFIER_BINDINGS.clear()
+                    _VALIDATED_MODIFIER_BINDINGS.add(key)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources

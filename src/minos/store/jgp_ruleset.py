@@ -88,6 +88,14 @@ def resolve_ruleset(
         candidate = modifier_review_candidate(connection, governing.release_id)
         if candidate is not None:
             modifiers["review_candidate"] = candidate
+    if connection.execute("PRAGMA user_version").fetchone()[0] >= 7:
+        from minos.store.jgp_modifier_binding_read import modifier_binding
+
+        binding = modifier_binding(
+            connection, governing.release_id, service_date, known_on
+        )
+        if binding is not None:
+            modifiers = binding
     return {
         "service_date": service_date.isoformat(),
         "known_on": known_on.isoformat(),

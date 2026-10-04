@@ -10,6 +10,7 @@ from minos.ingest.jgp_conditions_manifest import (
     ConditionsManifest,
     validate_conditions_windows,
 )
+from minos.ingest.jgp_modifier_binding_manifest import ModifierBinding
 from minos.ingest.jgp_modifiers_manifest import ModifierCandidate, ModifierManifest
 from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.manifest_types import Digest as Digest
@@ -97,6 +98,9 @@ class DatasetManifest(BaseModel):
     modifier_candidates: Annotated[
         tuple[ModifierCandidate, ...], Field(max_length=8)
     ] = Field(default=(), exclude_if=empty_evidence)
+    modifier_bindings: Annotated[tuple[ModifierBinding, ...], Field(max_length=8)] = (
+        Field(default=(), exclude_if=empty_evidence)
+    )
     characteristics_knowledge_as_of: date | None = Field(
         default=None, exclude_if=absent_context
     )
@@ -205,6 +209,39 @@ class DatasetManifest(BaseModel):
                 or source.source_version != target.source_version
             ):
                 raise ValueError("invalid supporting source binding")
+        return self
+
+    @model_validator(mode="after")
+    def validate_modifier_bindings(self) -> Self:
+        catalogs = {item.release_id: item for item in self.catalogs}
+        modifiers = {item.release_id: item for item in self.modifiers}
+        seen: set[str] = set()
+        candidates = {item.catalog_release_id for item in self.modifier_candidates}
+        for binding in self.modifier_bindings:
+            catalog = catalogs.get(binding.catalog_release_id)
+            modifier = modifiers.get(binding.modifier_release_id)
+            if catalog is None or modifier is None:
+                raise ValueError(
+                    "MODTAR binding requires explicit catalog and modifier pins"
+                )
+            if (
+                binding.catalog_release_id in seen
+                or binding.catalog_release_id in candidates
+            ):
+                raise ValueError("catalog has duplicate or pending MODTAR binding")
+            if catalog.service_from.year != modifier.year:
+                raise ValueError("MODTAR binding has an incompatible year")
+            if binding.reviewed_on < catalog.published_on:
+                raise ValueError("MODTAR review predates catalog publication")
+            if binding.knowledge_from > binding.reviewed_on:
+                raise ValueError("MODTAR binding knowledge starts after its review")
+            if (
+                modifier.display is not None
+                and binding.knowledge_from
+                < date.fromisoformat(modifier.display.published_on)
+            ):
+                raise ValueError("MODTAR binding predates dictionary publication")
+            seen.add(binding.catalog_release_id)
         return self
 
     def validate_characteristics(self) -> None:

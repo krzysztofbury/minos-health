@@ -1,9 +1,81 @@
 # MODTAR Reference Import And Review Gate
 
-Status: combined #32 / #46 branch, 2026-10-03. Source ingestion and pending
-reconciliation are implemented. Legal overlays and compatible final-tariff
-binding are not approved; #46 must remain open. No public bundle activation,
-merge or deployment is implied.
+Status: #32 / #46 / #125 branch, 2026-10-04. Source ingestion, reviewed-overlay
+import and offline compatible binding are implemented. Real-source overlay
+curation is still incomplete, so the production manifests remain explicitly
+unbound. No public bundle activation, merge or deployment is implied.
+
+## Reviewed Binding Interface
+
+`DatasetManifest.modifier_bindings` explicitly pins a catalog release, a MODTAR
+release and the checksum/size of a canonical manual-overlay JSON blob in the
+archive. It records reviewer, review date, knowledge-start date and evidence.
+Pending candidates cannot coexist with a reviewed binding for the same catalog.
+There is no latest selection or automatic promotion from candidate to binding.
+
+Schema 7 stores the complete overlay and its independently reconstructed date
+windows. Previous migration checksums and unbound schema 2-6 bundles are
+unchanged. Build-time and open-time checks reconcile every dictionary mapping,
+year, generation, grouper type, source bytes, group references, governing catalog
+windows and review identity. Missing, extra or conflicting rows refuse the
+artifact. Before dictionary publication and outside reviewed service windows,
+the ruleset remains unbound. Reference pages still show base points only.
+
+Supplementary legal provisions have separate `manual_legal_overlay` provenance,
+exact coefficients, source evidence, dates and eligibility text. They cannot
+overwrite a MODTAR symbol or silently become XML source rows. This supports a
+reviewed governing clause absent from the operational dictionary, without
+pretending the dictionary supplied it.
+
+```sh
+uv run python -m minos jgp modifiers --data /path/to/bundle --code F72 \
+  --service-date 2026-10-01 --known-on 2026-10-03 --json
+```
+
+The command refuses an unbound bundle. A bound bundle returns dated reference
+mappings and separately attributed legal supplements. It does not establish
+encounter/provider eligibility, combine coefficients or calculate final points.
+Those remain #35's runtime responsibility. A reviewed source binding is one
+necessary capability gate, not an entire working tariff engine.
+
+## Governing-Act Findings On 2026-10-04
+
+These are source findings, not approval of a complete overlay:
+
+- 102/2026/DSOZ, BAW document 44041, section 4(2)-(3): quality-indicator
+  coefficients start in 2027 after publication of indicator values. Until then,
+  the prior section 17(3), (4), (8), (19) and (20) rules continue. Reading the
+  consolidated text's repealed clauses without this transition would be wrong.
+- Section 4(4) starts the added section 17(6a) on 2026-10-01, not July.
+  The consolidated act, BAW document 44042, specifies 1.4 for simultaneous
+  bilateral inguinal-hernia operations settled as F72 or F73. Neither pinned
+  MODTAR generation contains this clause. A reviewed manual supplement is
+  necessary; source-only reconciliation cannot prove legal completeness.
+- 74/2026/DSOZ, BAW document 43942, applies from July 1. Its section 17(19)
+  amendment replaces the earlier N01/N02/N03 threshold scheme with the
+  N01/N02 decile/quartile scheme, with coefficients 0.9, 0.95, 1.05 and 1.1.
+  Earlier dates must not inherit that amendment.
+- 14/2026/DSOZ, BAW document 43768, section 2: the food-standard adjustment
+  uses an old/new catalog point-value ratio, not one global fixed MODTAR value.
+  Services from January 1 through August 31, declaration timing and the stated
+  February exception matter. The fixed-value supplement interface must not
+  represent this as a made-up scalar; ratio/eligibility evaluation needs a
+  separately reviewed tariff rule before claiming complete final tariffs.
+
+Independently fetched source pins for these findings:
+
+| BAW document | XML attachment ID (`/api/file/GetZipxAttachment/4/`) | SHA-256 |
+| --- | --- | --- |
+| 44041 | 32982 | `c759934958ae287dacd5dca66a55f7536830cc67dedb64d34dc83a0eb6a9053b` |
+| 44042 | 32991 | `4ae6874619f5330732de798fdd4e0861a4c5179a7350feff794365e322812877` |
+| 43942 | 30966 | `26a96f5aae760298d117b1865323bd2e4196c3a01bd9288e8bd9db3d6f054251` |
+| 43768 | 27978 | `f24b47227a584d45430588a1cd830efbde1d3a3dd2c894ae41265caae1bb2ef8` |
+
+The complete symbol-to-clause review, external PSZ/oncology/comprehensive-care
+acts and the historical applicability matrix are still required before adding
+real-source bindings to the committed manifests. Synthetic binding and October
+boundary tests are not a substitute for that review and do not justify closing
+#46 by themselves.
 
 ## Source Boundary
 

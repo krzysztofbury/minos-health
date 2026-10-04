@@ -166,6 +166,12 @@ def _build_database(
             import_modifiers(connection, modifier, archive_root, database.parent)
         if manifest.modifiers:
             record_modifier_candidates(connection, manifest)
+        if manifest.modifier_bindings:
+            from minos.store.jgp_modifier_binding import import_modifier_bindings
+
+            import_modifier_bindings(
+                connection, manifest, archive_root, database.parent
+            )
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options

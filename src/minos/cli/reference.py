@@ -95,16 +95,18 @@ def add_reference_commands(commands: _CommandParsers) -> None:
     _ = search.add_argument("--index", choices=("auto", "portable"), default="auto")
     _ = search.add_argument("--json", action="store_true", dest="output_json")
     jgp = commands.add_parser("jgp", help="Look up JGP catalog base points by date.")
-    group = jgp.add_subparsers(dest="jgp_command", required=True).add_parser("group")
-    _ = group.add_argument("--code", required=True)
-    _ = group.add_argument("--data", type=Path, required=True)
-    _ = group.add_argument(
-        "--service-date", help="YYYY-MM-DD; defaults to today in Europe/Warsaw."
-    )
-    _ = group.add_argument(
-        "--known-on", help="YYYY-MM-DD publication knowledge; defaults to today."
-    )
-    _ = group.add_argument("--json", action="store_true", dest="output_json")
+    jgp_commands = jgp.add_subparsers(dest="jgp_command", required=True)
+    for command in ("group", "modifiers"):
+        group = jgp_commands.add_parser(command)
+        _ = group.add_argument("--code", required=True)
+        _ = group.add_argument("--data", type=Path, required=True)
+        _ = group.add_argument(
+            "--service-date", help="YYYY-MM-DD; defaults to today in Europe/Warsaw."
+        )
+        _ = group.add_argument(
+            "--known-on", help="YYYY-MM-DD publication knowledge; defaults to today."
+        )
+        _ = group.add_argument("--json", action="store_true", dest="output_json")
     data = commands.add_parser("data", help="Build a pinned offline reference bundle.")
     build = data.add_subparsers(dest="data_command", required=True).add_parser("build")
     _ = build.add_argument(
@@ -140,7 +142,10 @@ def execute_reference(arguments: dict[str, object]) -> int:
                 for name in _GroupArguments.model_fields
                 if name in arguments
             }
-            return _group(_GroupArguments.model_validate(selected))
+            return _group(
+                _GroupArguments.model_validate(selected),
+                modifiers=arguments.get("jgp_command") == "modifiers",
+            )
         if arguments.get("command") == "search":
             selected = {
                 name: arguments[name]
@@ -258,7 +263,7 @@ def _given_date(value: str | None) -> date | None:
         raise SearchInputError("invalid calendar date") from None
 
 
-def _group(arguments: _GroupArguments) -> int:
+def _group(arguments: _GroupArguments, *, modifiers: bool = False) -> int:
     from minos.store.jgp_ruleset import (
         catalog_group,
         catalog_knowledge,
@@ -287,6 +292,15 @@ def _group(arguments: _GroupArguments) -> int:
             resolve_ruleset(connection, service_date or cast(date, today), known_on),
             arguments.code,
         )
+        if modifiers:
+            from minos.store.jgp_modifier_binding import reviewed_group_modifiers
+
+            answer["modifier_reference"] = reviewed_group_modifiers(
+                connection,
+                manifest.dataset,
+                cast(dict[str, object], answer["ruleset"]),
+                arguments.code,
+            )
     answer = {
         "version": 1,
         "status": "ok",
@@ -323,7 +337,21 @@ def _group_text(answer: dict[str, object]) -> str:
             else f"{amount} days"
         )
         lines.append(f"  {value['measure']}: {shown}")
-    lines.append("Modifiers: unbound (final points cannot be calculated).")
+    binding = cast(dict[str, object], ruleset["modifiers"])
+    if binding["binding"] == "reviewed":
+        lines.append(
+            f"Modifiers: reviewed reference binding {binding['release_id']} (final points are not calculated)."
+        )
+        if "modifier_reference" in answer:
+            reference = cast(dict[str, object], answer["modifier_reference"])
+            for row in cast(
+                list[dict[str, object]], reference["dictionary_mappings"]
+            ) + cast(list[dict[str, object]], reference["legal_supplements"]):
+                lines.append(
+                    f"  {row['symbol']}: {row['coefficient_text']} ({row['provenance']})"
+                )
+    else:
+        lines.append("Modifiers: unbound (final points cannot be calculated).")
     lines.append(cast(str, answer["disclaimer"]))
     return "\n".join(lines)
 

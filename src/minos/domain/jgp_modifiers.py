@@ -209,6 +209,20 @@ def governing_windows(
 
 
 @dataclass(frozen=True)
+class LegalProvision:
+    """A reviewed governing provision absent from the operational dictionary."""
+
+    symbol: str
+    clause: str
+    coefficient_text: str
+    groups: tuple[str, ...]
+    service_from: date
+    service_to: date
+    eligibility_text: str
+    source_evidence: str
+
+
+@dataclass(frozen=True)
 class LegalOverlay:
     year: int
     generation: int
@@ -219,6 +233,7 @@ class LegalOverlay:
     reviewed_on: date
     legal_source_evidence: tuple[str, ...]
     rows: tuple[LegalMapping, ...]
+    supplements: tuple[LegalProvision, ...] = ()
 
 
 def reconcile_legal_overlay(
@@ -269,7 +284,65 @@ def reconcile_legal_overlay(
         overlay.catalog_release_ids
     ) != len(set(overlay.catalog_release_ids)):
         raise SourceError("MODTAR legal overlay catalog releases conflict")
+    _validate_supplements(overlay, catalog_windows)
     return overlay
+
+
+def _validate_supplements(
+    overlay: LegalOverlay, windows: tuple[CatalogWindow, ...]
+) -> None:
+    if len(overlay.supplements) > 500:
+        raise SourceError("legal supplement count exceeds bound")
+    symbols: set[str] = set()
+    dictionary_symbols = {row.mapping[0] for row in overlay.rows}
+    for rule in overlay.supplements:
+        if (
+            not rule.symbol
+            or len(rule.symbol) > 80
+            or rule.symbol in symbols
+            or rule.symbol in dictionary_symbols
+        ):
+            raise SourceError("legal supplement must have a distinct manual identity")
+        symbols.add(rule.symbol)
+        for text in (rule.clause, rule.eligibility_text, rule.source_evidence):
+            if not text.strip() or len(text) > 8192:
+                raise SourceError(
+                    "legal supplement lacks bounded eligibility or source evidence"
+                )
+        _ = exact_millionths(rule.coefficient_text)
+        if (
+            rule.service_from.year != overlay.year
+            or rule.service_to.year != overlay.year
+            or rule.service_from > rule.service_to
+        ):
+            raise SourceError("legal supplement has an incompatible service window")
+        if not 1 <= len(rule.groups) <= 2000 or len(set(rule.groups)) != len(
+            rule.groups
+        ):
+            raise SourceError("legal supplement has invalid group references")
+        for window in governing_windows(windows, rule.service_from, rule.service_to):
+            if window.release_id not in overlay.catalog_release_ids:
+                raise SourceError("legal supplement has another governing catalog")
+            if any(
+                resolve_group_reference(code, window.groups) is None
+                for code in rule.groups
+            ):
+                raise SourceError(
+                    "legal supplement group is absent from the governing catalog"
+                )
+
+
+def select_legal_provisions(
+    overlay: LegalOverlay, service_date: date
+) -> tuple[LegalProvision, ...]:
+    """Reference applicability only; qualifiers still require encounter evaluation."""
+    if service_date.year != overlay.year:
+        raise SourceError("service date is outside the reviewed legal year")
+    return tuple(
+        rule
+        for rule in overlay.supplements
+        if rule.service_from <= service_date <= rule.service_to
+    )
 
 
 def select_reviewed_mappings(
