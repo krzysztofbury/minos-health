@@ -16,9 +16,29 @@ uv run python -m scripts.compose_conditions_manifest \
   --output /path/to/new-search-manifest.json
 ```
 
-The existing conditions selector remains the VPS-measured schema 6 selection.
-This optional enlarged search artifact is not activated by composition or by
-opening the PR, and it needs separate runtime/resource evidence before rollout.
+The conditions selector remains the VPS-measured schema 6 selection and is not
+activated (#32). Composition alone activates nothing.
+
+### Production Activation On 2026-10-04
+
+The owner approved activating `polish-folded-1` with the 13 reviewed rewrites
+on the production catalog selector
+(`manifests/sources/reference-catalog-public-validation.json`), without
+conditions data. The owner signed off on the rewrite list at activation; the
+entries keep their automated-audit provenance unchanged. The selector builds a
+deterministic schema 8 bundle: dataset `f2eb5568...`, database `462715aa...`,
+145 MiB versus 136 MiB for the schema 4 bundle it replaces. It has no conditions
+reconstruction, so open-time validation stays small. Locally, application start
+took 0.57 s (versus 0.44 s for schema 4) and a mixed six-query sequence had a
+5.3 ms median and a 9.1 ms maximum (versus 2.8 ms and 6.4 ms). These figures are
+not a production-load claim; the host deployment receipt and live probes are
+the deployment evidence.
+
+Without conditions data the membership tie-breaker is inactive (counts are
+zero), so this bundle scores 35/44 top-1 and 40/44 top-5 in both engines, with
+no baseline regressions. G10/G11 (`zawał serca`, `zawal serca`) rank I21 7th;
+they reach the top five only with conditions membership, as in the 42/44 row
+below.
 
 ## Matching And Privacy
 
@@ -26,9 +46,13 @@ opening the PR, and it needs separate runtime/resource evidence before rollout.
 - Reviewed, whole-phrase synonym rewrites are labelled with the source term.
   They preserve surrounding qualifiers and are neither chained nor used for
   spelling correction. At most three rewrites participate in a request.
-- Literal token, morphology and substring results remain available. Folded
-  fallback adds results only when the original stages yield fewer than five,
-  or fewer than the requested limit when that limit is smaller.
+- Literal token, morphology and substring results remain available. Rewrite
+  results rank before them but may fill at most half of a page that literal
+  matches could fill; further rewrite results follow the literal ones.
+- Folded fallback adds results only when the original stages yield fewer than
+  five, or fewer than the requested limit when that limit is smaller. It runs
+  only for queries typed without Polish diacritics: a typed `ą` is deliberate,
+  so `rąk` (hands) never retrieves `rak` (cancer) as a folded match.
 - Folded results display `bez polskich znaków`; source strings remain intact.
 - Explicit spelling suggestions still require user acceptance. The gold typo
   case is not silently corrected to improve a metric.
@@ -37,6 +61,9 @@ opening the PR, and it needs separate runtime/resource evidence before rollout.
 - The complete search, including source selection and rewrites, retains its
   shared SQL/time budget. Membership selection deliberately avoids nested
   progress-handler contexts that could clear that budget.
+- Membership is an optional signal. A missing Europe/Warsaw time zone or an
+  ambiguous dated characteristics source drops the counts; the search still
+  answers. Invalid stored characteristics manifests are an artifact error.
 
 ## Membership Is Not Clinical Frequency
 
@@ -117,10 +144,11 @@ Measured offline against the complete pinned source dataset:
 | Folded plus conservative membership tie-breaker | 23/44 | 29/44 | none |
 | Hypothetical 13-proposal synonym evaluation | 35/44 | 42/44 | none |
 | Active source-audited rewrites, auto and portable | 35/44 | 42/44 | none |
+| Production selector without conditions data, auto and portable | 35/44 | 40/44 | none |
 
 The active row is a real runtime measurement, with candidate mode disabled.
-It meets the numerical top-5 target but is not a live activation or a claim of
-practitioner validation. The unresolved cases are G01
+It meets the numerical top-5 target on the full conditions dataset; it is not a
+claim of practitioner validation. The production row is the activated selector. The unresolved cases are G01
 (ambiguous appendix ranking) and G09 (explicit spelling correction).
 
 `Evaluate pinned offline search` is a separate manually dispatched CI job. It
