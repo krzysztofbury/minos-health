@@ -13,6 +13,12 @@ archive. It records reviewer, review date, knowledge-start date and evidence.
 Pending candidates cannot coexist with a reviewed binding for the same catalog.
 There is no latest selection or automatic promotion from candidate to binding.
 
+A catalog release has at most one binding, and the binding's MODTAR year must
+equal the catalog's first service year. A catalog still in force in the next
+calendar year therefore stays unbound for that year. This fails safe; binding a
+second MODTAR year needs a key of catalog and MODTAR release before any such
+catalog is reviewed.
+
 Schema 7 stores the complete overlay and its independently reconstructed date
 windows. Previous migration checksums and unbound schema 2-6 bundles are
 unchanged. Build-time and open-time checks reconcile every dictionary mapping,
@@ -126,12 +132,9 @@ transition. This crosswalk removes the numbering question for these five
 symbols; it does not change the source citation or approve unrelated scope rules.
 
 Scope-derived inventories still need legal interpretation, not automatic
-approval. For example, the vascular-surgery catalog marker includes H83O/H84O
-and, after July, DU58, while `M5` does not. The pediatric oncology marker
-includes adult-only K28F/KU28F, which cannot be included mechanically in a
-below-18 rule; MODTAR also includes S21/S22/S23 whose contracts need separate
-review. The procedural oncology marker includes F45R/H11/L31R/M22R/PZB03
-outside the `17.18` inventory. Catalog markers alone do not establish clinical
+approval. Comparing catalog scope markers with MODTAR inventories finds
+differences for `M5`, `17.1`, `17.10`, `17.11` and `17.18`; the queue below
+separates those explained by pinned sources from those still open. Catalog markers alone do not establish clinical
 eligibility or a legal conflict. Until the exact statutory exclusions and
 scope semantics explain these differences, they cannot be rubber-stamped into
 an independent overlay. The orthopedic citation crosswalk above is resolved;
@@ -149,14 +152,36 @@ PZN newborn-surgery family; using the entire PZ chapter as the legal inventory
 would overstate those missing mappings. These explanations are distinct from
 the still-unexplained cases below.
 
+#### Explained from pinned sources on 2026-10-04
+
+The consolidated 46/2026 text (BAW 44042, the pin above) and the catalog
+footer legend explain these differences. Scope cells use the legend in
+`jgp_catalog_layout.LEGEND`: 1 is the first scope named in the column header,
+2 the second and 3 every named scope.
+
+| Symbol | Groups | Source explanation |
+| --- | --- | --- |
+| `M5` (section 17(7), vascular surgery second reference level, 1.1) | Q23, Q24 | Section 17(7) excludes them by name. |
+| `M5` | H83O, H84O | Section 19(8) reserves both for providers meeting the comprehensive-oncology criterion, and their catalog notes repeat that condition ("grupa do rozliczenia przez podmioty realizujące leczenie onkologiczne w sposób kompleksowy"). Section 17(7) applies to services in the vascular surgery scope, so they fall outside it. |
+| `M5` | PZH12, PZH13, PZJU03 | Marker 2 in "chirurgia naczyniowa / chirurgia naczyniowa- drugi p. ref." means the second-level scope only, so their inclusion is consistent. |
+| `17.18` (section 17(17), oncology surgery, 1.17) | C11O, F32O, F42O, G31O, H83O, H84O | Section 17(17), second sentence: the 1.17 coefficient does not apply to the groups listed in section 19(8). |
+| `17.18` | H11, PZB03 | Marker 2 in "chirurgia onkologiczna / chirurgia onkologiczna dla dzieci" means the pediatric scope only. Section 17(17) concerns hospitalization in the oncology surgery scope. |
+
+These explanations still need owner acceptance before an overlay uses them.
+
+#### Still open, for an NFZ clarification request
+
 | Service date / governing catalog | Symbols | Question for source clarification |
 | --- | --- | --- |
-| 2026-05-01 / original 46; 2026-10-04 / after-102 | `M5`, generations 100/102 | Why are scope-marked H83O/H84O absent from the 1.1 mapping? What explicit exclusion controls them? |
-| 2026-10-04 / after-102 | `M5`, generations 100/102 | Why is scope-marked DU58 absent from the 1.1 mapping? |
-| Both dates above | `17.1`, generations 100/102 | On what contract-scope basis are S21/S22/S23 included despite absent pediatric-oncology markers? |
-| Both dates above | `17.18`, generations 100/102 | Which exclusions explain F45R/H11/L31R/M22R/PZB03? Section 19(7)'s robot exclusion concerns a different 1.25 rule and cannot automatically exclude the 1.17 rule. |
-| Both dates above | `17.10`, `17.11`, generations 100/102 | Why are PZA04/PZF13 absent despite falling in the stated pediatric operative ranges? |
-| July-December 2026 | `17.10`, `17.11` | Generation 102 adds PZD04A where generation 100 lacks it. Is this a correction for the full July-December period, and how should earlier knowledge-time bindings disclose the missing mapping? |
+| 2026-07-01 onward / after-74, after-102 | `M5`, generations 100/102 | DU58 (1ae, new from July) carries the same scope markers as D16, which `M5` includes, and other July 1ae twins (HU83, HU84, QU20, PZJU03) were added. Is DU58's absence intentional? |
+| All 2026 windows | `M5`, generations 100/102 | Q16E is marked 1 (general vascular surgery only, not the second reference level), yet `M5` includes it. Which provision places it under section 17(7)? |
+| All 2026 windows | `17.1`, generations 100/102 | S21/S22/S23 carry only hematology and transplantology markers, not pediatric oncology and hematology. On what contract-scope basis are they included? |
+| All 2026 windows | `17.18`, generations 100/102 | F45R/L31R/M22R (robotic) are absent. Section 19(7) excludes them only from the 1.25 DiLO rule, and section 19(8) does not list them. Which provision excludes them from 1.17? |
+| All 2026 windows | `17.10`, `17.11`, generations 100/102 | PZA04/PZF13 fall within "PZA01-PZL13" and have the same scope markers as the included PZA03/PZF12. Is their absence intentional? |
+| July-December 2026 | `17.10`, `17.11` | PZD04A is identical in the after-74 and after-102 catalogs. Generation 100 (published 2026-08-20, after 74/2026) lacks it; generation 102 adds it for months 7-12. Does the correction apply to the full July-December period? |
+
+How earlier knowledge-time bindings disclose the PZD04A gap is a Minos design
+question, not one for NFZ: generation 100 bindings must keep reporting it.
 
 No clarification request has been sent. The queue contains source-comparison
 questions, not a claim that NFZ has made a confirmed legal error. A request
