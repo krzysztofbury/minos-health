@@ -177,7 +177,13 @@ class DatasetManifest(BaseModel):
                 raise ValueError("superseded catalog release is not pinned")
             if replaced.published_on >= catalog.published_on:
                 raise ValueError("a catalog release supersedes a later publication")
-            if _lineage_root(replaced) != _lineage_root(catalog):
+            # Within one act's lineage an amendment may apply retroactively
+            # (74/2026 from 2026-07-01). Another act may supersede only by
+            # repealing it going forward (46/2026 repeals 101/2025 from
+            # 2026-05-01): never from the same or an earlier service start.
+            if _lineage_root(replaced) != _lineage_root(catalog) and (
+                catalog.service_from <= replaced.service_from
+            ):
                 raise ValueError("superseded catalog release has another lineage")
         for item in self.komunikaty:
             target = sources.get(item.icd9_release_id)

@@ -142,6 +142,85 @@
   ],
   "catalogs": [
     {
+      "release_id": "jgp-catalog-101-2025-original-1e6246e7b015",
+      "act_number": "101/2025/DSOZ",
+      "baw_document_id": 43718,
+      "automatic_type": 1,
+      "source_document_id": null,
+      "introductory_document_id": null,
+      "act_date": "2025-12-23",
+      "entry_into_force": "2026-01-01",
+      "published_on": "2025-12-23",
+      "service_from": "2026-01-01",
+      "service_evidence": "§ 30 zarządzenia 101/2025/DSOZ: „Zarządzenie wchodzi w życie z dniem 1 stycznia 2026 r.”; § 29 uchyla zarządzenie 37/2024/DSOZ, którego Minos nie obejmuje.",
+      "supersedes": null,
+      "row_applicability": [],
+      "modifier_binding": "unbound",
+      "document_url": "https://baw.nfz.gov.pl/NFZ/document/43718/Zarzadzenie-101_2025_DSOZ",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Values are catalog base points without modifiers (punkty bazowe wg katalogu, bez modyfikatorów), not final settlement points.",
+        "Codes listed on two catalog rows remain separate source rows. Empty catalog cells mean no value, never zero.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos."
+      ],
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/27125",
+        "name": "Zalacznik1a.xlsx",
+        "sha256": "1e6246e7b015807f182185a7873016ecf229a616f0816d42762197535950c709",
+        "size_bytes": 274889,
+        "fetched_at": "2026-10-03T21:27:47Z"
+      },
+      "sheets": {
+        "1a": {
+          "layout": "nfz-1a-46-2026",
+          "expected_groups": 702,
+          "expected_chapters": 19,
+          "expected_repeated_codes": 0
+        }
+      }
+    },
+    {
+      "release_id": "jgp-catalog-101-2025-after-14-c9a1cd619a78",
+      "act_number": "101/2025/DSOZ",
+      "baw_document_id": 43769,
+      "automatic_type": 3,
+      "source_document_id": 43718,
+      "introductory_document_id": 43768,
+      "act_date": "2026-02-09",
+      "entry_into_force": "2026-02-10",
+      "published_on": "2026-02-09",
+      "service_from": "2026-01-01",
+      "service_evidence": "§ 5 zarządzenia 14/2026/DSOZ: „Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2026 r.” § 1 pkt 2 zastępuje załącznik nr 1a. Opublikowane 2026-02-09 (BAW 43768); 32/2026/DSOZ nie zmienia załącznika 1a.",
+      "supersedes": "jgp-catalog-101-2025-original-1e6246e7b015",
+      "row_applicability": [],
+      "modifier_binding": "unbound",
+      "document_url": "https://baw.nfz.gov.pl/NFZ/document/43769/Zarzadzenie-101_2025_DSOZ",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Values are catalog base points without modifiers (punkty bazowe wg katalogu, bez modyfikatorów), not final settlement points.",
+        "Codes listed on two catalog rows remain separate source rows. Empty catalog cells mean no value, never zero.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos.",
+        "§ 2 zarządzenia 14/2026/DSOZ: świadczeniodawcy niespełniający standardu żywienia zbiorowego rozliczają świadczenia od 1 stycznia do 31 sierpnia 2026 r. ze współczynnikiem korygującym (iloraz poprzedniej i nowej wartości punktowej). To modyfikator (#46), nie część punktów bazowych."
+      ],
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/27993",
+        "name": "Zalacznik1a.xlsx",
+        "sha256": "c9a1cd619a78032ba67fae09948c673fb3b7b7e2f9967a7a42b70bbf300dec58",
+        "size_bytes": 274164,
+        "fetched_at": "2026-10-03T21:27:47Z"
+      },
+      "sheets": {
+        "1a": {
+          "layout": "nfz-1a-46-2026",
+          "expected_groups": 702,
+          "expected_chapters": 19,
+          "expected_repeated_codes": 0
+        }
+      }
+    },
+    {
       "release_id": "jgp-catalog-46-2026-original-3d4197ceb459",
       "act_number": "46/2026/DSOZ",
       "baw_document_id": 43868,
@@ -152,8 +231,8 @@
       "entry_into_force": "2026-05-01",
       "published_on": "2026-04-30",
       "service_from": "2026-05-01",
-      "service_evidence": "Zarządzenie 46/2026/DSOZ: „Zarządzenie wchodzi w życie z dniem 1 maja 2026 r.”; uchyla zarządzenie 101/2025/DSOZ, którego Minos nie obejmuje.",
-      "supersedes": null,
+      "service_evidence": "Zarządzenie 46/2026/DSOZ: „Zarządzenie wchodzi w życie z dniem 1 maja 2026 r.”; uchyla zarządzenie 101/2025/DSOZ (w brzmieniu po zmianie 14/2026/DSOZ).",
+      "supersedes": "jgp-catalog-101-2025-after-14-c9a1cd619a78",
       "row_applicability": [],
       "modifier_binding": "unbound",
       "document_url": "https://baw.nfz.gov.pl/NFZ/document/43868/Zarzadzenie-46_2026_DSOZ",

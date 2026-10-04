@@ -448,7 +448,8 @@ def test_pending_modifier_candidate_never_changes_catalog_binding(
         assert candidate["status"] == "pending_legal_review"
         assert "final_points" not in answer
     report = (tmp_path / "candidate-bundle/review.txt").read_text()
-    assert "A02" in report and "Absence blocks complete binding" in report
+    # Checked per catalog window of each mapping's months, never one catalog.
+    assert "remain unresolved: A02 in " in report and "block binding" in report
 
 
 def test_undated_concept_page_survives_a_missing_time_zone(

@@ -146,11 +146,76 @@ class LegalMapping:
 
 
 @dataclass(frozen=True)
+class CatalogWindow:
+    """One stretch of service dates governed by one reviewed catalog release,
+    with the group codes that have a catalog row in that stretch."""
+
+    release_id: str
+    service_from: date
+    service_to: date | None  # inclusive; None is open-ended
+    groups: frozenset[str]
+
+
+type Resolution = Literal["exact", "trailing_punctuation_removed", "owner_assumption"]
+
+# Literal references with no public definition, read by explicit owner decision.
+# Z01_S (2026-10-03): no meaning of "_S" found in the MODTAR XML, the CZS
+# dictionary-service documentation or the CZS MODTAR browser; it occurs only
+# under section 17 (17.1, 17.18) and KON_1 (comprehensive oncology) modifiers.
+# Read as Z01 until NFZ evidence says otherwise. Exactly this literal; no
+# general "_S" rule.
+OWNER_ASSUMPTIONS: dict[str, str] = {"Z01_S": "Z01"}
+
+
+def resolve_group_reference(
+    literal: str, groups: frozenset[str]
+) -> tuple[str, Resolution] | None:
+    """Exact group, or one trailing `.` / `_` removed when that group exists.
+
+    Owner rule (2026-10-03): MODTAR's `C14.`, `P42.` and `P52_` are read as
+    C14, P42 and P52 only when the governing catalog has that group. `Z01_S`
+    is read as Z01 only through the explicit OWNER_ASSUMPTIONS entry. No other
+    suffix is stripped and no prefix family is derived.
+    """
+    if literal in groups:
+        return literal, "exact"
+    if literal[-1:] in (".", "_") and literal[:-1] in groups:
+        return literal[:-1], "trailing_punctuation_removed"
+    assumed = OWNER_ASSUMPTIONS.get(literal)
+    if assumed is not None and assumed in groups:
+        return assumed, "owner_assumption"
+    return None
+
+
+def governing_windows(
+    windows: tuple[CatalogWindow, ...], start: date, end: date
+) -> tuple[CatalogWindow, ...]:
+    """Catalog windows overlapping [start, end]; a day without a reviewed
+    catalog refuses rather than borrowing another release."""
+    selected = tuple(
+        window
+        for window in windows
+        if window.service_from <= end
+        and (window.service_to is None or window.service_to >= start)
+    )
+    day = start
+    for window in sorted(selected, key=lambda item: item.service_from):
+        if window.service_from > day:
+            break
+        if window.service_to is None or window.service_to >= end:
+            return selected
+        day = date.fromordinal(window.service_to.toordinal() + 1)
+    raise SourceError("MODTAR service window is not covered by a reviewed catalog")
+
+
+@dataclass(frozen=True)
 class LegalOverlay:
     year: int
     generation: int
     grouper_type: Literal["SZP"]
-    catalog_release_id: str
+    # Every catalog release governing some reviewed service window: MODTAR is
+    # a calendar-year dictionary spanning catalog releases.
+    catalog_release_ids: tuple[str, ...]
     reviewed_on: date
     legal_source_evidence: tuple[str, ...]
     rows: tuple[LegalMapping, ...]
@@ -160,19 +225,21 @@ def reconcile_legal_overlay(
     release: ModifierRelease,
     overlay: LegalOverlay | None,
     *,
-    catalog_release_id: str,
-    catalog_groups: frozenset[str],
+    catalog_windows: tuple[CatalogWindow, ...],
 ) -> LegalOverlay:
-    """A missing review is unbound, never an empty set of applicable modifiers."""
+    """A missing review is unbound, never an empty set of applicable modifiers.
+
+    Each mapping's group must resolve in every catalog release governing its
+    own reviewed service window, not in one selected catalog.
+    """
     validate_modifier_release(release)
     if overlay is None:
         raise SourceError("MODTAR binding is unbound: legal overlay not reviewed")
-    if (
-        overlay.year,
-        overlay.generation,
-        overlay.grouper_type,
-        overlay.catalog_release_id,
-    ) != (release.year, release.generation, release.grouper_type, catalog_release_id):
+    if (overlay.year, overlay.generation, overlay.grouper_type) != (
+        release.year,
+        release.generation,
+        release.grouper_type,
+    ):
         raise SourceError("MODTAR legal overlay binding is incompatible")
     if not overlay.legal_source_evidence or not 1 <= len(overlay.rows) <= 50000:
         raise SourceError("MODTAR legal overlay lacks reviewed source evidence")
@@ -182,15 +249,26 @@ def reconcile_legal_overlay(
         raise SourceError(
             "MODTAR versus legal overlay missing, extra or conflicting mapping"
         )
+    governing: set[str] = set()
     for row in overlay.rows:
         if row.service_from > row.service_to or not row.applicability_evidence.strip():
             raise SourceError("MODTAR legal applicability lacks a reviewed window")
         if row.service_from.year != release.year or row.service_to.year != release.year:
             raise SourceError("MODTAR legal applicability has another year")
-        if row.mapping[6] is not None and row.mapping[6] not in catalog_groups:
-            raise SourceError(
-                "MODTAR group is absent from the selected ruleset catalog"
-            )
+        if row.mapping[6] is None:
+            continue
+        for window in governing_windows(
+            catalog_windows, row.service_from, row.service_to
+        ):
+            governing.add(window.release_id)
+            if resolve_group_reference(row.mapping[6], window.groups) is None:
+                raise SourceError(
+                    "MODTAR group is absent from the catalog governing its window"
+                )
+    if set(overlay.catalog_release_ids) != governing or len(
+        overlay.catalog_release_ids
+    ) != len(set(overlay.catalog_release_ids)):
+        raise SourceError("MODTAR legal overlay catalog releases conflict")
     return overlay
 
 
@@ -199,19 +277,28 @@ def select_reviewed_mappings(
     overlay: LegalOverlay | None,
     service_date: date,
     *,
-    catalog_release_id: str,
-    catalog_groups: frozenset[str],
-) -> tuple[Mapping, ...]:
-    overlay = reconcile_legal_overlay(
-        release,
-        overlay,
-        catalog_release_id=catalog_release_id,
-        catalog_groups=catalog_groups,
-    )
+    catalog_windows: tuple[CatalogWindow, ...],
+) -> tuple[tuple[Mapping, str | None], ...]:
+    """Mappings applying on the date, each with the group code it resolves to
+    in the catalog governing that date (None for a group-less record)."""
+    overlay = reconcile_legal_overlay(release, overlay, catalog_windows=catalog_windows)
     if service_date.year != overlay.year:
         raise SourceError("MODTAR service date is not covered by this binding")
+    windows = governing_windows(catalog_windows, service_date, service_date)
+    if len(windows) != 1:
+        raise SourceError("MODTAR service date has no single governing catalog")
+    window = windows[0]
+
+    def resolved(row: LegalMapping) -> str | None:
+        if row.mapping[6] is None:
+            return None
+        match = resolve_group_reference(row.mapping[6], window.groups)
+        if match is None:
+            raise SourceError("MODTAR group is absent from the governing catalog")
+        return match[0]
+
     return tuple(
-        row.mapping
+        (row.mapping, resolved(row))
         for row in overlay.rows
         if row.mapping[2] == "A"
         and row.service_from <= service_date <= row.service_to
