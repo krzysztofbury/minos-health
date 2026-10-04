@@ -1,0 +1,741 @@
+{
+  "schema_version": 1,
+  "transform_version": "jgp-conditions-reference-v2",
+  "lockfile_sha256": "2343f00e7db876cc5c6920c2e87126b10ef9f7383c8295b6b559d3690133c203",
+  "sources": [
+    {
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "system": "icd9-pl",
+      "origin": "czs",
+      "source_version": "5.90",
+      "source_file_id": "ICD9:93",
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=93",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "fetched_at": "2026-09-29T14:24:40.621000Z",
+      "source_created_at": null,
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "e3c744634e68f23d5ecbfecb50ece831140eb8533ab72b8a1b3ee54594024b1b",
+      "size_bytes": 1630852,
+      "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+      "notices": [
+        "Source: NFZ Centralne Zasoby Slownikowe, ICD-9 PL 5.90, generation 93. Historical pinned capture, not a latest-version selector.",
+        "The fetch timestamp is the archived watcher observation timestamp; source publication and generation timestamps have no stated timezone and are retained in the source header.",
+        "CZS is the single canonical ICD-9 catalog. Exact source codes, titles, statuses, procedure date bounds and annotations are preserved. The XML supplies no hierarchy; no parent or billability inference is made.",
+        "Same-version workbook hierarchy is separately attributed supporting evidence joined only by exact lookup code. Workbook-only codes and conflicting workbook titles do not extend or override the canonical catalog.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+        "The owner authorized noncommercial public reference search on 2026-10-01. Official raw download links point upstream; the Minos private archive is not exposed. This is not commercial redistribution clearance."
+      ],
+      "expected": {
+        "nodes": 10179,
+        "relations": 0,
+        "concepts": 10179,
+        "descriptions": 10179
+      }
+    },
+    {
+      "release_id": "icd9-nfz-5-90-main-6c607dd5e564",
+      "system": "icd9-pl",
+      "origin": "nfz-workbook",
+      "source_version": "5.90",
+      "source_file_id": "icd-9_pl_cm_v_5.90.xlsx#ICD-9_PL ",
+      "source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultstronaopisowa/782/1/2/icd-9_pl_cm_v_5.90.xlsx",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "fetched_at": "2026-09-29T14:24:47.500000Z",
+      "source_created_at": null,
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "6c607dd5e564d6e8033b5314946a7f0e43103cc067b9d26346a64dcd05b76a2e",
+      "size_bytes": 1228323,
+      "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+      "notices": [
+        "Source: NFZ ICD-9 PL 5.90 companion workbook, supporting hierarchy only, not a separately selectable catalog.",
+        "The exact selected table is ICD-9_PL followed by one space. The distinct ICD-9_PL table without that space is not merged or silently substituted.",
+        "The capture observation links this workbook to CZS generation 93, SHA-256 e3c744634e68f23d5ecbfecb50ece831140eb8533ab72b8a1b3ee54594024b1b. Exact-code links expose workbook ancestors separately, never as CZS-supplied facts.",
+        "The workbook supplies explicit column levels and containment, not procedure status, applicability dates, synonyms or billability. Canonical CZS titles and status/date evidence always remain authoritative.",
+        "Raw code/title cells, conflicting title/code-form evidence, inclusion/exclusion text and notes remain in this immutable source graph. Workbook-only codes and workbook annotations are not canonical search matches. No leading zeros or absent parents are invented.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision.",
+        "The owner authorized noncommercial public reference search on 2026-10-01. Official raw download links point upstream; the Minos private archive is not exposed. This is not commercial redistribution clearance."
+      ],
+      "expected": {
+        "nodes": 13052,
+        "relations": 12950,
+        "concepts": 10059,
+        "descriptions": 10059
+      },
+      "context_for": "icd9-czs-5-90-gen-93-e3c744634e68"
+    },
+    {
+      "release_id": "icd10-rsk-013-f3dc9811520e",
+      "system": "icd10-pl",
+      "origin": "rsk",
+      "source_version": "013",
+      "source_file_id": "b8dd1741-c048-489e-84d6-47a915425b2d",
+      "source_url": "https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/b8dd1741-c048-489e-84d6-47a915425b2d",
+      "publisher": "Biuro Światowej Organizacji Zdrowia w Polsce",
+      "fetched_at": "2026-09-21T18:26:46Z",
+      "source_created_at": "2026-08-05T10:43:22.502000Z",
+      "valid_from": "2025-10-16T22:00:00Z",
+      "valid_to": null,
+      "sha256": "f3dc9811520e45079655eecb123e857818c5a14189fa605996daa3aa3fe7b88f",
+      "size_bytes": 12738027,
+      "license": "CC BY-NC-SA 3.0 IGO (scope under review; treat as NC-constrained)",
+      "notices": [
+        "Source: RSK/CeZ and Biuro Światowej Organizacji Zdrowia w Polsce.",
+        "The fetch timestamp identifies the private capture batch start, not the individual download completion; no per-file completion timestamp was recorded.",
+        "The Polish translation was not prepared by WHO; WHO is not responsible for its content or accuracy. The WHO 2019 English edition is binding and authentic.",
+        "Minos preserves the source hierarchy and text, derives contextual dotted lookup codes and marker-free search keys, and does not infer billability. Numeric modifiers are not expanded into diagnosis codes.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+        "The owner authorized this pinned RSK release for noncommercial public reference search on 2026-10-01 and stated that search will remain noncommercial. RSK content must not become a dependency of paid features.",
+        "Source-derived data and transformations remain subject to CC BY-NC-SA 3.0 IGO, https://creativecommons.org/licenses/by-nc-sa/3.0/igo/ . Software licensing does not replace source terms. Official downloads link upstream; raw archives remain private."
+      ],
+      "expected": {
+        "nodes": 24040,
+        "relations": 24018,
+        "concepts": 12371,
+        "descriptions": 24735
+      }
+    }
+  ],
+  "komunikaty": [
+    {
+      "release_id": "jgp-algorithm-1-1-2026-a233b231e2d2",
+      "algorithm_version": "1.1.2026",
+      "icd9_release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "pairing": "reference-only",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Ranks are separately attributed algorithm evidence, not canonical ICD-9 catalog facts or billability. Reference correspondence does not select a legal ruleset for a service date.",
+        "The DOCX version 1.1.2026 defines its first reporting month as January 2026. This is not its publication date or a reviewed service-date ruleset binding. No end date is inferred.",
+        "SZP, AOS and REH worksheets remain separate. ICD-9 code pages expose only SZP rank evidence. Missing table rows are not rank zero. Rank 4 is not silently reduced to the rank-3 directing-procedure semantics.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos."
+      ],
+      "algorithm": {
+        "source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultaktualnosci/354/54/1/opis_algorytmu_grupera_2026.docx",
+        "sha256": "a233b231e2d20448f14d28187590803bce743371b727d3c7d6c5dd4fba8de51c",
+        "size_bytes": 186371,
+        "fetched_at": "2026-10-02T04:00:08.106000Z"
+      },
+      "ranks": {
+        "source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultaktualnosci/354/54/1/tabela_2_wykaz_rang_procedur_medycznych_2026.xlsx",
+        "sha256": "51e587c2df590fa23cb10c1773edeb9cc8a0b2e630cbb2e360206337b7aed13e",
+        "size_bytes": 331428,
+        "fetched_at": "2026-10-02T04:00:12.202000Z"
+      },
+      "specialties": {
+        "source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultaktualnosci/354/54/1/tabela_1_wykaz_specjalnosci_komorek_2026.xlsx",
+        "sha256": "ad6616ce9d426f08e423d6b1b4c11000a2a150f5936f4d1993dd839570f128d2",
+        "size_bytes": 39024,
+        "fetched_at": "2026-10-02T04:00:09.591000Z"
+      },
+      "expected_ranks": {
+        "SZP": 4889,
+        "AOS": 1662
+      },
+      "expected_specialties": {
+        "SZP": 521,
+        "AOS": 462,
+        "REH": 616
+      }
+    }
+  ],
+  "catalogs": [
+    {
+      "release_id": "jgp-catalog-101-2025-original-1e6246e7b015",
+      "act_number": "101/2025/DSOZ",
+      "baw_document_id": 43718,
+      "automatic_type": 1,
+      "source_document_id": null,
+      "introductory_document_id": null,
+      "act_date": "2025-12-23",
+      "entry_into_force": "2026-01-01",
+      "published_on": "2025-12-23",
+      "service_from": "2026-01-01",
+      "service_evidence": "§ 30 zarządzenia 101/2025/DSOZ: „Zarządzenie wchodzi w życie z dniem 1 stycznia 2026 r.”; § 29 uchyla zarządzenie 37/2024/DSOZ, którego Minos nie obejmuje.",
+      "supersedes": null,
+      "row_applicability": [],
+      "modifier_binding": "unbound",
+      "document_url": "https://baw.nfz.gov.pl/NFZ/document/43718/Zarzadzenie-101_2025_DSOZ",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Values are catalog base points without modifiers (punkty bazowe wg katalogu, bez modyfikatorów), not final settlement points.",
+        "Codes listed on two catalog rows remain separate source rows. Empty catalog cells mean no value, never zero.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos."
+      ],
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/27125",
+        "name": "Zalacznik1a.xlsx",
+        "sha256": "1e6246e7b015807f182185a7873016ecf229a616f0816d42762197535950c709",
+        "size_bytes": 274889,
+        "fetched_at": "2026-10-03T21:27:47Z"
+      },
+      "sheets": {
+        "1a": {
+          "layout": "nfz-1a-46-2026",
+          "expected_groups": 702,
+          "expected_chapters": 19,
+          "expected_repeated_codes": 0
+        }
+      }
+    },
+    {
+      "release_id": "jgp-catalog-101-2025-after-14-c9a1cd619a78",
+      "act_number": "101/2025/DSOZ",
+      "baw_document_id": 43769,
+      "automatic_type": 3,
+      "source_document_id": 43718,
+      "introductory_document_id": 43768,
+      "act_date": "2026-02-09",
+      "entry_into_force": "2026-02-10",
+      "published_on": "2026-02-09",
+      "service_from": "2026-01-01",
+      "service_evidence": "§ 5 zarządzenia 14/2026/DSOZ: „Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2026 r.” § 1 pkt 2 zastępuje załącznik nr 1a. Opublikowane 2026-02-09 (BAW 43768); 32/2026/DSOZ nie zmienia załącznika 1a.",
+      "supersedes": "jgp-catalog-101-2025-original-1e6246e7b015",
+      "row_applicability": [],
+      "modifier_binding": "unbound",
+      "document_url": "https://baw.nfz.gov.pl/NFZ/document/43769/Zarzadzenie-101_2025_DSOZ",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Values are catalog base points without modifiers (punkty bazowe wg katalogu, bez modyfikatorów), not final settlement points.",
+        "Codes listed on two catalog rows remain separate source rows. Empty catalog cells mean no value, never zero.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos.",
+        "§ 2 zarządzenia 14/2026/DSOZ: świadczeniodawcy niespełniający standardu żywienia zbiorowego rozliczają świadczenia od 1 stycznia do 31 sierpnia 2026 r. ze współczynnikiem korygującym (iloraz poprzedniej i nowej wartości punktowej). To modyfikator (#46), nie część punktów bazowych."
+      ],
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/27993",
+        "name": "Zalacznik1a.xlsx",
+        "sha256": "c9a1cd619a78032ba67fae09948c673fb3b7b7e2f9967a7a42b70bbf300dec58",
+        "size_bytes": 274164,
+        "fetched_at": "2026-10-03T21:27:47Z"
+      },
+      "sheets": {
+        "1a": {
+          "layout": "nfz-1a-46-2026",
+          "expected_groups": 702,
+          "expected_chapters": 19,
+          "expected_repeated_codes": 0
+        }
+      }
+    },
+    {
+      "release_id": "jgp-catalog-46-2026-original-3d4197ceb459",
+      "act_number": "46/2026/DSOZ",
+      "baw_document_id": 43868,
+      "automatic_type": 1,
+      "source_document_id": null,
+      "introductory_document_id": null,
+      "act_date": "2026-04-30",
+      "entry_into_force": "2026-05-01",
+      "published_on": "2026-04-30",
+      "service_from": "2026-05-01",
+      "service_evidence": "Zarządzenie 46/2026/DSOZ: „Zarządzenie wchodzi w życie z dniem 1 maja 2026 r.”; uchyla zarządzenie 101/2025/DSOZ (w brzmieniu po zmianie 14/2026/DSOZ).",
+      "supersedes": "jgp-catalog-101-2025-after-14-c9a1cd619a78",
+      "row_applicability": [],
+      "modifier_binding": "unbound",
+      "document_url": "https://baw.nfz.gov.pl/NFZ/document/43868/Zarzadzenie-46_2026_DSOZ",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Values are catalog base points without modifiers (punkty bazowe wg katalogu, bez modyfikatorów), not final settlement points.",
+        "Publication evidence only: act date and entry into force are recorded; service-date applicability, including 102/2026 section 4(5) rows deferred to 2027-01-01, is resolved separately and never by selecting the latest release.",
+        "Codes listed on two catalog rows remain separate source rows. Empty catalog cells mean no value, never zero.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos."
+      ],
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/29620",
+        "name": "Zalacznik1a.xlsx",
+        "sha256": "3d4197ceb459bcd813f315de7558cffbf4827f989571e7064b336b554a4ec7a0",
+        "size_bytes": 276556,
+        "fetched_at": "2026-10-02T15:40:00Z"
+      },
+      "sheets": {
+        "1a": {
+          "layout": "nfz-1a-46-2026",
+          "expected_groups": 702,
+          "expected_chapters": 19,
+          "expected_repeated_codes": 0
+        }
+      }
+    },
+    {
+      "release_id": "jgp-catalog-46-2026-after-74-fbe73d5fb7a3",
+      "act_number": "46/2026/DSOZ",
+      "baw_document_id": 43943,
+      "automatic_type": 3,
+      "source_document_id": 43868,
+      "introductory_document_id": 43942,
+      "act_date": "2026-07-23",
+      "entry_into_force": "2026-07-24",
+      "published_on": "2026-07-23",
+      "service_from": "2026-07-01",
+      "service_evidence": "§ 4 zarządzenia 74/2026/DSOZ: „Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r.” Opublikowane 2026-07-23 (BAW 43942).",
+      "supersedes": "jgp-catalog-46-2026-original-3d4197ceb459",
+      "row_applicability": [],
+      "modifier_binding": "unbound",
+      "document_url": "https://baw.nfz.gov.pl/NFZ/document/43943/Zarzadzenie-46_2026_DSOZ",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Values are catalog base points without modifiers (punkty bazowe wg katalogu, bez modyfikatorów), not final settlement points.",
+        "Publication evidence only: act date and entry into force are recorded; service-date applicability, including 102/2026 section 4(5) rows deferred to 2027-01-01, is resolved separately and never by selecting the latest release.",
+        "Codes listed on two catalog rows remain separate source rows. Empty catalog cells mean no value, never zero.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos."
+      ],
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/30983",
+        "name": "Zalacznik1a.xlsx",
+        "sha256": "fbe73d5fb7a3466677e1c8488206de0ff71b945f801b6032f2256f484f6592e0",
+        "size_bytes": 296386,
+        "fetched_at": "2026-10-02T15:40:00Z"
+      },
+      "sheets": {
+        "1a": {
+          "layout": "nfz-1a-74-2026",
+          "expected_groups": 627,
+          "expected_chapters": 19,
+          "expected_repeated_codes": 0
+        },
+        "1ae": {
+          "layout": "nfz-1ae-74-2026",
+          "expected_groups": 121,
+          "expected_chapters": 16,
+          "expected_repeated_codes": 0
+        }
+      }
+    },
+    {
+      "release_id": "jgp-catalog-46-2026-after-102-32dc947fc6ac",
+      "act_number": "46/2026/DSOZ",
+      "baw_document_id": 44042,
+      "automatic_type": 3,
+      "source_document_id": 43868,
+      "introductory_document_id": 44041,
+      "act_date": "2026-09-23",
+      "entry_into_force": "2026-09-24",
+      "published_on": "2026-09-23",
+      "service_from": "2026-07-01",
+      "service_evidence": "§ 4 ust. 1 zarządzenia 102/2026/DSOZ: „Przepisy zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 lipca 2026 r. z zastrzeżeniem ust. 2-5.” Opublikowane 2026-09-23 (BAW 44041). Ust. 2-4 dotyczą współczynników korygujących.",
+      "supersedes": "jgp-catalog-46-2026-after-74-fbe73d5fb7a3",
+      "row_applicability": [
+        {
+          "catalog": "1a",
+          "ordinals": [
+            245,
+            247,
+            249,
+            253,
+            255,
+            297,
+            302,
+            304,
+            306,
+            308,
+            310,
+            378,
+            380,
+            382,
+            384,
+            389,
+            398,
+            400,
+            403
+          ],
+          "service_from": "2027-01-01",
+          "service_to": null,
+          "note_marker": "od 1.01.2027",
+          "evidence": "§ 4 ust. 5 zarządzenia 102/2026/DSOZ: „Przepisy lp. 245, 247, 249, 253, 255, 297, 302, 304, 306, 308, 310, 378, 380, 382, 384, 389, 398, 400, 403 w Katalogu grup 1a oraz lp. 32, 34, 36, 53, 75 i 79 w Katalogu grup 1ae załącznika nr 1 do niniejszego zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2027 r.”"
+        },
+        {
+          "catalog": "1a",
+          "ordinals": [
+            244,
+            246,
+            248,
+            252,
+            254,
+            296,
+            301,
+            303,
+            305,
+            307,
+            309,
+            377,
+            379,
+            381,
+            383,
+            388,
+            397,
+            399,
+            402
+          ],
+          "service_from": null,
+          "service_to": "2026-12-31",
+          "note_marker": "do 31.12.2026",
+          "evidence": "Od 2027-01-01 zastąpiony wierszem odroczonym na podstawie § 4 ust. 5 zarządzenia 102/2026/DSOZ; uwaga w katalogu ogranicza sprawozdawanie do 31.12.2026."
+        },
+        {
+          "catalog": "1ae",
+          "ordinals": [
+            32,
+            34,
+            36,
+            53,
+            75,
+            79
+          ],
+          "service_from": "2027-01-01",
+          "service_to": null,
+          "note_marker": "od 1.01.2027",
+          "evidence": "§ 4 ust. 5 zarządzenia 102/2026/DSOZ: „Przepisy lp. 245, 247, 249, 253, 255, 297, 302, 304, 306, 308, 310, 378, 380, 382, 384, 389, 398, 400, 403 w Katalogu grup 1a oraz lp. 32, 34, 36, 53, 75 i 79 w Katalogu grup 1ae załącznika nr 1 do niniejszego zarządzenia stosuje się do rozliczania świadczeń udzielanych od 1 stycznia 2027 r.”"
+        },
+        {
+          "catalog": "1ae",
+          "ordinals": [
+            31,
+            33,
+            35,
+            52,
+            74,
+            78
+          ],
+          "service_from": null,
+          "service_to": "2026-12-31",
+          "note_marker": "do 31.12.2026",
+          "evidence": "Od 2027-01-01 zastąpiony wierszem odroczonym na podstawie § 4 ust. 5 zarządzenia 102/2026/DSOZ; uwaga w katalogu ogranicza sprawozdawanie do 31.12.2026."
+        }
+      ],
+      "modifier_binding": "unbound",
+      "document_url": "https://baw.nfz.gov.pl/NFZ/document/44042/Zarzadzenie-46_2026_DSOZ",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial public-data validation, not a legal clearance determination",
+      "notices": [
+        "Values are catalog base points without modifiers (punkty bazowe wg katalogu, bez modyfikatorów), not final settlement points.",
+        "Publication evidence only: act date and entry into force are recorded; service-date applicability, including 102/2026 section 4(5) rows deferred to 2027-01-01, is resolved separately and never by selecting the latest release.",
+        "Codes listed on two catalog rows remain separate source rows. Empty catalog cells mean no value, never zero.",
+        "Official raw download links point upstream; Minos raw captures and archive access remain private. No publisher endorses Minos."
+      ],
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/32994",
+        "name": "Zalacznik1a.xlsx",
+        "sha256": "32dc947fc6ac9353d17ca9ba18b495ae2b5458ca5edc971eb47dd0a0c70e92b2",
+        "size_bytes": 304191,
+        "fetched_at": "2026-10-02T15:40:00Z"
+      },
+      "sheets": {
+        "1a": {
+          "layout": "nfz-1a-74-2026",
+          "expected_groups": 646,
+          "expected_chapters": 19,
+          "expected_repeated_codes": 19
+        },
+        "1ae": {
+          "layout": "nfz-1ae-74-2026",
+          "expected_groups": 127,
+          "expected_chapters": 16,
+          "expected_repeated_codes": 6
+        }
+      }
+    }
+  ],
+  "characteristics": [
+    {
+      "release_id": "jgp-conditions-46-2026-original-915c13de1b40",
+      "baw_document_id": 43868,
+      "lineage_document_id": 43868,
+      "catalog_release_id": "jgp-catalog-46-2026-original-3d4197ceb459",
+      "act_number": "46/2026/DSOZ",
+      "layout": "nfz-9-46-2026",
+      "valid_from": "2026-05-01",
+      "valid_to": null,
+      "published_on": "2026-04-30",
+      "applicability_evidence": "46/2026 enters into force on 2026-05-01, replacing 101/2025, which is not covered. Attachment 9 applicability is separate from attachment 1a row windows.",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial reference development, not commercial legal clearance",
+      "notices": [
+        "Source: NFZ BAW, attachment 9 to 46/2026/DSOZ. Original descriptions and cell evidence retained.",
+        "Reference evidence only. Unsupported interpretation is not encounter eligibility or an executable ruleset. Exact RSK enrichment retains its own attribution and noncommercial terms."
+      ],
+      "icd9_release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "icd10_release_id": "icd10-rsk-013-f3dc9811520e",
+      "correspondence": "source_local_exact_reference",
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/29652",
+        "sha256": "915c13de1b40ced7a45ce61d371b66ea5a1bb0aceb76d3162a7f880dca73636b",
+        "size_bytes": 1237745,
+        "fetched_at": "2026-10-03T13:31:14.383025Z"
+      },
+      "sheets": {
+        "1a": {
+          "groups": 702,
+          "evidence_cells": 40042,
+          "unbound_member_occurrences": 46,
+          "lists": 892,
+          "member_occurrences": 35081,
+          "unique_members": 35058,
+          "conditions": 3406,
+          "kind_counts": {
+            "all": 582,
+            "any": 186,
+            "clinical_measure": 8,
+            "diagnosis_count": 2,
+            "diagnosis_presence": 779,
+            "discharge_mode": 47,
+            "episode_duration": 163,
+            "external_disease_code": 1,
+            "not": 9,
+            "patient_age": 362,
+            "procedure_all_members": 7,
+            "procedure_count": 105,
+            "procedure_date_relation": 1,
+            "procedure_duration": 1,
+            "procedure_list_coverage": 2,
+            "procedure_presence": 854,
+            "unsupported": 238,
+            "ward_duration": 2,
+            "when": 57
+          },
+          "unsupported_reasons": {
+            "alternative_scope_unreviewed": 1,
+            "ancestor_interpretation_unsupported": 812,
+            "boolean_scope_unreviewed": 90,
+            "child_interpretation_unsupported": 89,
+            "clinical_unit_missing": 4,
+            "date_allocation_unreviewed": 1,
+            "diagnosis_role_unspecified": 13,
+            "guard_intro_scope_unreviewed": 4,
+            "guard_occurrence_scope_unreviewed": 57,
+            "list_definition_unbound": 4,
+            "list_reference_unresolved": 49,
+            "rank_compatibility_unbound": 29,
+            "unconsumed_source_text": 90
+          },
+          "unmatched_codes": 19
+        }
+      }
+    },
+    {
+      "release_id": "jgp-conditions-46-2026-after-74-f5e360996b3c",
+      "baw_document_id": 43943,
+      "lineage_document_id": 43868,
+      "supersedes": "jgp-conditions-46-2026-original-915c13de1b40",
+      "catalog_release_id": "jgp-catalog-46-2026-after-74-fbe73d5fb7a3",
+      "act_number": "46/2026/DSOZ (tekst po zmianach 74/2026/DSOZ)",
+      "layout": "nfz-9-102-2026",
+      "valid_from": "2026-07-01",
+      "valid_to": null,
+      "published_on": "2026-07-23",
+      "applicability_evidence": "74/2026 section 4 applies to services from 2026-07-01. Replacement attachment 9 (BAW 43942/30976) is byte-identical to consolidated 43943/31015. The two-sheet reviewed layout also matches after 102.",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial reference development, not commercial legal clearance",
+      "notices": [
+        "Source: NFZ BAW, attachment 9 after 74/2026/DSOZ. Original descriptions and cell evidence retained.",
+        "Reference evidence only. Unsupported interpretation is not encounter eligibility or an executable ruleset. Exact RSK enrichment retains its own attribution and noncommercial terms."
+      ],
+      "icd9_release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "icd10_release_id": "icd10-rsk-013-f3dc9811520e",
+      "correspondence": "source_local_exact_reference",
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/31015",
+        "sha256": "f5e360996b3c2b9fb2d12469a1fd06576ebb9cb20a4856162a0341771bfb5dcf",
+        "size_bytes": 1502155,
+        "fetched_at": "2026-10-03T13:31:41.761120Z"
+      },
+      "sheets": {
+        "1a": {
+          "groups": 627,
+          "evidence_cells": 37133,
+          "unbound_member_occurrences": 438,
+          "lists": 872,
+          "member_occurrences": 32130,
+          "unique_members": 32109,
+          "conditions": 3293,
+          "kind_counts": {
+            "all": 535,
+            "any": 180,
+            "clinical_measure": 11,
+            "diagnosis_count": 2,
+            "diagnosis_presence": 730,
+            "discharge_mode": 47,
+            "episode_duration": 126,
+            "external_disease_code": 1,
+            "not": 10,
+            "patient_age": 331,
+            "procedure_all_members": 8,
+            "procedure_count": 173,
+            "procedure_date_relation": 1,
+            "procedure_duration": 1,
+            "procedure_laterality": 1,
+            "procedure_list_coverage": 2,
+            "procedure_presence": 809,
+            "unsupported": 265,
+            "ward_duration": 2,
+            "when": 58
+          },
+          "unsupported_reasons": {
+            "alternative_scope_unreviewed": 1,
+            "ancestor_interpretation_unsupported": 861,
+            "boolean_scope_unreviewed": 92,
+            "child_interpretation_unsupported": 103,
+            "classification_family_unbound": 3,
+            "clinical_unit_missing": 4,
+            "date_allocation_unreviewed": 1,
+            "diagnosis_role_unspecified": 13,
+            "exemption_trigger_unbound": 5,
+            "guard_intro_scope_unreviewed": 4,
+            "guard_occurrence_scope_unreviewed": 57,
+            "list_definition_unbound": 6,
+            "list_reference_unresolved": 67,
+            "rank_compatibility_unbound": 29,
+            "secondary_exemption_scope_unbound": 1,
+            "title_only_qualifier": 5,
+            "unconsumed_source_text": 89
+          },
+          "unmatched_codes": 19
+        },
+        "1ae": {
+          "groups": 121,
+          "evidence_cells": 10418,
+          "unbound_member_occurrences": 0,
+          "lists": 176,
+          "member_occurrences": 9540,
+          "unique_members": 9532,
+          "conditions": 453,
+          "kind_counts": {
+            "all": 100,
+            "any": 26,
+            "diagnosis_presence": 109,
+            "episode_duration": 36,
+            "patient_age": 39,
+            "procedure_all_members": 1,
+            "procedure_count": 33,
+            "procedure_presence": 96,
+            "unsupported": 13
+          },
+          "unsupported_reasons": {
+            "ancestor_interpretation_unsupported": 63,
+            "boolean_scope_unreviewed": 5,
+            "child_interpretation_unsupported": 6,
+            "unconsumed_source_text": 8
+          },
+          "unmatched_codes": 12
+        }
+      }
+    },
+    {
+      "release_id": "jgp-conditions-46-2026-after-102-618a476ab3d1",
+      "baw_document_id": 44042,
+      "lineage_document_id": 43868,
+      "supersedes": "jgp-conditions-46-2026-after-74-f5e360996b3c",
+      "catalog_release_id": "jgp-catalog-46-2026-after-102-32dc947fc6ac",
+      "act_number": "46/2026/DSOZ (tekst po zmianach 102/2026/DSOZ)",
+      "layout": "nfz-9-102-2026",
+      "valid_from": "2026-07-01",
+      "valid_to": null,
+      "published_on": "2026-09-23",
+      "applicability_evidence": "102/2026 section 1(8) replaces attachment 9 with attachment 6 (44041/32989), byte-identical to 44042/33027. Section 4(1) applies from 2026-07-01. Section 4(5) defers selected attachment 1a catalog rows, not attachment 9 as a whole.",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; owner-authorized noncommercial reference development, not commercial legal clearance",
+      "notices": [
+        "Source: NFZ BAW, attachment 9 after 102/2026/DSOZ. Original descriptions and cell evidence retained.",
+        "Reference evidence only. Unsupported interpretation is not encounter eligibility or an executable ruleset. Exact RSK enrichment retains its own attribution and noncommercial terms."
+      ],
+      "icd9_release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "icd10_release_id": "icd10-rsk-013-f3dc9811520e",
+      "correspondence": "source_local_exact_reference",
+      "workbook": {
+        "source_url": "https://baw.nfz.gov.pl/api/file/4/33027",
+        "sha256": "618a476ab3d11f9935a2a74d66db1ce77b2fb5376af776d36afa189f712405c4",
+        "size_bytes": 1517326,
+        "fetched_at": "2026-10-03T13:31:46.861897Z"
+      },
+      "sheets": {
+        "1a": {
+          "groups": 629,
+          "evidence_cells": 37461,
+          "unbound_member_occurrences": 438,
+          "lists": 877,
+          "member_occurrences": 32437,
+          "unique_members": 32423,
+          "conditions": 3339,
+          "kind_counts": {
+            "all": 540,
+            "any": 184,
+            "clinical_measure": 11,
+            "diagnosis_count": 2,
+            "diagnosis_presence": 744,
+            "discharge_mode": 51,
+            "episode_duration": 129,
+            "external_disease_code": 1,
+            "not": 10,
+            "patient_age": 332,
+            "procedure_all_members": 8,
+            "procedure_count": 172,
+            "procedure_date_relation": 1,
+            "procedure_duration": 1,
+            "procedure_laterality": 1,
+            "procedure_list_coverage": 2,
+            "procedure_presence": 827,
+            "program_membership": 2,
+            "unsupported": 261,
+            "ward_duration": 2,
+            "when": 58
+          },
+          "unsupported_reasons": {
+            "alternative_scope_unreviewed": 1,
+            "ancestor_interpretation_unsupported": 882,
+            "boolean_scope_unreviewed": 96,
+            "child_interpretation_unsupported": 100,
+            "classification_family_unbound": 3,
+            "clinical_unit_missing": 4,
+            "date_allocation_unreviewed": 1,
+            "diagnosis_role_unspecified": 13,
+            "exemption_trigger_unbound": 5,
+            "guard_intro_scope_unreviewed": 4,
+            "guard_occurrence_scope_unreviewed": 57,
+            "list_definition_unbound": 6,
+            "list_reference_unresolved": 61,
+            "rank_compatibility_unbound": 29,
+            "secondary_exemption_scope_unbound": 1,
+            "title_only_qualifier": 5,
+            "unconsumed_source_text": 87
+          },
+          "unmatched_codes": 19
+        },
+        "1ae": {
+          "groups": 121,
+          "evidence_cells": 10413,
+          "unbound_member_occurrences": 0,
+          "lists": 176,
+          "member_occurrences": 9535,
+          "unique_members": 9534,
+          "conditions": 453,
+          "kind_counts": {
+            "all": 100,
+            "any": 26,
+            "diagnosis_presence": 109,
+            "episode_duration": 36,
+            "patient_age": 39,
+            "procedure_all_members": 1,
+            "procedure_count": 33,
+            "procedure_presence": 96,
+            "unsupported": 13
+          },
+          "unsupported_reasons": {
+            "ancestor_interpretation_unsupported": 63,
+            "boolean_scope_unreviewed": 5,
+            "child_interpretation_unsupported": 6,
+            "unconsumed_source_text": 8
+          },
+          "unmatched_codes": 12
+        }
+      }
+    }
+  ],
+  "characteristics_knowledge_as_of": "2026-10-02",
+  "characteristics_knowledge_evidence": "Reviewed 46/2026 lineage through 102/2026, using the existing 2026-10-02 horizon. Research capture on 2026-10-03 does not advance knowledge coverage.",
+  "catalog_knowledge_as_of": "2026-10-02",
+  "catalog_knowledge_evidence": "BAW watcher lineage observation of 46/2026/DSOZ (document 43868) at 2026-10-02T05:00Z lists amendments 74/2026 (43942) and 102/2026 (44041) and consolidated texts 43943 and 44042; the pinned workbooks were fetched and checksum-verified on 2026-10-02."
+}

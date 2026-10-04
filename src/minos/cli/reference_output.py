@@ -11,7 +11,6 @@ def search_envelope(
     manifest: ArtifactManifest,
     *,
     disclaimer: str,
-    search_version: str,
 ) -> dict[str, object]:
     source = next(
         (
@@ -31,7 +30,7 @@ def search_envelope(
         "language": result.language,
         "dataset_id": dataset_identity(manifest.dataset),
         "database_sha256": manifest.database_sha256,
-        "search_version": search_version,
+        "search_version": result.search_version,
         "morphology_version": MORPHOLOGY_VERSION,
         "index_used": result.index_used,
         "effective_query": result.query.effective_text,
@@ -75,6 +74,14 @@ def _hit_envelope(
         "kind": hit.kind,
         "source_attributes": dict(hit.source_attributes),
         "match_type": hit.match_type,
+        "synonym_source_wording": hit.synonym_source_wording,
+        "jgp_membership": {
+            "group_count": hit.jgp_group_count,
+            "service_date": hit.jgp_service_date.isoformat()
+            if hit.jgp_service_date
+            else None,
+            "meaning": "Explicit attachment 9 membership only; not typical treatment or encounter eligibility.",
+        },
         "match": {
             "node_ordinal": hit.matched_node_ordinal,
             "text": hit.matched_text,

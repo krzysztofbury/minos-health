@@ -20,7 +20,8 @@ WITH matching(document_id) AS (
 ), ranked AS (
     SELECT candidates.ordinal, candidates.document_id, candidates.title_rank,
            candidates.prefix_rank,
-           coalesce(length(replace(concept.lookup_code, '.', '')), 99) AS code_depth,
+            coalesce(length(replace(concept.lookup_code, '.', '')), 99) AS code_depth,
+            coalesce(json_extract(:jgp_counts, '$."' || concept.lookup_code || '"'), 0) AS jgp_count,
            row_number() OVER (
                PARTITION BY candidates.ordinal
                ORDER BY candidates.title_rank, candidates.prefix_rank, candidates.document_id
@@ -34,4 +35,4 @@ WITH matching(document_id) AS (
 -- text, a title that begins with the query before one that only contains it,
 -- a broader code before its narrower codes, then source order.
 SELECT ordinal, document_id FROM ranked WHERE position = 1
-ORDER BY title_rank, prefix_rank, code_depth, ordinal LIMIT :row_limit;
+ORDER BY title_rank, prefix_rank, code_depth, jgp_count DESC, ordinal LIMIT :row_limit;

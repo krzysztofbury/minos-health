@@ -79,6 +79,21 @@ def fixture(root: Path) -> Path:
         {
             **manifest.model_dump(),
             "sources": tuple(source for source, _ in sources),
+            "search_profile": "polish-folded-1",
+            "search_synonyms": (
+                {
+                    "id": "synthetic-browser-alias",
+                    "version": 1,
+                    "system": "icd10-pl",
+                    "term": "syntetyczna nazwa",
+                    "source_wording": "Próbna etykieta Łódź",
+                    "source_url": "https://example.org/synthetic-dictionary",
+                    "evidence": "Synthetic fixture only, not a medical synonym.",
+                    "status": "reviewed",
+                    "reviewer": "Synthetic fixture reviewer",
+                    "reviewed_on": date(2026, 10, 4),
+                },
+            ),
             "komunikaty": (stage_komunikat(root, canonical.release_id),),
             "catalogs": (catalog,),
             "characteristics": (characteristics,),
@@ -154,6 +169,19 @@ def browser_checks(arguments: Arguments, bundle: Path, port: int, output: Path) 
             env=environment,
         )
         dataset = read_artifact_manifest(bundle).dataset
+        if dataset.search_profile is not None:
+            _ = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "tests/browser/search-fallback-browser.mjs"),
+                    arguments.chromium,
+                    f"http://minoshealth.pl:{port}/",
+                    str(output),
+                ],
+                timeout=90,
+                check=True,
+                env=environment,
+            )
         if dataset.characteristics:
             _ = subprocess.run(
                 [

@@ -117,7 +117,12 @@ def modifier_reconciliation_lines(
         return []
     lines = [
         "",
-        "MODTAR source evidence (#46): legal review pending; all catalog modifier bindings remain unbound.",
+        "MODTAR source evidence (#46): "
+        + (
+            f"{len(dataset.modifier_bindings)} catalog releases have explicit reviewed overlays; other bindings remain unbound."
+            if dataset.modifier_bindings
+            else "legal review pending; all catalog modifier bindings remain unbound."
+        ),
     ]
     with sqlite3.connect(database.as_uri() + "?mode=ro", uri=True) as connection:
         releases = {
@@ -164,7 +169,12 @@ def modifier_reconciliation_lines(
                 f"- Pending candidate {candidate.modifier_release_id} for {candidate.catalog_release_id}:"
                 + " a research pointer only; binding is checked per catalog window, never against one catalog."
             )
+    for binding in dataset.modifier_bindings:
+        lines.append(
+            f"- Reviewed binding {binding.catalog_release_id} -> {binding.modifier_release_id}: "
+            + f"overlay {binding.overlay.sha256}, reviewed {binding.reviewed_on.isoformat()} by {binding.reviewer}; {binding.evidence}"
+        )
     lines.append(
-        "- Legal overlays, external governing acts and section 17 applicability are not approved by this build. Synthetic transition tests are not real-source legal validation."
+        "- No encounter eligibility or final points are computed. Synthetic transition tests are not real-source legal validation."
     )
     return lines

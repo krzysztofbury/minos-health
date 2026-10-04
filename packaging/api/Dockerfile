@@ -18,6 +18,11 @@ LABEL org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.title="Minos validation reference API" \
       org.opencontainers.image.licenses="MIT OR Apache-2.0"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/nonexistent OTEL_SDK_DISABLED=true
+# CVE-2026-103111: the pinned Python base still carries deb12u1.
+# Keep the Debian security fix pinned until the upstream base is refreshed.
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y "libpcre2-8-0=10.42-1+deb12u2" && \
+    rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/.venv /build/.venv
 # A validation deployment mounts one pinned, read-only bundle. No raw sources,
 # credentials, source archive, compiler or package manager enter this image.

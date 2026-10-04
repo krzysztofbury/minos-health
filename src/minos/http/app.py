@@ -27,7 +27,6 @@ from minos.domain.jgp_ruleset import (
 )
 from minos.domain.reference import ArtifactError, QueryLimitError
 from minos.domain.search import (
-    SEARCH_VERSION,
     SearchInputError,
     SearchRequest,
     prepare_query,
@@ -103,6 +102,7 @@ class Lookup(BaseModel):
     query: Annotated[str, Field(min_length=1, max_length=256)]
     language: Literal["pl", "en"] = "pl"
     limit: Annotated[int, Field(ge=1, le=20)] = 10
+    service_date: date | None = None
 
 
 def failure(status: int, code: str) -> JSONResponse:
@@ -121,12 +121,11 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
                 release_id=payload.release_id,
                 language=payload.language,
                 limit=payload.limit,
+                service_date=payload.service_date,
             ),
             analyzer=lease.analyzer,
         )
-        answer = search_envelope(
-            result, pool.manifest, disclaimer=DISCLAIMER, search_version=SEARCH_VERSION
-        )
+        answer = search_envelope(result, pool.manifest, disclaimer=DISCLAIMER)
         answer["api"] = 1
         return answer
 
@@ -255,6 +254,15 @@ def render_code(
             jgp_section += membership_section(
                 memberships, slug=slug, code=code, day=day.isoformat()
             )
+            if dictionary.system == "icd10-pl" and pool.manifest.schema_version >= 8:
+                from minos.http.jgp_condition_pages import shared_procedure_section
+                from minos.store.search_jgp import shared_procedures
+
+                jgp_section += shared_procedure_section(
+                    shared_procedures(
+                        lease.connection, code, day, tree.hierarchy.release_id
+                    )
+                )
         elif service_date is not None:
             raise NoRulesetForDate("bundle has no characteristics")
     return 200, code_page(

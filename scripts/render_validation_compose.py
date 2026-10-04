@@ -64,7 +64,8 @@ def api_service(image: str, bundle: Path, digest: str) -> dict[str, object]:
             "interval": "10s",
             "timeout": "3s",
             "retries": 3,
-            "start_period": "20s",
+            # The full conditions bundle took 96-110 s in isolated VPS probes.
+            "start_period": "120s",
         },
     }
 

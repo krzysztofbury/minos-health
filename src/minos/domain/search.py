@@ -3,15 +3,23 @@
 import re
 import unicodedata
 from dataclasses import dataclass
+from datetime import date
 from typing import Literal
 
 from minos.domain.normalization import normalize_description
 from minos.domain.reference import NodeKind, ReferenceError
 
-SEARCH_VERSION = "lexical-2"
+SEARCH_VERSION = "lexical-3"
+_POLISH_FOLD = str.maketrans("ąćęłńóśźż", "acelnoszz")
 IndexMode = Literal["auto", "portable"]
 MatchType = Literal[
-    "exact_code", "exact_description", "prefix_tokens", "morphology_tokens", "substring"
+    "exact_code",
+    "exact_description",
+    "prefix_tokens",
+    "morphology_tokens",
+    "substring",
+    "folded_tokens",
+    "synonym_tokens",
 ]
 
 
@@ -37,6 +45,7 @@ class SearchRequest:
     language: str = "pl"
     limit: int = 20
     index: IndexMode = "auto"
+    service_date: date | None = None
 
     def __post_init__(self) -> None:
         if not re.fullmatch(r"[a-z][a-z0-9-]{0,79}", self.system):
@@ -85,6 +94,9 @@ class SearchHit:
     source_attributes: tuple[tuple[str, str], ...] = ()
     matched_source_attributes: tuple[tuple[str, str], ...] = ()
     supporting_contexts: tuple[SupportingContext, ...] = ()
+    jgp_group_count: int = 0
+    jgp_service_date: date | None = None
+    synonym_source_wording: str | None = None
 
 
 @dataclass(frozen=True)
@@ -105,6 +117,7 @@ class SearchResult:
     suggestions: tuple[SpellingSuggestion, ...]
     index_used: str
     morphology: tuple[tuple[str, tuple[str, ...]], ...]
+    search_version: str = "lexical-2"
 
 
 _WRAPPER = re.compile(
@@ -125,6 +138,11 @@ def text_tokens(text: str) -> tuple[str, ...]:
 def index_tokens(text: str) -> tuple[str, ...]:
     words = set(text_tokens(text))
     return tuple(sorted(word for word in words if len(word) <= 64))
+
+
+def fold_polish(text: str) -> str:
+    """Only Polish diacritics; source values and morphology keys stay untouched."""
+    return text.translate(_POLISH_FOLD)
 
 
 def prepare_query(text: str, *, language: str = "pl") -> SearchQuery:

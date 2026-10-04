@@ -137,6 +137,12 @@ def horizon_badge(ruleset: dict[str, object]) -> str:
 
 
 def provenance(ruleset: dict[str, object], *, heading: str = "h2") -> str:
+    binding = cast(dict[str, object], ruleset["modifiers"])
+    modifier_status = (
+        f"powiązane referencyjnie: {binding['release_id']}, generacja {binding['generation']}; Minos nie liczy punktów do rozliczenia"
+        if binding["binding"] == "reviewed"
+        else "niepowiązane (#46); Minos nie liczy punktów do rozliczenia"
+    )
     facts = [
         ("Zarządzenie Prezesa NFZ", ruleset["act_number"]),
         ("Opublikowano", ruleset["published_on"]),
@@ -144,7 +150,7 @@ def provenance(ruleset: dict[str, object], *, heading: str = "h2") -> str:
         ("Podstawa", ruleset["service_evidence"]),
         ("Stan wiedzy Minos", ruleset["knowledge_as_of"]),
         ("SHA-256 skoroszytu", ruleset["workbook_sha256"]),
-        ("Modyfikatory", "niepowiązane (#46); Minos nie liczy punktów do rozliczenia"),
+        ("Modyfikatory", modifier_status),
     ]
     rows = "".join(
         f"<div><dt>{_e(name)}</dt><dd>{_e(value)}</dd></div>" for name, value in facts
@@ -160,6 +166,13 @@ def provenance(ruleset: dict[str, object], *, heading: str = "h2") -> str:
         f"<{heading}>Wydanie katalogu na ten dzień</{heading}>"
         + f'<dl class="detail-facts">{rows}</dl>{link}'
     )
+
+
+def modifiers_note(ruleset: dict[str, object]) -> str:
+    binding = cast(dict[str, object], ruleset["modifiers"])
+    if binding["binding"] == "reviewed":
+        return "To nie są punkty do rozliczenia. Powiązanie MODTAR jest referencyjne; warunki zastosowania i łączenia modyfikatorów nie są tu oceniane."
+    return MODIFIERS_NOTE
 
 
 def _head(crumbs: list[str]) -> str:
@@ -231,7 +244,7 @@ def index_page(
     parts.append(
         '          <aside class="detail jgp-release" aria-label="Wydanie katalogu">'
         + f'<p class="jgp-points-note"><strong>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}.</strong>'
-        + f" {_e(MODIFIERS_NOTE)}</p>"
+        + f" {_e(modifiers_note(ruleset))}</p>"
         + provenance(ruleset)
         + f'<p class="detail-source">{_e(LEGEND[0])}</p>'
         + "</aside>\n"
@@ -401,6 +414,7 @@ def group_page(
 
 
 def _values(answer: dict[str, object], catalog: str) -> str:
+    ruleset = cast(dict[str, object], answer["ruleset"])
     values = {
         cast(str, value["measure"]): value
         for value in cast(list[dict[str, object]], answer["base_values"])
@@ -419,7 +433,7 @@ def _values(answer: dict[str, object], catalog: str) -> str:
     return (
         '        <section class="detail-notes jgp-values">'
         + f"<h2>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}</h2>"
-        + f'<p class="jgp-note">{_e(MODIFIERS_NOTE)}</p>'
+        + f'<p class="jgp-note">{_e(modifiers_note(ruleset))}</p>'
         + f'<dl class="detail-facts">{"".join(rows)}</dl></section>\n'
     )
 

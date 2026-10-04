@@ -4,14 +4,16 @@ import argparse
 import json
 from datetime import date
 from pathlib import Path
-from typing import Annotated, ClassVar, final
+from typing import Annotated, ClassVar, Literal, final
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from minos.ingest.jgp_conditions_manifest import ConditionsManifest
+from minos.ingest.jgp_modifier_binding_manifest import ModifierBinding
 from minos.ingest.jgp_modifiers_manifest import ModifierCandidate, ModifierManifest
 from minos.ingest.manifest_types import SourceText
-from minos.ingest.reference_manifest import DatasetManifest
+from minos.ingest.reference_manifest import DatasetManifest, empty_evidence
+from minos.ingest.search_synonyms import SearchSynonym
 
 
 class Selection(BaseModel):
@@ -33,6 +35,9 @@ class ModifierSelection(BaseModel):
         tuple[ModifierManifest, ...], Field(min_length=1, max_length=8)
     ]
     modifier_candidates: Annotated[tuple[ModifierCandidate, ...], Field(max_length=8)]
+    modifier_bindings: Annotated[tuple[ModifierBinding, ...], Field(max_length=8)] = (
+        Field(default=(), exclude_if=empty_evidence)
+    )
 
 
 def bounded_read(path: Path) -> bytes:
@@ -49,6 +54,8 @@ class Arguments(argparse.Namespace):
     conditions: Path = Path("manifests/sources/jgp-conditions-reference.json")
     output: Path = Path()
     modifiers: Path | None = None
+    search_profile: Literal["polish-folded-1"] | None = None
+    synonyms: Path | None = None
 
 
 def main() -> None:
@@ -65,6 +72,8 @@ def main() -> None:
     )
     _ = parser.add_argument("--output", type=Path, required=True)
     _ = parser.add_argument("--modifiers", type=Path)
+    _ = parser.add_argument("--search-profile", choices=("polish-folded-1",))
+    _ = parser.add_argument("--synonyms", type=Path)
     args = Arguments()
     _ = parser.parse_args(namespace=args)
     base = DatasetManifest.model_validate_json(bounded_read(args.base))
@@ -79,6 +88,13 @@ def main() -> None:
             ).model_dump(mode="json")
         )
         data["transform_version"] = "jgp-reference-conditions-modifiers-v3"
+    if args.search_profile is not None:
+        data["search_profile"] = args.search_profile
+    if args.synonyms is not None:
+        entries = TypeAdapter(tuple[SearchSynonym, ...]).validate_json(
+            bounded_read(args.synonyms)
+        )
+        data["search_synonyms"] = [entry.model_dump(mode="json") for entry in entries]
     manifest = DatasetManifest.model_validate_json(json.dumps(data))
     with args.output.open("x", encoding="utf-8") as target:
         _ = target.write(manifest.model_dump_json(indent=2) + "\n")

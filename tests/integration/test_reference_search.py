@@ -24,6 +24,7 @@ from minos.domain.search import (
 from minos.ingest.icd10 import parse_icd10
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
+from minos.ingest.search_synonyms import SearchSynonym
 from minos.store.reference import open_reference_connection
 from minos.store.reference_build import (
     finalize_reference,
@@ -31,6 +32,7 @@ from minos.store.reference_build import (
     initialize_reference,
 )
 from minos.store.search import search_reference
+from scripts.evaluate_search import EvaluationError, GoldSet, evaluate
 
 ROOT = Path(__file__).parents[2]
 
@@ -62,6 +64,336 @@ def search_bundle(tmp_path: Path, search_source: DatasetManifest) -> Path:
     bundle = tmp_path / "bundle"
     _ = build_reference_artifact(search_source, tmp_path, bundle)
     return bundle
+
+
+@pytest.fixture
+def folded_search_bundle(tmp_path: Path, search_source: DatasetManifest) -> Path:
+    bundle = tmp_path / "folded-bundle"
+    manifest = search_source.model_copy(update={"search_profile": "polish-folded-1"})
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    return bundle
+
+
+@pytest.mark.parametrize("index", ["auto", "portable"])
+@pytest.mark.parametrize(
+    "query,codes",
+    [
+        ("niewydolnosc", ["E10.0"]),
+        # A typed diacritic is never folded away: "tęstowy" is not "testowy".
+        ("tęstowy", []),
+        ("powiklan bez", ["E11.1"]),
+        ("wariantu z powiklaniami", []),
+        ("cukrzyca typu 9", []),
+        ("E119", []),
+    ],
+)
+def test_folded_fallback_is_labelled_portable_and_keeps_qualifiers_literal(
+    folded_search_bundle: Path, query: str, codes: list[str], index: str
+) -> None:
+    with open_reference_connection(folded_search_bundle) as connection:
+        result = search_reference(
+            connection,
+            SearchRequest(
+                "icd10-pl", prepare_query(query), index=cast(IndexMode, index)
+            ),
+        )
+    assert [hit.code for hit in result.hits] == codes
+    if codes:
+        assert result.hits[0].match_type == "folded_tokens"
+        assert any(
+            character in result.hits[0].matched_text for character in "ąćęłńóśźż"
+        )
+
+
+def test_folded_profile_keeps_exact_precedence_and_legacy_bundle_compatibility(
+    folded_search_bundle: Path, search_bundle: Path
+) -> None:
+    for bundle in (search_bundle, folded_search_bundle):
+        with open_reference_connection(bundle) as connection:
+            code = search_reference(
+                connection, SearchRequest("icd10-pl", prepare_query("E11"))
+            )
+            assert code.hits[0].code == "E11"
+            assert code.hits[0].match_type == "exact_code"
+            description = search_reference(
+                connection, SearchRequest("icd10-pl", prepare_query("Testowy wariant"))
+            )
+            assert description.hits[0].match_type == "exact_description"
+    with open_reference_connection(search_bundle) as connection:
+        legacy = search_reference(
+            connection, SearchRequest("icd10-pl", prepare_query("niewydolnosc"))
+        )
+        assert not legacy.hits
+
+
+@pytest.mark.parametrize("elapsed_seconds,refused", [(0.3, False), (0.401, True)])
+def test_search_has_one_bounded_400ms_deadline(
+    search_bundle: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    elapsed_seconds: float,
+    refused: bool,
+) -> None:
+    import time
+
+    from minos.domain.reference import QueryLimitError
+
+    clock = iter((0.0,))
+    monkeypatch.setattr(time, "monotonic", lambda: next(clock, elapsed_seconds))
+    with open_reference_connection(search_bundle) as connection:
+        if refused:
+            with pytest.raises(QueryLimitError, match="execution limit"):
+                _ = search_reference(
+                    connection, SearchRequest("icd10-pl", prepare_query("E11"))
+                )
+        else:
+            assert (
+                search_reference(
+                    connection, SearchRequest("icd10-pl", prepare_query("E11"))
+                )
+                .hits[0]
+                .code
+                == "E11"
+            )
+
+
+@pytest.mark.parametrize("reviewed", [False, True])
+@pytest.mark.parametrize("whole_query_only", [False, True])
+def test_synonym_rewrite_requires_review_keeps_qualifiers_and_preserves_source_evidence(
+    tmp_path: Path,
+    search_source: DatasetManifest,
+    reviewed: bool,
+    whole_query_only: bool,
+) -> None:
+    entry = SearchSynonym.model_validate_json(
+        json.dumps(
+            {
+                "id": "synthetic-alias",
+                "version": 1,
+                "system": "icd10-pl",
+                "term": "syntetyczny odpowiednik",
+                "source_wording": "bez powikłań",
+                "source_url": "https://example.org/synthetic-dictionary",
+                "evidence": "Synthetic terminology equivalence only.",
+                "status": "reviewed" if reviewed else "proposed",
+                "reviewer": "Synthetic reviewer" if reviewed else None,
+                "reviewed_on": "2026-10-04" if reviewed else None,
+                "release_id": search_source.sources[0].release_id,
+                "whole_query_only": whole_query_only,
+            }
+        )
+    )
+    manifest = search_source.model_copy(
+        update={"search_profile": "polish-folded-1", "search_synonyms": (entry,)}
+    )
+    bundle = tmp_path / "synonym-bundle"
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    with open_reference_connection(bundle) as connection:
+        request = SearchRequest("icd10-pl", prepare_query("syntetyczny odpowiednik"))
+        result = search_reference(connection, request)
+        if reviewed:
+            assert result.hits[0].code == "E11.1"
+            assert result.hits[0].match_type == "synonym_tokens"
+            assert result.hits[0].synonym_source_wording == "bez powikłań"
+            assert result.hits[0].matched_text == "Wariant testowy bez powikłań"
+            exact = search_reference(
+                connection,
+                SearchRequest(
+                    "icd10-pl", prepare_query("Wariant testowy bez powikłań")
+                ),
+            )
+            assert exact.hits[0].match_type == "exact_description"
+        else:
+            assert not result.hits
+        for query in (
+            "syntetyczny odpowiednik typu 9",
+            "syntetyczny odpowiednik z powikłaniami",
+        ):
+            qualified = search_reference(
+                connection, SearchRequest("icd10-pl", prepare_query(query))
+            )
+            assert not qualified.hits
+        qualified = search_reference(
+            connection,
+            SearchRequest("icd10-pl", prepare_query("wariant syntetyczny odpowiednik")),
+        )
+        assert bool(qualified.hits) == (reviewed and not whole_query_only)
+
+
+def test_synonym_hits_leave_room_for_literal_matches(
+    tmp_path: Path, search_source: DatasetManifest
+) -> None:
+    entry = SearchSynonym.model_validate_json(
+        json.dumps(
+            {
+                "id": "synthetic-overlap",
+                "version": 1,
+                "system": "icd10-pl",
+                "term": "cukrzyca",
+                "source_wording": "wariant",
+                "source_url": "https://example.org/synthetic-dictionary",
+                "evidence": "Synthetic terminology equivalence only.",
+                "status": "reviewed",
+                "reviewer": "Synthetic reviewer",
+                "reviewed_on": "2026-10-04",
+                "release_id": search_source.sources[0].release_id,
+            }
+        )
+    )
+    manifest = search_source.model_copy(
+        update={"search_profile": "polish-folded-1", "search_synonyms": (entry,)}
+    )
+    bundle = tmp_path / "overlap-bundle"
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    with open_reference_connection(bundle) as connection:
+        result = search_reference(
+            connection, SearchRequest("icd10-pl", prepare_query("cukrzyca"), limit=2)
+        )
+    kinds = [hit.match_type for hit in result.hits]
+    # Three rewrite hits alone would fill the page; what the user typed still shows.
+    assert "synonym_tokens" in kinds
+    assert {"prefix_tokens", "morphology_tokens"} & set(kinds)
+    assert result.truncated
+
+
+@pytest.mark.parametrize(
+    "release_id,wording",
+    [
+        ("absent-release", "bez powikłań"),
+        ("icd10-synthetic-v1", "absent terminology"),
+    ],
+)
+def test_reviewed_synonym_refuses_wording_outside_its_pinned_dictionary(
+    tmp_path: Path, search_source: DatasetManifest, release_id: str, wording: str
+) -> None:
+    from minos.domain.reference import ArtifactError
+
+    entry = SearchSynonym.model_validate_json(
+        json.dumps(
+            {
+                "id": "synthetic-alias",
+                "version": 1,
+                "system": "icd10-pl",
+                "term": "syntetyczny odpowiednik",
+                "source_wording": wording,
+                "source_url": "https://example.org/synthetic-dictionary",
+                "evidence": "Synthetic source wording contract.",
+                "status": "reviewed",
+                "reviewer": "Synthetic reviewer",
+                "reviewed_on": "2026-10-04",
+                "release_id": release_id,
+            }
+        )
+    )
+    manifest = search_source.model_copy(
+        update={
+            "search_profile": "polish-folded-1",
+            "search_synonyms": (entry,),
+        }
+    )
+    with pytest.raises(ArtifactError, match="absent from its pinned dictionary"):
+        _ = build_reference_artifact(manifest, tmp_path, tmp_path / "invalid-bundle")
+    assert not (tmp_path / "invalid-bundle").exists()
+
+
+def test_synonym_release_pin_isolated_and_old_entry_serialization_preserved(
+    tmp_path: Path, search_source: DatasetManifest
+) -> None:
+    from minos.store.artifact import canonical_json
+
+    original = {
+        "id": "synthetic-alias",
+        "version": 1,
+        "system": "icd10-pl",
+        "term": "syntetyczny odpowiednik",
+        "source_wording": "bez powikłań",
+        "source_url": "https://example.org/synthetic-dictionary",
+        "evidence": "Synthetic source wording contract.",
+        "status": "reviewed",
+        "reviewer": "Synthetic reviewer",
+        "reviewed_on": "2026-10-04",
+    }
+    old_entry = SearchSynonym.model_validate_json(json.dumps(original))
+    assert (
+        canonical_json(old_entry)
+        == (
+            json.dumps(
+                original, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+            + "\n"
+        ).encode()
+    )
+    pinned = old_entry.model_copy(
+        update={"release_id": search_source.sources[0].release_id}
+    )
+    other = search_source.sources[0].model_copy(update={"release_id": "other-release"})
+    manifest = search_source.model_copy(
+        update={
+            "sources": (*search_source.sources, other),
+            "search_profile": "polish-folded-1",
+            "search_synonyms": (pinned,),
+        }
+    )
+    bundle = tmp_path / "release-scoped"
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    with open_reference_connection(bundle) as connection:
+        for release_id, expected in (
+            (pinned.release_id, ["E11.1"]),
+            (other.release_id, []),
+        ):
+            result = search_reference(
+                connection,
+                SearchRequest(
+                    "icd10-pl",
+                    prepare_query("syntetyczny odpowiednik"),
+                    release_id=release_id,
+                ),
+            )
+            assert [hit.code for hit in result.hits] == expected
+
+
+def test_evaluation_reports_all_cases_without_query_text_and_checks_exact_release_codes(
+    search_bundle: Path,
+) -> None:
+    gold = GoldSet.model_validate_json(
+        json.dumps(
+            {
+                "version": 1,
+                "source": "https://github.com/krzysztofbury/minos-health/issues/126",
+                "notice": "Synthetic evaluation, not real gold data.",
+                "releases": {"icd10-pl": "icd10-synthetic-v1"},
+                "cases": [
+                    {
+                        "id": "G01",
+                        "system": "icd10-pl",
+                        "query": "E11",
+                        "codes": ["E11"],
+                        "category": "synthetic",
+                        "source": "practitioner",
+                        "baseline_rank": 1,
+                    },
+                    {
+                        "id": "G02",
+                        "system": "icd10-pl",
+                        "query": "niewydolnosc",
+                        "codes": ["E10.0"],
+                        "category": "synthetic",
+                        "source": "proposed",
+                        "baseline_rank": 1,
+                    },
+                ],
+            }
+        )
+    )
+    report = evaluate(search_bundle, gold)
+    assert report["total"] == 2
+    assert report["top1"] == 1
+    assert report["top5"] == 1
+    assert report["baseline_regressions"] == ["G02"]
+    assert report["reviewed_baseline_regressions"] == []
+    assert "niewydolnosc" not in json.dumps(report)
+    absent = gold.cases[0].model_copy(update={"codes": ("ZZ99",)})
+    with pytest.raises(EvaluationError, match="exact pinned release"):
+        _ = evaluate(search_bundle, gold.model_copy(update={"cases": (absent,)}))
 
 
 @pytest.mark.parametrize("index", ["auto", "portable"])

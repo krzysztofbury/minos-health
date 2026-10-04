@@ -20,11 +20,14 @@ from minos.domain.search import (
     SearchResult,
     SpellingSuggestion,
     SupportingContext,
+    fold_polish,
     prefix_upper_bound,
     use_token_prefix,
 )
 from minos.store.query_budget import QueryBudget, query_budget
 from minos.store.reference_build import reference_sql
+from minos.store.search_jgp import membership_counts
+from minos.store.search_synonyms import synonym_requests
 
 _PROTECTED_WORDS = frozenset(
     ("bez", "nie", "z", "typ", "without", "with", "not", "type")
@@ -37,10 +40,16 @@ def search_reference(
     *,
     analyzer: PolishMorphology | None = None,
 ) -> SearchResult:
-    with query_budget(connection) as budget:
-        if connection.execute(
-            "SELECT value FROM build_metadata WHERE key='search_version'"
-        ).fetchone() != (SEARCH_VERSION,):
+    # Shared across all stages, including Python hydration. Keep the operation
+    # cap unchanged; allow the accepted 400 ms ceiling on the small VPS.
+    with query_budget(connection, seconds=0.4) as budget:
+        search_version = cast(
+            tuple[str] | None,
+            connection.execute(
+                "SELECT value FROM build_metadata WHERE key='search_version'"
+            ).fetchone(),
+        )
+        if search_version not in (("lexical-2",), (SEARCH_VERSION,)):
             raise ArtifactError("incompatible reference search version")
         if connection.execute(
             "SELECT value FROM build_metadata WHERE key='morphology_version'"
@@ -49,12 +58,24 @@ def search_reference(
         release = _resolve_release(connection, request)
         index = _select_index(connection, request.index)
         request = replace(request, release_id=release)
-        selected, morphology = _select_matches(connection, request, index, analyzer)
+        counts, day = membership_counts(connection, request)
+        selected, morphology = _select_matches(
+            connection, request, index, analyzer, counts
+        )
+        selected, rewrites = _add_synonyms(
+            connection, request, index, analyzer, counts, selected
+        )
         hits: list[SearchHit] = []
         characters = 0
         for ordinal, document, match_type in selected[: request.limit]:
             budget.check()
             hit = _hydrate_hit(connection, release, ordinal, document, match_type)
+            hit = replace(
+                hit,
+                jgp_group_count=counts.get(hit.code or "", 0),
+                jgp_service_date=day,
+                synonym_source_wording=rewrites.get(ordinal),
+            )
             characters += len(hit.matched_text) + sum(
                 len(node.label) for node in hit.context_nodes
             )
@@ -83,7 +104,44 @@ def search_reference(
             suggestions,
             index,
             morphology,
+            search_version[0],
         )
+
+
+def _add_synonyms(
+    connection: sqlite3.Connection,
+    request: SearchRequest,
+    index: str,
+    analyzer: PolishMorphology | None,
+    counts: dict[str, int],
+    original: list[tuple[int, int, MatchType]],
+) -> tuple[list[tuple[int, int, MatchType]], dict[int, str]]:
+    selected = [
+        row for row in original if row[2] in ("exact_code", "exact_description")
+    ]
+    known = {row[0] for row in selected}
+    literal = [row for row in original if row[0] not in known]
+    # Rewrites rank before literal matches but never push them off the page:
+    # up to half of it stays reserved for what the user actually typed.
+    slots = request.limit - min(len(literal), request.limit // 2)
+    overflow: list[tuple[int, int, MatchType]] = []
+    rewrites: dict[int, str] = {}
+    for synonym_request, wording in synonym_requests(connection, request):
+        alternatives, _ = _select_matches(
+            connection, synonym_request, index, analyzer, counts
+        )
+        for ordinal, document, _match_type in alternatives:
+            if ordinal in known:
+                continue
+            known.add(ordinal)
+            rewrites[ordinal] = wording
+            target = selected if len(selected) < slots else overflow
+            target.append((ordinal, document, "synonym_tokens"))
+        if len(selected) + len(overflow) > request.limit:
+            break
+    selected.extend(row for row in literal if row[0] not in rewrites)
+    selected.extend(overflow)
+    return selected[: request.limit + 1], rewrites
 
 
 def _resolve_release(connection: sqlite3.Connection, request: SearchRequest) -> str:
@@ -151,8 +209,10 @@ def _select_matches(
     request: SearchRequest,
     index: str,
     analyzer: PolishMorphology | None,
+    counts: dict[str, int],
 ) -> tuple[list[tuple[int, int, MatchType]], tuple[tuple[str, tuple[str, ...]], ...]]:
     parameters = _parameters(request)
+    parameters["jgp_counts"] = json.dumps(counts)
     selected: list[tuple[int, int, MatchType]] = []
     morphology: tuple[tuple[str, tuple[str, ...]], ...] = ()
     stages: tuple[tuple[str, MatchType], ...] = (
@@ -213,7 +273,52 @@ def _select_matches(
             ).fetchall(),
         )
         selected.extend((ordinal, document, "substring") for ordinal, document in rows)
+    if (
+        len(selected) < min(5, request.limit)
+        and request.language == "pl"
+        and not request.query.code_like
+        # Typed diacritics are deliberate: folding them would make "rąk"
+        # (hands) retrieve "rak" (cancer) under a "no diacritics" label.
+        and fold_polish(request.query.effective_text) == request.query.effective_text
+        and connection.execute("PRAGMA user_version").fetchone()[0] >= 8
+    ):
+        analyzer = analyzer or PolishMorphology()
+        parameters["excluded"] = json.dumps([item[0] for item in selected])
+        parameters["row_limit"] = request.limit + 1 - len(selected)
+        parameters["folded_ranges"] = _folded_ranges(request, analyzer)
+        parameters["folded_text"] = fold_polish(request.query.effective_text)
+        parameters["folded_token_count"] = len(request.query.tokens)
+        rows = cast(
+            list[tuple[int, int]],
+            connection.execute(
+                reference_sql("queries/search_folded.sql"), parameters
+            ).fetchall(),
+        )
+        selected.extend(
+            (ordinal, document, "folded_tokens") for ordinal, document in rows
+        )
     return selected, morphology
+
+
+def _folded_ranges(request: SearchRequest, analyzer: PolishMorphology) -> str:
+    ranges: list[dict[str, object]] = []
+    for position, token in enumerate(request.query.tokens):
+        variants = sorted(
+            {
+                fold_polish(token),
+                *(fold_polish(value) for value in analyzer.variants(token)),
+            }
+        )
+        for value in variants:
+            ranges.append(
+                {
+                    "position": position,
+                    "lower": value,
+                    "upper": prefix_upper_bound(value),
+                    "prefix": use_token_prefix(token) and value == fold_polish(token),
+                }
+            )
+    return json.dumps(ranges)
 
 
 def _hydrate_hit(
