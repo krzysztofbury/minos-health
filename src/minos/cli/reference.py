@@ -21,7 +21,6 @@ from minos.domain.jgp_ruleset import (
 )
 from minos.domain.reference import ArtifactError, QueryLimitError, ReferenceError
 from minos.domain.search import (
-    SEARCH_VERSION,
     SearchInputError,
     SearchRequest,
     prepare_query,
@@ -371,9 +370,7 @@ def _search(arguments: _SearchArguments) -> int:
     )
     with open_reference_bundle(arguments.data) as (connection, manifest):
         result = search_reference(connection, request)
-    envelope = search_envelope(
-        result, manifest, disclaimer=DISCLAIMER, search_version=SEARCH_VERSION
-    )
+    envelope = search_envelope(result, manifest, disclaimer=DISCLAIMER)
     print(
         json.dumps(envelope, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         if arguments.output_json

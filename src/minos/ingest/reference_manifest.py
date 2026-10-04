@@ -16,6 +16,7 @@ from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.manifest_types import Digest as Digest
 from minos.ingest.manifest_types import Identifier as Identifier
 from minos.ingest.manifest_types import SourceText as SourceText
+from minos.ingest.search_synonyms import SearchSynonym
 
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
 
@@ -82,6 +83,12 @@ class DatasetManifest(BaseModel):
     schema_version: Literal[1]
     transform_version: SourceText
     lockfile_sha256: Digest
+    search_profile: Literal["polish-folded-1"] | None = Field(
+        default=None, exclude_if=absent_context
+    )
+    search_synonyms: Annotated[tuple[SearchSynonym, ...], Field(max_length=500)] = (
+        Field(default=(), exclude_if=empty_evidence)
+    )
     sources: Annotated[tuple[SourceManifest, ...], Field(min_length=1, max_length=16)]
     komunikaty: Annotated[tuple[KomunikatManifest, ...], Field(max_length=8)] = Field(
         default=(), exclude_if=empty_evidence
@@ -242,6 +249,23 @@ class DatasetManifest(BaseModel):
             ):
                 raise ValueError("MODTAR binding predates dictionary publication")
             seen.add(binding.catalog_release_id)
+        return self
+
+    @model_validator(mode="after")
+    def validate_search_synonyms(self) -> Self:
+        if self.search_synonyms and self.search_profile is None:
+            raise ValueError("synonyms require an explicit search profile")
+        seen: set[tuple[str, str]] = set()
+        identities: set[str] = set()
+        for item in self.search_synonyms:
+            from minos.domain.normalization import normalize_description
+            from minos.domain.search import fold_polish
+
+            key = (item.system, fold_polish(normalize_description(item.term)))
+            if key in seen or item.id in identities:
+                raise ValueError("duplicate synonym identity or terminology phrase")
+            seen.add(key)
+            identities.add(item.id)
         return self
 
     def validate_characteristics(self) -> None:

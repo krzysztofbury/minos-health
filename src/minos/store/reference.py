@@ -166,6 +166,10 @@ def open_reference_bundle(
                     if len(_VALIDATED_MODIFIER_BINDINGS) >= 16:
                         _VALIDATED_MODIFIER_BINDINGS.clear()
                     _VALIDATED_MODIFIER_BINDINGS.add(key)
+            if manifest.schema_version >= 8:
+                from minos.store.search_synonyms import validate_search_synonyms
+
+                validate_search_synonyms(connection, manifest.dataset.search_synonyms)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources
@@ -207,6 +211,14 @@ def _validate_database_header(
     )
     if normalization != (NORMALIZATION_VERSION,):
         raise ArtifactError("incompatible normalization version")
+    search = cast(
+        tuple[str] | None,
+        connection.execute(
+            "SELECT value FROM build_metadata WHERE key='search_version'"
+        ).fetchone(),
+    )
+    if search != (("lexical-3",) if schema_version >= 8 else ("lexical-2",)):
+        raise ArtifactError("search profile conflicts with reference schema")
 
 
 @contextmanager

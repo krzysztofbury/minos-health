@@ -319,6 +319,35 @@ def conditions_section(answer: Json) -> str:
     return "".join(parts)
 
 
+def shared_procedure_section(answers: list[Json]) -> str:
+    rows: list[str] = []
+    for answer in answers:
+        day = cast(str, answer["service_date"])
+        for procedure in cast(list[Json], answer["procedures"]):
+            code = cast(str, procedure["code"])
+            groups = cast(list[str], procedure["shared_groups"])
+            links = ", ".join(
+                f'<a href="/jgp/{_e(day)}/{_e(group)}">{_e(group)}</a>'
+                for group in groups
+            )
+            if cast(int, procedure["shared_group_count"]) > len(groups):
+                links += f" (pierwsze {len(groups)} z {procedure['shared_group_count']} grup)"
+            rows.append(
+                f'<li><a href="/slowniki/icd-9/{_e(code)}/jgp/{_e(day)}">{_e(code)} {_e(procedure["label"])}</a> - wspólne grupy ({_e(answer["catalog"])}): {links}</li>'
+            )
+        if answer["truncated"]:
+            rows.append(
+                "<li>Pokazano pierwsze 20 procedur; lista jest ograniczona.</li>"
+            )
+    if not rows:
+        return ""
+    return (
+        '<section class="code-children shared-procedures"><h2>Procedury współdzielące jawne grupy JGP</h2><p>To wyłącznie wspólna obecność na listach załącznika 9, nie typowe leczenie ani kwalifikacja hospitalizacji.</p><ul>'
+        + "".join(rows)
+        + "</ul></section>"
+    )
+
+
 def membership_section(answers: list[Json], *, slug: str, code: str, day: str) -> str:
     parts = [
         '<section class="code-children jgp-memberships"><h2>Występuje w grupach</h2>',

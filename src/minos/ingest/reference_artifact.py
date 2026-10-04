@@ -172,6 +172,10 @@ def _build_database(
             import_modifier_bindings(
                 connection, manifest, archive_root, database.parent
             )
+        if manifest.search_profile is not None:
+            from minos.store.search_synonyms import import_search_synonyms
+
+            import_search_synonyms(connection, manifest.search_synonyms)
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options

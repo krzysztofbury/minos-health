@@ -37,6 +37,7 @@ CATALOG_TABLES = (
 CONDITIONS_MIGRATION = "005_jgp_conditions.sql"
 MODIFIERS_MIGRATION = "006_jgp_modifiers.sql"
 BINDING_MIGRATION = "007_jgp_modifier_binding.sql"
+FOLDED_MIGRATION = "008_folded_search.sql"
 MODIFIERS_TABLES = (
     "modifier_release",
     "tariff_modifier",
@@ -89,10 +90,12 @@ def reference_sql(relative_path: str) -> str:
     )
 
 
-def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3, 4, 5, 6, 7]:
+def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3, 4, 5, 6, 7, 8]:
     # Each schema is a superset of the previous one, so older bundles stay valid.
     # Conditions build as 6 even without MODTAR: the dated condition consumers
     # rely on schema 6's lookup indexes. Schema 5 bundles stay readable.
+    if manifest.search_profile is not None:
+        return 8
     if manifest.modifier_bindings:
         return 7
     if manifest.modifiers or manifest.characteristics:
@@ -103,7 +106,7 @@ def schema_version_for(manifest: DatasetManifest) -> Literal[2, 3, 4, 5, 6, 7]:
 
 
 def migrations_for(schema_version: int) -> tuple[str, ...]:
-    if schema_version not in (2, 3, 4, 5, 6, 7):
+    if schema_version not in (2, 3, 4, 5, 6, 7, 8):
         raise ArtifactError("incompatible reference schema version")
     return (
         MIGRATIONS
@@ -112,6 +115,7 @@ def migrations_for(schema_version: int) -> tuple[str, ...]:
         + ((CONDITIONS_MIGRATION,) if schema_version >= 5 else ())
         + ((MODIFIERS_MIGRATION,) if schema_version >= 6 else ())
         + ((BINDING_MIGRATION,) if schema_version >= 7 else ())
+        + ((FOLDED_MIGRATION,) if schema_version >= 8 else ())
     )
 
 
@@ -126,6 +130,16 @@ def tables_for(schema_version: int) -> tuple[str, ...]:
         + (
             ("modifier_binding", "modifier_binding_window")
             if schema_version >= 7
+            else ()
+        )
+        + (
+            (
+                "search_word_folded",
+                "search_jgp_member",
+                "search_jgp_count",
+                "search_synonym",
+            )
+            if schema_version >= 8
             else ()
         )
     )
@@ -394,6 +408,7 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
         connection,
         reference_sql("queries/search_sources.sql"),
         reference_sql("queries/search_owners.sql"),
+        reference_sql("queries/search_jgp_build.sql"),
     )
     _ = connection.execute(
         "INSERT INTO concept_description_fts(concept_description_fts) VALUES ('rebuild')"
@@ -423,6 +438,23 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
     )
     result = dict(counts)
     version = cast(tuple[int], connection.execute("PRAGMA user_version").fetchone())[0]
+    if version >= 8:
+        result["search_synonym"] = cast(
+            tuple[int],
+            connection.execute("SELECT count(*) FROM search_synonym").fetchone(),
+        )[0]
+        result.update(
+            cast(
+                list[tuple[str, int]],
+                connection.execute(
+                    "SELECT 'search_jgp_member',count(*) FROM search_jgp_member UNION ALL SELECT 'search_jgp_count',count(*) FROM search_jgp_count"
+                ).fetchall(),
+            )
+        )
+        result["search_word_folded"] = cast(
+            tuple[int],
+            connection.execute("SELECT count(*) FROM search_word_folded").fetchone(),
+        )[0]
     if version >= 7:
         result.update(
             cast(

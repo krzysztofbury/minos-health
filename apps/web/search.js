@@ -170,8 +170,10 @@
   /* Grouped results. */
   function badgeFor(hit, system) {
     var status = hit.source_attributes && hit.source_attributes.status;
-    if (system === "icd9-pl" && status && status !== "A") return element("span", "badge badge-warn", "Status " + status + " w CZS");
+    if (system === "icd9-pl" && status && status !== "A") return element("span", "badge badge-warn", "Status " + status + " w CZS" + (hit.match_type === "folded_tokens" ? "; bez polskich znaków" : ""));
     if (hit.match_type === "morphology_tokens") return element("span", "badge badge-muted", "inna forma słowa");
+    if (hit.match_type === "folded_tokens") return element("span", "badge badge-muted", "bez polskich znaków");
+    if (hit.match_type === "synonym_tokens") return element("span", "badge badge-muted", "synonim: " + hit.synonym_source_wording);
     if (hit.match_type === "substring") return element("span", "badge badge-muted", "fragment słowa");
     return null;
   }
@@ -181,18 +183,23 @@
     answer.results.forEach(function (hit) {
       var item = element("li");
       var link = element("a", "result");
-      link.href = dictionaryHref(system, hit.code);
+      link.href = dictionaryHref(system, hit.code) + (hit.jgp_membership && hit.jgp_membership.service_date ? "/jgp/" + encodeURIComponent(hit.jgp_membership.service_date) : "");
       link.append(element("span", "code-chip", hit.code || "-"), element("span", "result-label", normalize(hit.label || "")));
       var matched = normalize((hit.match && hit.match.text) || "");
       if (matched && matched.toLowerCase() !== normalize(hit.label || "").toLowerCase()) {
         link.append(element("span", "result-why", "Pasuje do: „" + matched + "”"));
       }
       var badge = badgeFor(hit, system);
-      if (badge) {
-        var meta = element("span", "result-meta");
-        meta.append(badge);
-        link.append(meta);
+      var meta = element("span", "result-meta");
+      if (hit.jgp_membership && hit.jgp_membership.group_count) {
+        var membership = element("span", "badge badge-muted", "występuje w " + hit.jgp_membership.group_count + " " + plural(hit.jgp_membership.group_count, "grupie", "grupach", "grupach") + " JGP");
+        membership.title = "Obecność na jawnych listach załącznika 9 na " + hit.jgp_membership.service_date + "; nie oznacza kwalifikacji ani typowego leczenia";
+        meta.append(membership);
       }
+      if (badge) {
+        meta.append(badge);
+      }
+      if (meta.childNodes.length) link.append(meta);
       link.append(element("span", "result-go", "Szczegóły"));
       item.append(link);
       listNode.append(item);
@@ -242,6 +249,8 @@
       return;
     }
     renderHits(system, answer, group.body);
+    var datedMembership = answer.results.find(function (hit) { return hit.jgp_membership && hit.jgp_membership.group_count; });
+    if (datedMembership) group.foot.append(element("p", "group-message", "Obecność na listach załącznika 9 na " + datedMembership.jgp_membership.service_date + ". Nie oznacza typowego leczenia ani kwalifikacji hospitalizacji."));
     group.count.textContent = answer.truncated
       ? shown + " najlepszych dopasowań"
       : shown + " " + plural(shown, "wynik", "wyniki", "wyników");
@@ -368,6 +377,9 @@
     }
   });
 
+  // A first submit must not race the exact release pins required by the API.
+  input.disabled = true;
+  submit.disabled = true;
   fetch("/api/v1/releases", { cache: "no-store", credentials: "omit" })
     .then(function (response) {
       if (!response.ok) throw new Error("releases unavailable");
@@ -386,6 +398,12 @@
         var first = boxes.filter(function (box) { return !box.disabled; })[0];
         if (first) first.checked = true;
       }
+      if (!selectedSystems().length) {
+        setUnavailable("Brak słowników dostępnych do wyszukania.");
+        return;
+      }
+      input.disabled = false;
+      submit.disabled = false;
     })
     .catch(function () {
       setUnavailable("Nie udało się połączyć z wyszukiwarką. Odśwież stronę za chwilę.");

@@ -8,17 +8,22 @@ from typing import cast
 from minos.domain.morphology import MORPHOLOGY_VERSION, PolishMorphology
 from minos.domain.normalization import normalize_description
 from minos.domain.reference import ArtifactError
-from minos.domain.search import SEARCH_VERSION, index_tokens
+from minos.domain.search import SEARCH_VERSION, fold_polish, index_tokens
 from minos.store.query_budget import query_budget
 
 
 def build_search_index(
-    connection: sqlite3.Connection, sources_sql: str, owners_sql: str
+    connection: sqlite3.Connection, sources_sql: str, owners_sql: str, jgp_sql: str
 ) -> None:
     if not connection.in_transaction:
         raise ArtifactError("search indexing requires the build transaction")
     _ = connection.execute(
-        "INSERT INTO build_metadata VALUES ('search_version', ?)", (SEARCH_VERSION,)
+        "INSERT INTO build_metadata VALUES ('search_version', ?)",
+        (
+            SEARCH_VERSION
+            if connection.execute("PRAGMA user_version").fetchone()[0] >= 8
+            else "lexical-2",
+        ),
     )
     _ = connection.execute(
         "INSERT INTO build_metadata VALUES ('morphology_version', ?)",
@@ -26,6 +31,10 @@ def build_search_index(
     )
     _populate_documents(connection, sources_sql)
     _attribute_documents(connection, owners_sql)
+    if connection.execute("PRAGMA user_version").fetchone()[0] >= 8:
+        from minos.store.search_jgp_build import build_search_jgp
+
+        build_search_jgp(connection, jgp_sql)
     _ = connection.execute(
         "INSERT INTO search_document_fts(search_document_fts) VALUES ('rebuild')"
     )
@@ -36,6 +45,9 @@ def build_search_index(
 
 def _populate_documents(connection: sqlite3.Connection, sources_sql: str) -> None:
     analyzer = PolishMorphology()
+    folded = (
+        cast(tuple[int], connection.execute("PRAGMA user_version").fetchone())[0] >= 8
+    )
     forms = lru_cache(maxsize=100_000)(analyzer.variants)
     rows = cast(
         Iterable[tuple[str, int, str, str, int | None, str | None, str]],
@@ -50,19 +62,24 @@ def _populate_documents(connection: sqlite3.Connection, sources_sql: str) -> Non
         variants = {
             word: forms(word) if language == "pl" else (word,) for word in words
         }
+        values: tuple[object, ...] = (
+            document_id,
+            release,
+            ordinal,
+            language,
+            kind,
+            description,
+            attribute,
+            normalized,
+            " ".join(words),
+        )
+        if folded:
+            values += (fold_polish(normalized),)
         _ = connection.execute(
-            "INSERT INTO search_document VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                document_id,
-                release,
-                ordinal,
-                language,
-                kind,
-                description,
-                attribute,
-                normalized,
-                " ".join(words),
-            ),
+            "INSERT INTO search_document VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            if folded
+            else "INSERT INTO search_document VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            values,
         )
         _index_words(connection, release, language, document_id, words)
         _ = connection.executemany(
@@ -73,6 +90,17 @@ def _populate_documents(connection: sqlite3.Connection, sources_sql: str) -> Non
                 for variant in values
             ),
         )
+        if language == "pl" and folded:
+            _ = connection.executemany(
+                "INSERT OR IGNORE INTO search_word_folded VALUES (?,?,?,?)",
+                (
+                    (release, language, key, word)
+                    for word, values in variants.items()
+                    for key in sorted(
+                        {fold_polish(word), *(fold_polish(value) for value in values)}
+                    )
+                ),
+            )
 
 
 def _attribute_documents(connection: sqlite3.Connection, owners_sql: str) -> None:
