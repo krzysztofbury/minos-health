@@ -219,9 +219,11 @@ def _candidate_rank(
             (
                 fold_polish(normalize_description(entry.term)),
                 normalize_description(entry.source_wording),
+                int(entry.whole_query_only),
             )
             for entry in sorted(entries, key=lambda entry: (-len(entry.term), entry.id))
             if entry.system == case.system
+            and entry.release_id in (None, gold.releases[case.system])
         ]
         request = SearchRequest(
             case.system,

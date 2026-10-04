@@ -155,8 +155,12 @@ def test_search_has_one_bounded_400ms_deadline(
 
 
 @pytest.mark.parametrize("reviewed", [False, True])
+@pytest.mark.parametrize("whole_query_only", [False, True])
 def test_synonym_rewrite_requires_review_keeps_qualifiers_and_preserves_source_evidence(
-    tmp_path: Path, search_source: DatasetManifest, reviewed: bool
+    tmp_path: Path,
+    search_source: DatasetManifest,
+    reviewed: bool,
+    whole_query_only: bool,
 ) -> None:
     entry = SearchSynonym.model_validate_json(
         json.dumps(
@@ -171,6 +175,8 @@ def test_synonym_rewrite_requires_review_keeps_qualifiers_and_preserves_source_e
                 "status": "reviewed" if reviewed else "proposed",
                 "reviewer": "Synthetic reviewer" if reviewed else None,
                 "reviewed_on": "2026-10-04" if reviewed else None,
+                "release_id": search_source.sources[0].release_id,
+                "whole_query_only": whole_query_only,
             }
         )
     )
@@ -204,6 +210,107 @@ def test_synonym_rewrite_requires_review_keeps_qualifiers_and_preserves_source_e
                 connection, SearchRequest("icd10-pl", prepare_query(query))
             )
             assert not qualified.hits
+        qualified = search_reference(
+            connection,
+            SearchRequest("icd10-pl", prepare_query("wariant syntetyczny odpowiednik")),
+        )
+        assert bool(qualified.hits) == (reviewed and not whole_query_only)
+
+
+@pytest.mark.parametrize(
+    "release_id,wording",
+    [
+        ("absent-release", "bez powikłań"),
+        ("icd10-synthetic-v1", "absent terminology"),
+    ],
+)
+def test_reviewed_synonym_refuses_wording_outside_its_pinned_dictionary(
+    tmp_path: Path, search_source: DatasetManifest, release_id: str, wording: str
+) -> None:
+    from minos.domain.reference import ArtifactError
+
+    entry = SearchSynonym.model_validate_json(
+        json.dumps(
+            {
+                "id": "synthetic-alias",
+                "version": 1,
+                "system": "icd10-pl",
+                "term": "syntetyczny odpowiednik",
+                "source_wording": wording,
+                "source_url": "https://example.org/synthetic-dictionary",
+                "evidence": "Synthetic source wording contract.",
+                "status": "reviewed",
+                "reviewer": "Synthetic reviewer",
+                "reviewed_on": "2026-10-04",
+                "release_id": release_id,
+            }
+        )
+    )
+    manifest = search_source.model_copy(
+        update={
+            "search_profile": "polish-folded-1",
+            "search_synonyms": (entry,),
+        }
+    )
+    with pytest.raises(ArtifactError, match="absent from its pinned dictionary"):
+        _ = build_reference_artifact(manifest, tmp_path, tmp_path / "invalid-bundle")
+    assert not (tmp_path / "invalid-bundle").exists()
+
+
+def test_synonym_release_pin_isolated_and_old_entry_serialization_preserved(
+    tmp_path: Path, search_source: DatasetManifest
+) -> None:
+    from minos.store.artifact import canonical_json
+
+    original = {
+        "id": "synthetic-alias",
+        "version": 1,
+        "system": "icd10-pl",
+        "term": "syntetyczny odpowiednik",
+        "source_wording": "bez powikłań",
+        "source_url": "https://example.org/synthetic-dictionary",
+        "evidence": "Synthetic source wording contract.",
+        "status": "reviewed",
+        "reviewer": "Synthetic reviewer",
+        "reviewed_on": "2026-10-04",
+    }
+    old_entry = SearchSynonym.model_validate_json(json.dumps(original))
+    assert (
+        canonical_json(old_entry)
+        == (
+            json.dumps(
+                original, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+            + "\n"
+        ).encode()
+    )
+    pinned = old_entry.model_copy(
+        update={"release_id": search_source.sources[0].release_id}
+    )
+    other = search_source.sources[0].model_copy(update={"release_id": "other-release"})
+    manifest = search_source.model_copy(
+        update={
+            "sources": (*search_source.sources, other),
+            "search_profile": "polish-folded-1",
+            "search_synonyms": (pinned,),
+        }
+    )
+    bundle = tmp_path / "release-scoped"
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    with open_reference_connection(bundle) as connection:
+        for release_id, expected in (
+            (pinned.release_id, ["E11.1"]),
+            (other.release_id, []),
+        ):
+            result = search_reference(
+                connection,
+                SearchRequest(
+                    "icd10-pl",
+                    prepare_query("syntetyczny odpowiednik"),
+                    release_id=release_id,
+                ),
+            )
+            assert [hit.code for hit in result.hits] == expected
 
 
 def test_evaluation_reports_all_cases_without_query_text_and_checks_exact_release_codes(

@@ -10,6 +10,14 @@ from minos.domain.search import fold_polish, prepare_query
 from minos.ingest.manifest_types import Identifier, SourceText
 
 
+def _unscoped(value: str | None) -> bool:
+    return value is None
+
+
+def _phrase_match(value: bool) -> bool:
+    return not value
+
+
 class SearchSynonym(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid", strict=True, frozen=True
@@ -24,6 +32,8 @@ class SearchSynonym(BaseModel):
     status: Literal["proposed", "reviewed"]
     reviewer: SourceText | None = None
     reviewed_on: date | None = None
+    release_id: Identifier | None = Field(default=None, exclude_if=_unscoped)
+    whole_query_only: bool = Field(default=False, exclude_if=_phrase_match)
 
     @model_validator(mode="after")
     def review_boundary(self) -> Self:

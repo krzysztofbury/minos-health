@@ -31,6 +31,7 @@ def import_search_synonyms(
             if entry.status == "reviewed"
         ),
     )
+    validate_search_synonyms(connection, entries)
 
 
 def validate_search_synonyms(
@@ -52,6 +53,28 @@ def validate_search_synonyms(
     ]
     if rows != expected:
         raise ArtifactError("reviewed synonym policy conflicts with pinned manifest")
+    for entry in entries:
+        if entry.status != "reviewed":
+            continue
+        found = cast(
+            tuple[int] | None,
+            connection.execute(
+                """SELECT 1 FROM concept_description d
+            JOIN source_release s ON s.id=d.source_release_id
+            WHERE s.system=? AND (? IS NULL OR s.id=?)
+            AND instr(d.normalized_text,?)>0 LIMIT 1""",
+                (
+                    entry.system,
+                    entry.release_id,
+                    entry.release_id,
+                    normalize_description(entry.source_wording),
+                ),
+            ).fetchone(),
+        )
+        if found is None:
+            raise ArtifactError(
+                "reviewed synonym wording is absent from its pinned dictionary"
+            )
 
 
 def synonym_requests(
@@ -64,10 +87,13 @@ def synonym_requests(
     ):
         return []
     rows = cast(
-        list[tuple[str, str]],
+        list[tuple[str, str, int]],
         connection.execute(
-            "SELECT term,source_wording FROM search_synonym WHERE system=? ORDER BY length(term) DESC,id LIMIT 501",
-            (request.system,),
+            """SELECT term,source_wording,coalesce(json_extract(entry_json,'$.whole_query_only'),0)
+            FROM search_synonym WHERE system=? AND
+            (json_extract(entry_json,'$.release_id') IS NULL OR json_extract(entry_json,'$.release_id')=?)
+            ORDER BY length(term) DESC,id LIMIT 501""",
+            (request.system, request.release_id),
         ).fetchall(),
     )
     if len(rows) > 500:
@@ -76,7 +102,7 @@ def synonym_requests(
 
 
 def rewrite_requests(
-    request: SearchRequest, rows: list[tuple[str, str]]
+    request: SearchRequest, rows: list[tuple[str, str, int]]
 ) -> list[tuple[SearchRequest, str]]:
     if len(rows) > 500:
         raise ArtifactError("synonym inventory exceeds bound")
@@ -84,7 +110,9 @@ def rewrite_requests(
         return []
     folded = fold_polish(request.query.effective_text)
     result: list[tuple[SearchRequest, str]] = []
-    for term, wording in rows:
+    for term, wording, whole_query_only in rows:
+        if whole_query_only and folded != term:
+            continue
         found = re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", folded)
         if found is None:
             continue

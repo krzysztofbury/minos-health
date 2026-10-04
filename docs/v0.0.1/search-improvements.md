@@ -12,7 +12,7 @@ not replaced by folded words or colloquial labels.
 ```sh
 uv run python -m scripts.compose_conditions_manifest \
   --search-profile polish-folded-1 \
-  --synonyms manifests/sources/search-synonyms-proposed-v1.json \
+  --synonyms manifests/sources/search-synonyms-reviewed-v1.json \
   --output /path/to/new-search-manifest.json
 ```
 
@@ -77,6 +77,17 @@ procedure wording for joint implants, and translating the phacoemulsification
 name to the actual Polish ICD-9 description. Synthetic fixtures use explicitly
 synthetic reviewers and do not approve these real proposals.
 
+The separately versioned `search-synonyms-reviewed-v1.json` now contains 13
+source-audited entries. Its reviewer field explicitly identifies automated
+terminology review, not practitioner validation. The pinned Wikipedia revisions
+were fetched and their definitions checked against the exact Polish dictionary
+wording. The practitioner shorthand in #125 supplies the shortened appendix and
+hip-implant search phrases. Ambiguous appendix/device phrases are whole-query
+only: mastoid, history, revision or device qualifiers cannot use those rewrites.
+All entries are scoped to the evaluated dictionary releases. Build and open
+validation also refuse wording absent from that pinned dictionary. Optional
+fields are omitted at their defaults to preserve earlier schema 8 identities.
+
 ## Evaluation
 
 `tests/evaluation/search-gold-v1.json` captures all 44 #126 cases, exact release
@@ -105,13 +116,25 @@ Measured offline against the complete pinned source dataset:
 | Folded fallback only | 23/44 | 27/44 | none |
 | Folded plus conservative membership tie-breaker | 23/44 | 29/44 | none |
 | Hypothetical 13-proposal synonym evaluation | 35/44 | 42/44 | none |
+| Active source-audited rewrites, auto and portable | 35/44 | 42/44 | none |
 
-The last row is not the shipped score. The unresolved candidate cases are G01
-(ambiguous appendix ranking) and G09 (explicit spelling correction). The full
-gold evaluation requires the private licensed bundle: ordinary CI exercises the
-synthetic evaluator and the new profile's real container/browser paths, but does
-not fetch that licensed dataset or claim a full-gold CI score. A private-bundle
-CI report remains an explicit integration gap.
+The active row is a real runtime measurement, with candidate mode disabled.
+It meets the numerical top-5 target but is not a live activation or a claim of
+practitioner validation. The unresolved cases are G01
+(ambiguous appendix ranking) and G09 (explicit spelling correction).
+
+`Evaluate pinned offline search` is a separate manually dispatched CI job. It
+composes the reviewed profile, fetches only allowlisted public endpoints and
+checks all 14 exact source checksums/sizes before building the licensed bundle.
+A changed, unavailable or redirected source fails closed, never updates a pin.
+Both auto and portable reports use active rewrites with candidate mode disabled.
+Only practitioner-reviewed baseline regressions are release gates; the 44-case
+top-5 target and proposed cases remain reported. Uploaded artifacts contain only
+query-free JSON reports, never source bytes or the generated dataset. The job
+removes its inputs/bundle and cannot publish images or activate a selector.
+Ordinary PR CI remains synthetic-only. The workflow must be present on the
+default branch before GitHub permits manual dispatch; local command rehearsal
+does not claim a completed hosted run.
 
 ## Live Timeout Investigation
 
