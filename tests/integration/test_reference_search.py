@@ -79,6 +79,8 @@ def folded_search_bundle(tmp_path: Path, search_source: DatasetManifest) -> Path
     "query,codes",
     [
         ("niewydolnosc", ["E10.0"]),
+        # A typed diacritic is never folded away: "tęstowy" is not "testowy".
+        ("tęstowy", []),
         ("powiklan bez", ["E11.1"]),
         ("wariantu z powiklaniami", []),
         ("cukrzyca typu 9", []),
@@ -215,6 +217,42 @@ def test_synonym_rewrite_requires_review_keeps_qualifiers_and_preserves_source_e
             SearchRequest("icd10-pl", prepare_query("wariant syntetyczny odpowiednik")),
         )
         assert bool(qualified.hits) == (reviewed and not whole_query_only)
+
+
+def test_synonym_hits_leave_room_for_literal_matches(
+    tmp_path: Path, search_source: DatasetManifest
+) -> None:
+    entry = SearchSynonym.model_validate_json(
+        json.dumps(
+            {
+                "id": "synthetic-overlap",
+                "version": 1,
+                "system": "icd10-pl",
+                "term": "cukrzyca",
+                "source_wording": "wariant",
+                "source_url": "https://example.org/synthetic-dictionary",
+                "evidence": "Synthetic terminology equivalence only.",
+                "status": "reviewed",
+                "reviewer": "Synthetic reviewer",
+                "reviewed_on": "2026-10-04",
+                "release_id": search_source.sources[0].release_id,
+            }
+        )
+    )
+    manifest = search_source.model_copy(
+        update={"search_profile": "polish-folded-1", "search_synonyms": (entry,)}
+    )
+    bundle = tmp_path / "overlap-bundle"
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    with open_reference_connection(bundle) as connection:
+        result = search_reference(
+            connection, SearchRequest("icd10-pl", prepare_query("cukrzyca"), limit=2)
+        )
+    kinds = [hit.match_type for hit in result.hits]
+    # Three rewrite hits alone would fill the page; what the user typed still shows.
+    assert "synonym_tokens" in kinds
+    assert {"prefix_tokens", "morphology_tokens"} & set(kinds)
+    assert result.truncated
 
 
 @pytest.mark.parametrize(

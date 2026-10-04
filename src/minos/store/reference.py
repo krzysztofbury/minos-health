@@ -46,6 +46,7 @@ from minos.store.reference_build import (
 _VALIDATED_CONDITIONS: set[tuple[str, str]] = set()
 _VALIDATED_MODIFIERS: set[tuple[str, str]] = set()
 _VALIDATED_MODIFIER_BINDINGS: set[tuple[str, str]] = set()
+_VALIDATED_SEARCH_SYNONYMS: set[tuple[str, str]] = set()
 
 
 def read_artifact_manifest(bundle: Path) -> ArtifactManifest:
@@ -169,7 +170,19 @@ def open_reference_bundle(
             if manifest.schema_version >= 8:
                 from minos.store.search_synonyms import validate_search_synonyms
 
-                validate_search_synonyms(connection, manifest.dataset.search_synonyms)
+                key = (
+                    manifest.database_sha256,
+                    hashlib.sha256(
+                        manifest.dataset.model_dump_json().encode()
+                    ).hexdigest(),
+                )
+                if key not in _VALIDATED_SEARCH_SYNONYMS:
+                    validate_search_synonyms(
+                        connection, manifest.dataset.search_synonyms
+                    )
+                    if len(_VALIDATED_SEARCH_SYNONYMS) >= 16:
+                        _VALIDATED_SEARCH_SYNONYMS.clear()
+                    _VALIDATED_SEARCH_SYNONYMS.add(key)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources

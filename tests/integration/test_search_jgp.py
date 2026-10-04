@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 from fastapi.testclient import TestClient
 
+from minos.domain.jgp_ruleset import AmbiguousRuleset, TimeZoneUnavailable
 from minos.domain.search import SearchRequest, prepare_query
 from minos.http.app import create_app
 from minos.ingest.jgp_conditions_manifest import ConditionsExpectation
@@ -93,6 +94,34 @@ def test_search_counts_are_dated_exact_membership_not_classification_families(
             )
             == []
         )
+
+
+@pytest.mark.parametrize(
+    "target,error",
+    [
+        ("today_in_poland", TimeZoneUnavailable("no Europe/Warsaw")),
+        ("resolve_release", AmbiguousRuleset("two releases")),
+    ],
+)
+def test_membership_signal_failure_degrades_to_plain_search(
+    ranked_bundle: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    target: str,
+    error: Exception,
+) -> None:
+    # The count is an optional ranking signal; it must never fail the search.
+    def fail(*_arguments: object) -> object:
+        raise error
+
+    monkeypatch.setattr(f"minos.store.search_jgp.{target}", fail)
+    with open_reference_bundle(ranked_bundle) as (connection, _):
+        result = search_reference(
+            connection, SearchRequest("icd10-pl", prepare_query("wariant"))
+        )
+    assert "E11.0" in {hit.code for hit in result.hits}
+    assert all(
+        hit.jgp_group_count == 0 and hit.jgp_service_date is None for hit in result.hits
+    )
 
 
 def test_shared_procedure_page_has_dated_links_and_reference_only_caveat(

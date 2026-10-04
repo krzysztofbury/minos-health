@@ -5,9 +5,13 @@ import sqlite3
 from datetime import date
 from typing import cast
 
+from pydantic import ValidationError
+
 from minos.domain.jgp_ruleset import (
+    AmbiguousRuleset,
     NoRulesetForDate,
     ReleaseWindow,
+    TimeZoneUnavailable,
     resolve_release,
     today_in_poland,
 )
@@ -36,7 +40,13 @@ def _selected_manifest(
     )
     if len(rows) > 8:
         raise ArtifactError("characteristics releases exceed bound")
-    manifests = tuple(ConditionsManifest.model_validate_json(row[0]) for row in rows)
+    try:
+        manifests = tuple(
+            ConditionsManifest.model_validate_json(row[0]) for row in rows
+        )
+    except ValidationError as error:
+        # Bundle data, not the user's request, is wrong here.
+        raise ArtifactError("characteristics release manifest is invalid") from error
     windows = tuple(
         ReleaseWindow(
             item.release_id, item.valid_from, item.published_on, item.supersedes
@@ -61,8 +71,13 @@ def membership_counts(
         or connection.execute("PRAGMA user_version").fetchone()[0] < 8
     ):
         return {}, None
-    day = request.service_date or today_in_poland()
-    manifest = _selected_manifest(connection, day)
+    # An optional ranking signal: a missing time zone or an ambiguous dated
+    # source drops the counts instead of failing the whole search.
+    try:
+        day = request.service_date or today_in_poland()
+        manifest = _selected_manifest(connection, day)
+    except TimeZoneUnavailable, AmbiguousRuleset:
+        return {}, None
     if manifest is None:
         return {}, None
     sources: list[dict[str, str]] = []

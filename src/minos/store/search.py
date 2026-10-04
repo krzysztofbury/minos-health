@@ -120,19 +120,27 @@ def _add_synonyms(
         row for row in original if row[2] in ("exact_code", "exact_description")
     ]
     known = {row[0] for row in selected}
+    literal = [row for row in original if row[0] not in known]
+    # Rewrites rank before literal matches but never push them off the page:
+    # up to half of it stays reserved for what the user actually typed.
+    slots = request.limit - min(len(literal), request.limit // 2)
+    overflow: list[tuple[int, int, MatchType]] = []
     rewrites: dict[int, str] = {}
     for synonym_request, wording in synonym_requests(connection, request):
         alternatives, _ = _select_matches(
             connection, synonym_request, index, analyzer, counts
         )
         for ordinal, document, _match_type in alternatives:
-            if ordinal not in known and len(selected) <= request.limit:
-                selected.append((ordinal, document, "synonym_tokens"))
-                known.add(ordinal)
-                rewrites[ordinal] = wording
-        if len(selected) > request.limit:
+            if ordinal in known:
+                continue
+            known.add(ordinal)
+            rewrites[ordinal] = wording
+            target = selected if len(selected) < slots else overflow
+            target.append((ordinal, document, "synonym_tokens"))
+        if len(selected) + len(overflow) > request.limit:
             break
-    selected.extend(row for row in original if row[0] not in known)
+    selected.extend(row for row in literal if row[0] not in rewrites)
+    selected.extend(overflow)
     return selected[: request.limit + 1], rewrites
 
 
@@ -269,6 +277,9 @@ def _select_matches(
         len(selected) < min(5, request.limit)
         and request.language == "pl"
         and not request.query.code_like
+        # Typed diacritics are deliberate: folding them would make "rąk"
+        # (hands) retrieve "rak" (cancer) under a "no diacritics" label.
+        and fold_polish(request.query.effective_text) == request.query.effective_text
         and connection.execute("PRAGMA user_version").fetchone()[0] >= 8
     ):
         analyzer = analyzer or PolishMorphology()
