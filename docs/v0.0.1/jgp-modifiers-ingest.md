@@ -77,6 +77,94 @@ real-source bindings to the committed manifests. Synthetic binding and October
 boundary tests are not a substitute for that review and do not justify closing
 #46 by themselves.
 
+### Follow-up Independent Table Audit
+
+The current service window (2026-10-04, after-102 catalog) was checked against
+the complete embedded tables in checksum-pinned BAW XML, not against a copy of
+MODTAR. Both generations 100 and 102 agree on these partial inventories:
+
+| Governing source table | Operational symbols | Exact group/coefficient pairs |
+| --- | --- | --- |
+| 46/2026 after-102, attachment 3d | active `17.16*` | 31 |
+| 46/2026 after-102, attachment 3e | `INT_1`, `AOT_1`, `AOT_2`, `AOT_3` | 9 |
+| 80/2026, attachment 3 (embedded attachment 2) | `PSZ_2`, `PSZ_2D02`, `PSZ_2PZD01` | 21 |
+| 80/2026, attachment 3b (embedded attachment 4) | `PSZ_R`, `PSZ_R2` | 38 |
+| 105/2026, replacement 3a (embedded attachment 1) | `PSZ_ONK_*` | 10 |
+
+No missing, extra or conflicting pairs occurred in those checks. This is only
+a dated subset, not complete historical applicability or binding approval.
+The consolidated 3c and 3e separate attachment endpoints returned HTTP 200 with
+zero bytes; those responses were rejected as evidence. The complete embedded
+tables in BAW 44042 supplied the comparison instead.
+
+Additional independently fetched XML pins:
+
+| BAW document | XML attachment ID | SHA-256 |
+| --- | --- | --- |
+| 43868 | 29617 | `bfd5fa0ef89747d60028ebc3703604694508db2dd8338bac598c24088ef464f7` |
+| 43718 | 27122 | `f8efd065e4cd105a2ad5dbfc17ba2cc9544887435773379b36b021c989b5a5dc` |
+| 43963 | 31438 | `04688e1ed340f5ed4316622c2ed447f682a2be4835ac4b2e018e4a66ef401cdc` |
+| 44053 | 33261 | `7dd992154c872f0df96a6364e21a3ba5034ca690698981fe56c3e6c705366b9b` |
+| 43955 | 31380 | `a11a2a1ffcd7d38b2b2bd5a5890cd55ea620a82a7c428bb1cc600ea1b10bbc40` |
+| 44049 | 33228 | `bfaa9b3ea875a24bd8102544a735f5a9b0d204b8a44d3a998f5379b6fc25d207` |
+| 43217 | 17682 | `1b9d169ae69a30c0d4840665707e1c11e6477b9e67b245aba2506e0ada54db51` |
+
+The orthopedic citation shift is now explained by the original 37/2024/DSOZ
+act (BAW 43217). Its section 17(4) wording equals section 17(3) in both
+101/2025 and 46/2026 after removing whitespace; its section 17(5) similarly
+equals their section 17(4). The original act was independently fetched, not
+inferred from a MODTAR description. Both dictionary generations retain the old
+citations for these otherwise matching group/coefficient inventories:
+
+| MODTAR symbols | Preserved source citation | Governing 2026 clause | Coefficient |
+| --- | --- | --- | --- |
+| `M6`, `M7`, `M8`, `M11-H01` | section 17(4), respective points | section 17(3), respective points | 1.2 |
+| `M9` | section 17(5) | section 17(4) | 1.5 |
+
+102/2026 section 4(3) retains those prior 2026 rules during the quality-indicator
+transition. This crosswalk removes the numbering question for these five
+symbols; it does not change the source citation or approve unrelated scope rules.
+
+Scope-derived inventories still need legal interpretation, not automatic
+approval. For example, the vascular-surgery catalog marker includes H83O/H84O
+and, after July, DU58, while `M5` does not. The pediatric oncology marker
+includes adult-only K28F/KU28F, which cannot be included mechanically in a
+below-18 rule; MODTAR also includes S21/S22/S23 whose contracts need separate
+review. The procedural oncology marker includes F45R/H11/L31R/M22R/PZB03
+outside the `17.18` inventory. Catalog markers alone do not establish clinical
+eligibility or a legal conflict. Until the exact statutory exclusions and
+scope semantics explain these differences, they cannot be rubber-stamped into
+an independent overlay. The orthopedic citation crosswalk above is resolved;
+the scope questions are separate and remain pending.
+
+These findings keep #46 open and every real catalog binding unbound. The
+blocker is independent legal reconciliation, not the #35 final-tariff engine.
+
+### Narrowed Clarification Queue
+
+The age restriction explains why K28F/KU28F must not be mechanically included
+in a below-18 inventory: their pinned catalog titles explicitly require age
+above 17. Similarly, the section 17(10)-(11) literal group ranges exclude the
+PZN newborn-surgery family; using the entire PZ chapter as the legal inventory
+would overstate those missing mappings. These explanations are distinct from
+the still-unexplained cases below.
+
+| Service date / governing catalog | Symbols | Question for source clarification |
+| --- | --- | --- |
+| 2026-05-01 / original 46; 2026-10-04 / after-102 | `M5`, generations 100/102 | Why are scope-marked H83O/H84O absent from the 1.1 mapping? What explicit exclusion controls them? |
+| 2026-10-04 / after-102 | `M5`, generations 100/102 | Why is scope-marked DU58 absent from the 1.1 mapping? |
+| Both dates above | `17.1`, generations 100/102 | On what contract-scope basis are S21/S22/S23 included despite absent pediatric-oncology markers? |
+| Both dates above | `17.18`, generations 100/102 | Which exclusions explain F45R/H11/L31R/M22R/PZB03? Section 19(7)'s robot exclusion concerns a different 1.25 rule and cannot automatically exclude the 1.17 rule. |
+| Both dates above | `17.10`, `17.11`, generations 100/102 | Why are PZA04/PZF13 absent despite falling in the stated pediatric operative ranges? |
+| July-December 2026 | `17.10`, `17.11` | Generation 102 adds PZD04A where generation 100 lacks it. Is this a correction for the full July-December period, and how should earlier knowledge-time bindings disclose the missing mapping? |
+
+No clarification request has been sent. The queue contains source-comparison
+questions, not a claim that NFZ has made a confirmed legal error. A request
+should attach exact source pins and affected dates, ask whether the mapping is
+intentional or corrected, and identify the governing provision for each answer.
+Do not compensate with an uncited exclusion, silently relabel generation 100
+as compatible, or substitute MODTAR's own inventory for independent legal proof.
+
 ## Source Boundary
 
 NFZ is the source of truth. The governing NFZ act controls legal applicability;
