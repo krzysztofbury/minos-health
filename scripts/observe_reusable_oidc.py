@@ -43,7 +43,10 @@ class _Claims(BaseModel):
     sub: Annotated[
         str,
         Field(
-            pattern=r"^repo:krzysztofbury(?:@5102389)?/minos-health(?:@1325001960)?:pull_request$"
+            pattern=(
+                r"^repo:krzysztofbury(?:@5102389)?/minos-health(?:@1325001960)?:pull_request"
+                + r"(?::job_workflow_ref:krzysztofbury/minos-health/\.github/workflows/freshness-oidc-reusable\.yml@[0-9a-f]{40})?$"
+            ),
         ),
     ]
     ref: Annotated[str, Field(pattern=r"^refs/pull/[1-9][0-9]*/merge$")]
@@ -65,6 +68,10 @@ class _Claims(BaseModel):
     def require_consistent_sample(self) -> Self:
         if self.job_workflow_ref != WORKFLOW_PREFIX + self.job_workflow_sha:
             raise ValueError("reusable workflow claims disagree")
+        if ":job_workflow_ref:" in self.sub and not self.sub.endswith(
+            ":job_workflow_ref:" + self.job_workflow_ref
+        ):
+            raise ValueError("subject and reusable workflow claims disagree")
         if not self.nbf <= self.iat < self.exp or self.exp - self.iat > 3600:
             raise ValueError("token sample validity is unsupported")
         return self
@@ -96,7 +103,10 @@ def observe_claims(token: str, *, now_seconds: int) -> dict[str, object]:
     # Never return a JWT, bearer token, arbitrary extra claim or trusted verdict.
     return {
         "status": "unverified_oidc_claim_observation",
-        "immutable_subject_matches_expected": claims.sub == SUBJECT,
+        "immutable_subject_matches_expected": claims.sub
+        in (SUBJECT, SUBJECT + ":job_workflow_ref:" + claims.job_workflow_ref),
+        "subject_binds_exact_reusable_workflow": claims.sub
+        == SUBJECT + ":job_workflow_ref:" + claims.job_workflow_ref,
         "claims": claims.model_dump(),
     }
 

@@ -79,6 +79,30 @@ def test_name_only_subject_is_reported_as_a_mismatch_not_an_authority_fallback()
     assert result["status"] == "unverified_oidc_claim_observation"
 
 
+def test_custom_subject_is_reported_only_when_paired_with_exact_reusable_workflow() -> (
+    None
+):
+    claims = sample_claims()
+    assert (
+        observe_claims(token(claims), now_seconds=150)[
+            "subject_binds_exact_reusable_workflow"
+        ]
+        is False
+    )
+    claims["sub"] = SUBJECT + ":job_workflow_ref:" + str(claims["job_workflow_ref"])
+    result = observe_claims(token(claims), now_seconds=150)
+    assert result["subject_binds_exact_reusable_workflow"] is True
+    assert result["immutable_subject_matches_expected"] is True
+    assert result["status"] == "unverified_oidc_claim_observation"
+    claims["sub"] = (
+        SUBJECT
+        + ":job_workflow_ref:"
+        + str(claims["job_workflow_ref"]).replace("b" * 40, "c" * 40)
+    )
+    with pytest.raises(RehearsalError, match="claims are unsupported"):
+        _ = observe_claims(token(claims), now_seconds=150)
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
