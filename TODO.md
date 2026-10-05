@@ -45,8 +45,10 @@ day-to-day order.
 
 ## Owner-Ordered Next Work (2026-10-05)
 
-Finish the reviewed #20/#31 merge and guarded deployment first. Then execute
-these phases strictly in order, not as parallel branches:
+#20/#31 merged in #139 and deployed at `1d1e8b4` on 2026-10-05, preserving the
+active dataset and operational services. The owner reviewed the real ICD-9
+Markdown diff and accepted its readability on 2026-10-05. Execute the following
+phases strictly in order, not as parallel branches:
 
 1. [ ] #19/#21: close the archive-to-application freshness gap. Select exact
        verified archive changes, build and validate pinned complete candidates,
@@ -54,6 +56,11 @@ these phases strictly in order, not as parallel branches:
        the last good compatible set on failure, and deliver durable detailed
        privacy-safe Telegram alerts. Capture alone never advances application
        activation; actual promotion, rollback and notification evidence is required.
+       Started on `feat/archive-application-freshness`: pinned S3 materialization
+       reuses the existing builder, with offline distribution isolation and local
+       synthetic/SDK boundary tests. See [archive processing](docs/v0.0.1/archive-processing.md)
+       for the chunk contract and remaining gates. #41's signed compatible release
+       authority remains a dependency before unattended activation is enabled.
 2. [ ] #126 and #25/#42: strengthen relevance safety and measure actual
        user-visible performance before further search expansion. Preserve the
        unchanged gold sets, obtain practitioner and independent held-out review,
@@ -406,15 +413,17 @@ UI remain the baseline.
 - [x] Implement human-readable logical release diffs (#20) for explicit verified-
       bundle terminology, catalog and conditions pairs. Real 5.89 -> 5.90 golden
       test, paired review and full checks pass; owner authorized merge/deployment
-      on 2026-10-05. Close the delivering issue only after remote merge and guarded
-      activation receipts. Two-minute human usability is not a measured result.
+      on 2026-10-05. Merged/deployed in #139; owner subsequently accepted the real
+      Markdown output as fully readable, with useful detail for the future UI.
+      This is owner usability acceptance, not a timed benchmark or #104 UI delivery.
 - [x] Validate complete-dataset counts and hierarchy integrity for terminology.
 - [x] Validate JGP logical comparison across versions (#31); within one release
       integrity is enforced by #30. Cross-version graphs/list populations and
       evidence bindings have synthetic regression and private 74 -> 102 gold
       tests, plus the actionable new-base-act checklist. Review passed; owner
-      authorized merge/deployment on 2026-10-05. Require merge/activation receipts
-      before closing the issue; this is not legal or practitioner qualification.
+      authorized merge/deployment on 2026-10-05. Merged/deployed in #139 with
+      activation/isolation receipts; #31 closed. This is not legal or practitioner
+      qualification.
 
 ## Domain And Search
 
