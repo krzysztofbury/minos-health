@@ -156,3 +156,44 @@ umask passed without changing application guards. Read-only test directories
 also prevented the first scratch cleanup; owner-only directory permissions were
 restored in that exact task directory and it was removed. Later full runs install
 a task-scoped fixture-permission cleanup trap before the wrapper removes scratch.
+
+## Local Recovery/Change Reader (2026-10-05)
+
+Before-change TigerStyle review required paired transport/read assertions (#4),
+bounded enumeration (#2), read-only immutable access and explicit exclusion of
+raw state (#6), plus redacted errors and cleanup (#12). The SQL boundary now has
+28 integration cases using real disposable control databases and staged recovery
+images. They exercise deterministic per-source enumeration, exact reselection,
+captured revisions/configuration hashes, private-state exclusion, serialized
+batch validation, foreign-key/migration tampering, input bounds, deadlines and
+path replacement after the reader connection opens.
+
+After-change review tightened two boundaries before submission: raw text must
+not enter an unbounded sort or `fetchall` allocation (#2/#7), and joined queries
+must not silently drop malformed changes (#6). A materialized narrow-ID selection
+now precedes left joins and row-at-a-time hashing. Exact recovery validation owns
+foreign-key refusal; independent query checks own revision/configuration drift.
+Transport-version reselection includes the version even for identical bytes.
+The fixture uses a catalog observation, deliberately not a parsed product release.
+
+Four targeted in-memory mutations were killed by the intended refusal assertions:
+configuration-digest comparison, observation/change revision equality, recovery
+identity equality during reselection and serialized deterministic order. No source
+file was changed for mutation runs. An isolated installed-wheel smoke created a
+real staged recovery image, enumerated/reselected one change, excluded private
+state and verified lease cleanup. No cloud resource or production state was used.
+
+The earlier hosted Verify job `37337714745` exposed a stale Terraform test digest
+for the owner-approved IAM repair. Only the expected acceptance-policy digest
+was changed to the already reviewed `467f052b...be57ef`; the provider-backed
+Terraform validation/test now passes locally with AWS v6.66.0. This is not a
+cloud policy mutation. Hosted rerun evidence remains separate.
+
+Final local checks passed: 1,671 tests, 23 opt-in skips, and all pre-commit
+checks (including Ruff, mypy, BasedPyright, Bandit and browser fixtures).
+Receipt: `test-output/archive-freshness-y71ymgd2/local-recovery-reader.xml`.
+
+The reader has no automatic trigger or promotion/deployment path. Complete
+before/after source selection, durable processing state, hosted real-source
+builds, signing authority and actual notification/activation acceptance remain
+open; this local reader does not close #19 or #21.

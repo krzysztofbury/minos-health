@@ -77,10 +77,48 @@ boundary; see [evidence](../validation/archive-freshness.md). Protected-ref OIDC
 and hosted full real-selection repeated builds remain #19 gates. Do not
 upload private raw bytes or source-bearing diffs merely to obtain CI evidence.
 
+## Read-Only Change Identity Boundary (#21)
+
+`minos.ingest.processing.recovery_changes` reads a transport-verified recovery
+image inside its download lease. It has no network adapter, production trigger,
+proposal builder or persistence. No processing/activation checkpoint advances.
+
+The reader rehashes the opened regular file and reuses recovery validation for
+SQLite integrity, foreign keys, exact schema/migrations and embedded metadata.
+It then opens an immutable, query-only SQLite connection through that descriptor,
+with trusted schema disabled. File identity is checked again before returning.
+Recovery key, non-null S3 version, digest, size and embedded revision/migration
+identities are retained and checked again during exact change reselection.
+S3 owner, native checksum and configured bucket trust remain the existing
+transport adapter's responsibility, not evidence supplied by a local path.
+
+A source window selects at most 128 changes after an explicit captured revision,
+ordered by revision and change ID. Source/run/observation joins must agree;
+the captured run and observation revisions must equal the change revision.
+Captured configuration bytes must match their stored checksum. Missing sources,
+checkpoints ahead of the image and oversized windows fail rather than returning
+a partial batch or skipping a revision. Serialized batches also reject duplicate,
+unsorted, wrong-source and out-of-window identities.
+
+Returned records contain bounded identifier tokens and digests, not configuration,
+summaries, headers, source URLs, cursor JSON, unrelated observations or local paths.
+Private text is hashed one row at a time, after a materialized bounded selection
+of narrow change IDs. It is not sorted or written to a temporary SQLite file.
+Queries use fixed SQL and bound parameters. A 300-second cooperative deadline,
+2 MiB SQLite row limit and the existing 2 GiB recovery-image bound are refusal
+limits, not representative throughput/capacity claims.
+
+The selected observation can be a catalog/metadata response. Its digest is not
+necessarily a changed product's digest; a summary hash is not a before/after
+blob pin. Source-specific interpretation and complete product/version selection
+are still required before constructing any data proposal. This reader does not
+implement #21's automatic selector, coalescing, before/after assertions, policy
+gates, deployment or Telegram delivery, and none is enabled by this chunk.
+
 ## Subsequent Chunks (#21)
 
-1. Verify bounded control recovery images and select exact `source_changes`
-   rows with source/run/observation/revision identity assertions. Keep capture
+1. Wire the bounded recovery/change reader into exact-version automatic selection
+   and source-specific before/after/product identity assertions. Keep capture
    cursors separate from application-processing and activation checkpoints.
 2. Persist candidate state, retry/coalescing/fencing and typed incidents with
    durable notification intent. Do not modify the live watcher control database
