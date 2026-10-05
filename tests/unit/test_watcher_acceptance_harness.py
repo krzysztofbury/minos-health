@@ -6,6 +6,7 @@ import pytest
 
 from scripts.aws_watcher_acceptance_guard import (
     ACCOUNT_ID,
+    GuardError,
     expected_bucket_name,
     write_empty_object_manifest,
 )
@@ -259,11 +260,15 @@ def test_aws_tests_are_marked_and_default_to_skip_without_opt_in() -> None:
 class _VersionedS3:
     def __init__(self) -> None:
         self.delete_calls = 0
+        self.put_calls = 0
+        self.copy_calls = 0
 
     def put_object(self, **kwargs: object) -> dict[str, str]:
+        self.put_calls += 1
         return {"VersionId": "put-version"}
 
     def copy_object(self, **kwargs: object) -> dict[str, str]:
+        self.copy_calls += 1
         return {"VersionId": "copy-version"}
 
     def delete_object(self, **kwargs: object) -> dict[str, object]:
@@ -305,3 +310,27 @@ def test_s3_wrapper_records_exact_versions_and_delete_markers(tmp_path: Path) ->
             VersionId="unmanifested-version",
         )
     assert backend.delete_calls == 1
+
+
+@pytest.mark.parametrize("operation", ["put_object", "copy_object"])
+def test_s3_wrapper_refuses_unrecordable_key_before_remote_mutation(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    manifest_path = tmp_path / "objects.json"
+    bucket = expected_bucket_name(RUN_ID)
+    write_empty_object_manifest(
+        manifest_path, account_id=ACCOUNT_ID, bucket=bucket, run_id=RUN_ID
+    )
+    manifest = AcceptanceObjectManifest(
+        str(manifest_path), bucket=bucket, run_id=RUN_ID
+    )
+    backend = _VersionedS3()
+    client = ManifestRecordingS3Client(backend, manifest)
+    with pytest.raises(GuardError, match="outside the acceptance test grammar"):
+        _ = getattr(client, operation)(
+            Bucket=bucket, Key="probes/build-version-other-key"
+        )
+    assert backend.put_calls == 0
+    assert backend.copy_calls == 0
+    assert not manifest.identities()

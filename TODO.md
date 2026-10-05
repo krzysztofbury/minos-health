@@ -57,8 +57,11 @@ phases strictly in order, not as parallel branches:
        privacy-safe Telegram alerts. Capture alone never advances application
        activation; actual promotion, rollback and notification evidence is required.
        Started on `feat/archive-application-freshness`: pinned S3 materialization
-       reuses the existing builder, with offline distribution isolation and local
-       synthetic/SDK boundary tests. See [archive processing](docs/v0.0.1/archive-processing.md)
+        reuses the existing builder, with offline distribution isolation and local
+        synthetic/SDK boundary tests. Eight real-S3 synthetic acceptance cases now
+        pass with version-only read access; both disposable stacks were destroyed
+        and checked absent. Protected-ref OIDC and complete real-source hosted
+        determinism remain pending. See [archive processing](docs/v0.0.1/archive-processing.md)
        for the chunk contract and remaining gates. #41's signed compatible release
        authority remains a dependency before unattended activation is enabled.
 2. [ ] #126 and #25/#42: strengthen relevance safety and measure actual
