@@ -260,6 +260,81 @@ def test_scoped_read_preflight_update_is_accepted(
     validate_plan(_read_update(monkeypatch))
 
 
+def _acceptance_provider_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    plan = _read_update(monkeypatch)
+    records = cast(list[dict[str, object]], plan["resource_changes"])
+    for record in records:
+        change = cast(dict[str, object], record["change"])
+        previous = copy.deepcopy(cast(dict[str, object], change["after"]))
+        updated = copy.deepcopy(previous)
+        policy = cast(dict[str, object], json.loads(cast(str, updated["policy"])))
+        statements = cast(list[dict[str, object]], policy["Statement"])
+        statements[0]["Action"] = [
+            "s3:GetAccelerateConfiguration"
+            if action == "s3:GetBucketAccelerateConfiguration"
+            else "s3:GetReplicationConfiguration"
+            if action == "s3:GetBucketReplication"
+            else action
+            for action in cast(list[str], statements[0]["Action"])
+        ]
+        updated["policy"] = json.dumps(policy)
+        change["before"] = previous
+        change["after"] = updated
+        monkeypatch.setattr(
+            guard_module,
+            "PREVIOUS_ACCEPTANCE_PROVIDER_SHA256",
+            hashlib.sha256(cast(str, previous["policy"]).encode()).hexdigest(),
+            raising=False,
+        )
+    return plan
+
+
+def test_acceptance_provider_action_correction_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validate_plan(_acceptance_provider_update(monkeypatch))
+
+
+@pytest.mark.parametrize(
+    "defect",
+    ["scope", "extra_action", "inline", "identity", "baseline", "missing", "unknown"],
+)
+def test_acceptance_provider_correction_rejects_other_changes(
+    monkeypatch: pytest.MonkeyPatch,
+    defect: str,
+) -> None:
+    plan = _acceptance_provider_update(monkeypatch)
+    records = cast(list[dict[str, object]], plan["resource_changes"])
+    change = cast(dict[str, object], records[0]["change"])
+    after = cast(dict[str, object], change["after"])
+    if defect in {"scope", "extra_action"}:
+        policy = cast(dict[str, object], json.loads(cast(str, after["policy"])))
+        statements = cast(list[dict[str, object]], policy["Statement"])
+        if defect == "scope":
+            statements[0]["Resource"] = "*"
+        else:
+            cast(list[str], statements[0]["Action"]).append(
+                "s3:PutAccelerateConfiguration"
+            )
+        after["policy"] = json.dumps(policy)
+    elif defect == "inline":
+        cast(dict[str, object], cast(dict[str, object], records[1]["change"])["after"])[
+            "policy"
+        ] = "{}"
+    elif defect == "identity":
+        after["name"] = "unrelated-boundary"
+    elif defect == "baseline":
+        monkeypatch.setattr(
+            guard_module, "PREVIOUS_ACCEPTANCE_PROVIDER_SHA256", "a" * 64
+        )
+    elif defect == "missing":
+        _ = records.pop()
+    else:
+        change["after_unknown"] = {"policy": True}
+    with pytest.raises(PlanError):
+        validate_plan(plan)
+
+
 def _production_read_update(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     bucket_actions = [
         "s3:GetBucketLocation",
