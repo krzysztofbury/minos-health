@@ -517,6 +517,25 @@ generic `completed`/`failed` messages, so it does not yet satisfy this detailed
 alert contract. #21 owns implementation and actual Telegram delivery evidence.
 No unattended processing or notification integration is enabled by this record.
 
+### Delegated Routine-Data Authority: Offline Work (2026-10-05)
+
+The owner accepted an operator-signed delegation model for offline manifest and
+certificate verification/refusal tests, while keeping the operator root key
+offline and retaining SPEC's embedded immutable dataset in the canonical API
+image. The trusted activation boundary must independently enforce delegation,
+runtime/policy scope, exact tested artifacts and provenance. A delegated
+signature alone is not permission to deploy, and an empty source profile denies
+all candidates. Only disposable synthetic fixture keys may be created at this
+stage. No operational key, secret, IAM grant or production activation is approved.
+
+Signer custody/isolation and its same-host compromise risk, finite authority
+limits, fresh revocation/chain proofs, durable ledger permissions and enablement
+still need separate review. #41's full compatible manifest, signed tag/provenance
+and off-host recovery chain remain prerequisites. The current verifier reports
+`signature_and_scope_only`, not authorization; it does not establish image
+contents, actual workflow attestations or current revocation status.
+See [the authority contract and pending boundaries](routine-data-authority-proposal.md).
+
 ### Frontend
 
 Frontend source lives under `apps/web`. The first webpage may remain static

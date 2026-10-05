@@ -2,12 +2,14 @@
 
 ## Status And Approval Boundary
 
-Status: design proposal for #19/#21's #41 prerequisite, 2026-10-05.
-The owner authorized designing a narrowly delegated routine-data authority.
-The trust contract below has not been accepted, implemented or provisioned.
-No keys, secrets, IAM grants, release settings or production changes are authorized
-by this document. `SPEC.md`, the accepted decisions and #41 remain authoritative.
-Review and acceptance are required before amending them or enabling automation.
+Status: authority model accepted for offline verification work, 2026-10-05.
+The owner accepted the delegated trust model for offline manifest/certificate
+verification and refusal tests, and retained SPEC's canonical embedded dataset.
+Custody, finite authority limits, ledger/IAM changes and production enablement
+still require separate review. Only disposable synthetic test keys may be generated;
+no operational key, secret, IAM grant, release setting or production change is
+authorized. #41's live release contract remains unchanged until its full boundary
+is implemented/reviewed. This is not an enabled release policy.
 
 ## Existing Contract And Conflict
 
@@ -78,7 +80,7 @@ The offline owner signs these explicit constraints:
   a new owner-approved full baseline and delegation.
 - Allowed API data packaging: this project currently uses code-only validation
   images and a separately staged bundle, while SPEC's canonical API image embeds
-  the database. Select one accepted packaging contract before implementation.
+  the database. The owner retained the canonical embedded dataset for this work.
   If data changes the API digest, verified provenance must bind the unchanged
   approved non-data filesystem/runtime inputs and exact new data bytes. A
   self-reported `code_sha256` or free-form image label cannot establish that.
@@ -264,11 +266,11 @@ resource limits are not substitutes for correctness or performance acceptance.
 
 ## Review Decisions Before Implementation
 
-1. Accept or revise delegated signatures for routine releases as an explicit
-   amendment to #41, while preserving offline root authority for all non-data
-   changes. Design permission received today is not that acceptance.
-2. Select the canonical API/bundle packaging contract and independently provable
-   unchanged-runtime boundary; do not infer it from the manual validation path.
+1. Preserve the owner-accepted offline delegated model, with independent offline
+   root authority for non-data changes. Acceptance of models/tests is not approval
+   to enable delegated release authority in production or waive #41's remaining gates.
+2. Implement the owner-selected embedded API/data packaging and independently
+   provable unchanged-runtime boundary; do not infer proof from the validation path.
 3. Approve signer custody/isolation, accepted same-host compromise limits, allowed
    signing purposes/tag grammar and a concrete finite certificate lifetime.
 4. Define fresh revocation/current-authority resolution and monotonic recovery
@@ -283,3 +285,23 @@ certificate and delegated verification with refusal tests, durable fenced attemp
 and receipt handling, then separately approved key provisioning and synthetic
 end-to-end activation/rollback/notification acceptance. This remains part of the
 freshness phase; relevance and grouper phases do not start ahead of its review/merge.
+
+## Offline Scope Verifier: Current Limit
+
+`src/minos/ingest/processing/release_authority.py` checks real domain-separated
+OpenSSH Ed25519 signatures over a bounded canonical manifest, owner-signed
+delegation and owner-signed baseline. It enforces independent root/delegate keys,
+baseline/delegation binding, finite interval/sequence, exact caller-pinned policy
+and generation, explicit source profile, data-tag prefix, predecessor pointers
+and unchanged non-data/runtime profile digests. An empty source profile list denies
+all releases. Duplicate JSON keys, noncanonical bytes and unknown fields fail.
+
+Its result is deliberately `signature_and_scope_only`, not activation authorization.
+The currently typed digests describe scope; they do not prove actual image
+filesystem contents, repository/runnable identity, signed Git tags, workflow/gate
+attestations, authority freshness/revocation or the off-host receipt chain.
+Caller-pinned generation/predecessor values need those independent proofs before
+any signing/activation path can consume the result. The partial manifest is not
+the final complete #41 release/recovery envelope. No operational root/key/config
+or activation caller exists in this chunk. All fixture authority values and keys
+are synthetic and convey no live authority.

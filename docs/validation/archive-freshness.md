@@ -197,3 +197,56 @@ The reader has no automatic trigger or promotion/deployment path. Complete
 before/after source selection, durable processing state, hosted real-source
 builds, signing authority and actual notification/activation acceptance remain
 open; this local reader does not close #19 or #21.
+
+## Offline Delegated Signature/Scope Checks (2026-10-05)
+
+The owner accepted the delegated trust model for offline verifier/refusal work,
+retaining SPEC's API image with embedded immutable data. Key custody, finite live
+authority limits, ledger/IAM changes and production enablement remain separate
+review gates. No operational key, secret or production permission was created.
+
+`release_authority.py` returns `signature_and_scope_only`, not an activation
+authorization token. It verifies real domain-separated OpenSSH Ed25519 signatures
+over bounded canonical bytes for owner baseline, owner delegation and routine
+manifest, then checks the pinned scope. Actual artifact contents, runnable/repo
+identity, signed Git tag, attestations, authority freshness/revocation and receipt
+chain are not established by this partial model and cannot be skipped downstream.
+
+Before-change TigerStyle review required independent root/delegate authority (#6),
+paired byte/signature/scope assertions (#4), bounded input/verification time (#2)
+and fixed redacted subprocess diagnostics (#12). After-change review added an
+explicit same-key refusal and kept the result separate from full authorization.
+The valid data case changes the API digest but preserves every non-data runtime
+pin, consistent with embedded-data packaging; digests alone do not prove contents.
+
+Nineteen integration cases use actual disposable Ed25519 keys and signatures,
+not mocked cryptographic verdicts. Wrong owner/delegate keys, namespaces, baseline
+or delegation binding, runtime changes, disabled source profile, data tag, validity
+interval, generation/policy/sequence, predecessor, duplicate JSON and noncanonical
+bytes are refused. Model tests check finite interval, Boolean-generation refusal,
+payload byte bound and mandatory delegated bindings. An initial duplicate-JSON
+case performed a no-op replacement against compact JSON; its unexpected acceptance
+exposed the fixture defect. The fixture now asserts that its target exists before
+inserting the duplicate. The same-key case signs with that very key so an unrelated
+wrong-key check cannot supply the refusal.
+
+Four isolated in-memory mutations were killed by the intended refusal assertions:
+cryptographic exit result, separate owner/delegate key, disabled source-profile
+scope and unchanged runtime baseline. No production source file was mutated.
+All fixture keys are disposable synthetic test credentials and are removed with
+their unique scratch directory; none is a provisioned operator/delegate key.
+
+The isolated installed-wheel smoke verified a real signed fixture and refused
+the wrong delegate key, confirming the installed public function rather than an
+editable source import. It produced only a scope-check result. The wheel, venv,
+test keys and signature scratch were removed by the task wrapper.
+
+Final local checks passed: 1,690 tests, 23 opt-in skips, plus every pre-commit
+check (Ruff, mypy, BasedPyright, Bandit, browser fixtures and infrastructure/static
+guards). Receipt: `test-output/archive-freshness-y71ymgd2/local-authority-scope.xml`.
+The first full check caught a mypy-only heterogeneous test-dictionary inference;
+an explicit dictionary type fixed it without changing production behavior.
+Hosted CI and validation-container/browser runs passed for the preceding reader
+and design revision `319769a648f967e6fb6f29cea998d16b310d440a` (runs
+`37341267904` and `37341267949`). That is not hosted evidence for later verifier
+code until its own pushed revision passes.

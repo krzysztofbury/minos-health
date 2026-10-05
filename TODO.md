@@ -65,6 +65,9 @@ phases strictly in order, not as parallel branches:
         now revalidates immutable images and captured source/run/observation
         identities without exposing raw state or advancing checkpoints. Automatic
         selection, proposals, durable state, activation and alerts remain pending.
+        Owner-approved offline delegated signature/scope checks are added for the
+        #41 prerequisite, with canonical embedded data retained. They are not full
+        release authorization; key provisioning and automatic activation stay gated.
         See [archive processing](docs/v0.0.1/archive-processing.md)
        for the chunk contract and remaining gates. #41's signed compatible release
        authority remains a dependency before unattended activation is enabled.
