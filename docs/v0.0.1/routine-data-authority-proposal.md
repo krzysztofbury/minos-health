@@ -5,6 +5,9 @@
 Status: authority model accepted for offline verification work, 2026-10-05.
 The owner accepted the delegated trust model for offline manifest/certificate
 verification and refusal tests, and retained SPEC's canonical embedded dataset.
+The owner selected an isolated Mikr.us signer for the next custody design, with
+the same-host compromise exposure explicitly presented. That selection is not
+approval to provision a key, install a service or grant any cloud/host access.
 Custody, finite authority limits, ledger/IAM changes and production enablement
 still require separate review. Only disposable synthetic test keys may be generated;
 no operational key, secret, IAM grant, release setting or production change is
@@ -206,13 +209,47 @@ Delivery outcome never determines signing or activation success.
 
 ## Key Custody, Rotation And Revocation
 
-Recommended topology for review: keep the offline owner root as specified in
-#41; put a separate, restricted delegated key only in a trusted signing component
-outside ordinary Actions build/PR jobs. A dedicated host-side signer avoids
+Selected topology for design: keep the offline owner root as specified in
+#41; put a separate, restricted delegated key only in an isolated Mikr.us signing
+component outside ordinary Actions build/PR jobs. A dedicated host-side signer avoids
 copying any owner key or adding KMS/HSM cloud services outside the accepted AWS
 scope. It still needs explicit host-secret/install/IAM and isolation review.
 The signer must not run the API, watcher, untrusted parsers, builds or submitted
 commands. Its key is not the SSH login, watcher/archive or inventory key.
+
+Minimum custody design constraints, pending implementation/install review:
+
+- A distinct pinned signer image in the accepted Compose topology, unique numeric
+  UID/GID established by preflight, read-only root, dropped capabilities,
+  no-new-privileges, bounded resources and a small private writable temporary area.
+  No Docker/SSH-agent socket, host source checkout, application database, watcher
+  control volume, user home or shared Docker credential store is mounted.
+- Mount only its dedicated delegated key and root-owned verification/authority
+  configuration, read-only, restricted to the required UID/GID. No owner key or
+  recovery/inventory key is accessible. Backup/recovery custody stays external.
+- Expose a private bounded request channel only to the trusted coordinator. Verify
+  peer/service identity and an exact typed candidate/authority identity; never
+  accept a script, shell command, path, arbitrary ref, archive endpoint or a
+  caller's pass/fail claim. Do not add an anonymous public signing route.
+- Fetch/reverify independent gate/provenance/authority evidence through an explicit
+  reviewed access path. A coordinator's summary is not proof, and ordinary build
+  jobs cannot replace the signer's verifier/configuration.
+- Keep the activator/Docker broker separate. The signer has no runtime replacement
+  permission; the activator cannot rewrite authority policy or fetch the owner's
+  private key. Neither reuses the watcher credential or notification secret.
+- Signature output is bounded immutable evidence, not a deployment command.
+  Broker/activator must still verify exact artifact and predecessor/fencing state.
+  Signer outage stops new candidates while last-good service remains active.
+
+No accepted host credential currently grants this component fresh authority/chain
+reads or off-host receipt writes. In particular the accepted external-host AWS key
+exception is scoped to the watcher, not this new component. Choose and review a
+separate trusted publication/access path before provisioning: a new narrowly
+scoped host principal would be an additional credential-policy exception; a
+protected OIDC publisher would require authenticated bounded handoff and durable
+outage/reconciliation behavior. Do not silently reuse the watcher key, broaden
+the archive reader, use an administrator profile or put the owner key in Actions.
+Every IAM plan and any additional host credential needs its own approval.
 
 This trades unattended availability for a bounded online-key compromise risk.
 Sharing Mikr.us means a full host compromise can affect signer, activator and
@@ -271,8 +308,9 @@ resource limits are not substitutes for correctness or performance acceptance.
    to enable delegated release authority in production or waive #41's remaining gates.
 2. Implement the owner-selected embedded API/data packaging and independently
    provable unchanged-runtime boundary; do not infer proof from the validation path.
-3. Approve signer custody/isolation, accepted same-host compromise limits, allowed
-   signing purposes/tag grammar and a concrete finite certificate lifetime.
+3. Implement/review the selected isolated Mikr.us custody design and its same-host
+   compromise limits before installing it. Review signing purposes/tag grammar,
+   concrete finite certificate lifetime and the off-host access/publication path.
 4. Define fresh revocation/current-authority resolution and monotonic recovery
    anchors, including unavailable authority and clock-skew behavior.
 5. Review durable processing/activation ledger location, off-host receipt writers,

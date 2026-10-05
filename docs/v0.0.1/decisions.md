@@ -536,6 +536,13 @@ and off-host recovery chain remain prerequisites. The current verifier reports
 contents, actual workflow attestations or current revocation status.
 See [the authority contract and pending boundaries](routine-data-authority-proposal.md).
 
+The owner subsequently selected an isolated Mikr.us signer for the next custody
+design, with the full-host compromise risk explicitly presented. This is design
+selection only: no key/service install, cloud grant or credential-policy exception
+is authorized. The signer gets no Docker socket or API/watcher/build work. Its
+off-host authority/receipt access needs a separately reviewed path, not the
+watcher's AWS credential or an expanded GitHub archive-reader role.
+
 ### Frontend
 
 Frontend source lives under `apps/web`. The first webpage may remain static
