@@ -51,7 +51,7 @@ name-only subject is reported as an immutable-subject mismatch, not accepted as
 an IAM fallback. The reusable workflow now fixes the tool checkout to
 `85e61dae13645bc5a3bd8e102cca2467b419ec66`, accepts no inputs/inherited secrets,
 restores no shared cache, and executes no caller checkout. The separate PR-only
-caller references corrected reusable workflow `ccffdf593ed4eab8da0a4730bf6d301fd86b5a89`. This
+caller references corrected reusable workflow `251e8b5eaf01bb5e4a8cf1937a7ac891e5b5747a`. This
 branch-only diagnostic publication does not merge a foundation or establish a
 default-branch automatic trigger; the reviewed production bootstrap is pending.
 

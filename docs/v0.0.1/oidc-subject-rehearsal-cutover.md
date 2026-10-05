@@ -59,8 +59,11 @@ Only after approval, PUT the following body to
 Keep the order exact. The GitHub REST schema supports these fields; the actual
 resulting subject still needs hosted observation, not a locally synthesized
 string presented as live evidence. Publish/test the diagnostic inspector that
-can report the optional exact `job_workflow_ref` suffix, then pin a new tool and
-reusable workflow revision before changing the setting. The inspector checks
+can report the optional exact `job_workflow_ref` suffix before changing the
+setting. The published updated tool pin is
+`85e61dae13645bc5a3bd8e102cca2467b419ec66`; its separately published reusable
+workflow is `251e8b5eaf01bb5e4a8cf1937a7ac891e5b5747a`. The PR-only caller now
+uses that exact workflow, with hosted confirmation pending. The inspector checks
 that any suffix agrees with the separate workflow reference/SHA, and still
 uses only `minos-health-nonprivileged-rehearsal`, never `sts.amazonaws.com`.
 
