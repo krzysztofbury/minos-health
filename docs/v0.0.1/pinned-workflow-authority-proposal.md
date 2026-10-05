@@ -48,7 +48,12 @@ same-repository PR contexts targeting `main`, requests audience
 allowlisted bounded claims as `unverified_oidc_claim_observation`. It does not
 verify a JWT signature, authorize a workflow, retain tokens or call AWS. A
 name-only subject is reported as an immutable-subject mismatch, not accepted as
-an IAM fallback. The hosted reusable-workflow/caller pin is a subsequent chunk.
+an IAM fallback. The reusable workflow now fixes the tool checkout to
+`6415abb0050ac0f0882958badfbd798cb62617cb`, accepts no inputs/inherited secrets,
+restores no shared cache, and executes no caller checkout. Its exact workflow
+SHA will be referenced by a separate PR-only caller after publication. This
+branch-only diagnostic publication does not merge a foundation or establish a
+default-branch automatic trigger; the reviewed production bootstrap is pending.
 
 Local tests exercise explicit job SHA/reference agreement, immutable IDs,
 unsupported contexts before token requests, HTTPS host/redirect restrictions,

@@ -1,0 +1,50 @@
+name: Observe pinned reusable-job claims without cloud access
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    name: Observe private reusable-job identity without cloud access
+    if: >-
+      github.repository_id == '1325001960' &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.id == 1325001960 &&
+      github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write # Observe a non-AWS audience only; no cloud role or artifact signing.
+    env:
+      REHEARSAL_HEAD_REPOSITORY_ID: ${{ github.event.pull_request.head.repo.id }}
+      UV_CACHE_DIR: ${{ runner.temp }}/minos-oidc-rehearsal-uv
+    steps:
+      - name: Check out only the fixed inspector implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: krzysztofbury/minos-health
+          ref: 6415abb0050ac0f0882958badfbd798cb62617cb
+          path: trusted-tools
+          persist-credentials: false
+
+      - name: Install pinned dependency runtime without shared caches
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.12.7"
+          checksum: 788f18abea7c5f55d6216e4f5613fd89d4d59b631efeec117b2b07fe72f1da21
+          enable-cache: false
+
+      - name: Install the fixed lock without running application packaging
+        working-directory: trusted-tools
+        run: |
+          set -euo pipefail
+          uv python install 3.14.7
+          uv sync --frozen --no-dev --no-install-project --python 3.14.7
+
+      - name: Observe allowlisted claims with a deliberately non-AWS audience
+        working-directory: trusted-tools
+        run: uv run --frozen --no-sync python -I scripts/observe_reusable_oidc.py

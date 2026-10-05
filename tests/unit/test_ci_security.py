@@ -82,6 +82,23 @@ def test_workflows_use_read_only_defaults_and_safe_triggers() -> None:
                     "github.repository == 'krzysztofbury/minos-health'"
                 )
                 assert job_definition.get("needs") == "verify"
+            elif (workflow.name, name) in (
+                ("freshness-oidc-reusable.yml", "observe"),
+                ("freshness-oidc-rehearsal.yml", "rehearse"),
+            ):
+                # Only these diagnostic jobs may request the fixed non-AWS audience.
+                assert job_definition.get("permissions") == {
+                    "contents": "read",
+                    "id-token": "write",
+                }
+                assert job_definition.get("if") == (
+                    "github.repository_id == '1325001960' && "
+                    "github.event_name == 'pull_request' && "
+                    "github.event.pull_request.head.repo.id == 1325001960 && "
+                    "github.event.pull_request.base.ref == 'main'"
+                )
+                assert "secrets" not in job_definition
+                assert "environment" not in job_definition
             else:
                 assert "permissions" not in job_definition
 
@@ -92,6 +109,10 @@ def test_workflows_use_read_only_defaults_and_safe_triggers() -> None:
             assert set(triggers) == {"workflow_dispatch"}
         elif workflow.name == "reference-validation.yml":
             assert set(triggers) == {"pull_request", "workflow_dispatch"}
+        elif workflow.name == "freshness-oidc-reusable.yml":
+            assert set(triggers) == {"workflow_call"}
+        elif workflow.name == "freshness-oidc-rehearsal.yml":
+            assert set(triggers) == {"pull_request"}
 
 
 def test_checkout_does_not_persist_credentials() -> None:
@@ -104,6 +125,32 @@ def test_checkout_does_not_persist_credentials() -> None:
             assert "persist-credentials: false" in checkout_block
             if workflow.name == "ci.yml":
                 assert "fetch-depth: 0" in checkout_block
+
+
+def test_claim_rehearsal_has_no_caller_inputs_checkout_secrets_or_restored_cache() -> (
+    None
+):
+    document = load_workflow(WORKFLOW_DIR / "freshness-oidc-reusable.yml")
+    trigger = cast("dict[str, object]", document["on"])["workflow_call"]
+    assert trigger in ("", {})
+    jobs = cast("dict[str, dict[str, object]]", document["jobs"])
+    assert set(jobs) == {"observe"}
+    steps = cast("list[dict[str, object]]", jobs["observe"]["steps"])
+    checkout = steps[0]
+    assert (
+        checkout["uses"] == "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+    )
+    settings = cast("dict[str, str]", checkout["with"])
+    assert settings["repository"] == "krzysztofbury/minos-health"
+    assert re.fullmatch(r"[0-9a-f]{40}", settings["ref"])
+    assert settings["persist-credentials"] == "false"
+    assert settings["path"] == "trusted-tools"
+    runtime = cast("dict[str, str]", steps[1]["with"])
+    assert runtime["enable-cache"] == "false"
+    for step in steps[2:]:
+        assert step.get("working-directory") == "trusted-tools"
+        assert "uses" not in step
+    assert len(steps) == 4
 
 
 def test_ci_scans_nonempty_git_history_for_secrets() -> None:
