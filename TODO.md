@@ -88,7 +88,12 @@ phases strictly in order, not as parallel branches:
          OCI packaging/content verification and no-mount Docker readiness/search
          smoke are implemented; provenance, workflow wiring and activation are not.
          Live KMS/IAM/GitHub/host changes still need exact reviewed plans. The
-         bespoke attestation protocol is parked, not the other freshness boundaries.
+          bespoke attestation protocol is parked, not the other freshness boundaries.
+          A PR-only nonprivileged caller now rehearses an exact published reusable
+          workflow SHA and a separately fixed tool checkout. Its audience cannot
+          assume the AWS reader role; hosted claim evidence remains pending. The
+          default-branch/bootstrap, complete pipeline and live trust cutover remain
+          unimplemented or unapproved, not delivered by this diagnostic rehearsal.
         See [archive processing](docs/v0.0.1/archive-processing.md)
        for the chunk contract and remaining gates. #41's signed compatible release
        authority remains a dependency before unattended activation is enabled.

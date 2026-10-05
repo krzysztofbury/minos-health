@@ -50,15 +50,15 @@ verify a JWT signature, authorize a workflow, retain tokens or call AWS. A
 name-only subject is reported as an immutable-subject mismatch, not accepted as
 an IAM fallback. The reusable workflow now fixes the tool checkout to
 `6415abb0050ac0f0882958badfbd798cb62617cb`, accepts no inputs/inherited secrets,
-restores no shared cache, and executes no caller checkout. Its exact workflow
-SHA will be referenced by a separate PR-only caller after publication. This
+restores no shared cache, and executes no caller checkout. The separate PR-only
+caller references reusable workflow `67d3c510d6774094eb54009536f1c8c1e3349af3`. This
 branch-only diagnostic publication does not merge a foundation or establish a
 default-branch automatic trigger; the reviewed production bootstrap is pending.
 
 Local tests exercise explicit job SHA/reference agreement, immutable IDs,
 unsupported contexts before token requests, HTTPS host/redirect restrictions,
 response bounds and refusal without token/bearer/extra-claim output. This is
-diagnostic preparation, not GitHub service acceptance or privileged processing.
+diagnostic preparation until its hosted run passes, not privileged processing.
 
 Use a fully qualified reusable-workflow reference ending in an owner-reviewed
 40-character commit SHA, not `@main`, a tag, or a relative workflow reference.

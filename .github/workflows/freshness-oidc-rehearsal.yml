@@ -1,0 +1,24 @@
+name: Nonprivileged pinned workflow rehearsal
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshness-oidc-rehearsal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rehearse:
+    name: Private pinned-workflow claim rehearsal
+    if: >-
+      github.repository_id == '1325001960' &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.id == 1325001960 &&
+      github.event.pull_request.base.ref == 'main'
+    permissions:
+      contents: read
+      id-token: write # Pass permission for a non-AWS claim observation, never a cloud role.
+    uses: krzysztofbury/minos-health/.github/workflows/freshness-oidc-reusable.yml@67d3c510d6774094eb54009536f1c8c1e3349af3
