@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: krzysztofbury/minos-health
-          ref: 6415abb0050ac0f0882958badfbd798cb62617cb
+          ref: 85e61dae13645bc5a3bd8e102cca2467b419ec66
           path: trusted-tools
           persist-credentials: false
 

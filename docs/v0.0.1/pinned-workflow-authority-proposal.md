@@ -49,7 +49,7 @@ allowlisted bounded claims as `unverified_oidc_claim_observation`. It does not
 verify a JWT signature, authorize a workflow, retain tokens or call AWS. A
 name-only subject is reported as an immutable-subject mismatch, not accepted as
 an IAM fallback. The reusable workflow now fixes the tool checkout to
-`6415abb0050ac0f0882958badfbd798cb62617cb`, accepts no inputs/inherited secrets,
+`85e61dae13645bc5a3bd8e102cca2467b419ec66`, accepts no inputs/inherited secrets,
 restores no shared cache, and executes no caller checkout. The separate PR-only
 caller references corrected reusable workflow `ccffdf593ed4eab8da0a4730bf6d301fd86b5a89`. This
 branch-only diagnostic publication does not merge a foundation or establish a
