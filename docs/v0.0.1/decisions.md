@@ -39,7 +39,34 @@ payer contract and the PSZ ryczałt stream and are out of scope.
 
 An offline CLI and an anonymous webpage backed by a read-only HTTP API share
 the same domain and store behaviour. Grouping (`v0.0.2`) adds one stateless
-POST endpoint. Accounts, mutable user data, and personalization are deferred.
+POST endpoint. Accounts, mutable user data, and personalization are deferred,
+except for the narrow browser-local search filter setting accepted below.
+
+### Browser-Local Search Filters And Social Metadata
+
+On 2026-10-05 the owner requested all available search sources selected by
+default, automatic filter persistence in localStorage without an opt-in,
+updated product metadata, a branded raster social preview and a privacy-policy
+update. ICD-11 remains unavailable. Only explicit filter changes write the
+versioned allowlisted selection and a 90-day expiry; searches, identifiers and
+medical codes are excluded. Read/search does not extend expiry. Reset removes
+only this key, restores available sources, and does not write a new record.
+Unavailable sources remain part of user intent; an intentional empty selection
+is preserved and validated rather than silently replaced.
+
+The visible inline notice and policy describe the actual automatic behavior.
+localStorage is subject to browser-storage law just like cookies. The owner's
+implementation choice is not legal clearance: the adequacy of automatic
+persistent storage without consent has not been established. No blanket
+consent-exemption or no-banner-required claim is made. This setting must not
+expand into analytics, identifiers, query history or broader personalization
+without a new review. Expired data is rejected and deletion is attempted on
+next access, not promised while the browser is closed or storage is blocked.
+
+The 1200 x 630 static PNG uses original branding and existing OFL fonts.
+Shared Open Graph/Twitter metadata keeps page-specific titles and provenance;
+homepage copy covers reference ICD and JGP search, conditions and base points,
+not an implemented encounter grouper or final settlement calculation.
 
 ### Phased Offline And Commercial Model
 

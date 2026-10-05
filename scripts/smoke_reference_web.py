@@ -168,6 +168,18 @@ def browser_checks(arguments: Arguments, bundle: Path, port: int, output: Path) 
             check=True,
             env=environment,
         )
+        _ = subprocess.run(
+            [
+                "node",
+                str(ROOT / "tests/browser/filter-preferences-browser.mjs"),
+                arguments.chromium,
+                f"http://minoshealth.pl:{port}/",
+                str(output),
+            ],
+            timeout=180,
+            check=True,
+            env=environment,
+        )
         dataset = read_artifact_manifest(bundle).dataset
         if dataset.search_profile is not None:
             _ = subprocess.run(

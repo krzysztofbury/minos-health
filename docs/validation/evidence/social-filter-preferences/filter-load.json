@@ -1,0 +1,90 @@
+{
+  "scope": "Local full production bundle, packaged API/edge, 1 CPU/512 MiB API; ordinary typing and submitted searches, not production load",
+  "phases": [
+    {
+      "concurrent_sessions": 1,
+      "systems": [
+        "icd10-pl"
+      ],
+      "typing_interval_ms": 300,
+      "cycles_per_session": 12,
+      "duration_s": 12.96,
+      "requests": 48,
+      "status_counts": {
+        "200": 48
+      },
+      "error_counts": {},
+      "p50_ms": 19.77,
+      "p95_ms": 22.2,
+      "max_ms": 54.68,
+      "final_submissions": 12,
+      "failed_final_submissions": 0
+    },
+    {
+      "concurrent_sessions": 1,
+      "systems": [
+        "icd10-pl",
+        "icd9-pl",
+        "jgp"
+      ],
+      "typing_interval_ms": 300,
+      "cycles_per_session": 12,
+      "duration_s": 13.98,
+      "requests": 144,
+      "status_counts": {
+        "200": 144
+      },
+      "error_counts": {},
+      "p50_ms": 31.8,
+      "p95_ms": 45.15,
+      "max_ms": 66.78,
+      "final_submissions": 36,
+      "failed_final_submissions": 0
+    },
+    {
+      "concurrent_sessions": 4,
+      "systems": [
+        "icd10-pl"
+      ],
+      "typing_interval_ms": 300,
+      "cycles_per_session": 12,
+      "duration_s": 13.2,
+      "requests": 192,
+      "status_counts": {
+        "200": 192
+      },
+      "error_counts": {},
+      "p50_ms": 19.95,
+      "p95_ms": 22.67,
+      "max_ms": 55.08,
+      "final_submissions": 48,
+      "failed_final_submissions": 0
+    },
+    {
+      "concurrent_sessions": 4,
+      "systems": [
+        "icd10-pl",
+        "icd9-pl",
+        "jgp"
+      ],
+      "typing_interval_ms": 300,
+      "cycles_per_session": 12,
+      "duration_s": 25.09,
+      "requests": 584,
+      "status_counts": {
+        "200": 572,
+        "429": 12
+      },
+      "error_counts": {
+        "busy": 12
+      },
+      "p50_ms": 45.0,
+      "p95_ms": 473.34,
+      "max_ms": 717.18,
+      "final_submissions": 144,
+      "failed_final_submissions": 0
+    }
+  ],
+  "api_peak_memory_bytes": 219447296,
+  "log_query_privacy": "passed"
+}

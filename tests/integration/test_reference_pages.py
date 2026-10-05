@@ -38,6 +38,14 @@ def test_code_page_is_crawlable_html_with_hierarchy_and_structured_data(
     assert response.headers["cache-control"] == "public, max-age=3600"
     page = response.text
     assert "<title>E11.0 Wariant zerowy - ICD-10 - Minos Health</title>" in page
+    assert (
+        '<meta name="twitter:title" content="E11.0 Wariant zerowy - ICD-10 - Minos Health">'
+        in page
+    )
+    assert (
+        '<meta property="og:image" content="https://minoshealth.pl/social-preview-v1.png">'
+        in page
+    )
     assert '<meta name="robots" content="index, follow">' in page
     assert 'href="https://minoshealth.pl/slowniki/icd-10/E11.0"' in page
     # Ancestors are real links, so crawlers can walk the hierarchy.

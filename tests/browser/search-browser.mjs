@@ -66,16 +66,18 @@ try {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     await send("Page.navigate", { url: home });
     await wait('document.querySelector("#query") && !document.querySelector("#query").disabled && !document.querySelector(\'input[value="icd9-pl"]\').disabled');
-    assert.equal(await evaluate('document.querySelector(\'input[value="icd10-pl"]\').checked'), true);
+    const available = await evaluate(`fetch('/api/v1/releases').then(response => response.json()).then(body =>
+      ['icd10-pl', 'icd9-pl', 'jgp'].filter(system => system === 'jgp' ? body.jgp_search : body.releases.some(release => release.system === system)))`);
+    assert.deepEqual(await evaluate('[...document.querySelectorAll("input[name=system]:checked")].map(box => box.value)'), available);
+    assert.equal(await evaluate('document.querySelector("input[value=jgp]").disabled'), !available.includes('jgp'), 'The local dictionary fixture need not include JGP');
     assert.equal(await evaluate("document.querySelectorAll('.filter-soon').length"), 1); // ICD-11 only; JGP has its own section since #26
-    await evaluate('document.querySelector(\'input[value="icd9-pl"]\').click()');
     await evaluate('document.querySelector("#query").focus(); document.querySelector("#query").value="badania moczu"; document.querySelector("#query").dispatchEvent(new Event("input",{bubbles:true}))');
     await wait('document.querySelectorAll("#suggestions .suggestion").length > 0');
     assert.equal(await evaluate('document.querySelector("#query").getAttribute("aria-expanded")'), "true");
     await evaluate('document.querySelector("#query").dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true}))');
     assert.equal(await evaluate('document.querySelector("#query").getAttribute("aria-activedescendant")'), "suggestion-0");
     await evaluate('document.getElementById("search-form").requestSubmit()');
-    await wait('document.querySelectorAll(".result-group").length === 2 && ![...document.querySelectorAll(".result-group-head p")].some((node) => node.textContent.startsWith("Szukam"))');
+    await wait(`document.querySelectorAll(".result-group").length === ${available.length} && [...document.querySelectorAll(".result-group")].every(node => node.dataset.searchState === 'ready' || node.dataset.searchState === 'uncovered')`);
     assert.equal(await evaluate('document.querySelectorAll("#suggestions .suggestion").length'), 0);
     const icd9 = await evaluate('[...document.querySelectorAll(".result-group")][1].querySelector(".result")?.getAttribute("href")');
     assert.ok(icd9 && /^\/slowniki\/icd-9\/[A-Z0-9.]+(?:\/jgp\/20\d\d-\d\d-\d\d)?$/.test(icd9), "unexpected ICD-9 result link");
@@ -98,7 +100,8 @@ try {
   assert.ok(requests.some((request) => request.url.endsWith("/api/v1/search") && request.method === "POST"));
   assert.ok(requests.some((request) => /\/api\/v1\/tree\/[a-z0-9-]+\/[0-9]+$/.test(request.url)));
   assert.ok(requests.every((request) => !request.url.includes("badania") && !request.url.includes("moczu")));
-  assert.ok(requests.filter((request) => request.url.endsWith("/api/v1/search")).every((request) => request.postData && JSON.parse(request.postData).release_id));
+  assert.ok(requests.filter((request) => request.url.endsWith("/api/v1/search")).every((request) => request.postData && (JSON.parse(request.postData).system === 'jgp' || JSON.parse(request.postData).release_id)));
+  assert.equal(await evaluate('localStorage.getItem("minos.search.filters.v1")'), null, 'Reading defaults and searching must not create preferences');
   assert.equal(await evaluate('Boolean(localStorage.length || sessionStorage.length || document.cookie)'), false);
   console.log("Real browser acceptance passed: desktop/mobile search, suggestions, dictionary tree, keyboard, no query URLs or storage.");
 } finally {

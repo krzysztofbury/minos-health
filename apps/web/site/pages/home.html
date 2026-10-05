@@ -15,12 +15,17 @@
               <ul class="suggestions" id="suggestions" role="listbox" aria-label="Podpowiedzi" hidden></ul>
             </div>
             <fieldset class="filters">
-              <legend class="visually-hidden">Słowniki, w których szukasz</legend>
+              <legend class="visually-hidden">Źródła, w których szukasz</legend>
               <label class="filter"><input type="checkbox" name="system" value="icd10-pl" checked{{search_disabled}}><span><strong>ICD-10</strong> rozpoznania</span></label>
-              <label class="filter"><input type="checkbox" name="system" value="icd9-pl"{{search_disabled}}><span><strong>ICD-9</strong> procedury</span></label>
-              <label class="filter"><input type="checkbox" name="system" value="jgp"{{search_disabled}}><span><strong>JGP</strong> grupy</span></label>
+              <label class="filter"><input type="checkbox" name="system" value="icd9-pl" checked{{search_disabled}}><span><strong>ICD-9</strong> procedury</span></label>
+              <label class="filter"><input type="checkbox" name="system" value="jgp" checked{{search_disabled}}><span><strong>JGP</strong> grupy</span></label>
               <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>ICD-11</strong> <em>w przygotowaniu</em></span></span>
             </fieldset>
+            <div class="filter-preferences" id="filter-preferences" hidden>
+              <p>Po zmianie filtrów zapamiętujemy ich wybór w tej przeglądarce (localStorage) na 90 dni. Nie zapisujemy wyszukiwań. <a href="/polityka-prywatnosci">Szczegóły prywatności</a>.</p>
+              <button class="button button-quiet" id="reset-filters" type="button" disabled>Przywróć wszystkie filtry</button>
+              <p id="filter-preferences-status" role="status" aria-live="polite"></p>
+            </div>
           </form>
           <p class="search-help" id="search-help">{{search_help}}</p>
         </div>

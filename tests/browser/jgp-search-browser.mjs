@@ -122,8 +122,16 @@ try {
   assert.ok(queries.length);
   assert.ok(queries.every(request => request.method === "POST" && JSON.parse(request.postData).system === "jgp"));
   assert.ok(requests.every(request => !new URL(request.url).search));
-  assert.equal(await evaluate("Boolean(localStorage.length || sessionStorage.length || document.cookie)"), false);
-  console.log("JGP search browser passed: desktop/mobile, exact result, dated links, catalog/act, keyboard chips/results, no overflow, query URLs or storage.");
+  assert.deepEqual(await evaluate('Object.keys(localStorage)'), ['minos.search.filters.v1']);
+  const preference = await evaluate('JSON.parse(localStorage.getItem("minos.search.filters.v1"))');
+  assert.deepEqual(Object.keys(preference).sort(), ['expires_at_ms', 'systems', 'version']);
+  assert.equal(preference.version, 1);
+  assert.deepEqual(preference.systems, ['jgp']);
+  const now_ms = await evaluate('Date.now()');
+  assert.ok(Number.isSafeInteger(preference.expires_at_ms));
+  assert.ok(preference.expires_at_ms > now_ms && preference.expires_at_ms <= now_ms + 90 * 24 * 60 * 60 * 1000);
+  assert.equal(await evaluate("Boolean(sessionStorage.length || document.cookie)"), false);
+  console.log("JGP search browser passed: desktop/mobile, exact result, dated links, catalog/act, keyboard chips/results, no overflow or query URLs/storage; only filter preferences persist.");
 } finally {
   if (socket) socket.close();
   browser.kill("SIGTERM");
