@@ -43,7 +43,34 @@ day-to-day order.
       mutation or fault injection, integration, and pair-programmer review gates
       for implementation chunks.
 
-## Next Product Sequence (2026-10-02)
+## Owner-Ordered Next Work (2026-10-05)
+
+Finish the reviewed #20/#31 merge and guarded deployment first. Then execute
+these phases strictly in order, not as parallel branches:
+
+1. [ ] #19/#21: close the archive-to-application freshness gap. Select exact
+       verified archive changes, build and validate pinned complete candidates,
+       automatically activate passing routine data-only updates, retain/restore
+       the last good compatible set on failure, and deliver durable detailed
+       privacy-safe Telegram alerts. Capture alone never advances application
+       activation; actual promotion, rollback and notification evidence is required.
+2. [ ] #126 and #25/#42: strengthen relevance safety and measure actual
+       user-visible performance before further search expansion. Preserve the
+       unchanged gold sets, obtain practitioner and independent held-out review,
+       record hosted evaluation, and measure complete user workflows and
+       representative capacity rather than inferring them from quiet probes.
+3. [ ] #34-#36: build the explainable grouper with deterministic encounter
+       validation and source-backed traces. #37 practitioner gold encounters and
+       #46/#129 modifier/legal reconciliation remain gates; unbound modifiers
+       must never be interpreted as no modifiers or base points as final tariffs.
+
+Each numbered phase gets its own branch, coherent commits and PR. Complete and
+review/merge its PR before starting the next phase; run its relevant runtime,
+integration, fault and representative-performance gates before deployment.
+Update this checklist and its evidence before closing delivered issues. Do not
+combine the phases into one branch or weaken blocked acceptance to clear an issue.
+
+## Reference Delivery Sequence (2026-10-02, reconciled 2026-10-05)
 
 Free ICD-10 PL and ICD-9 PL search is live. The next work makes it JGP-aware
 before any calculation, because a grouper without traceable conditions would
@@ -61,14 +88,15 @@ put unverified points in front of users.
        #26 first delivers shareable date-specific group pages with the governing
        act/catalog identity, not diffs or condition-based ICD cross-links.
        Delivered as /jgp (#118, deployed to the validation host 2026-10-03).
-3. [ ] #29 in parallel with step 2, since it is the schedule risk; then #30
+3. [x] #29 in parallel with step 2, since it is the schedule risk; then #30
        and #32 for the "występuje w grupach" reverse lookup from any ICD code.
        #29 done: [condition taxonomy](docs/v0.0.1/jgp-conditions.md), reviewed
        2026-10-03 (#121). #30 done: [source-traced condition import](docs/v0.0.1/jgp-conditions-ingest.md)
        (#122, deployed to the validation host 2026-10-03; the public bundle
-       stays schema 4 until #32). #32 and conservative interpretation gaps are
-       in progress on the combined #32/#46 branch; source/API validation is local,
-       not public schema activation.
+        stayed schema 4 until #32). #32/#131 delivered dated conditions and reverse
+        links; the public reference bundle now uses schema 8. Unsupported
+        fragments remain explicit reference evidence, not executable defaults.
+        The #46 MODTAR import/binding/legal reconciliation is still incomplete.
 4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
        before final points. #35 must reject unbound modifiers, never interpret
         that state as no modifiers applying or return base points as final.
@@ -255,10 +283,11 @@ UI remain the baseline.
       non-expiring chained inventory off-host, with ordinary-loss and
       suspected-compromise restore commands.
 - [ ] Execute ordinary-loss and suspected-compromise empty-host restore drills.
-- [ ] Issues #6-#8 emit immutable observations and bounded change or incident
-      records. An operator-dispatched protected issue #21 workflow reads one
-      selected verified recovery image through OIDC and turns only the selected
-      change into a data PR; never give the watcher a GitHub token or auto-merge.
+- [ ] Complete #21 automatic verified change selection through scoped OIDC,
+      pinned proposals/logical diffs and policy-qualified routine data activation.
+      Failed or significant candidates retain/restore the last good release and
+      send detailed privacy-safe Telegram alerts. Never give the watcher a GitHub
+      token; only the trusted promotion boundary may merge eligible data changes.
 - [ ] Alert on watcher failure and on upstream schema drift (new załącznik
       names, changed file formats).
 - [x] Bootstrap Uptime Kuma privately on Mikr.us from the pinned rootless image,
@@ -374,10 +403,18 @@ UI remain the baseline.
       dangling selector.
 - [x] Build the database transactionally and reproducibly; emit a
       machine-readable artifact manifest and database checksum.
-- [ ] Emit a human-readable diff against the previous release (#20).
+- [x] Implement human-readable logical release diffs (#20) for explicit verified-
+      bundle terminology, catalog and conditions pairs. Real 5.89 -> 5.90 golden
+      test, paired review and full checks pass; owner authorized merge/deployment
+      on 2026-10-05. Close the delivering issue only after remote merge and guarded
+      activation receipts. Two-minute human usability is not a measured result.
 - [x] Validate complete-dataset counts and hierarchy integrity for terminology.
-- [ ] Validate JGP list reference integrity across versions (#31); within one
-      release it is enforced by #30.
+- [x] Validate JGP logical comparison across versions (#31); within one release
+      integrity is enforced by #30. Cross-version graphs/list populations and
+      evidence bindings have synthetic regression and private 74 -> 102 gold
+      tests, plus the actionable new-base-act checklist. Review passed; owner
+      authorized merge/deployment on 2026-10-05. Require merge/activation receipts
+      before closing the issue; this is not legal or practitioner qualification.
 
 ## Domain And Search
 

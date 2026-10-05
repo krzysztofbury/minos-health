@@ -327,13 +327,18 @@ curated overlay rows with `manual` provenance and mandatory review.
 ## Ingestion Pipeline
 
 1. Source collectors detect and archive upstream changes, then emit an
-   immutable change record. Issue #21 proposes a manifest PR with a
+   immutable change record. Issue #21 selects verified changes and proposes a
+   pinned manifest with a
    human-readable diff (added, removed, changed, reparented concepts; group and
    point changes).
-2. A human reviews and merges. Large or unexplained diffs block.
+2. Reviewed policy gates classify routine data-only candidates. Under the
+   2026-10-05 owner decision, passing routine candidates activate automatically;
+   failed or significant candidates retain the last good release and send an
+   actionable Telegram alert. Parser, schema and policy changes require review.
 3. CI builds the database transactionally and deterministically from the
    pinned manifest, runs integrity checks, and emits the artifact manifest,
-   checksum, and release diff.
+   checksum, and release diff. Promotion uses the exact tested compatible set,
+   with post-activation verification and complete-set rollback on failure.
 
 Parser hardening applies to every format: XML (no DTDs or external entities;
 bounded depth, sizes, and counts), XLSX and DOCX (zip entry-count,

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "transform_version": "icd9-czs-reference-v1",
+  "lockfile_sha256": "2343f00e7db876cc5c6920c2e87126b10ef9f7383c8295b6b559d3690133c203",
+  "sources": [
+    {
+      "release_id": "icd9-czs-5-89-gen-92-73e9ed9531b2",
+      "system": "icd9-pl",
+      "origin": "czs",
+      "source_version": "5.89",
+      "source_file_id": "ICD9:92",
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=92",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "fetched_at": "2026-10-05T11:57:36.383961Z",
+      "source_created_at": null,
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "73e9ed9531b21af782fbb45f2ded9354ccad5a83d8bc5a5771e2e553758604ae",
+      "size_bytes": 1630632,
+      "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+      "notices": [
+        "Private pinned generation-92 capture for release-diff acceptance only; not a production selector or redistribution approval."
+      ],
+      "expected": {
+        "nodes": 10178,
+        "relations": 0,
+        "concepts": 10178,
+        "descriptions": 10178
+      }
+    }
+  ]
+}

@@ -20,6 +20,7 @@ from minos.domain.jgp_ruleset import (
     today_in_poland,
 )
 from minos.domain.reference import ArtifactError, QueryLimitError, ReferenceError
+from minos.domain.release_diff import DiffInputError
 from minos.domain.search import (
     SearchInputError,
     SearchRequest,
@@ -107,7 +108,22 @@ def add_reference_commands(commands: _CommandParsers) -> None:
         )
         _ = group.add_argument("--json", action="store_true", dest="output_json")
     data = commands.add_parser("data", help="Build a pinned offline reference bundle.")
-    build = data.add_subparsers(dest="data_command", required=True).add_parser("build")
+    data_commands = data.add_subparsers(dest="data_command", required=True)
+    diff = data_commands.add_parser(
+        "diff", help="Compare explicit pinned releases in verified bundles."
+    )
+    _ = diff.add_argument("before", type=Path)
+    _ = diff.add_argument("after", type=Path)
+    _ = diff.add_argument(
+        "--pair",
+        action="append",
+        required=True,
+        dest="pairs",
+        help="terminology|catalog|conditions:OLD_RELEASE:NEW_RELEASE; repeat for each reviewed pair.",
+    )
+    _ = diff.add_argument("--full", action="store_true")
+    _ = diff.add_argument("--json", action="store_true", dest="output_json")
+    build = data_commands.add_parser("build")
     _ = build.add_argument(
         "--manifest", type=Path, required=True, help="Reviewed JSON source manifest."
     )
@@ -135,6 +151,18 @@ def reference_main(argv: Sequence[str] | None = None) -> None:
 def execute_reference(arguments: dict[str, object]) -> int:
     output_json = arguments.get("output_json") is True
     try:
+        if (
+            arguments.get("command") == "data"
+            and arguments.get("data_command") == "diff"
+        ):
+            from minos.cli.release_diff import DiffArguments
+
+            selected = {
+                name: arguments[name]
+                for name in DiffArguments.model_fields
+                if name in arguments
+            }
+            return DiffArguments.model_validate(selected).execute()
         if arguments.get("command") == "jgp":
             selected = {
                 name: arguments[name]
@@ -197,7 +225,7 @@ def execute_reference(arguments: dict[str, object]) -> int:
             "Reviewed JGP rulesets conflict for that date.",
             output_json,
         )
-    except ValidationError, SearchInputError:
+    except ValidationError, SearchInputError, DiffInputError:
         return _error(
             2, "invalid_request", "Invalid or ambiguous lookup request.", output_json
         )

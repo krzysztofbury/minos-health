@@ -497,8 +497,10 @@ that issue #7 subsequently calls.
 
 Issues #6-#8 stop at exact raw observations, selected source bytes, provenance,
 change records, and incidents. They do not parse terminology or JGP facts into
-the generated SQLite reference database. Issue #21 owns conversion of reviewed
-change records into manifest PRs.
+the generated SQLite reference database. Issue #21 owns verified change selection,
+pinned manifest proposals, logical diff validation and automatic activation of
+policy-qualified routine data-only updates. Failed or significant candidates
+retain the last good release and produce an actionable Telegram alert.
 
 ## Archive And Failure Rules
 
@@ -527,8 +529,10 @@ change records into manifest PRs.
 7. Preserve publication, entry-into-force, service-applicability, first-seen,
    fetch, and ingestion times separately. Never invent one from another.
 8. Source collectors emit a bounded change record or incident. Issue #21 may
-   turn a reviewed change into a manifest PR; no automation auto-promotes an
-   upstream change into production rules.
+   automatically activate a routine data-only candidate after all reviewed
+   policy gates pass, using only exact verified archive pins. Capture alone
+   never promotes production rules. Failed or significant candidates stop for
+   investigation, retain the last good release and notify the owner.
 9. A source disagreement opens a review item with bounded evidence. Competitor
    agreement cannot override a primary source.
 10. A quiet run is valid only after selectors, expected source IDs, and
