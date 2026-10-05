@@ -73,6 +73,19 @@ terms.
 No WHO ICD dataset is covered by these notices unless it is added later with
 its own reviewed terms.
 
+## Reviewed Polish WordNet Phrases
+
+Two terminology expansions use same-synset phrases from Open Multilingual
+Wordnet `omw-pl:2.0`, the Princeton-aligned subset of plWordNet 2.3, copyright
+2015 Wrocław University of Technology. They do not represent the current full
+Słowosieć database. The pinned archive identity and individual synsets are
+recorded in the reviewed synonym manifest. The complete upstream licence is
+preserved in `src/minos/ingest/wordnet-license.txt`, included in generated
+bundle review notices and exposed in release metadata. Medical sense selection
+and whole-query restrictions are Minos modifications, without endorsement by
+the source authors. The optional build-time `wn==1.1.1` library is MIT-licensed;
+it is not an API runtime dependency.
+
 ## Web Fonts
 
 The website self-hosts subsets of Atkinson Hyperlegible Next and Atkinson

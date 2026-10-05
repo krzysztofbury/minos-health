@@ -23,6 +23,10 @@ class QueryLimitError(ReferenceError):
     """A bounded query could not return a complete result."""
 
 
+class QueryTimeoutError(QueryLimitError):
+    """A bounded lookup ran out of elapsed time, not result capacity."""
+
+
 @dataclass(frozen=True)
 class SourceHeader:
     attributes: tuple[tuple[str, str], ...]

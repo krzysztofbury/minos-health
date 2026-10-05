@@ -1,0 +1,18 @@
+[
+  {
+    "tags": [
+      "minos-reference-api:search-recovery-local"
+    ],
+    "id": "sha256:ba5d3509101a82bbd71e9c257c8f6554eae37e3e6c0c5af008f86bc11a949cf6",
+    "size_bytes": 77933483,
+    "note": "Local test artifacts, not published/deployed identities."
+  },
+  {
+    "tags": [
+      "minos-reference-edge:search-recovery-local"
+    ],
+    "id": "sha256:3dd114cb6ca8f36adf6605e4213ea351ec3ece6ff06ce840d8fc22228da01a87",
+    "size_bytes": 23846497,
+    "note": "Local test artifacts, not published/deployed identities."
+  }
+]

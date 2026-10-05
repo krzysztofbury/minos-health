@@ -23,7 +23,7 @@ from minos.domain.jgp_ruleset import (
     TimeZoneUnavailable,
     today_in_poland,
 )
-from minos.domain.reference import ArtifactError, QueryLimitError
+from minos.domain.reference import ArtifactError, QueryLimitError, QueryTimeoutError
 from minos.domain.search import SearchInputError
 from minos.http.jgp_pages import error_page, group_page, index_page
 from minos.http.reference import CapacityError, ReferencePool
@@ -111,8 +111,10 @@ def register_jgp_routes(
             return failure(404, "not_found")
         except CapacityError:
             return failure(429, "busy")
-        except QueryLimitError, TimeoutError:
-            return failure(429, "limit_exceeded")
+        except QueryTimeoutError, TimeoutError:
+            return failure(504, "query_timeout")
+        except QueryLimitError:
+            return failure(422, "limit_exceeded")
         except ArtifactError, OSError:
             return failure(503, "unavailable")
 
@@ -235,7 +237,10 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
         calendar: list[str] | None = None,
     ) -> HTMLResponse:
         page = error_page(status, code, service_date, group, calendar)
-        return html(status, page, "no-store")
+        response = html(status, page, "no-store")
+        if status in (429, 503):
+            response.headers["Retry-After"] = "1"
+        return response
 
     def today_redirect(suffix: str) -> Response:
         try:
@@ -279,8 +284,12 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
             return error(404, "scope_not_found", service_date, group, calendar)
         except AmbiguousRuleset:
             return error(409, "ambiguous_ruleset", service_date, group, calendar)
-        except CapacityError, QueryLimitError, TimeoutError:
+        except CapacityError:
             return error(429, "busy")
+        except QueryTimeoutError, TimeoutError:
+            return error(504, "query_timeout")
+        except QueryLimitError:
+            return error(422, "limit_exceeded")
         except SearchInputError:
             return error(404, "not_found")
         # The default knowledge date is the horizon, so KnowledgeBeyondBundle

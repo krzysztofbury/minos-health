@@ -581,6 +581,14 @@ def error_page(
             "Wybierz dzień udzielenia świadczenia w adresie, np. /jgp/2026-10-02.",
         ),
         "busy": ("Serwis jest chwilowo zajęty", "Spróbuj ponownie za chwilę."),
+        "query_timeout": (
+            "Przygotowanie danych trwało zbyt długo",
+            "Możesz ponowić odczyt. To nie oznacza braku grupy lub danych dla tego dnia.",
+        ),
+        "limit_exceeded": (
+            "Nie udało się przygotować pełnego opisu",
+            "Opis przekroczył bezpieczny limit przetwarzania. Wróć do katalogu lub spróbuj ponownie.",
+        ),
         "unavailable": (
             "Katalog JGP jest chwilowo niedostępny",
             "Dane referencyjne nie przeszły kontroli spójności. Spróbuj później.",
@@ -590,6 +598,8 @@ def error_page(
         code, ("Nie znaleziono strony", "Sprawdź adres strony grupy JGP.")
     )
     actions = ['<a class="button" href="/jgp">Katalog grup JGP</a>']
+    if code in ("busy", "query_timeout", "limit_exceeded", "unavailable"):
+        actions.insert(0, '<a class="button" href="">Spróbuj ponownie</a>')
     if service_date and code == "group_not_on_date":
         actions.insert(
             0,

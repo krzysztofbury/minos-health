@@ -138,7 +138,7 @@ They do not execute a replacement query or appear as authoritative results.
 
 Search accepts at most 256 characters, eight tokens, and 64 characters per token.
 Substring fallback needs at least three characters and never handles code-shaped
-input. A shared 250 ms query deadline and two million SQLite virtual-machine
+input. A shared 2-second query deadline and two million SQLite virtual-machine
 operations cover all retrieval/context stages. Each hit permits 256 ancestors,
 64 graph levels and 1,024 context edges; source-label/evidence/attribute content
 across the response is bounded to 512 Ki characters. Spelling permits at most 100,000
@@ -147,6 +147,10 @@ the deadline is checked before and after it, not a preemptive native interrupt.
 Morphological analysis accepts at most 256 dictionary analyses and 16 alternatives
 per bounded word. The native analyzer is count/input-bounded, not preemptively
 interrupted by SQLite's progress handler.
+Other store stages default to one second. Nested budgets retain outer deadline
+and operation accounting. The earlier 250/400 ms refusal thresholds were
+replaced following the 2026-10-05 usability request; see
+[measured recovery evidence](../validation/dictionary-search-recovery.md).
 Artifact verification and interpreter/process startup are measured separately
 and are not inside the SQL query deadline. No incomplete context is returned as
 complete results; resource-limit failures produce no partial response.

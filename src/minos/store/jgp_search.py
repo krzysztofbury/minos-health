@@ -14,9 +14,16 @@ from typing import cast
 from minos.domain.morphology import PolishMorphology
 from minos.domain.normalization import normalize_description
 from minos.domain.reference import ArtifactError
-from minos.domain.search import SearchQuery, fold_polish, text_tokens, use_token_prefix
+from minos.domain.search import (
+    SearchQuery,
+    SearchRequest,
+    fold_polish,
+    text_tokens,
+    use_token_prefix,
+)
 from minos.store.jgp_ruleset import MAX_INDEX_GROUPS, resolve_ruleset
 from minos.store.query_budget import QueryBudget
+from minos.store.search_synonyms import synonym_requests
 
 
 @dataclass(frozen=True)
@@ -132,7 +139,7 @@ def search_groups(
         raise ValueError("invalid group search limit")
     # The resolver's bounded SQL stages retain their own operation limits. This
     # deadline additionally covers their total time and all Python matching.
-    budget = QueryBudget(seconds=0.4)
+    budget = QueryBudget(seconds=2.0)
     ruleset = resolve_ruleset(connection, day, None)
     budget.check()
     release = cast(str, ruleset["release_id"])
@@ -145,8 +152,19 @@ def search_groups(
         else ()
     )
     folded = tuple(frozenset(map(fold_polish, values)) for values in variants)
+    rewrites = synonym_requests(connection, SearchRequest("jgp-szp", query, release))
+    expanded = tuple(
+        (
+            request.query,
+            tuple(analyzer.variants(token) for token in request.query.tokens),
+            wording,
+        )
+        for request, wording in rewrites
+    )
+    explanations: dict[str, str] = {}
     matches: list[tuple[int, int, GroupName, str]] = []
     fallback: list[tuple[int, int, GroupName, str]] = []
+    related: list[tuple[int, int, GroupName, str]] = []
     seen: set[str] = set()
     for ordinal, group in enumerate(index[release]):
         budget.check()
@@ -160,8 +178,15 @@ def search_groups(
             rank, kind = match
             target = fallback if rank == 4 else matches
             target.append((rank, ordinal, group, kind))
+        else:
+            for alternative, forms, wording in expanded:
+                if _match(group, alternative, forms, ()) is not None:
+                    related.append((5, ordinal, group, "related_tokens"))
+                    explanations[group.code] = wording
+                    break
     if len(matches) < min(5, limit):
         matches.extend(fallback)
+    matches.extend(related)
     matches.sort(key=lambda item: (item[0], item[1], item[2].code))
     answer: dict[str, object] = {
         "api": 1,
@@ -176,6 +201,14 @@ def search_groups(
                 "catalog": group.catalog,
                 "act_number": ruleset["act_number"],
                 "match_type": kind,
+                **(
+                    {
+                        "synonym_source_wording": explanations[group.code],
+                        "expansion_relation": "related_procedure",
+                    }
+                    if group.code in explanations
+                    else {}
+                ),
                 "href": f"/jgp/{date_text}/{group.code}",
             }
             for _rank, _ordinal, group, kind in matches[:limit]

@@ -28,8 +28,11 @@ the home page has no date, catalog or scope controls.
   readiness. It needs no characteristics, schema migration or query cache.
 - Bounds: 20,000 total rows, 2,000 per release, 4,096 characters per name and
   8 MiB aggregate source-name text. Runtime scans only the resolved release.
-- The 400 ms wall deadline covers resolution, analysis, matching and hydration.
+- The 2-second cooperative deadline covers resolution, analysis, matching and hydration.
   Existing resolver SQL-operation caps and four-worker HTTP capacity remain.
+- Reviewed whole-query device-to-procedure expansions follow existing matches,
+  retain the selected date and source labels, and are labelled as related
+  procedures. See [dictionary recovery](../validation/dictionary-search-recovery.md).
 - Query text travels only in POST bodies. No new URL, logging or browser-storage
   path is introduced. Suggestions keep the response's dated URL across midnight.
 

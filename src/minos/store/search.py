@@ -40,9 +40,9 @@ def search_reference(
     *,
     analyzer: PolishMorphology | None = None,
 ) -> SearchResult:
-    # Shared across all stages, including Python hydration. Keep the operation
-    # cap unchanged; allow the accepted 400 ms ceiling on the small VPS.
-    with query_budget(connection, seconds=0.4) as budget:
+    # Latency is a target, not a reason to discard an otherwise valid 500 ms
+    # result. Keep the operation/output bounds and a finite recovery deadline.
+    with query_budget(connection, seconds=2.0) as budget:
         search_version = cast(
             tuple[str] | None,
             connection.execute(

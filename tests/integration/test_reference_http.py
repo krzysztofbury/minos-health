@@ -8,9 +8,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from minos.domain.morphology import PolishMorphology
-from minos.domain.reference import ArtifactError
+from minos.domain.reference import ArtifactError, QueryLimitError, QueryTimeoutError
 from minos.domain.search import SearchRequest, SearchResult
 from minos.http.app import create_app
+from minos.http.reference import CapacityError
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.store.search import search_reference
 from tests.integration.test_icd9_reference import stage_companion
@@ -166,6 +167,53 @@ def test_http_cannot_be_ready_without_pinned_morphology(
     with pytest.raises(ArtifactError, match="pinned reference extra"):
         with TestClient(create_app(path)) as client:
             assert client.get("/readyz").status_code == 200
+
+
+def test_production_profile_requirement_rejects_a_legacy_bundle(tmp_path: Path) -> None:
+    with pytest.raises(ArtifactError, match="required search profile"):
+        with TestClient(
+            create_app(bundle(tmp_path), required_search_profile="polish-folded-1")
+        ):
+            pytest.fail(
+                "legacy database cannot satisfy the selected deployment profile"
+            )
+
+
+@pytest.mark.parametrize(
+    ("error_type", "status", "code"),
+    [
+        (CapacityError, 429, "busy"),
+        (QueryTimeoutError, 504, "query_timeout"),
+        (QueryLimitError, 422, "limit_exceeded"),
+    ],
+)
+def test_search_and_detail_failures_are_distinct_and_recoverable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error_type: type[Exception],
+    status: int,
+    code: str,
+) -> None:
+    from minos.http import app as adapter
+
+    def fail(*_args: object, **_kwargs: object) -> object:
+        raise error_type("private diagnostic sentinel")
+
+    with TestClient(create_app(bundle(tmp_path))) as client:
+        monkeypatch.setattr(adapter, "lookup", fail)
+        monkeypatch.setattr(adapter, "render_code", fail)
+        response = client.post("/api/v1/search", json=request_body())
+        assert response.status_code == status
+        assert response.json() == {"api": 1, "status": "error", "error": {"code": code}}
+        page = client.get("/slowniki/icd-9/A01")
+        assert page.status_code == status
+        assert page.headers["content-type"].startswith("text/html")
+        assert page.headers["cache-control"] == "no-store"
+        assert "Spróbuj ponownie" in page.text
+        assert 'href="/slowniki/icd-9/A01"' in page.text
+        assert "private diagnostic sentinel" not in page.text
+        if status == 429:
+            assert response.headers["retry-after"] == page.headers["retry-after"] == "1"
 
 
 def test_busy_sql_workers_do_not_block_liveness_and_overload_is_explicit(

@@ -4,13 +4,18 @@ import logging
 import sqlite3
 from collections.abc import Iterator
 from datetime import date
+from pathlib import Path
 from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
 
 from minos.http.app import create_app
-from tests.integration.test_jgp_api import lineage_bundle
+from minos.ingest.reference_artifact import build_reference_artifact
+from minos.ingest.reference_manifest import DatasetManifest
+from minos.ingest.search_synonyms import SearchSynonym
+from tests.fixtures.jgp_catalog import catalog_workbook, default_sheets, stage_catalog
+from tests.integration.test_jgp_api import dataset, lineage_bundle
 
 
 @pytest.fixture(scope="module")
@@ -131,8 +136,8 @@ def test_group_query_is_body_only_and_absent_from_logs(
     assert client.get("/api/v1/releases").json()["jgp_search"] is True
 
 
-@pytest.mark.parametrize(("elapsed", "status"), [(0.3, 200), (0.401, 429)])
-def test_group_search_uses_400ms_total_deadline(
+@pytest.mark.parametrize(("elapsed", "status"), [(0.3, 200), (0.6, 200), (2.001, 504)])
+def test_group_search_allows_slow_results_but_keeps_a_total_deadline(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     elapsed: float,
@@ -153,5 +158,68 @@ def test_group_search_uses_400ms_total_deadline(
     monkeypatch.setattr("minos.store.jgp_search.resolve_ruleset", timed_resolver)
     response = client.post("/api/v1/search", json={"system": "jgp", "query": "H21"})
     assert response.status_code == status
-    if status == 429:
-        assert response.json()["error"]["code"] == "limit_exceeded"
+    if status == 504:
+        assert response.json()["error"]["code"] == "query_timeout"
+
+
+@pytest.mark.parametrize("reviewed", [False, True])
+def test_reviewed_group_expansion_keeps_qualifiers_date_and_source_labels(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reviewed: bool,
+) -> None:
+    catalog = stage_catalog(tmp_path, catalog_workbook(default_sheets()))
+    base = dataset(tmp_path, [catalog.model_dump(mode="json")])
+    entry = SearchSynonym(
+        id="synthetic-group-alias",
+        version=1,
+        system="jgp-szp",
+        term="syntetyczny implant",
+        source_wording="artroskopowa rekonstrukcja",
+        source_url="https://example.org/synthetic-related-procedure",
+        evidence="Synthetic test only, not medical equivalence.",
+        relation="related_procedure",
+        whole_query_only=True,
+        status="reviewed" if reviewed else "proposed",
+        reviewer="Synthetic reviewer" if reviewed else None,
+        reviewed_on=date(2026, 10, 5) if reviewed else None,
+        release_id=catalog.release_id,
+    )
+    manifest = DatasetManifest.model_validate(
+        {
+            **base.model_dump(),
+            "search_profile": "polish-folded-1",
+            "search_synonyms": (entry,),
+        }
+    )
+    bundle = tmp_path / "expanded"
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    monkeypatch.setattr("minos.http.app.today_in_poland", lambda: date(2026, 10, 4))
+    with TestClient(create_app(bundle)) as client:
+        answer = cast(
+            dict[str, object],
+            client.post(
+                "/api/v1/search", json={"system": "jgp", "query": "syntetyczny implant"}
+            ).json(),
+        )
+        if reviewed:
+            hit = cast(list[dict[str, object]], answer["results"])[0]
+            assert hit["code"] == "H21"
+            assert hit["label"] == "Artroskopowa rekonstrukcja *"
+            assert hit["match_type"] == "related_tokens"
+            assert hit["expansion_relation"] == "related_procedure"
+            assert hit["href"] == "/jgp/2026-10-04/H21"
+        else:
+            assert not answer["results"]
+        for query in (
+            "bez syntetyczny implant",
+            "stan po syntetyczny implant",
+            "syntetyczny implant kolana",
+        ):
+            assert not client.post(
+                "/api/v1/search", json={"system": "jgp", "query": query}
+            ).json()["results"]
+        monkeypatch.setattr("minos.http.app.today_in_poland", lambda: date(2026, 6, 1))
+        assert not client.post(
+            "/api/v1/search", json={"system": "jgp", "query": "syntetyczny implant"}
+        ).json()["results"]

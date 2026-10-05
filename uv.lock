@@ -573,6 +573,9 @@ api = [
     { name = "fastapi" },
     { name = "uvicorn" },
 ]
+dictionary-tools = [
+    { name = "wn" },
+]
 reference = [
     { name = "morfeusz2" },
     { name = "openpyxl" },
@@ -617,8 +620,9 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.15.0" },
     { name = "rapidfuzz", specifier = ">=3.14.6,<4" },
     { name = "uvicorn", marker = "extra == 'api'", specifier = "==0.54.0" },
+    { name = "wn", marker = "extra == 'dictionary-tools'", specifier = "==1.1.1" },
 ]
-provides-extras = ["reference", "api"]
+provides-extras = ["reference", "api", "dictionary-tools"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1414,6 +1418,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b3/8f/705086c9d734d3b663af0e9bb3d4de6578d08f46b1b101c2442fd9aecaa2/win32_setctime-1.2.0.tar.gz", hash = "sha256:ae1fdf948f5640aae05c511ade119313fb6a30d7eabe25fef9764dca5873c4c0", size = 4867, upload-time = "2024-12-07T15:28:28.314Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083, upload-time = "2024-12-07T15:28:26.465Z" },
+]
+
+[[package]]
+name = "wn"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/12/a3/df602e01adb0b18a0b1720a87d5d761cc663ecbaa846ed5a4939a5357dc5/wn-1.1.1.tar.gz", hash = "sha256:0555ea875f13df648f343b9c622153e4f71ee42bc9d57a00f260e1928f86b128", size = 164076, upload-time = "2026-08-14T06:47:27.48Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/03/dd84df87acf1cdba5d6f9fb1770f8880fc9c4139c380118c8b35ad5b4d85/wn-1.1.1-py3-none-any.whl", hash = "sha256:feaea1ef53806729b4629daa769546adb55a45cd029fa8e524db2ada837f8d24", size = 95820, upload-time = "2026-08-14T06:47:26.265Z" },
 ]
 
 [[package]]

@@ -25,7 +25,7 @@ from minos.domain.jgp_ruleset import (
     TimeZoneUnavailable,
     today_in_poland,
 )
-from minos.domain.reference import ArtifactError, QueryLimitError
+from minos.domain.reference import ArtifactError, QueryLimitError, QueryTimeoutError
 from minos.domain.search import (
     SearchInputError,
     SearchRequest,
@@ -44,6 +44,7 @@ from minos.http.pages import (
     DICTIONARIES,
     code_page,
     missing_page,
+    recovery_page,
     sitemap,
 )
 from minos.http.reference import CapacityError, ReferencePool
@@ -108,8 +109,20 @@ class Lookup(BaseModel):
 
 def failure(status: int, code: str) -> JSONResponse:
     return JSONResponse(
-        {"api": 1, "status": "error", "error": {"code": code}}, status_code=status
+        {"api": 1, "status": "error", "error": {"code": code}},
+        status_code=status,
+        headers={"Retry-After": "1"} if status in (429, 503) else None,
     )
+
+
+def lookup_failure(error: Exception) -> tuple[int, str]:
+    if isinstance(error, CapacityError):
+        return 429, "busy"
+    if isinstance(error, (QueryTimeoutError, TimeoutError)):
+        return 504, "query_timeout"
+    if isinstance(error, QueryLimitError):
+        return 422, "limit_exceeded"
+    return 503, "unavailable"
 
 
 def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
@@ -332,10 +345,21 @@ def browse(
     return answer
 
 
-def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> FastAPI:
+def create_app(
+    bundle: Path,
+    *,
+    expected_database_sha256: str | None = None,
+    required_search_profile: str | None = None,
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
         pool = await run_in_threadpool(ReferencePool, bundle)
+        if (
+            required_search_profile is not None
+            and pool.manifest.dataset.search_profile != required_search_profile
+        ):
+            pool.close()
+            raise ArtifactError("reference bundle lacks the required search profile")
         if (
             expected_database_sha256 is not None
             and pool.manifest.database_sha256 != expected_database_sha256
@@ -399,6 +423,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
                     if request.method in ("GET", "POST", "HEAD", "OPTIONS")
                     else "OTHER",
                     "status_class": response.status_code // 100,
+                    "status_code": response.status_code,
+                    "failure_code": getattr(request.state, "failure_code", None),
                     "duration_ms": min(
                         round((time.monotonic() - began) * 1000), 10_000
                     ),
@@ -435,6 +461,8 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             return failure(503, "unavailable")
 
     def releases() -> dict[str, object]:
+        from minos.ingest.search_synonyms import dictionary_notice
+
         pool = cast(ReferencePool, app.state.pool)
         return {
             "api": 1,
@@ -442,6 +470,9 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             "disclaimer": DISCLAIMER,
             "dataset_id": dataset_identity(pool.manifest.dataset),
             "jgp_search": bool(pool.group_index),
+            "search_dictionary_notice": dictionary_notice(
+                pool.manifest.dataset.search_synonyms
+            ),
             "releases": [
                 {
                     "release_id": source.release_id,
@@ -494,8 +525,14 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             return failure(400, "invalid_request")
         except CapacityError:
             return failure(429, "busy")
-        except QueryLimitError, TimeoutError:
-            return failure(429, "limit_exceeded")
+        except QueryTimeoutError:
+            request.state.failure_code = "query_timeout"
+            return failure(504, "query_timeout")
+        except QueryLimitError:
+            request.state.failure_code = "limit_exceeded"
+            return failure(422, "limit_exceeded")
+        except TimeoutError:
+            return failure(408, "request_timeout")
         except ArtifactError, OSError, TimeZoneUnavailable:
             return failure(503, "unavailable")
 
@@ -518,12 +555,15 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             return failure(404, "not_found")
         except CapacityError:
             return failure(429, "busy")
-        except QueryLimitError, TimeoutError:
-            return failure(429, "limit_exceeded")
+        except QueryTimeoutError, TimeoutError:
+            return failure(504, "query_timeout")
+        except QueryLimitError:
+            return failure(422, "limit_exceeded")
         except ArtifactError, OSError:
             return failure(503, "unavailable")
 
     async def dictionary_page(
+        request: Request,
         dictionary: str,
         code: str,
         service_date: str | None = None,
@@ -578,12 +618,23 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             )
         except SearchInputError:
             return failure(404, "not_found")
-        except CapacityError:
-            return failure(429, "busy")
-        except QueryLimitError, TimeoutError:
-            return failure(429, "limit_exceeded")
-        except ArtifactError, OSError:
-            return failure(503, "unavailable")
+        except (
+            CapacityError,
+            QueryLimitError,
+            TimeoutError,
+            ArtifactError,
+            OSError,
+        ) as error:
+            status, reason = lookup_failure(error)
+            request.state.failure_code = reason
+            return HTMLResponse(
+                recovery_page(dictionary, code, reason, request.url.path),
+                status_code=status,
+                headers={
+                    "Cache-Control": "no-store",
+                    **({"Retry-After": "1"} if status in (429, 503) else {}),
+                },
+            )
         return HTMLResponse(
             page,
             status_code=status,
@@ -631,8 +682,10 @@ def create_app(bundle: Path, *, expected_database_sha256: str | None = None) -> 
             return failure(404, "not_found")
         except CapacityError:
             return failure(429, "busy")
-        except QueryLimitError, TimeoutError:
-            return failure(429, "limit_exceeded")
+        except QueryTimeoutError, TimeoutError:
+            return failure(504, "query_timeout")
+        except QueryLimitError:
+            return failure(422, "limit_exceeded")
         except ArtifactError, OSError:
             return failure(503, "unavailable")
 
@@ -673,4 +726,5 @@ def application() -> FastAPI:
     return create_app(
         Path(os.environ.get("MINOS_REFERENCE_BUNDLE", "/app/data")),
         expected_database_sha256=os.environ.get("MINOS_REFERENCE_DATABASE_SHA256", ""),
+        required_search_profile="polish-folded-1",
     )

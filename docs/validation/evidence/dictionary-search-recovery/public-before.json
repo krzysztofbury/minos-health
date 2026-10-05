@@ -1,0 +1,33 @@
+{
+  "dataset_id": "cb0cc740f0cf509fd248c4a1f2bde8a3f94691f49d210ce56a2e56891930268b",
+  "sequential_canaries": [
+    {
+      "probe_id": 1,
+      "system": "icd10-pl",
+      "status": 429,
+      "duration_ms": 494.5,
+      "error_code": "limit_exceeded",
+      "results": 0,
+      "request_id": "0c21875005ed41d681bdb819aeb9490a"
+    },
+    {
+      "probe_id": 2,
+      "system": "icd9-pl",
+      "status": 429,
+      "duration_ms": 531.3,
+      "error_code": "limit_exceeded",
+      "results": 0,
+      "request_id": "45d595e387da44dfbc3597794ba66ce5"
+    },
+    {
+      "probe_id": 3,
+      "system": "jgp",
+      "status": 200,
+      "duration_ms": 76.7,
+      "error_code": null,
+      "results": 0,
+      "request_id": "99617ba4770742b3ae41808fc273acb0"
+    }
+  ],
+  "note": "One sample per system, not a host load test."
+}

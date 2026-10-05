@@ -18,7 +18,7 @@ PAGE_ROUTES = (
     ("/slowniki/icd-10", "dictionary-icd-10.html"),
     ("/slowniki/icd-9", "dictionary-icd-9.html"),
 )
-ASSET_ROUTES = ("/search.js", "/dictionary.js", "/jgp.js")
+ASSET_ROUTES = ("/request.js", "/search.js", "/dictionary.js", "/jgp.js")
 
 
 def _routes() -> str:
@@ -26,6 +26,11 @@ def _routes() -> str:
         """
         # Branded page for every edge-generated 404; proxied API errors pass through.
         error_page 404 /404.html;
+        error_page 502 503 504 /unavailable.html;
+        location = /unavailable.html {
+            internal;
+            try_files /unavailable.html =503;
+        }
         location = /404.html {
             internal;
             try_files /404.html =404;

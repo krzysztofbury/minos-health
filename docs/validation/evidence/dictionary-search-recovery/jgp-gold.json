@@ -1,0 +1,284 @@
+[
+  {
+    "variant": "deployed",
+    "startup_seconds": 5.430725323967636,
+    "cases": [
+      {
+        "id": "JG01",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG02",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG03",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG04",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG05",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG06",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG07",
+        "rank": 2,
+        "passed": true
+      },
+      {
+        "id": "JG08",
+        "rank": 3,
+        "passed": true
+      },
+      {
+        "id": "JG09",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG10",
+        "rank": 4,
+        "passed": true
+      },
+      {
+        "id": "JG11",
+        "rank": null,
+        "passed": false
+      },
+      {
+        "id": "JG12",
+        "rank": null,
+        "passed": true
+      }
+    ],
+    "passed": 11,
+    "qualifier_diagnostics": [
+      {
+        "id": 1,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 2,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 3,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 4,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 5,
+        "results": 0,
+        "has_expansion": false
+      }
+    ]
+  },
+  {
+    "variant": "mapped",
+    "startup_seconds": 5.805915151024237,
+    "cases": [
+      {
+        "id": "JG01",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG02",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG03",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG04",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG05",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG06",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG07",
+        "rank": 2,
+        "passed": true
+      },
+      {
+        "id": "JG08",
+        "rank": 3,
+        "passed": true
+      },
+      {
+        "id": "JG09",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG10",
+        "rank": 4,
+        "passed": true
+      },
+      {
+        "id": "JG11",
+        "rank": null,
+        "passed": false
+      },
+      {
+        "id": "JG12",
+        "rank": null,
+        "passed": true
+      }
+    ],
+    "passed": 11,
+    "qualifier_diagnostics": [
+      {
+        "id": 1,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 2,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 3,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 4,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 5,
+        "results": 0,
+        "has_expansion": false
+      }
+    ]
+  },
+  {
+    "variant": "expanded-final",
+    "startup_seconds": 5.754013096971903,
+    "cases": [
+      {
+        "id": "JG01",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG02",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG03",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG04",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG05",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG06",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG07",
+        "rank": 2,
+        "passed": true
+      },
+      {
+        "id": "JG08",
+        "rank": 3,
+        "passed": true
+      },
+      {
+        "id": "JG09",
+        "rank": 1,
+        "passed": true
+      },
+      {
+        "id": "JG10",
+        "rank": 4,
+        "passed": true
+      },
+      {
+        "id": "JG11",
+        "rank": 3,
+        "passed": true
+      },
+      {
+        "id": "JG12",
+        "rank": null,
+        "passed": true
+      }
+    ],
+    "passed": 12,
+    "qualifier_diagnostics": [
+      {
+        "id": 1,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 2,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 3,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 4,
+        "results": 0,
+        "has_expansion": false
+      },
+      {
+        "id": 5,
+        "results": 0,
+        "has_expansion": false
+      }
+    ]
+  }
+]

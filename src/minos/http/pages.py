@@ -352,6 +352,33 @@ def missing_page(dictionary: Dictionary, code: str) -> str:
     )
 
 
+def recovery_page(slug: str, code: str, reason: str, retry_path: str) -> str:
+    dictionary = DICTIONARIES[slug]
+    message = {
+        "busy": "Wszystkie stanowiska wyszukiwania są chwilowo zajęte. Spróbuj ponownie za chwilę.",
+        "query_timeout": "Przygotowanie opisu przekroczyło czas oczekiwania. To nie oznacza, że kodu nie ma w słowniku.",
+        "limit_exceeded": "Opis przekroczył bezpieczny limit przetwarzania. Możesz wrócić do wyszukiwarki lub przeglądać słownik.",
+    }.get(reason, "Nie udało się teraz odczytać słownika. Spróbuj ponownie za chwilę.")
+    content = (
+        '<section class="shell page-head not-found" aria-live="polite">'
+        f"<h1>Nie udało się wczytać opisu {_e(code)}</h1>"
+        f'<p class="page-lead">{_e(message)}</p>'
+        '<p class="not-found-actions">'
+        f'<a class="button" href="{_e(retry_path)}">Spróbuj ponownie</a>'
+        '<a class="button button-quiet" href="/">Wróć do wyszukiwarki</a>'
+        f'<a class="button button-quiet" href="/slowniki/{dictionary.slug}">Przeglądaj słownik</a>'
+        "</p></section>"
+    )
+    return _page(
+        title=f"Ponów odczyt - {dictionary.name} - Minos Health",
+        description=message,
+        path=retry_path,
+        content=content,
+        head="",
+        robots="noindex, follow",
+    )
+
+
 def sitemap(dictionary: Dictionary, codes: list[str]) -> bytes:
     entries = "".join(
         f"  <url><loc>{html.escape(SITE + code_path(dictionary, code))}</loc></url>\n"

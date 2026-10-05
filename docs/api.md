@@ -30,10 +30,17 @@ Suggestions are not automatically executed. Empty results return HTTP 200 with
 Inputs are strict JSON, at most 4 KiB, with a 256-character/eight-token query,
 an explicit system/release and 1-20 results. Unknown fields/types are rejected.
 The optional language is `pl` (default) or `en`. Invalid requests return 400;
-unsupported content types 415; oversized bodies 413; capacity/query limits 429;
-unavailable/changed artifacts 503. Errors expose only fixed machine-readable
+unsupported content types 415; oversized bodies 413; capacity exhaustion 429
+`busy` with `Retry-After: 1`; elapsed search deadlines 504 `query_timeout`;
+operation/output bounds 422 `limit_exceeded`; body-read deadlines 408
+`request_timeout`; unavailable/changed artifacts 503. Errors expose only fixed machine-readable
 codes, never the submitted query or exception details. The edge rejects URL
 query parameters and private artifact paths with 404. All responses are no-store.
+
+HTML detail routes render retry pages for capacity/deadline failures. See
+[dictionary search recovery](validation/dictionary-search-recovery.md) for the
+bounded worker wait and browser retry contract. Release metadata includes the
+upstream licence notice when reviewed WordNet-derived phrases are selected.
 
 ## Dictionary Tree
 

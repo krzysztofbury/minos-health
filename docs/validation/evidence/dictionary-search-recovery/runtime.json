@@ -1,0 +1,60 @@
+{
+  "database_sha256": "0c4936ccc405388e66b17791eea5d86e0148054930ec3c187dc2b6a997ce261d",
+  "limits": {
+    "api_cpus": 1,
+    "api_memory_mib": 512,
+    "edge_cpus": 0.5
+  },
+  "phases": [
+    {
+      "concurrency": 1,
+      "seconds": 17.89,
+      "requests": 1000,
+      "status_counts": {
+        "200": 1000
+      },
+      "empty_successful_searches": 0,
+      "p50_ms": 16.03,
+      "p95_ms": 31.93,
+      "max_ms": 80.1
+    },
+    {
+      "concurrency": 4,
+      "seconds": 20.02,
+      "requests": 365,
+      "status_counts": {
+        "200": 365
+      },
+      "empty_successful_searches": 0,
+      "p50_ms": 209.95,
+      "p95_ms": 411.03,
+      "max_ms": 618.84
+    },
+    {
+      "concurrency": 8,
+      "seconds": 20.3,
+      "requests": 399,
+      "status_counts": {
+        "200": 399
+      },
+      "empty_successful_searches": 0,
+      "p50_ms": 393.39,
+      "p95_ms": 696.29,
+      "max_ms": 921.12
+    }
+  ],
+  "forced_overload": {
+    "api_cpus": 0.05,
+    "concurrency": 24,
+    "statuses": {
+      "429": 1,
+      "503": 19,
+      "504": 4
+    }
+  },
+  "overload_recovered": true,
+  "browser": "passed",
+  "memory_peak_bytes": 200634368,
+  "query_log_privacy": "passed",
+  "edge_failure_recovery": "passed"
+}

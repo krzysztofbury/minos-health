@@ -65,6 +65,12 @@ and [Logpull retention](https://developers.cloudflare.com/logs/logpull/enabling-
 
 ## Limits And Targets Defined Before Load
 
+These are the original rollout budgets. The 2026-10-05
+[dictionary/search recovery](dictionary-search-recovery.md) supersedes the
+immediate lease refusal and 250/400 ms query deadlines with bounded waiting,
+longer cooperative budgets and distinct capacity/timeout responses. Historical
+measurements below retain their original context.
+
 - Four startup-verified, exclusively borrowed read-only SQLite connections.
   Database digest must equal the selected deployment identity; file identity
   changes fail closed. No request queue waits for an occupied SQL connection.

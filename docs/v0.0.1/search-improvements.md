@@ -166,6 +166,10 @@ does not claim a completed hosted run.
 
 ## Live Timeout Investigation
 
+This section records the 2026-10-04 investigation. The later
+[2026-10-05 recovery policy](../validation/dictionary-search-recovery.md)
+supersedes its 400 ms deadline and adds the reviewed dictionary subset.
+
 On 2026-10-04, 44 sequential non-patient gold probes against the deployed
 revision `3f62ca46dd2f5329ad595db212674b5c5878b5dc` reproduced a
 `429 limit_exceeded` for G07 (267 ms end-to-end). The container was healthy,
