@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { waitForDevToolsPort } from "./devtools-port.mjs";
 
 const [, , executable, url, output] = process.argv;
 assert.ok(executable && url && output);
@@ -12,12 +13,7 @@ const browser = spawn(executable, ["--host-resolver-rules=MAP minoshealth.pl 127
 browser.stdout.resume(); browser.stderr.resume();
 let socket;
 try {
-  let port;
-  for (let i = 0; i < 1200; i++) {
-    try { port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; }
-    catch { if (browser.exitCode !== null) throw new Error("browser startup failed"); await new Promise((resolve) => setTimeout(resolve, 50)); }
-  }
-  assert.ok(port);
+  const port = await waitForDevToolsPort(browser, profile);
   let target;
   for (let i = 0; i < 100; i++) {
     target = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((candidate) => candidate.type === "page");
