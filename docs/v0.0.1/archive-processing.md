@@ -136,6 +136,29 @@ byte verification must still pin the selected product and metadata. This does no
 validate source meaning, legal/applicability policy, selection for other source
 types, a full candidate audit or activation permission. No checkpoint advances.
 
+### Exact Blob-Version Resolution
+
+`S3ArchiveVersionSelector.select_blobs()` resolves already pinned hash/size
+identities, including metadata evidence not included in a dataset build. Its
+`select_dataset()` adapter gathers and deduplicates every supported manifest
+input, then returns the existing `ArchiveSelection` contract. Conflicting sizes,
+duplicates, more than 128 blobs or more than 512 MiB fail before a remote read.
+
+Each digest-derived key gets one `ListObjectVersions` request with `MaxKeys=2`
+and the reviewed bucket owner. Only a complete listing with exactly one explicit
+version and no delete markers is supported. Ambiguous history, prefix suffixes,
+null versions and incomplete listings fail rather than paginating or choosing
+`IsLatest`. This intentionally reflects conditional-create immutable blob keys;
+an exceptional multi-version key needs investigation, not automatic repair.
+
+The subsequent `HeadObject` pins that version, key and owner, and checks size and
+native full-object SHA-256. Resolution is deterministic by digest, all-or-fail,
+with a cooperative 600-second deadline and bounded SDK retries/timeouts. These
+are metadata pins only: existing materialization must still fetch and verify
+the exact bytes before parsing. This does not grant source-policy authority,
+run a schedule or advance a processing/activation checkpoint. No IAM change is
+needed or applied; the existing reader already declares version listing/reads.
+
 ## Subsequent Chunks (#21)
 
 1. Wire the bounded recovery/change reader into exact-version automatic selection

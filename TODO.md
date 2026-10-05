@@ -65,8 +65,10 @@ phases strictly in order, not as parallel branches:
         now revalidates immutable images and captured source/run/observation
          identities without exposing raw state or advancing checkpoints. RSK
          before/after selection now checks captured summary, predecessor, metadata
-         and product evidence, including metadata-only retained products. S3 version
-         resolution and source/policy interpretation still remain. Automatic
+         and product evidence, including metadata-only retained products. Bounded
+         exact S3 version resolution now rejects ambiguous/delete/incomplete history
+         and returns the existing transport selection; source/policy interpretation,
+         hosted real-source evidence and automatic scheduling still remain. Automatic
         selection, proposals, durable state, activation and alerts remain pending.
         Owner-approved offline delegated signature/scope checks are added for the
         #41 prerequisite, with canonical embedded data retained. They are not full

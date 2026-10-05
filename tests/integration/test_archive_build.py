@@ -19,9 +19,15 @@ from pydantic import ValidationError
 from minos.cli.main import main
 from minos.domain.reference import SourceError
 from minos.ingest.archive_build import (
+    ArchiveBlob,
     ArchiveS3Client,
     ArchiveSelection,
     S3ArchiveReader,
+)
+from minos.ingest.processing.archive_versions import (
+    ArchiveLocation,
+    S3ArchiveVersionSelector,
+    VersionClient,
 )
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
@@ -447,15 +453,19 @@ def test_archive_transfer_has_a_deadline_before_any_remote_read(
     assert not list(tmp_path.glob(".minos-archive-*"))
 
 
+@pytest.mark.parametrize("client_kind", ["reader", "version-selector"])
 def test_production_client_has_bounded_retries_and_no_endpoint_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    client_kind: str,
 ) -> None:
     manifest = conditions_manifest(tmp_path)
     pins = selection(tmp_path, manifest)
-    client = Client(tmp_path)
+    client = Client(tmp_path) if client_kind == "reader" else VersionFixture(tmp_path)
 
-    def factory(service: str, *, region_name: str, config: object) -> Client:
+    def factory(
+        service: str, *, region_name: str, config: object
+    ) -> Client | VersionFixture:
         assert service == "s3"
         assert region_name == "eu-central-1"
         settings = cast(_SdkConfig, config)
@@ -466,11 +476,21 @@ def test_production_client_has_bounded_retries_and_no_endpoint_override(
         return client
 
     monkeypatch.setattr(boto3, "client", factory)
-    with S3ArchiveReader.create(pins).materialize(
-        manifest, staging_directory=tmp_path
-    ) as archive:
-        assert (archive / "blobs/sha256").is_dir()
+    if client_kind == "reader":
+        reader = S3ArchiveReader.create(pins)
+        try:
+            with reader.materialize(manifest, staging_directory=tmp_path) as archive:
+                assert (archive / "blobs/sha256").is_dir()
+        finally:
+            reader.close()
+    else:
+        selector = S3ArchiveVersionSelector.create(archive_location())
+        try:
+            assert selector.select_dataset(manifest) == pins
+        finally:
+            selector.close()
     assert client.calls
+    assert client.closed
 
 
 def test_selection_bounds_objects_and_cumulative_transfer_bytes(tmp_path: Path) -> None:
@@ -501,3 +521,262 @@ def test_stream_cleanup_failure_preserves_primary_error_and_never_offers_archive
     assert "PRIVATE_SDK_CLEANUP_TEXT" not in str(error.value)
     assert all(stream.closed for stream in client.streams)
     assert not list(tmp_path.glob(".minos-archive-*"))
+
+
+@final
+class VersionFixture:
+    def __init__(self, root: Path) -> None:
+        self.blobs = {
+            path.name: path.read_bytes() for path in (root / "blobs/sha256").iterdir()
+        }
+        self.calls: list[dict[str, object]] = []
+        self.damage: str | None = None
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+    def list_object_versions(self, **kwargs: object) -> Mapping[str, object]:
+        self.calls.append(kwargs)
+        assert kwargs["Bucket"] == "minos-build-synthetic"
+        assert kwargs["ExpectedBucketOwner"] == "123456789012"
+        assert kwargs["MaxKeys"] == 2
+        digest = str(kwargs["Prefix"]).removeprefix("blobs/sha256/")
+        version: dict[str, object] = {
+            "Key": kwargs["Prefix"],
+            "VersionId": "archived-version",
+            "Size": len(self.blobs[digest]),
+            "IsLatest": False,
+        }
+        result: dict[str, object] = {"IsTruncated": False, "Versions": [version]}
+        if self.damage == "list-error":
+            raise ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "PRIVATE_SECRET"}},
+                "ListObjectVersions",
+            )
+        if self.damage == "truncated":
+            result["IsTruncated"] = True
+        elif self.damage == "missing-truncation":
+            del result["IsTruncated"]
+        elif self.damage == "delete-marker":
+            result["DeleteMarkers"] = [
+                {"Key": kwargs["Prefix"], "VersionId": "deleted"}
+            ]
+        elif self.damage == "absent":
+            result["Versions"] = []
+        elif self.damage == "duplicate":
+            result["Versions"] = [
+                version,
+                {**version, "VersionId": "another-version", "IsLatest": True},
+            ]
+        elif self.damage == "key":
+            version["Key"] = "blobs/sha256/" + "a" * 64
+        elif self.damage == "prefix-suffix":
+            version["Key"] = str(kwargs["Prefix"]) + "-PRIVATE_SUFFIX"
+        elif self.damage == "listed-size":
+            version["Size"] = len(self.blobs[digest]) + 1
+        elif self.damage == "boolean-size":
+            version["Size"] = True
+        elif self.damage == "null-version":
+            version["VersionId"] = "null"
+        elif self.damage == "unsafe-version":
+            version["VersionId"] = "PRIVATE_SECRET\n"
+        return result
+
+    def head_object(self, **kwargs: object) -> Mapping[str, object]:
+        self.calls.append(kwargs)
+        assert kwargs["VersionId"] == "archived-version"
+        assert kwargs["ExpectedBucketOwner"] == "123456789012"
+        assert kwargs["ChecksumMode"] == "ENABLED"
+        digest = str(kwargs["Key"]).removeprefix("blobs/sha256/")
+        response: dict[str, object] = {
+            "VersionId": "archived-version",
+            "ContentLength": len(self.blobs[digest]),
+            "ChecksumSHA256": base64.b64encode(bytes.fromhex(digest)).decode(),
+            "ChecksumType": "FULL_OBJECT",
+        }
+        if self.damage == "head-error":
+            raise ClientError(
+                {"Error": {"Code": "AccessDenied", "Message": "PRIVATE_SECRET"}},
+                "HeadObject",
+            )
+        if self.damage == "head-version":
+            response["VersionId"] = "another-version"
+        elif self.damage == "head-size":
+            response["ContentLength"] = len(self.blobs[digest]) + 1
+        elif self.damage == "head-boolean-size":
+            response["ContentLength"] = True
+        elif self.damage == "head-checksum":
+            response["ChecksumSHA256"] = base64.b64encode(b"x" * 32).decode()
+        elif self.damage == "head-composite":
+            response["ChecksumType"] = "COMPOSITE"
+        elif self.damage == "head-delete-marker":
+            response["DeleteMarker"] = True
+        return response
+
+
+def archive_location() -> ArchiveLocation:
+    return ArchiveLocation(
+        bucket="minos-build-synthetic",
+        region="eu-central-1",
+        expected_bucket_owner="123456789012",
+    )
+
+
+def test_version_selector_covers_full_dataset_then_reuses_byte_verified_builder(
+    tmp_path: Path,
+) -> None:
+    data = binding_dataset(tmp_path).model_dump(mode="json")
+    data["characteristics"] = [stage_conditions(tmp_path).model_dump(mode="json")]
+    data["characteristics_knowledge_as_of"] = "2026-10-02"
+    data["characteristics_knowledge_evidence"] = "Synthetic lineage review"
+    manifest = DatasetManifest.model_validate_json(json.dumps(data))
+    client = VersionFixture(tmp_path)
+    selector = S3ArchiveVersionSelector(client, archive_location())
+    first = selector.select_dataset(manifest)
+    assert first == selection(tmp_path, manifest)
+    assert selector.select_dataset(manifest) == first
+    assert len(client.calls) == 4 * len(first.objects)
+    byte_client = Client(tmp_path)
+    with S3ArchiveReader(byte_client, first).materialize(
+        manifest, staging_directory=tmp_path
+    ) as archive:
+        result = build_reference_artifact(
+            manifest, archive, tmp_path / "from-selected-versions"
+        )
+        assert result.row_counts["modifier_binding"] == 1
+        assert result.row_counts["group_condition"] == 6
+    selector.close()
+    assert client.closed
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "list-error",
+        "truncated",
+        "missing-truncation",
+        "delete-marker",
+        "absent",
+        "duplicate",
+        "key",
+        "prefix-suffix",
+        "listed-size",
+        "boolean-size",
+        "null-version",
+        "unsafe-version",
+        "head-error",
+        "head-version",
+        "head-size",
+        "head-boolean-size",
+        "head-checksum",
+        "head-composite",
+        "head-delete-marker",
+    ],
+)
+def test_version_selector_refuses_incomplete_ambiguous_or_unverified_metadata(
+    tmp_path: Path, damage: str
+) -> None:
+    manifest = conditions_manifest(tmp_path)
+    client = VersionFixture(tmp_path)
+    client.damage = damage
+    with pytest.raises(SourceError) as failure:
+        _ = S3ArchiveVersionSelector(client, archive_location()).select_dataset(
+            manifest
+        )
+    assert "PRIVATE_" not in str(failure.value)
+    assert str(tmp_path) not in str(failure.value)
+    assert len(client.calls) <= 2
+
+
+def test_version_selection_bounds_before_remote_requests_and_never_returns_partial_pins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = conditions_manifest(tmp_path)
+    client = VersionFixture(tmp_path)
+    selector = S3ArchiveVersionSelector(client, archive_location())
+    for count, size in ((0, 1), (129, 1), (9, 64 * 1024 * 1024)):
+        blobs = tuple(
+            ArchiveBlob(sha256=f"{index:064x}", size_bytes=size)
+            for index in range(count)
+        )
+        with pytest.raises(SourceError, match="bound"):
+            _ = selector.select_blobs(blobs)
+    with pytest.raises(SourceError, match="duplicate"):
+        _ = selector.select_blobs((ArchiveBlob(sha256="a" * 64, size_bytes=1),) * 2)
+    assert client.calls == []
+    readings = iter((0.0, 601.0))
+    monkeypatch.setattr(time, "monotonic", lambda: next(readings))
+    with pytest.raises(SourceError, match="deadline"):
+        _ = selector.select_dataset(manifest)
+    assert client.calls == []
+
+
+def test_actual_sdk_version_listing_and_head_pin_exact_owner_key_and_version(
+    tmp_path: Path,
+) -> None:
+    from botocore.stub import Stubber
+
+    manifest = conditions_manifest(tmp_path)
+    expected = selection(tmp_path, manifest)
+    factory = cast(_SdkFactory, boto3)  # pyright: ignore[reportInvalidCast]
+    sdk = cast(
+        VersionClient,
+        factory.client(
+            "s3",
+            region_name="eu-central-1",
+            aws_access_key_id="synthetic",
+            aws_secret_access_key="synthetic",
+        ),
+    )
+    stub = cast(_Stub, cast(object, Stubber(sdk)))
+    stub.activate()
+    try:
+        for pin in sorted(expected.objects, key=lambda item: item.sha256):
+            key = f"blobs/sha256/{pin.sha256}"
+            stub.add_response(
+                "list_object_versions",
+                {
+                    "IsTruncated": False,
+                    "Versions": [
+                        {
+                            "Key": key,
+                            "VersionId": "archived-version",
+                            "Size": pin.size_bytes,
+                            "IsLatest": False,
+                        }
+                    ],
+                },
+                {
+                    "Bucket": "minos-build-synthetic",
+                    "Prefix": key,
+                    "MaxKeys": 2,
+                    "ExpectedBucketOwner": "123456789012",
+                },
+            )
+            stub.add_response(
+                "head_object",
+                {
+                    "VersionId": "archived-version",
+                    "ContentLength": pin.size_bytes,
+                    "ChecksumSHA256": base64.b64encode(
+                        bytes.fromhex(pin.sha256)
+                    ).decode(),
+                    "ChecksumType": "FULL_OBJECT",
+                },
+                {
+                    "Bucket": "minos-build-synthetic",
+                    "Key": key,
+                    "VersionId": "archived-version",
+                    "ExpectedBucketOwner": "123456789012",
+                    "ChecksumMode": "ENABLED",
+                },
+            )
+        assert (
+            S3ArchiveVersionSelector(sdk, archive_location()).select_dataset(manifest)
+            == expected
+        )
+        stub.assert_no_pending_responses()
+    finally:
+        stub.deactivate()
+        sdk.close()

@@ -31,12 +31,15 @@ MAX_TRANSFER_SECONDS = 600
 STREAM_CHUNK_BYTES = 64 * 1024
 
 
-class ArchiveObject(BaseModel):
+class ArchiveBlob(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid", strict=True, frozen=True
     )
     sha256: Digest
     size_bytes: int = Field(ge=1, le=64 * 1024 * 1024)
+
+
+class ArchiveObject(ArchiveBlob):
     version_id: Annotated[str, Field(pattern=r"^[!-~]{1,1024}$")]
 
     @model_validator(mode="after")
@@ -108,6 +111,18 @@ def _source_files(manifest: DatasetManifest) -> Iterator[_BlobIdentity]:
             yield modifier.display.file
     for binding in manifest.modifier_bindings:
         yield binding.overlay
+
+
+def dataset_archive_blobs(manifest: DatasetManifest) -> tuple[ArchiveBlob, ...]:
+    """Complete deduplicated transport inputs; conflicting sizes never reach S3."""
+    blobs: dict[str, ArchiveBlob] = {}
+    for source in _source_files(manifest):
+        item = ArchiveBlob(sha256=source.sha256, size_bytes=source.size_bytes)
+        previous = blobs.get(item.sha256)
+        if previous is not None and previous != item:
+            raise SourceError("source manifest has conflicting blob sizes")
+        blobs[item.sha256] = item
+    return tuple(blobs[digest] for digest in sorted(blobs))
 
 
 class ArchiveS3Client(Protocol):

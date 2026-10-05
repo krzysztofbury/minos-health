@@ -160,7 +160,11 @@ inputs and failed before browsers; the corrected child umask matches hosted CI
 without changing the private scratch root or any application check. Both attempts'
 task-owned images, containers, profiles and scratch were removed. No application
 or production configuration changed. Hosted validation for the fix remains pending
-until its new pushed revision passes.
+until its new pushed revision passes. Hosted validation `37365824876` subsequently
+passed at `35657a3`, including the startup regression and actual browser suite.
+No private image publication or production update ran. The general CI at that
+head was still queued when checked; this validation result is not transferred
+to subsequent revisions.
 
 ## Remaining Gates
 
@@ -189,6 +193,30 @@ return a selection. No new schema, dependency, live cloud grant or watcher write
 path was introduced. Full standard suite: 1,740 passed, 23 opt-in skips. S3 blob
 version resolution, complete source policy, durable processing and activation
 remain separate pending boundaries; these identities are not authorization.
+
+### Blob Version Resolution Evidence (2026-10-05)
+
+The version selector resolves full manifest coverage into the existing transport
+contract, then passes actual verified materialization/build with synthetic JGP
+conditions and optional modifier bindings. Fifty archive-boundary cases pass,
+including the existing transfer/CLI cases and new incomplete/ambiguous/deleted
+version, exact key/owner/version, native checksum/size and early refusal cases.
+A real Botocore Stubber checks supported `ListObjectVersions`/`HeadObject`
+request shapes without cloud access. It is SDK acceptance, not live S3 evidence.
+
+Four in-memory source mutants were killed after passing baselines: incomplete
+listing refusal, one-version requirement, native checksum and HEAD version
+comparison. The isolated installed wheel exercises version selection, verified
+byte materialization and actual build, plus ambiguous-version refusal. Its
+temporary environment and source fixtures were removed. Source/profile policy,
+hosted real-source determinism and durable processing/activation remain pending.
+
+TigerStyle review checks #2 bounds before SDK requests, #4 independent listing,
+HEAD and subsequent byte verification, #6 explicit refusal of ambiguous history
+and #12 redacted SDK errors/client cleanup. The selector never uses mutable
+upstream URLs or `IsLatest` as selection authority. One-version-only is an explicit
+supported archive condition, not an assertion that all historical archives meet
+it. No live S3 read, IAM grant, GitHub setting or production change was made.
 
 - Protected-default-branch OIDC role evidence and hosted complete real-selection
   repeated builds. The disposable S3 results below do not establish that boundary.
