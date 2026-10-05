@@ -4,18 +4,20 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
-    <meta name="description" content="Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników, dla osób kodujących i rozliczających świadczenia.">
+    <meta name="description" content="Wyszukiwarka jest chwilowo niedostępna. Sprawdź oficjalne słowniki i zarządzenia NFZ na stronie Źródła danych.">
     <meta name="theme-color" content="#ffffff">
     <link rel="canonical" href="https://minoshealth.pl/">
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-    <meta property="og:title" content="Minos Health - wyszukiwarka kodów ICD-10 i ICD-9">
-    <meta property="og:description" content="Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników, dla osób kodujących i rozliczających świadczenia.">
+    <meta property="og:title" content="Minos Health - przerwa techniczna">
+    <meta property="og:description" content="Wyszukiwarka jest chwilowo niedostępna. Sprawdź oficjalne słowniki i zarządzenia NFZ na stronie Źródła danych.">
     <meta property="og:url" content="https://minoshealth.pl/">
     <meta property="og:type" content="website">
     <meta property="og:locale" content="pl_PL">
     <meta property="og:site_name" content="Minos Health">
     <meta name="twitter:card" content="summary">
-    <title>Minos Health - wyszukiwarka kodów ICD-10 i ICD-9</title>
+    <meta name="twitter:title" content="Minos Health - przerwa techniczna">
+    <meta name="twitter:description" content="Wyszukiwarka jest chwilowo niedostępna. Sprawdź oficjalne słowniki i zarządzenia NFZ na stronie Źródła danych.">
+    <title>Minos Health - przerwa techniczna</title>
     <link rel="stylesheet" href="/site.css">
 
     <script src="/plausible-init.js"></script>
@@ -60,12 +62,17 @@
               <ul class="suggestions" id="suggestions" role="listbox" aria-label="Podpowiedzi" hidden></ul>
             </div>
             <fieldset class="filters">
-              <legend class="visually-hidden">Słowniki, w których szukasz</legend>
+              <legend class="visually-hidden">Źródła, w których szukasz</legend>
               <label class="filter"><input type="checkbox" name="system" value="icd10-pl" checked disabled><span><strong>ICD-10</strong> rozpoznania</span></label>
-              <label class="filter"><input type="checkbox" name="system" value="icd9-pl" disabled><span><strong>ICD-9</strong> procedury</span></label>
-              <label class="filter"><input type="checkbox" name="system" value="jgp" disabled><span><strong>JGP</strong> grupy</span></label>
+              <label class="filter"><input type="checkbox" name="system" value="icd9-pl" checked disabled><span><strong>ICD-9</strong> procedury</span></label>
+              <label class="filter"><input type="checkbox" name="system" value="jgp" checked disabled><span><strong>JGP</strong> grupy</span></label>
               <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>ICD-11</strong> <em>w przygotowaniu</em></span></span>
             </fieldset>
+            <div class="filter-preferences" id="filter-preferences" hidden>
+              <p>Po zmianie filtrów zapamiętujemy ich wybór w tej przeglądarce (localStorage) na 90 dni. Nie zapisujemy wyszukiwań. <a href="/polityka-prywatnosci">Szczegóły prywatności</a>.</p>
+              <button class="button button-quiet" id="reset-filters" type="button" disabled>Przywróć wszystkie filtry</button>
+              <p id="filter-preferences-status" role="status" aria-live="polite"></p>
+            </div>
           </form>
           <p class="search-help" id="search-help">Wyszukiwarka jest chwilowo niedostępna. Słowniki i zarządzenia znajdziesz w <a href="/zrodla">Źródłach danych</a>.</p>
         </div>

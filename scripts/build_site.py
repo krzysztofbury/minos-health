@@ -28,6 +28,14 @@ FONT_PRELOAD = (
     '    <link rel="preload" href="/fonts/atkinson-next-400.woff2" as="font"'
     + ' type="font/woff2" crossorigin>\n'
 )
+SOCIAL_IMAGE = """    <meta property="og:image" content="https://minoshealth.pl/social-preview-v1.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Minos Health - rozpoznania ICD-10, procedury ICD-9 i grupy JGP">
+    <meta name="twitter:image" content="https://minoshealth.pl/social-preview-v1.png">
+    <meta name="twitter:image:alt" content="Minos Health - rozpoznania ICD-10, procedury ICD-9 i grupy JGP">
+"""
 FONTS = (
     "atkinson-next-400.woff2",
     "atkinson-next-600.woff2",
@@ -62,8 +70,8 @@ SITE_JSON_LD = _json_ld(
         "name": "Minos Health",
         "url": "https://minoshealth.pl/",
         "inLanguage": "pl",
-        "description": "Bezpłatna wyszukiwarka i przeglądarka oficjalnych słowników"
-        + " ICD-10 i ICD-9 PL dla osób kodujących i rozliczających świadczenia.",
+        "description": "Bezpłatna wyszukiwarka rozpoznań ICD-10 PL, procedur ICD-9 PL"
+        + " i grup JGP. Sprawdź warunki grupowania, punkty bazowe i źródła NFZ.",
         "publisher": {
             "@type": "Organization",
             "name": "Data Craze Krzysztof Bury",
@@ -137,9 +145,9 @@ PAGES = (
         "maintenance-index.html",
         "home.html",
         "/",
-        "Minos Health - wyszukiwarka kodów ICD-10 i ICD-9",
-        "Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników,"
-        + " dla osób kodujących i rozliczających świadczenia.",
+        "Minos Health - przerwa techniczna",
+        "Wyszukiwarka jest chwilowo niedostępna. Sprawdź oficjalne słowniki"
+        + " i zarządzenia NFZ na stronie Źródła danych.",
         "noindex, nofollow",
         "/",
         ("maintenance",),
@@ -155,9 +163,9 @@ PAGES = (
         "index.html",
         "home.html",
         "/",
-        "Minos Health - wyszukiwarka kodów ICD-10 i ICD-9",
-        "Wyszukiwarka kodów rozpoznań ICD-10 i procedur ICD-9 z oficjalnych słowników,"
-        + " dla osób kodujących i rozliczających świadczenia.",
+        "Minos Health - wyszukiwarka ICD-10, ICD-9 i grup JGP",
+        "Bezpłatna wyszukiwarka rozpoznań ICD-10 PL, procedur ICD-9 PL i grup JGP."
+        + " Sprawdź warunki grupowania, punkty bazowe i źródła NFZ.",
         "index, follow",
         "/",
         ("validation",),
@@ -338,6 +346,10 @@ def render_page(page: Page, mode: Mode) -> str:
             "scripts": scripts,
             "body_class": page.body_class,
             "head_extra": page.head_extra,
+            "social_image": SOCIAL_IMAGE if mode == "validation" else "",
+            "twitter_card": "summary_large_image"
+            if mode == "validation"
+            else "summary",
             "nav": _nav(mode, page.nav),
             "footer_nav": _footer_nav(),
             "content": content.rstrip("\n"),
@@ -365,6 +377,9 @@ def render_site(mode: Mode) -> dict[str, bytes]:
     else:
         files["site.css"] = stylesheet
     if mode == "validation":
+        files["social-preview-v1.png"] = (
+            WEB / "social" / "social-preview-v1.png"
+        ).read_bytes()
         for name in ("request.js", "search.js", "dictionary.js", "jgp.js"):
             files[name] = (WEB / name).read_bytes()
         for name in FONTS:
@@ -381,13 +396,14 @@ CODE_SITEMAPS = ("/sitemap-icd-10.xml", "/sitemap-icd-9.xml")
 LLMS = """# Minos Health
 
 > Bezpłatna, niekomercyjna wyszukiwarka i przeglądarka oficjalnych polskich
-> słowników medycznych: ICD-10 (rozpoznania, Rejestr Systemów Kodowania) oraz
-> ICD-9 PL (procedury, Centralne Zasoby Słownikowe NFZ). Treść referencyjna,
+> słowników medycznych: ICD-10 (rozpoznania, Rejestr Systemów Kodowania),
+> ICD-9 PL (procedury, Centralne Zasoby Słownikowe NFZ) i grup JGP z warunkami
+> grupowania i punktami bazowymi. Treść referencyjna,
 > nie porada medyczna ani decyzja rozliczeniowa NFZ.
 
 ## Strony
 
-- [Wyszukiwarka](https://minoshealth.pl/): kody i opisy ICD-10 i ICD-9.
+- [Wyszukiwarka](https://minoshealth.pl/): kody i opisy ICD-10, ICD-9 i grup JGP.
 - [Słownik ICD-10](https://minoshealth.pl/slowniki/icd-10): pełne drzewo rozdziałów i kodów.
 - [Słownik ICD-9](https://minoshealth.pl/slowniki/icd-9): pełne drzewo działów i procedur.
 - Strona kodu: `https://minoshealth.pl/slowniki/icd-10/{KOD}` lub
@@ -484,6 +500,8 @@ def render_page_shell(nav: str = "/slowniki", body_class: str = "page-code") -> 
             "scripts": "",
             "body_class": page.body_class,
             "head_extra": "{{head_extra}}",
+            "social_image": SOCIAL_IMAGE,
+            "twitter_card": "summary_large_image",
             "nav": _nav("validation", page.nav),
             "footer_nav": _footer_nav(),
             "content": "{{content}}",

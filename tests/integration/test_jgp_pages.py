@@ -78,6 +78,11 @@ def test_catalog_lists_the_release_for_the_day_by_chapter(client: TestClient) ->
     assert f"13{NBSP}991,00{NBSP}pkt" in page
     assert '<div class="tree-search jgp-filter" hidden>' in page  # shown by jgp.js
     assert "6 grup w 3 rozdziałach." in page
+    assert (
+        '<meta property="og:image" content="https://minoshealth.pl/social-preview-v1.png">'
+        in page
+    )
+    assert '<meta name="twitter:card" content="summary_large_image">' in page
     assert 'href="/jgp/2026-07-10/zakres/15">chirurgia ogólna</a>' in page
     assert "?" not in "".join(re.findall(r'href="([^"]*)"', page))
 

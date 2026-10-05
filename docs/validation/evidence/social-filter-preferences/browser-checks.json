@@ -1,0 +1,13 @@
+{
+  "local_full_bundle_browser": "passed",
+  "synthetic_packaged_smoke": "passed",
+  "visual_inspection": [
+    "desktop",
+    "mobile",
+    "desktop_text_200_percent",
+    "mobile_text_200_percent",
+    "1200x630_social_image"
+  ],
+  "fault_injection": "local_only",
+  "production_verification": "pending"
+}

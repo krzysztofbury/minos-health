@@ -13,6 +13,8 @@
   var MAX_RESULTS = 20;
   var SUGGEST_LIMIT = 4;
   var HANDOFF_KEY = "minos.dictionary.query";
+  var FILTER_KEY = "minos.search.filters.v1";
+  var FILTER_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
   var form = document.getElementById("search-form");
   var input = document.getElementById("query");
@@ -24,6 +26,11 @@
   var groups = document.getElementById("result-groups");
   var start = document.getElementById("start");
   var boxes = Array.prototype.slice.call(form.querySelectorAll('input[name="system"]'));
+  var preferenceInfo = document.getElementById("filter-preferences");
+  var preferenceStatus = document.getElementById("filter-preferences-status");
+  var resetFilters = document.getElementById("reset-filters");
+  // Keep user intent separate from availability; a missing release is temporary.
+  var preferredSystems = ORDER.slice();
 
   var releases = {};
   var suggestTimer = 0;
@@ -31,6 +38,83 @@
   var searchController = null;
   var options = [];
   var active = -1;
+
+  function preferenceFailure(message) {
+    preferenceStatus.textContent = message;
+  }
+
+  function removePreference() {
+    try {
+      window.localStorage.removeItem(FILTER_KEY);
+      preferenceStatus.textContent = "";
+      return true;
+    } catch (error) {
+      preferenceFailure("Nie udało się usunąć zapamiętanych filtrów. Możesz usunąć dane tej strony w ustawieniach przeglądarki.");
+      return false;
+    }
+  }
+
+  function validPreference(value, now_ms) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+    if (Object.keys(value).sort().join(",") !== "expires_at_ms,systems,version") return false;
+    if (value.version !== 1 || !Array.isArray(value.systems) || value.systems.length > ORDER.length) return false;
+    var previous = -1;
+    if (!value.systems.every(function (system) {
+      var position = ORDER.indexOf(system);
+      if (position <= previous) return false;
+      previous = position;
+      return true;
+    })) return false;
+    return Number.isSafeInteger(value.expires_at_ms) && value.expires_at_ms > now_ms && value.expires_at_ms <= now_ms + FILTER_TTL_MS;
+  }
+
+  function restorePreference() {
+    var raw;
+    try {
+      raw = window.localStorage.getItem(FILTER_KEY);
+    } catch (error) {
+      preferenceFailure("Nie udało się odczytać zapamiętanych filtrów. Włączamy wszystkie dostępne źródła.");
+      return;
+    }
+    if (raw === null) return;
+    if (raw.length <= 256) {
+      try {
+        var value = JSON.parse(raw);
+        if (validPreference(value, Date.now())) {
+          preferredSystems = value.systems.slice();
+          return;
+        }
+      } catch (error) { /* Malformed data is not a preference. */ }
+    }
+    removePreference();
+  }
+
+  function savePreference() {
+    var value = { version: 1, systems: preferredSystems.slice(), expires_at_ms: Date.now() + FILTER_TTL_MS };
+    if (!validPreference(value, Date.now())) return;
+    try {
+      window.localStorage.setItem(FILTER_KEY, JSON.stringify(value));
+      preferenceStatus.textContent = "";
+    } catch (error) {
+      preferenceFailure("Nie udało się zapamiętać filtrów. Twój wybór działa do opuszczenia tej strony.");
+    }
+  }
+
+  function applyPreference() {
+    boxes.forEach(function (box) {
+      box.disabled = !releases[box.value];
+      box.checked = !box.disabled && preferredSystems.indexOf(box.value) >= 0;
+    });
+  }
+
+  function filtersChanged() {
+    window.clearTimeout(suggestTimer);
+    if (suggestController) suggestController.abort();
+    closeSuggestions();
+    if (!results.hidden && normalize(input.value)) runSearch();
+  }
+
+  restorePreference();
 
   function element(name, className, text) {
     var node = document.createElement(name);
@@ -407,8 +491,21 @@
   });
   boxes.forEach(function (box) {
     box.addEventListener("change", function () {
-      if (!results.hidden && normalize(input.value)) runSearch();
+      if (box.disabled) return;
+      preferredSystems = ORDER.filter(function (system) {
+        var candidate = boxes.find(function (item) { return item.value === system; });
+        return candidate && (candidate.disabled ? preferredSystems.indexOf(system) >= 0 : candidate.checked);
+      });
+      savePreference();
+      filtersChanged();
     });
+  });
+  resetFilters.addEventListener("click", function () {
+    preferredSystems = ORDER.slice();
+    applyPreference();
+    var removed = removePreference();
+    filtersChanged();
+    if (removed) preferenceStatus.textContent = "Przywrócono wszystkie dostępne filtry i usunięto zapamiętany wybór.";
   });
   document.addEventListener("keydown", function (event) {
     var tag = document.activeElement && document.activeElement.tagName;
@@ -432,15 +529,10 @@
         if (SYSTEMS[release.system] && !releases[release.system]) releases[release.system] = release;
       });
       if (answer.jgp_search) releases.jgp = { system: "jgp" };
-      ORDER.forEach(function (system) {
-        var box = boxes.filter(function (candidate) { return candidate.value === system; })[0];
-        if (box && !releases[system]) { box.checked = false; box.disabled = true; }
-      });
-      if (!selectedSystems().length) {
-        var first = boxes.filter(function (box) { return !box.disabled; })[0];
-        if (first) first.checked = true;
-      }
-      if (!selectedSystems().length) {
+      applyPreference();
+      preferenceInfo.hidden = false;
+      resetFilters.disabled = false;
+      if (!ORDER.some(function (system) { return releases[system]; })) {
         setUnavailable("Brak słowników dostępnych do wyszukania.");
         return;
       }

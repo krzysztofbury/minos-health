@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8">
+    <title>Minos Health social preview source</title>
+    <style>
+      @font-face { font-family: Atkinson; font-weight: 400; src: url("../fonts/atkinson-next-400.woff2"); }
+      @font-face { font-family: Atkinson; font-weight: 700; src: url("../fonts/atkinson-next-700.woff2"); }
+      * { box-sizing: border-box; }
+      html, body { width: 1200px; height: 630px; margin: 0; overflow: hidden; }
+      body { font-family: Atkinson, sans-serif; color: #18252e; background: #f2f5f8; }
+      main { position: relative; width: 1200px; height: 630px; padding: 58px 72px; border-top: 12px solid #0a5c6e; }
+      .brand { display: flex; align-items: center; gap: 18px; font-size: 38px; }
+      .brand svg { width: 64px; height: 64px; }
+      .brand span span { font-weight: 400; color: #526274; }
+      h1 { margin: 38px 0 16px; font-size: 62px; line-height: 1.08; letter-spacing: -1px; }
+      .lead { margin: 0; font-size: 27px; color: #526274; }
+      .chips { display: flex; gap: 14px; margin: 32px 0 0; }
+      .chip { border: 1px solid #91b5bf; border-radius: 14px; background: #e4f0f3; padding: 13px 21px; font-size: 25px; }
+      .chip strong { color: #074f60; }
+      footer { position: absolute; left: 72px; right: 72px; bottom: 42px; display: flex; justify-content: space-between; align-items: center; font-size: 23px; color: #526274; }
+      footer strong { color: #0a5c6e; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#0a5c6e"/><path d="M7 24V8h4.6L16 16.4 20.4 8H25v16h-4.2v-9L16 23.6 11.2 15v9z" fill="#ffffff"/></svg>
+        <span><strong>Minos</strong> <span>Health</span></span>
+      </div>
+      <h1>Rozpoznania. Procedury.<br>Grupy JGP.</h1>
+      <p class="lead">Znajdź kod, sprawdź warunki i punkty bazowe.</p>
+      <div class="chips">
+        <span class="chip"><strong>ICD-10</strong> rozpoznania</span>
+        <span class="chip"><strong>ICD-9</strong> procedury</span>
+        <span class="chip"><strong>JGP</strong> grupy</span>
+      </div>
+      <footer><span>Bezpłatnie. Z jawnymi źródłami.</span><strong>minoshealth.pl</strong></footer>
+    </main>
+  </body>
+</html>

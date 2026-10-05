@@ -18,7 +18,13 @@ PAGE_ROUTES = (
     ("/slowniki/icd-10", "dictionary-icd-10.html"),
     ("/slowniki/icd-9", "dictionary-icd-9.html"),
 )
-ASSET_ROUTES = ("/request.js", "/search.js", "/dictionary.js", "/jgp.js")
+ASSET_ROUTES = (
+    "/request.js",
+    "/search.js",
+    "/dictionary.js",
+    "/jgp.js",
+    "/social-preview-v1.png",
+)
 
 
 def _routes() -> str:

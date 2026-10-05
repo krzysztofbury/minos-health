@@ -1,0 +1,57 @@
+{
+  "html": [
+    {
+      "route": "/",
+      "status": 200,
+      "image_metadata": "passed"
+    },
+    {
+      "route": "/slowniki",
+      "status": 200,
+      "image_metadata": "passed"
+    },
+    {
+      "route": "/slowniki/icd-10",
+      "status": 200,
+      "image_metadata": "passed"
+    },
+    {
+      "route": "/slowniki/icd-10/I21",
+      "status": 200,
+      "image_metadata": "passed"
+    },
+    {
+      "route": "/jgp/2026-10-05/H01",
+      "status": 200,
+      "image_metadata": "passed"
+    },
+    {
+      "route": "/polityka-prywatnosci",
+      "status": 200,
+      "image_metadata": "passed"
+    },
+    {
+      "route": "/regulamin",
+      "status": 200,
+      "image_metadata": "passed"
+    },
+    {
+      "route": "/unknown-path",
+      "status": 404,
+      "image_metadata": "passed"
+    }
+  ],
+  "image": {
+    "get": "passed",
+    "head": "passed",
+    "content_type": "image/png",
+    "dimensions": [
+      1200,
+      630
+    ],
+    "bytes": 55354,
+    "sha256": "e780c44bf36d6aa580ac4751d3e496c14aefaed94973594fce5e5a2ae65aa2d5",
+    "cache_control": "no-cache",
+    "alias_rejection": "passed"
+  }
+}

@@ -1,7 +1,7 @@
       <div class="shell page-head">
-        <p class="page-meta">Dokument obowiązuje od 01.10.2026</p>
+        <p class="page-meta">Dokument obowiązuje od 05.10.2026</p>
         <h1>Polityka prywatności</h1>
-        <p class="page-lead">Opisujemy tutaj, jakie dane mogą być przetwarzane podczas korzystania z minoshealth.pl. Obecna wersja serwisu udostępnia wyszukiwarkę i przeglądanie słowników ICD-9 PL i ICD-10 PL, strony informacyjne oraz publiczny rejestr pochodzenia danych. Nie ma kont, płatności ani obsługi danych pacjentów.</p>
+        <p class="page-lead">Opisujemy tutaj, jakie dane mogą być przetwarzane podczas korzystania z minoshealth.pl. Serwis udostępnia wyszukiwarkę rozpoznań ICD-10 PL, procedur ICD-9 PL i grup JGP, przeglądanie słowników oraz grup JGP z warunkami grupowania i punktami bazowymi, strony informacyjne i publiczny rejestr pochodzenia danych. Nie ma kont, płatności ani obsługi danych pacjentów. Nie wykonujemy indywidualnego grupowania hospitalizacji.</p>
       </div>
       <article class="shell prose">
       <section>
@@ -21,7 +21,8 @@
           <li>dane techniczne niezbędne do bezpiecznego dostarczenia strony,</li>
           <li>zagregowane dane statystyczne o korzystaniu z serwisu,</li>
           <li>dane przekazane dobrowolnie w korespondencji e-mail.</li>
-          <li>tekst zapytania o kod lub opis ICD-9 PL albo ICD-10 PL, przetwarzany chwilowo w celu zwrócenia wyników.</li>
+          <li>tekst zapytania o kod lub opis ICD-9 PL, ICD-10 PL albo grupy JGP, przetwarzany chwilowo w celu zwrócenia wyników,</li>
+          <li>wybór filtrów wyszukiwarki, zapamiętywany w tej przeglądarce zgodnie z punktem 7.</li>
         </ul>
         <p>
           Podstawą przetwarzania danych technicznych i statystycznych jest
@@ -85,7 +86,10 @@
           żądania, nie w adresie URL. API przetwarza je w pamięci i nie zapisuje
           go w bazie, logach ani analityce. Przeglądanie słowników wysyła
           wyłącznie identyfikator wersji słownika i numer pozycji, bez
-          wpisanego tekstu. Przycisk „Szukaj w pełnym słowniku” przekazuje
+          wpisanego tekstu. Strony JGP przesyłają datę świadczenia oraz publiczne
+          identyfikatory grup, zakresów i list. Punkty bazowe i warunki grupowania
+          są informacją ze źródeł, nie wynikiem indywidualnego grupowania.
+          Przycisk „Szukaj w pełnym słowniku” przekazuje
           wpisaną frazę do strony słownika w pamięci tej karty przeglądarki
           (sessionStorage); strona słownika usuwa ją zaraz po odczytaniu.
           Nie wpisuj danych pacjentów, dokumentacji ani innych
@@ -95,7 +99,9 @@
         <p>
           Strona główna zlicza w Plausible wyłącznie odsłonę adresu „/”; treść
           zapytań, podpowiedzi i wyników nie trafia do Plausible. Strony
-          słowników nie ładują Plausible.
+          słowników i grup JGP nie ładują Plausible. Zapamiętane filtry nie są
+          przekazywane do Plausible ani do API; API otrzymuje tylko wybór źródła
+          potrzebny do wykonania danego wyszukiwania.
         </p>
       </section>
 
@@ -119,10 +125,36 @@
         <h2>7. Cookies i podobne technologie</h2>
         <p>
           Minos Health nie ustawia analitycznych ani marketingowych plików
-          cookies i nie korzysta z profilowania reklamowego. Dlatego obecna
-          konfiguracja nie wymaga banera zgody na cookies. Jeśli zakres
-          technologii zmieni się w przyszłości, zaktualizujemy tę politykę i
-          wdrożymy wymagany mechanizm zgody przed rozpoczęciem przetwarzania.
+          cookies i nie korzysta z profilowania reklamowego. Plausible nie
+          korzysta z localStorage. Zapamiętywanie filtrów opisane poniżej jest
+          oddzielną funkcją interfejsu, nie analityką.
+        </p>
+        <p>
+          Po zmianie filtrów na stronie głównej automatycznie zapisujemy ich
+          wybór w localStorage pod kluczem <code>minos.search.filters.v1</code>.
+          Wpis zawiera wyłącznie wersję formatu, identyfikatory wybranych źródeł
+          (ICD-10 PL, ICD-9 PL, JGP) oraz termin ważności: 90 dni od ostatniej
+          zmiany filtrów. Nie zawiera treści wyszukiwań, kodów medycznych ani
+          identyfikatora użytkownika i nie jest przesyłany jako plik cookie.
+          Zwykłe wyszukiwanie lub odczyt ustawienia nie przedłuża jego ważności.
+        </p>
+        <p>
+          Domyślnie zaznaczamy wszystkie dostępne źródła. Zapamiętywanie nie ma
+          osobnego przełącznika zgody ani banera. Informacja o zapisie znajduje
+          się obok filtrów. localStorage, podobnie jak cookies, podlega zasadom
+          przechowywania informacji na urządzeniu; jego użycie nie stanowi
+          samo w sobie wyjątku od wymagań dotyczących zgody.
+        </p>
+        <p>
+          Przycisk „Przywróć wszystkie filtry” usuwa tylko ten wpis i przywraca
+          wszystkie dostępne źródła. Nowy wpis powstaje dopiero po kolejnej
+          zmianie filtrów. Możesz też usunąć lub zablokować dane strony w
+          ustawieniach przeglądarki. Po upływie 90 dni ustawienie jest ignorowane,
+          a serwis próbuje je usunąć przy następnym otwarciu wyszukiwarki; nie
+          może usunąć danych z zamkniętej lub zablokowanej przeglądarki.
+          Jeśli zapis jest niedostępny, wyszukiwarka nadal działa bez trwałego
+          zapamiętywania. Wyjątek dotyczący chwilowego przekazania frazy przez
+          sessionStorage opisujemy w punkcie 5.
         </p>
       </section>
 
