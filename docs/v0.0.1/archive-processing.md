@@ -70,9 +70,11 @@ bundles are never overwritten. The existing `manifest.json`, `minos.db` and
 processing must retain that selection alongside its candidate audit record.
 It is not embedded in the reference database or a new artifact manifest.
 
-SDK request assertions and real synthetic multi-source build/open/double-build
-tests cover local behavior. Real S3 version/checksum/IAM semantics and hosted
-full-selection repeated-build evidence remain #19 acceptance gates. Do not
+SDK assertions and synthetic multi-source build/open/double-build tests cover
+local behavior. Eight disposable real-S3 tests additionally verify pinned CLI
+builds, owner/native checksum/version refusals and a session-scoped read-only
+boundary; see [evidence](../validation/archive-freshness.md). Protected-ref OIDC
+and hosted full real-selection repeated builds remain #19 gates. Do not
 upload private raw bytes or source-bearing diffs merely to obtain CI evidence.
 
 ## Subsequent Chunks (#21)

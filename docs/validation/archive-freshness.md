@@ -1,4 +1,4 @@
-# Archive Freshness: First Chunk Evidence
+# Archive Freshness Evidence
 
 Status: local work on `feat/archive-application-freshness`, 2026-10-05.
 This is a #19 foundation for #21, not a merged/deployed freshness pipeline.
@@ -61,8 +61,8 @@ virtual environments are disposed by task-owned scratch wrappers.
 
 ## Remaining Gates
 
-- Real version-pinned S3/checksum/IAM evidence after credential/context preflight;
-  scoped OIDC workflow wiring and hosted complete-selection repeated builds.
+- Protected-default-branch OIDC role evidence and hosted complete real-selection
+  repeated builds. The disposable S3 results below do not establish that boundary.
 - Artifact metadata/provenance reconciliation, including how the candidate audit
   retains the canonical transport selection and verified build identity.
 - #21 verified recovery-image/change selection, independent durable processing
@@ -77,3 +77,82 @@ virtual environments are disposed by task-owned scratch wrappers.
 No production source selection, service, credential, schedule, notification
 configuration or deployment changes are made by this chunk. #19 and #21 remain
 open until their actual end-to-end acceptance gates pass.
+
+## Disposable Real S3 Acceptance (2026-10-05)
+
+Eight focused tests in `tests/aws/test_archive_build.py` passed against the
+private tagged disposable stack in account `218375352108`, `eu-central-1`.
+Only synthetic fixtures were uploaded, never real source bytes or owner diffs.
+The test reader used a 900-second session policy intersected with the bounded
+test role: only `s3:GetObjectVersion` on that bucket's `blobs/sha256/*`.
+This is real S3 and session-policy evidence, not GitHub OIDC evidence.
+
+- The actual operational CLI built terminology, ranks, catalog, conditions,
+  MODTAR and reviewed synthetic binding inputs twice. Both database byte streams,
+  identities and table counts matched the local builder. The source dataset and
+  canonical transport-selection digest were retained in the CLI result checks.
+- A delete marker followed by a newer corrupt current version did not replace
+  the selected predecessor. Reads continued to request its exact version.
+- Wrong owner, another key's real version, pinned size, native digest, absent
+  native SHA-256 and a delete-marker version all failed before offering bytes to
+  a parser. The size case also changes the dataset pin, so the real S3 response
+  check, rather than local manifest coverage, owns that refusal.
+- Real writes, version deletion, unversioned latest reads, recovery-image keys
+  and unrelated state keys were denied. A pinned blob remained readable.
+- Transfer staging was removed and the fixture's exact-version object manifest
+  was used for guarded cleanup. These small fixtures are not production-capacity,
+  throughput or full real-source determinism evidence.
+
+Setup exposed three existing acceptance-path defects, repaired without relaxing
+source trust or switching the test runner to administrator credentials:
+
+1. Two S3 API names were used as IAM actions. The owner approved exact two-policy
+   repair plan `6f724013626d7d1bb185c6e818b3cd1b7a2db4c7e7be13c371b6fffb2cb4c9d9`:
+   `GetBucketAccelerateConfiguration` to `GetAccelerateConfiguration`, and
+   `GetBucketReplication` to `GetReplicationConfiguration`. Resource scopes,
+   trust, conditions and write permissions are unchanged. The saved-plan guard
+   permits only these two replacements from the exact reviewed prior policy;
+   baseline, scope, extra-action, identity and inline-policy changes fail.
+   AWS simulated 34 allow/deny decisions before apply; live verification checked
+   eleven decisions and the exact boundary/inline-policy identities afterward.
+2. IAM's live boundary type is `Policy`, unlike the SDK model spelling
+   `PermissionsBoundaryPolicy`. Both are accepted only with the exact ARN and
+   fields. Unknown types and wrong ARNs remain rejected.
+3. S3 returns the whole-bucket multipart-abort filter as `{"Prefix":""}`.
+   Only that equivalent spelling is normalized to `{}`; narrower filters and
+   altered retention/transition rules remain rejected. Both wire-format
+   regressions failed before their corrections.
+
+After-change TigerStyle review also found #4/#12, paired assertions and full
+error handling: the test recording client validated key grammar only after a
+PUT/COPY. The new refusal test reproduced the remote mutation before failure.
+The wrapper now checks grammar before either mutation. One task-created
+out-of-grammar synthetic version from the failed test was separately approved,
+verified by exact bytes/owner/version/task tags, deleted by exact version and
+checked absent. The cleanup grammar was not expanded.
+
+The broad legacy AWS suite remains unsuccessful: after the eight archive-build
+cases passed it stopped at its older `harness/*` write, outside the current
+acceptance-operator write policy. No additional IAM access was granted, and the
+focused result must not be reported as full watcher/recovery AWS acceptance.
+
+Both disposable stacks were separately approved for teardown and checked absent:
+the initial four-resource failed apply (`c2007a0c0d2fc3f4`) and the completed
+test stack (`18d4041ad74a26c4`, writer revoked before ten-resource destruction).
+No production archive, service, source selection or notification was changed.
+The narrowly scoped acceptance-operator repair remains applied.
+
+Ignored receipts: `test-output/archive-freshness-y71ymgd2/aws-archive-build.xml`,
+the earlier failed-suite XML files, partial-setup receipts, and the guarded
+operator/acceptance plan and state records under `artifacts/`. No generated
+database, private source data, Terraform state or credential is committed.
+
+The final standard suite passed: 1,643 tests, 23 opt-in skips. All repository
+pre-commit checks passed, including warning-clean type checks and real browser
+fixtures. An initial full-suite attempt used the scratch wrapper's private umask
+for fixtures that require explicit public-directory permissions; it failed three
+existing publication/browser cases. Re-running with the expected `0022` fixture
+umask passed without changing application guards. Read-only test directories
+also prevented the first scratch cleanup; owner-only directory permissions were
+restored in that exact task directory and it was removed. Later full runs install
+a task-scoped fixture-permission cleanup trap before the wrapper removes scratch.
