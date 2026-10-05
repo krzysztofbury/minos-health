@@ -220,6 +220,17 @@ it. No live S3 read, IAM grant, GitHub setting or production change was made.
 
 ### Nonprivileged Claim Inspector (2026-10-05)
 
+Hosted run `37369389042` subsequently passed at caller head `3583436`, using
+reusable workflow `ccffdf593ed4eab8da0a4730bf6d301fd86b5a89` and fixed tools
+`6415abb0050ac0f0882958badfbd798cb62617cb`. The real non-AWS token observation
+matches immutable repository/owner IDs, private visibility and hosted runner,
+and its separate job workflow reference/SHA agree. Its default `sub` does not
+include the workflow identity. A separate [exact template approval request](../v0.0.1/oidc-subject-rehearsal-cutover.md)
+documents the repository-wide customization, consumer inventory and rollback;
+no setting or IAM policy was changed. The updated inspector can distinguish the
+current default subject from a paired custom suffix without accepting either as
+provenance. Custom issuance and a main-context role assumption remain unverified.
+
 The first hosted reusable/caller revisions failed during workflow evaluation,
 without runner jobs: `runner.temp` is not allowed in job-level `env`.
 Checksum-verified Actionlint 1.7.12 reproduced that expression error; moving
@@ -243,6 +254,74 @@ cloud signing, IAM/GitHub setting, secret or production change occurred. Review
 applied TigerStyle #2 response/timeout bounds, #6 explicit scope and #12 redacted
 transport failures. The private audience is intentionally incompatible with the
 existing AWS role's `sts.amazonaws.com` audience restriction.
+
+### Private Cosign Rehearsal (2026-10-05)
+
+Cosign v3.1.3's release API binary digest was independently checked against the
+downloaded 141,178,250 bytes. The durable rehearsal script uses only disposable
+synthetic keys/subjects in non-root read-only containers, no network, capabilities,
+Docker socket or cloud/OIDC credentials. Signing with the explicit no-services
+configuration and verification with the retained public PEM both pass. Wrong key,
+predicate type, modified subject and modified DSSE signature are each refused.
+Actual subject digest and predicate are independently inspected, not obtained
+from a production validator. The output contains no keys, JWTs or source bytes.
+
+Two initial rehearsals were informative failures: disabling signing-config alone
+attempted a public Rekor POST (blocked by `--network none`), and expecting
+Statement/v1 failed because the real `attest-blob` statement is v0.1. The explicit
+config and documented concrete output contract resolve those local assumptions;
+no public service was reachable and only synthetic data was used. All task-owned
+containers, synthetic keys, bundles, binary downloads and scratch directories
+were removed on completion, including failed attempts.
+
+The passing result is `synthetic_private_cosign_rehearsal_only`, not production
+provenance/authority. Bundle v0.3 has no transparency entries or witnessed
+timestamps. Real KMS credentials/key provisioning, complete predicate enforcement,
+parser isolation, runner egress and authority freshness remain pending. Review
+applied TigerStyle #4 actual-tool format/subject checks, #6 no implicit keyless
+fallback, #12 per-call container cleanup and #13 explicit private service config.
+
+### Local Processing Journal (2026-10-05)
+
+The journal uses actual captured recovery windows and real SQLite, independent of
+watcher state. Twenty-eight new journal cases pass alongside the twenty-eight
+existing recovery-reader cases. Tests cover complete-revision coalescing, exact retry/reopen,
+per-source checkpointing, failure history, blocked newer candidates, explicit
+retry, lease renewal/expiry and same-worker/same-deadline epoch fencing. Two
+simultaneous connections acquire only one live claim. A child abruptly exits
+after checkpoint SQL but before COMMIT; reopening rolls back both candidate and
+checkpoint. Another child exits immediately after COMMIT; reopening and replay
+recover the exact result without a second attempt or checkpoint effect.
+
+Re-pinned source evidence is not claimed by these persistence tests. Additional
+cases refuse changed stored selection, checkpoint/audit/attempt disagreement,
+foreign/extra/newer schema, symlink/public files and unsupported commands without
+private exception output. Unsupported WAL mode is refused rather than silently
+changing its durability contract. A held writer lock and a deadline before COMMIT
+both leave no partial source/candidate/checkpoint. Reduced limits exercise candidate/selection capacity
+refusal with no partial source registration; the 32-attempt limit is exercised
+at its actual bound. No representative workload/capacity or power-loss proof is
+claimed. Actual-process interruption is distinct from ordinary exception rollback.
+
+Four in-memory source mutants were killed after passing baselines: attempt epoch,
+lease expiry, selected-content digest and checkpoint/audit pairing. The isolated
+installed wheel exercises actual capture, durable failure, reopen/retry, stale
+claim refusal and exact processing completion/replay. Task-created databases,
+child processes, wheel and virtual environment were removed. This is local
+processing evidence only, not deployment, notifications or off-host ledger proof.
+
+Before/after TigerStyle review covered #2 query/storage/attempt bounds, #4 hashed
+selection and paired attempt/checkpoint reads, #6 schema/lease/state refusal,
+#9 bounded functions and #12 rollback/uncertain-commit/cleanup paths. SQLite's
+unique partial index independently owns one-pending-candidate enforcement.
+Production storage, recovery authority and activation/delivery state are still
+unapproved or unimplemented; the library has no activation caller or credential.
+
+The complete local worktree checks pass after these changes: all repository
+pre-commit checks, plus 1,818 standard tests and 23 opt-in skips. Installed-wheel,
+targeted mutation and synthetic private Cosign runtime evidence are separate
+checks above. Hosted CI/container validation on the final pushed revision still
+needs confirmation; no local result is substituted for that acceptance.
 
 - Protected-default-branch OIDC role evidence and hosted complete real-selection
   repeated builds. The disposable S3 results below do not establish that boundary.

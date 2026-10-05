@@ -159,6 +159,56 @@ the exact bytes before parsing. This does not grant source-policy authority,
 run a schedule or advance a processing/activation checkpoint. No IAM change is
 needed or applied; the existing reader already declares version listing/reads.
 
+### Independent Local Processing Journal
+
+`ProcessingJournal` provides a local SQLite processing-evidence boundary,
+separate from watcher control and future activation state. Its production
+placement/recovery/access policy is not selected or installed here. A trusted
+coordinator supplies a completely verified nonempty `ChangeBatch` plus pinned
+baseline dataset and source-profile identities; the journal does not independently
+establish those inputs' provenance, source meaning or legal significance.
+
+The canonical selection digest is the candidate identity. One complete bounded
+window coalesces its changes, including all members of the same revision; it is
+not permission to skip intermediate source/policy checks. Exact retries reuse
+that candidate. At most one unresolved candidate exists per source, enforced by
+a SQLite unique index as well as the command guard. A newer recovery/window or
+profile cannot replace processing/failed work; resume/reconcile the durable
+pending candidate first. There is no mutable-latest coalescing shortcut.
+
+Claims carry a persisted attempt epoch, worker and expiry. Only an unexpired exact
+claim can record failure/completion or renew. Renewal updates both candidate and
+attempt records and invalidates the old deadline; expired takeover increments the
+epoch even for the same worker. The coordinator rechecks `require_claim()` before
+processing effects, and the effect's immutable identity remains its separate
+idempotency boundary. This lease is never a production activation reservation.
+
+Failed work retains its candidate and explicit failure code, blocks newer windows
+and does not advance the processing checkpoint. Retrying preserves all prior
+attempt outcomes. Recording the exact complete candidate/audit identity advances
+only that source's last included revision, atomically with its processed record.
+The global recovery revision and unrelated sources do not advance. An identical
+already-committed completion returns its original evidence even after a response
+outage; another audit or claim identity is refused.
+
+`complete()` records the trusted coordinator's audit digest; it does not verify
+the audit's source/build/gate proofs. Returned state is
+`processing_checkpoint_only`, not signed success, an activation checkpoint or
+permission to promote. Separate durable activation, receipts, incident/delivery
+intent, significant-change gates and the complete trusted coordinator remain
+pending. A local journal reset/loss cannot be treated as current off-host state;
+production recovery must stop and reconcile its reviewed independent evidence.
+
+Initial refusal limits: 4,096 candidates, 32 attempts per candidate, 256 KiB per
+selection, 64 MiB database at fixed 4 KiB pages, leases up to 300 seconds, a
+one-second SQLite busy timeout and cooperative 30-second query deadline. FULL
+synchronization, immediate transactions, foreign keys and a fixed exact schema
+are enabled. Existing foreign/extra/newer schemas and unsafe file/parent ownership
+or permissions are refused, not migrated or overwritten. No automatic history
+pruning/archival or performance suitability is claimed. Capacity/retention policy,
+clock behavior, off-host durability and host resource evidence need review before
+any production use; these safety caps are not source significance thresholds.
+
 ## Subsequent Chunks (#21)
 
 1. Wire the bounded recovery/change reader into exact-version automatic selection

@@ -94,6 +94,17 @@ phases strictly in order, not as parallel branches:
           assume the AWS reader role; hosted claim evidence remains pending. The
           default-branch/bootstrap, complete pipeline and live trust cutover remain
           unimplemented or unapproved, not delivered by this diagnostic rehearsal.
+          Cosign v3.1.3 now has a reproducible network-disabled synthetic DSSE
+          rehearsal and explicit private no-services config. Its real output is
+          Statement/v0.1 in a v0.3 bundle; wrong key/type/subject/signature fail.
+          The KMS key/role, complete predicates, runner isolation/egress, trusted
+          time and historical/off-host authority remain pending operational gates.
+          Independent local processing journaling now retains full bounded windows,
+          deduplicates exact candidates, fences/retries claims and atomically records
+          only processing evidence. Real SQLite concurrency and abrupt before/after
+          COMMIT cases pass. Production placement/recovery, signed audit enforcement,
+          separate activation/receipt state and durable Telegram delivery remain
+          pending; this journal does not consume an activation failure.
         See [archive processing](docs/v0.0.1/archive-processing.md)
        for the chunk contract and remaining gates. #41's signed compatible release
        authority remains a dependency before unattended activation is enabled.
