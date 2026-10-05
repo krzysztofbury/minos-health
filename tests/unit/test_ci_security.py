@@ -135,6 +135,9 @@ def test_claim_rehearsal_has_no_caller_inputs_checkout_secrets_or_restored_cache
     assert trigger in ("", {})
     jobs = cast("dict[str, dict[str, object]]", document["jobs"])
     assert set(jobs) == {"observe"}
+    # GitHub rejects runner context at job-level env before assigning a runner.
+    job_environment = cast("dict[str, str]", jobs["observe"]["env"])
+    assert not any("runner." in value for value in job_environment.values())
     steps = cast("list[dict[str, object]]", jobs["observe"]["steps"])
     checkout = steps[0]
     assert (
@@ -150,6 +153,10 @@ def test_claim_rehearsal_has_no_caller_inputs_checkout_secrets_or_restored_cache
     for step in steps[2:]:
         assert step.get("working-directory") == "trusted-tools"
         assert "uses" not in step
+        step_environment = cast("dict[str, str]", step["env"])
+        assert step_environment["UV_CACHE_DIR"] == (
+            "${{ runner.temp }}/minos-oidc-rehearsal-uv"
+        )
     assert len(steps) == 4
 
 

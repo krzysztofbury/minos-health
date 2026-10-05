@@ -21,7 +21,6 @@ jobs:
       id-token: write # Observe a non-AWS audience only; no cloud role or artifact signing.
     env:
       REHEARSAL_HEAD_REPOSITORY_ID: ${{ github.event.pull_request.head.repo.id }}
-      UV_CACHE_DIR: ${{ runner.temp }}/minos-oidc-rehearsal-uv
     steps:
       - name: Check out only the fixed inspector implementation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -40,6 +39,8 @@ jobs:
 
       - name: Install the fixed lock without running application packaging
         working-directory: trusted-tools
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/minos-oidc-rehearsal-uv
         run: |
           set -euo pipefail
           uv python install 3.14.7
@@ -47,4 +48,6 @@ jobs:
 
       - name: Observe allowlisted claims with a deliberately non-AWS audience
         working-directory: trusted-tools
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/minos-oidc-rehearsal-uv
         run: uv run --frozen --no-sync python -I scripts/observe_reusable_oidc.py

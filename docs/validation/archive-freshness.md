@@ -220,6 +220,15 @@ it. No live S3 read, IAM grant, GitHub setting or production change was made.
 
 ### Nonprivileged Claim Inspector (2026-10-05)
 
+The first hosted reusable/caller revisions failed during workflow evaluation,
+without runner jobs: `runner.temp` is not allowed in job-level `env`.
+Checksum-verified Actionlint 1.7.12 reproduced that expression error; moving
+the isolated cache path to step-level `env` passes its expression/schema check
+(ShellCheck/Pyflakes were disabled). The existing rehearsal-security case fails
+on the old placement and passes the correction. This fixes a local validation
+gap, not the hosted claim contract; the caller must use the newly published
+reusable SHA before another real GitHub token sample can be observed.
+
 Twenty-five inspector cases pass with synthetic JWT samples and the real HTTPX
 wire adapter. JWT signatures are intentionally not verified; output explicitly
 says `unverified_oidc_claim_observation`. Only bounded allowlisted public workflow
