@@ -135,3 +135,18 @@ Compact non-source evidence is under
 `docs/validation/evidence/social-filter-preferences/`. Detailed screenshots,
 runtime scripts and receipts are retained in ignored
 `test-output/social-filters-mvqw2ufn/` until release verification and cleanup.
+
+## Follow-up: remove the inline storage notice
+
+After the initial deployment, the owner requested removal of the explanatory
+storage paragraph from the search form. Only that normal-state notice is
+removed. The reset button, failure/status messages, automatic bounded filter
+persistence and policy disclosure remain. The policy no longer claims that a
+notice appears next to the filters. This does not resolve the previously
+documented browser-storage legal uncertainty.
+
+The real-browser acceptance suite now rejects the removed notice, checks that
+reset remains available, follows the existing footer privacy link, and zooms
+the reset control instead of the removed paragraph. The complete preference
+behavior remains covered by the existing runtime tests. Follow-up deployment
+evidence is recorded in its PR and activation receipt.

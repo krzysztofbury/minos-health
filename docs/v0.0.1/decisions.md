@@ -54,7 +54,9 @@ only this key, restores available sources, and does not write a new record.
 Unavailable sources remain part of user intent; an intentional empty selection
 is preserved and validated rather than silently replaced.
 
-The visible inline notice and policy describe the actual automatic behavior.
+The policy describes the actual automatic behavior. After the initial release
+on 2026-10-05, the owner requested removal of the inline storage notice from
+the search form. The reset control and policy disclosure remain unchanged.
 localStorage is subject to browser-storage law just like cookies. The owner's
 implementation choice is not legal clearance: the adequacy of automatic
 persistent storage without consent has not been established. No blanket

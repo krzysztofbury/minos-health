@@ -166,14 +166,16 @@ async function checkMetadata() {
   const metadata = await evaluate(`({title: document.title, description: document.querySelector('meta[name=description]').content,
     og: document.querySelector('meta[property="og:image"]').content, twitter: document.querySelector('meta[name="twitter:image"]').content,
     width: document.querySelector('meta[property="og:image:width"]').content, height: document.querySelector('meta[property="og:image:height"]').content,
-    card: document.querySelector('meta[name="twitter:card"]').content, notice: document.querySelector('#filter-preferences').textContent,
-    privacy: document.querySelector('#filter-preferences a').getAttribute('href')})`);
+    card: document.querySelector('meta[name="twitter:card"]').content,
+    preferences: document.querySelector('#filter-preferences').textContent,
+    privacy: document.querySelector('footer a[href="/polityka-prywatnosci"]').getAttribute('href')})`);
   for (const text of [metadata.title, metadata.description]) for (const source of ["ICD-10", "ICD-9", "JGP"]) assert.ok(text.includes(source));
   assert.equal(metadata.og, "https://minoshealth.pl/social-preview-v1.png");
   assert.equal(metadata.twitter, metadata.og);
   assert.equal(metadata.width, "1200"); assert.equal(metadata.height, "630");
   assert.equal(metadata.card, "summary_large_image");
-  for (const text of ["localStorage", "90 dni", "Nie zapisujemy wyszukiwań"]) assert.ok(metadata.notice.includes(text));
+  for (const text of ["localStorage", "90 dni", "Nie zapisujemy wyszukiwań", "Szczegóły prywatności"]) assert.ok(!metadata.preferences.includes(text), "No inline storage notice");
+  assert.ok(metadata.preferences.includes("Przywróć wszystkie filtry"));
   assert.equal(metadata.privacy, "/polityka-prywatnosci");
   // Probe this stack's route, not the canonical public host when testing locally.
   const raster = await evaluate(`(async () => {
@@ -375,9 +377,9 @@ try {
     await openHome(true); assert.equal(await rawPreference(), null);
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     // Text-only 200% zoom: change computed font sizes, not device pixels or box widths.
-    const font_px = await evaluate("parseFloat(getComputedStyle(document.querySelector('#filter-preferences p')).fontSize)");
+    const font_px = await evaluate("parseFloat(getComputedStyle(document.querySelector('#reset-filters')).fontSize)");
     await evaluate("const sizes = [...document.querySelectorAll('body, body *')].map(node => [node, getComputedStyle(node).fontSize]); sizes.forEach(([node,size]) => node.style.fontSize = (parseFloat(size) * 2) + 'px')");
-    assert.equal(await evaluate("parseFloat(getComputedStyle(document.querySelector('#filter-preferences p')).fontSize)"), font_px * 2);
+    assert.equal(await evaluate("parseFloat(getComputedStyle(document.querySelector('#reset-filters')).fontSize)"), font_px * 2);
     await snapshot(`filters-${name}-text-200`);
     await openHome();
   }
