@@ -110,10 +110,31 @@ limits, not representative throughput/capacity claims.
 
 The selected observation can be a catalog/metadata response. Its digest is not
 necessarily a changed product's digest; a summary hash is not a before/after
-blob pin. Source-specific interpretation and complete product/version selection
-are still required before constructing any data proposal. This reader does not
-implement #21's automatic selector, coalescing, before/after assertions, policy
-gates, deployment or Telegram delivery, and none is enabled by this chunk.
+blob pin. Complete product/version selection and source interpretation remain
+required before constructing any data proposal. This reader does not implement
+#21's automatic selector, coalescing, policy gates, deployment or Telegram delivery.
+
+### RSK Captured Product Selection
+
+`read_rsk_product_selection()` now re-selects the exact pinned change through the
+same bounded read-only recovery lease. It accepts only RSK catalog changes and
+checks the typed source-change summary against the immediately preceding captured
+change's state and product digests. A baseline has no predecessor; a missing or
+ambiguous predecessor fails. No mutable cursor or latest upstream fetch is used.
+
+For each before/after side, the reader requires one `00CD10` metadata observation
+from that run, exactly one archived verified XML file with its digest/size/UUID,
+and the matching captured product observation at or before that change's revision.
+Metadata-only changes retain the earlier product observation. Product evidence
+newer than the selected change cannot substitute for absent history. Run revisions,
+blob roles, response checksums, sizes and duplicate joins are checked separately.
+
+The result is `rsk_product_identities_only`. It exports bounded identities and a
+typed summary, not private metadata names/notices, raw JSON, paths or credentials.
+Watcher blob receipts do not store S3 versions; downstream version resolution and
+byte verification must still pin the selected product and metadata. This does not
+validate source meaning, legal/applicability policy, selection for other source
+types, a full candidate audit or activation permission. No checkpoint advances.
 
 ## Subsequent Chunks (#21)
 

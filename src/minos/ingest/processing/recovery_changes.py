@@ -112,7 +112,7 @@ def read_change_batch(
     image: VerifiedRecoveryImage, window: ChangeWindow
 ) -> ChangeBatch:
     """Call inside the transport's download lease; no cursor is advanced here."""
-    with _verified_connection(image) as (connection, pin):
+    with verified_recovery_connection(image) as (connection, pin):
         if window.after_state_revision > pin.state_revision:
             raise ProcessingReadError(
                 "processing checkpoint is ahead of recovery image"
@@ -149,22 +149,35 @@ def require_selected_change(
     expected_change: ChangeIdentity,
 ) -> ChangeIdentity:
     """Re-select every pinned identity, not merely a change ID or mutable latest."""
-    with _verified_connection(image) as (connection, pin):
+    with verified_recovery_connection(image) as (connection, pin):
         if pin != expected_recovery:
             raise ProcessingReadError("selected recovery identity changed")
-        row = cast(
-            sqlite3.Row | None,
-            connection.execute(
-                _SINGLE_QUERY,
-                (expected_change.change_id,),
-            ).fetchone(),
-        )
-        if row is None:
-            raise ProcessingReadError("selected change is absent from recovery image")
-        actual = _change_identity(row, pin)
-        if actual != expected_change:
-            raise ProcessingReadError("selected change identity changed")
-        return actual
+        return select_connection_change(connection, pin, expected_change)
+
+
+def select_connection_change(
+    connection: sqlite3.Connection,
+    pin: RecoveryIdentity,
+    expected_change: ChangeIdentity,
+) -> ChangeIdentity:
+    """Processing readers use this only inside verified_recovery_connection."""
+    actual = read_connection_change(connection, pin, expected_change.change_id)
+    if actual != expected_change:
+        raise ProcessingReadError("selected change identity changed")
+    return actual
+
+
+def read_connection_change(
+    connection: sqlite3.Connection, pin: RecoveryIdentity, change_id: str
+) -> ChangeIdentity:
+    """Decode one complete identity under the processing lease's captured fence."""
+    row = cast(
+        sqlite3.Row | None,
+        connection.execute(_SINGLE_QUERY, (change_id,)).fetchone(),
+    )
+    if row is None:
+        raise ProcessingReadError("selected change is absent from recovery image")
+    return _change_identity(row, pin)
 
 
 _CHANGE_SELECT = """
@@ -235,9 +248,10 @@ def _text_digest(value: object) -> str:
 
 
 @contextmanager
-def _verified_connection(
+def verified_recovery_connection(
     image: VerifiedRecoveryImage,
 ) -> Generator[tuple[sqlite3.Connection, RecoveryIdentity]]:
+    """Shared processing lease; raw connection/rows never become audit outputs."""
     descriptor = -1
     connection: sqlite3.Connection | None = None
     deadline = time.monotonic() + READ_TIMEOUT_SECONDS

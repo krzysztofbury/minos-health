@@ -164,6 +164,32 @@ until its new pushed revision passes.
 
 ## Remaining Gates
 
+### RSK Product Selection Evidence (2026-10-05)
+
+The captured-product reader passes fourteen new cases using the actual RSK
+collector, filesystem archive, SQLite commits and generated recovery images.
+Product-change and metadata-only cases select the prior/current products despite
+a cleared mutable cursor and a newer captured release. Twelve re-pinned recovery
+damage cases independently refuse predecessor, metadata, digest, size, role,
+revision, missing/duplicate evidence and unsupported summary shape. Re-pinning the
+outer checksum ensures those cases reach the source-specific guard, not merely
+transport refusal. Existing recovery/collector checks remain intact: 78 pass.
+
+Four in-memory source mutants were killed with each baseline passing first:
+predecessor state comparison, blob-role comparison, product-size comparison and
+duplicate-product refusal. The isolated installed wheel passes actual source
+selection plus wrong S3 recovery-version refusal, with imports confirmed outside
+the source tree. Temporary environments and fixture archives were removed.
+
+Before/after TigerStyle review covered #2 bounded query results and the existing
+deadline, #4 captured identities checked again on read, #6 ambiguous/unsupported
+states and #12 fixed redacted errors/lease cleanup. The reader shares the existing
+verified recovery connection so a file replacement or incomplete lease cannot
+return a selection. No new schema, dependency, live cloud grant or watcher write
+path was introduced. Full standard suite: 1,740 passed, 23 opt-in skips. S3 blob
+version resolution, complete source policy, durable processing and activation
+remain separate pending boundaries; these identities are not authorization.
+
 - Protected-default-branch OIDC role evidence and hosted complete real-selection
   repeated builds. The disposable S3 results below do not establish that boundary.
 - Artifact metadata/provenance reconciliation, including how the candidate audit

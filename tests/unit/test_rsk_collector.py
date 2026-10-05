@@ -1,9 +1,11 @@
 import hashlib
 import json
 import sqlite3
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Generator
+from contextlib import closing, contextmanager
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import BinaryIO, cast, final
 
@@ -11,6 +13,12 @@ import httpx
 import pytest
 
 import minos.ingest.watchers.rsk.collector as rsk_collector
+from minos.ingest.processing.recovery_changes import (
+    ChangeWindow,
+    ProcessingReadError,
+    read_change_batch,
+)
+from minos.ingest.processing.rsk_products import read_rsk_product_selection
 from minos.ingest.watchers.archive import BlobStagingArea, FilesystemBlobArchive
 from minos.ingest.watchers.config import (
     RSK_SOURCE_CONFIGURATION_CODECS,
@@ -28,8 +36,9 @@ from minos.ingest.watchers.control import (
     RetryPolicy,
     RunClaim,
     SourceConfiguration,
+    SourceSchedule,
 )
-from minos.ingest.watchers.control.models import RunMode
+from minos.ingest.watchers.control.models import RunMode, ScheduledRunMode
 from minos.ingest.watchers.models import HttpObservation
 from minos.ingest.watchers.orchestrator import WatcherOrchestrator
 from minos.ingest.watchers.protocols import (
@@ -40,7 +49,15 @@ from minos.ingest.watchers.protocols import (
     SourceDriftWatcherError,
     WatcherRuntimeError,
 )
-from minos.ingest.watchers.recovery import PublishedRecoveryImage, RecoveryClass
+from minos.ingest.watchers.recovery import (
+    PublishedRecoveryImage,
+    RecoveryClass,
+    RecoveryImageRequest,
+    RecoveryImageStagingArea,
+    VerifiedRecoveryCandidate,
+    VerifiedRecoveryImage,
+    recovery_key,
+)
 from minos.ingest.watchers.rsk.capture import (
     _validate_complete_xml,  # pyright: ignore[reportPrivateUsage]
 )
@@ -1041,3 +1058,269 @@ def _query(database: Path, sql: str) -> list[tuple[object, ...]]:
         return connection.execute(sql).fetchall()
     finally:
         connection.close()
+
+
+@contextmanager
+def _processing_image(
+    root: Path, *, product_change: bool = True
+) -> Generator[VerifiedRecoveryImage]:
+    """Actual collector -> archive -> committed runs -> immutable recovery boundary."""
+    store = ControlStore.open(
+        root / "control.sqlite3",
+        source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
+    )
+    source = _RskSource()
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        for scheduled_mode in ("scheduled", "weekly_verification"):
+            _ = store.set_schedule(
+                SourceSchedule("rsk", "* * * * *", 300, 1, 0.01, 0.01, scheduled_mode)
+            )
+        registry = CollectorRegistry()
+        registry.register(
+            "rsk",
+            RskSourceCollector(
+                BlobStagingArea(root / "staging"), client_factory=_factory(source)
+            ),
+        )
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=FilesystemBlobArchive(root / "archive"),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher(),
+            heartbeat=_Heartbeat(),
+        )
+        due_at_ms = time.time_ns() // 1_000_000 - 1000
+        for index in range(3):
+            if index == 1:
+                source.publisher_name = "Changed Synthetic Publisher"
+                if product_change:
+                    source.product_body = _XML.replace(b"invented", b"modified")
+            if index == 2:
+                source.publisher_name = "Future Synthetic Publisher"
+                source.product_body = _XML.replace(b"invented", b"upcoming")
+            mode: ScheduledRunMode = (
+                "weekly_verification" if product_change or index == 2 else "scheduled"
+            )
+            with (
+                closing(sqlite3.connect(root / "control.sqlite3")) as connection,
+                connection,
+            ):
+                _ = connection.execute(
+                    "UPDATE source_schedules SET next_due_at_ms=? WHERE run_mode=?",
+                    (due_at_ms + index, mode),
+                )
+            claim = store.claim_named_due("rsk", mode)
+            assert claim is not None
+            _ = orchestrator.run_claim(
+                claim,
+                RetryPolicy(1, 0.01, 0.01),
+            )
+        # The processing reader must not consult today's mutable cursor.
+        with (
+            closing(sqlite3.connect(root / "control.sqlite3")) as connection,
+            connection,
+        ):
+            _ = connection.execute("UPDATE source_cursors SET cursor_json='{}'")
+        now_ms = time.time_ns() // 1_000_000
+        with RecoveryImageStagingArea(root / "recovery").create(
+            store, RecoveryImageRequest("daily", now_ms)
+        ) as staged:
+            yield VerifiedRecoveryImage(
+                staged.path,
+                VerifiedRecoveryCandidate(
+                    recovery_key(staged.metadata, staged.sha256),
+                    "processing-version",
+                    staged.sha256,
+                    staged.size_bytes,
+                    now_ms,
+                    staged.metadata,
+                ),
+            )
+    finally:
+        store.close()
+
+
+@pytest.mark.parametrize(
+    "product_change", [True, False], ids=["product-change", "metadata-only"]
+)
+def test_processing_selects_captured_before_after_not_latest_cursor_or_product(
+    tmp_path: Path, product_change: bool
+) -> None:
+    with _processing_image(tmp_path, product_change=product_change) as image:
+        original = image.path.read_bytes()
+        batch = read_change_batch(
+            image, ChangeWindow(source_id="rsk", after_state_revision=0)
+        )
+        assert len(batch.changes) == 3
+        baseline = read_rsk_product_selection(image, batch.recovery, batch.changes[0])
+        selected = read_rsk_product_selection(image, batch.recovery, batch.changes[1])
+        assert baseline.before is None
+        assert baseline.previous_change_id is None
+        assert baseline.after.sha256 == hashlib.sha256(_XML).hexdigest()
+        assert selected.before is not None
+        assert selected.before == baseline.after
+        expected = _XML.replace(b"invented", b"modified") if product_change else _XML
+        assert selected.after.sha256 == hashlib.sha256(expected).hexdigest()
+        assert selected.after.size_bytes == len(expected)
+        assert selected.after.file_uuid == _XML_UUID
+        assert selected.previous_change_id == batch.changes[0].change_id
+        assert selected.summary.metadata_changed == ("00CD10",)
+        if not product_change:
+            assert (
+                selected.after.product_observation_id
+                == baseline.after.product_observation_id
+            )
+            assert (
+                selected.after.product_state_revision == baseline.change.state_revision
+            )
+        assert (
+            selected.after.metadata_observation_id
+            != baseline.after.metadata_observation_id
+        )
+        assert (
+            read_rsk_product_selection(image, batch.recovery, batch.changes[1])
+            == selected
+        )
+        assert "Future" not in selected.model_dump_json()
+        assert str(tmp_path) not in selected.model_dump_json()
+        assert selected.status == "rsk_product_identities_only"
+        assert image.path.read_bytes() == original
+    assert list((tmp_path / "recovery").iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("damage", "message"),
+    [
+        ("predecessor", "predecessor differs"),
+        ("missing-predecessor", "predecessor is absent"),
+        ("product-digest", "selected product differs"),
+        ("metadata-digest", "metadata identity differs"),
+        ("product-size", "product size differs"),
+        ("product-role", "blob role is unsupported"),
+        ("product-revision", "run revisions disagree"),
+        ("metadata-role", "blob role is unsupported"),
+        ("missing-product", "evidence is absent or ambiguous"),
+        ("duplicate-product", "evidence is absent or ambiguous"),
+        ("duplicate-metadata", "metadata is absent or ambiguous"),
+        ("summary-shape", "evidence is unsupported"),
+    ],
+)
+def test_processing_refuses_inconsistent_source_evidence_after_transport_repin(
+    tmp_path: Path, damage: str, message: str
+) -> None:
+    with _processing_image(tmp_path) as original:
+        batch = read_change_batch(
+            original, ChangeWindow(source_id="rsk", after_state_revision=0)
+        )
+        _ = read_rsk_product_selection(original, batch.recovery, batch.changes[1])
+        run_id = batch.changes[1].run_id
+        with closing(sqlite3.connect(original.path)) as connection, connection:
+            if damage in ("predecessor", "product-digest", "summary-shape"):
+                summary_row = cast(
+                    tuple[str],
+                    connection.execute(
+                        "SELECT summary_json FROM source_changes WHERE run_id=?",
+                        (run_id,),
+                    ).fetchone(),
+                )
+                summary = cast(dict[str, JsonValue], json.loads(summary_row[0]))
+                field = (
+                    "previous_state_sha256"
+                    if damage == "predecessor"
+                    else "current_product_sha256"
+                )
+                summary[field] = "a" * 64
+                if damage == "summary-shape":
+                    summary["private"] = "PRIVATE_SENTINEL"
+                _ = connection.execute(
+                    "UPDATE source_changes SET summary_json=? WHERE run_id=?",
+                    (json.dumps(summary), run_id),
+                )
+            elif damage == "missing-predecessor":
+                _ = connection.execute(
+                    "DELETE FROM source_changes WHERE change_id=?",
+                    (batch.changes[0].change_id,),
+                )
+            elif damage == "metadata-digest":
+                metadata_row = cast(
+                    tuple[str],
+                    connection.execute(
+                        "SELECT metadata_json FROM observations WHERE run_id=? AND observation_kind='rsk_basic_info' AND source_identity='00CD10'",
+                        (run_id,),
+                    ).fetchone(),
+                )
+                metadata = cast(dict[str, JsonValue], json.loads(metadata_row[0]))
+                public = cast(dict[str, JsonValue], metadata["public"])
+                public["metadata_observation_sha256"] = "a" * 64
+                _ = connection.execute(
+                    "UPDATE observations SET metadata_json=? WHERE run_id=? AND observation_kind='rsk_basic_info' AND source_identity='00CD10'",
+                    (json.dumps(metadata), run_id),
+                )
+            elif damage == "product-size":
+                _ = connection.execute(
+                    "UPDATE blobs SET size_bytes=size_bytes+1 WHERE sha256=?",
+                    (
+                        hashlib.sha256(
+                            _XML.replace(b"invented", b"modified")
+                        ).hexdigest(),
+                    ),
+                )
+            elif damage in ("product-role", "metadata-role"):
+                kind = "rsk_product" if damage == "product-role" else "rsk_basic_info"
+                _ = connection.execute(
+                    "UPDATE observation_blobs SET blob_role='wrong' WHERE observation_id IN (SELECT observation_id FROM observations WHERE run_id=? AND observation_kind=?)",
+                    (run_id, kind),
+                )
+            elif damage == "product-revision":
+                _ = connection.execute(
+                    "UPDATE observations SET state_revision=1 WHERE run_id=? AND observation_kind='rsk_product'",
+                    (run_id,),
+                )
+            elif damage == "missing-product":
+                _ = connection.execute(
+                    "DELETE FROM observation_blobs WHERE observation_id IN (SELECT observation_id FROM observations WHERE run_id=? AND observation_kind='rsk_product')",
+                    (run_id,),
+                )
+                _ = connection.execute(
+                    "DELETE FROM observations WHERE run_id=? AND observation_kind='rsk_product'",
+                    (run_id,),
+                )
+            else:
+                kind = (
+                    "rsk_product" if damage == "duplicate-product" else "rsk_basic_info"
+                )
+                observation_row = cast(
+                    tuple[object, ...],
+                    connection.execute(
+                        "SELECT * FROM observations WHERE run_id=? AND observation_kind=? ORDER BY source_identity LIMIT 1",
+                        (run_id, kind),
+                    ).fetchone(),
+                )
+                values = list(observation_row)
+                values[0] = "duplicate-observation-identity"
+                _ = connection.execute(
+                    "INSERT INTO observations VALUES (?,?,?,?,?,?,?,?,?)", values
+                )
+                _ = connection.execute(
+                    "INSERT INTO observation_blobs SELECT ?,blob_role,ordinal,sha256 FROM observation_blobs WHERE observation_id=?",
+                    (values[0], observation_row[0]),
+                )
+        digest = hashlib.sha256(original.path.read_bytes()).hexdigest()
+        image = replace(
+            original,
+            candidate=replace(
+                original.candidate,
+                sha256=digest,
+                size_bytes=original.path.stat().st_size,
+                key=recovery_key(original.candidate.metadata, digest),
+            ),
+        )
+        batch = read_change_batch(
+            image, ChangeWindow(source_id="rsk", after_state_revision=0)
+        )
+        selected = next(change for change in batch.changes if change.run_id == run_id)
+        with pytest.raises(ProcessingReadError, match=message) as failure:
+            _ = read_rsk_product_selection(image, batch.recovery, selected)
+        assert "PRIVATE_" not in str(failure.value)
+        assert str(tmp_path) not in str(failure.value)
