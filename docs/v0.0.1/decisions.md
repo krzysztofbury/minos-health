@@ -543,6 +543,31 @@ is authorized. The signer gets no Docker socket or API/watcher/build work. Its
 off-host authority/receipt access needs a separately reviewed path, not the
 watcher's AWS credential or an expanded GitHub archive-reader role.
 
+### Private Routine-Build Authorization: Revised Direction (2026-10-05)
+
+After reviewing alternatives, the owner instructed offline implementation of the
+pinned-workflow direction without making the repository public or buying a plan.
+`main` is an untrusted trigger. Owner-approved exact workflow/tool identities and
+independent release verification replace reliance on unavailable branch protection
+for privileged authorization, not repository-write or availability protection.
+
+Routine API images reuse the approved application runnable digest and append only
+a fixed verified embedded-data layer. Runtime configuration, inherited layers and
+all code stay unchanged. Base admission must prove safe data-path semantics.
+The local packager/verifier reports `data_image_content_only`; it cannot attest a
+build, approve a source or activate a release.
+
+Select maintained Cosign/in-toto private attestations with a dedicated AWS KMS
+build-signing key and exact pinned-workflow OIDC role, separate from archive reads
+and the isolated Mikr.us release signer. This explicitly extends the earlier AWS
+scope for the design. No operational key, IAM/GitHub change, host install or
+deployment is authorized. The implementation and exact provisioning plan must
+prove parser/credential isolation, private-only publication and complete bound
+statements; KMS signing alone proves neither statement truth nor issuance time.
+Fresh revocation, independent gates and signed off-host receipts remain required.
+The bespoke attestation protocol is deferred rather than blocking other freshness
+boundaries. See [the revised contract](pinned-workflow-authority-proposal.md).
+
 ### Frontend
 
 Frontend source lives under `apps/web`. The first webpage may remain static
@@ -600,8 +625,9 @@ CloudFront, ECR, S3 frontend, and watcher-control services. The host is not a
 backup: mutable control SQLite is backed up consistently to S3, raw bytes are
 stored directly in versioned S3, and complete empty-host recovery is tested.
 
-AWS remains only for the snapshot bucket, narrow IAM, budget notification, and
-Terraform state. A managed application runtime can be reconsidered only if
+AWS remains for the snapshot bucket, narrow IAM, budget notification, Terraform
+state and the selected private KMS build-signing design above. KMS provisioning
+is not yet approved. A managed application runtime can be reconsidered only if
 measured availability, capacity, or operational burden exceeds recorded limits.
 
 ## Infrastructure Ownership

@@ -417,8 +417,10 @@ self-hosted Uptime Kuma 2.5.5 for coarse public service state and watcher
 completion notifications. This avoids paid external monitoring SaaS, but cannot
 detect or notify for a total Mikr.us host, network, or power outage. That
 same-host limitation is accepted for now. AWS is limited to private versioned
-S3, narrow IAM, budgets, and Terraform state. See
-[deployment.md](docs/v0.0.1/deployment.md).
+S3, narrow IAM, budgets, Terraform state, and the selected private KMS build-signing
+design. The KMS/OIDC direction is accepted for offline work, not provisioning;
+see [the revised authorization contract](docs/v0.0.1/pinned-workflow-authority-proposal.md).
+Operational context: [deployment.md](docs/v0.0.1/deployment.md).
 
 ## Remaining Gates
 

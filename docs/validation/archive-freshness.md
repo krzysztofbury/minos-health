@@ -59,6 +59,83 @@ directory is private source-bearing output, not a repository artifact or part
 of the cloud test fixtures. Temporary bundles, copied mutation source, wheels and
 virtual environments are disposed by task-owned scratch wrappers.
 
+## Data-Only Image Boundary (2026-10-05)
+
+After owner acceptance of the revised private authorization direction, offline
+OCI packaging now preserves the approved runnable application manifest's original
+layer descriptors and runtime configuration. It appends one deterministic layer
+with exactly three artifact files, independently verifies actual tar bytes and
+returns `data_image_content_only`. The CLI writes a metadata/layer delta, not a
+complete image layout, signature or activation envelope. It never invokes Docker,
+contacts a registry, signs an arbitrary digest or rebuilds application code.
+
+Before-change TigerStyle review required paired verification of metadata/content,
+exact inherited runtime identities, fixed paths/permissions and refusal of links,
+whiteouts, traversal, extra entries and malformed or ambiguous metadata. The
+owning tests are `tests/integration/test_data_image.py`; existing bundle tests
+continue owning database/schema validation. No test-only production hooks were added.
+
+Local changed-boundary evidence:
+
+- 36 integration cases use real synthetic SQLite bundles. They cover repeated
+  packaging with identical input bytes, independent tar inventory/content checks,
+  self-consistent malicious image metadata/layers, bad base/artifact pins,
+  nonregular inputs, size bounds, duplicate JSON fields, expired deadlines,
+  cleanup on failed flush and CLI overwrite refusal with redacted diagnostics.
+- Four scratch-only mutations have passing baselines and are killed at the intended
+  assertion: omitted base-manifest pin, omitted fixed tar-header check, omitted
+  file-content check and changed inherited layer inventory. Repository source
+  was never mutated; temporary copied packages/databases were removed.
+- An isolated installed wheel, with locked reference dependencies and no source
+  checkout on its import path, ran the packaging CLI successfully and rejected
+  a wrong application-base pin without publishing output.
+- A current-source Docker application base was built through the existing API
+  Dockerfile. `scripts/smoke_data_image.py` assembled/loaded an OCI image preserving
+  the original compressed blobs, verified Docker's exact runnable descriptor,
+  unchanged runtime settings and diff IDs, and ran the real API entry point.
+  Readiness and a synthetic ICD-9 search passed with no mount, network disabled,
+  nonroot user, read-only filesystem/files, dropped capabilities and the existing
+  512 MiB API limit. This is compatibility evidence, not representative capacity.
+- Tested application runnable manifest:
+  `b37a2cfc51bf628c7bcc39a47759deb87f71fa17dabf4cddca1cd3cb461cc1f3`.
+  Candidate runnable manifest:
+  `a2f752856fe34c8ab35685d5ac61662352258bc96f06db6207eda4412fe5a8b2`.
+  The 563,200-byte data layer contained synthetic data only. These local identities
+  are not published artifacts or production authority.
+
+After-change review corrected an access-time false refusal by comparing inode,
+permissions, size and nanosecond write/change times instead of the whole stat
+tuple. The regression failed before the fix. Generated metadata now passes the
+same bounded parser as received metadata, and unsupported incomplete history fails
+closed. Docker inspection uses its runnable descriptor rather than assuming an
+image ID is a configuration hash. An initial 256 MiB smoke process was killed with
+exit 137; the successful run uses the established 512 MiB setting, not a new
+capacity claim or changed production limit.
+
+The full standard test suite passes: 1,726 passed, 23 opt-in skips. An initial
+private-umask scratch run broke three preexisting directory/browser fixtures;
+rerunning with the expected `022` child umask inside the private `0700` scratch
+root restored all three without changing production checks. Read-only task-owned
+fixture directories were made owner-writable for cleanup, without elevation or
+changes outside that allocated tree. The first cleanup refusal was resolved.
+All repository pre-commit checks pass, including the actual browser-backed source
+page test. These local checks do not establish hosted results for the new head.
+
+The caller must still establish approved-base directory/volume semantics and all
+authority/provenance gates. The cooperative 300-second overlay deadline cannot
+interrupt a blocking filesystem call or the existing bundle/SQLite verifier.
+One output path has one writer; directory publication is not a crash-durable
+activation checkpoint. KMS, OIDC, registry publication, hosted provenance and
+automatic activation have not been enabled. Task-owned Docker tags/containers and
+scratch archives were removed; unrelated Docker/build caches were not pruned.
+
+Reproduce with a locally built base under an owned scratch wrapper:
+
+```bash
+~/.local/bin/agent-scratch --root /tmp/opencode -- bash -c \
+  'uv run python scripts/smoke_data_image.py --base-image <local-api-base> --work "$AGENT_SCRATCH_DIR/runtime"'
+```
+
 ## Remaining Gates
 
 - Protected-default-branch OIDC role evidence and hosted complete real-selection
@@ -303,3 +380,20 @@ template uses the older name-only subject; no live AWS trust comparison or hoste
 assumption is claimed. GitHub's current documentation also limits private artifact
 attestations to Enterprise Cloud; available local CLI verification flags do not
 establish private issuance entitlement. No settings or credentials were changed.
+
+### Live Archive-Reader Trust Comparison (2026-10-05)
+
+After the owner's instruction to proceed with the revised offline direction,
+`aws sts get-caller-identity --profile minos-health-watcher-operator` succeeded
+for the existing Terraform operator role in the built-in account. A read-only
+`iam get-role` on `minos-health-watcher-github-archive-reader` returned the exact
+name-only subject `repo:krzysztofbury/minos-health:ref:refs/heads/main`, audience
+`sts.amazonaws.com`, and the existing GitHub reader permissions boundary.
+GitHub's OIDC customization GET still returns the immutable-ID prefix above.
+
+The mismatch is now established against live AWS, not inferred from Terraform.
+Do not repair it by accepting both prefixes or by changing it only to immutable
+`main`: that still lacks exact pinned-workflow authorization. The final policy
+must be derived from the actual nonprivileged reusable-job claim rehearsal and
+reviewed with the repository-wide customization plan. No AWS/GitHub setting,
+key, role grant or production deployment was changed by these reads.

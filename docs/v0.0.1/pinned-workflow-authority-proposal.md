@@ -1,9 +1,13 @@
 # Pinned Workflow Authority Without Branch Protection
 
-Status: design requested by the owner on 2026-10-05, pending security review.
-The owner chose to keep the repository private and design alternative safeguards,
-not to buy a plan, publish the repository or waive the protected-processing gate.
-This proposal is not approved policy, an IAM plan or activation authorization.
+Status: revised direction accepted for offline implementation on 2026-10-05.
+After review, the owner instructed implementation of pinned workflow execution,
+fixed application base plus a constrained embedded-data layer, and maintained
+private Cosign/in-toto signing through a dedicated AWS KMS build-signing key.
+The repository stays private. Neither a GitHub plan upgrade nor a public
+repository is an inherent requirement for that alternative authorization path.
+Live IAM/GitHub changes, operational keys, host grants and deployment still
+require exact reviewed plans. This is not activation authorization.
 
 ## Decisive Change
 
@@ -29,8 +33,10 @@ describe this as equivalent repository protection or guaranteed availability.
 - Repository and owner IDs independently match the repository API. Numeric
   identity matters for rename, transfer and repository-recreation refusal.
 - `infra/terraform/watcher/iam.tf` currently constructs a name-only subject.
-  That declared template is not proof of the live AWS trust policy or a successful
-  hosted assumption. No live IAM read or change is claimed by these GitHub checks.
+  A subsequent authenticated read of the live archive-reader role confirms the
+  same name-only `repo:krzysztofbury/minos-health:ref:refs/heads/main` subject and
+  the existing reader permissions boundary. It does not match the observed
+  immutable-ID prefix. No hosted assumption or IAM change is claimed.
 - Immutable releases are currently disabled. This alternative does not waive
   #41's immutable-release, signed-tag or off-host recovery requirements.
 
@@ -97,10 +103,29 @@ parser, dependency, schema, static/runtime changes and unlisted files. Do not
 infer the full change set from a PR label, patch preview or limited diff output.
 Reconcile the data files against the verified candidate audit and archived bytes.
 
-For embedded-data API packaging, prove actual non-data image contents/configuration
-against the authorized baseline, not just a Git tree or revision label. Build once,
-test those exact bytes and promote them without rebuilding. Re-select the exact
-data commit/tag remotely before signing or activation; stale or moved heads fail.
+For embedded-data API packaging, reuse the exact approved runnable application
+manifest. Append one fixed-format uncompressed OCI data layer containing only
+`app/data/manifest.json`, `app/data/minos.db` and `app/data/review.txt`. They are
+regular nonexecutable files with mode `0444`, UID/GID `10004:10004`, and fixed
+timestamps. Reject extra entries, whiteouts, links, traversal, padding payloads
+and all runtime/configuration changes. Preserve original compressed application
+layer descriptors and uncompressed diff IDs, not labels alone. No routine code
+rebuild or general-purpose filesystem-equivalence engine is needed.
+
+The reviewed application-base admission must prove that `/app` and `/app/data`
+are real directories, the data directory is empty, runtime settings use that
+fixed bundle location, and no ancestor/link/volume can redirect or hide the
+overlay. Bind that admission to the approved runnable digest. Local byte
+verification alone does not prove these inherited filesystem properties.
+
+`src/minos/ingest/processing/data_image.py` now packages and independently verifies
+the exact delta from bounded actual OCI metadata and a verified artifact bundle.
+Its result is `data_image_content_only`, not provenance or permission to deploy.
+The delta is not a standalone OCI layout: publication must verify/preserve all
+inherited registry blobs. Test the resulting exact runnable manifest and promote
+without rebuilding. Retain code-base revision and candidate-data revision as
+distinct provenance inputs; re-select the data commit/tag remotely before signing
+or activation. Stale or moved heads fail. Signed release verification is unchanged.
 
 ## 4. Independent Signer And Activation Enforcement
 
@@ -122,7 +147,7 @@ attempts before effects; a post-activation receipt outage blocks newer attempts
 until exact reconciliation. Retain complete rollback authority and detailed durable
 Telegram incidents. These controls are unchanged, not delivered by workflow pins.
 
-## 5. Private Provenance Is A Separate Proof Gate
+## 5. Selected Private Provenance Mechanism
 
 GitHub documents that private/internal artifact attestations require Enterprise
 Cloud; Free, Pro and Team support them only for public repositories. Do not claim
@@ -135,14 +160,37 @@ bind a database/image digest, build inputs or test results. A stored JWT, Docker
 BuildKit provenance document, run-success API response, signed self-declared hash
 or repository label is not the required independent artifact/gate attestation.
 
-Before live enablement, choose and review either supported private attestation
-service access or a private independently verifiable evidence protocol. The latter
-must bind complete canonical build/gate statements to the immutable GitHub-issued
-job identity and exact subjects, with cryptographic issuer verification, trusted
-freshness/witness time, historical key validation and private durable retention.
-It must resist an arbitrary job presenting a valid token plus fabricated digest
-statements. Do not invent an ad-hoc JWT audience/signature protocol in implementation
-or let the delegated release key attest its own supposedly independent build proof.
+Use maintained Cosign/in-toto tooling with a dedicated asymmetric AWS KMS
+build-signing key. This amends the former AWS-only-S3 design direction; no key,
+role or grant is provisioned by the amendment. The private key is nonexportable
+and only the exact pinned trusted signing job may request signatures through its
+dedicated narrow OIDC role. It is separate from both the archive-reader role and
+the Mikr.us delegated release signer. The latter cannot issue its own independent
+build evidence. KMS controls key custody, not predicate truth.
+
+The signing job must derive complete build/gate statements from its own verified
+inputs/outputs, binding application-base and data revisions, workflow/tool/lock
+identities, exact archive selections, subjects, test results and candidate identity.
+It cannot sign arbitrary caller digests or a caller's pass verdict. Untrusted
+parsers/build subprocesses have neither KMS credentials nor access to GitHub's
+OIDC bearer/request environment. A job step alone is not an isolation boundary;
+the reviewed design must specify the sandbox and the independent gate checks.
+No executable code, restored cache or results authority comes from mutable `main`.
+
+Store and verify attestations privately, with an exact pinned public key and
+reviewed statement schema. Explicitly configure and test that Cosign publishes
+neither identities nor predicates to public transparency services. Pin a concrete
+Cosign version and its compatible KMS key/signature algorithm in the provisioning
+plan; it need not match the Ed25519 owner/delegate algorithm. Offline owner
+authorization binds the build public key and exact workflow identity. A predicate's
+self-declared workflow name is not identity verification.
+
+Fresh authority/revocation, trusted witness time, historical public-key retention
+and a privately retained off-host receipt chain remain independent enablement
+gates. A private signed statement without a public transparency log cannot claim
+publicly witnessed issuance time. Key rotation, compromise, missing evidence and
+storage outages must fail closed. Park any bespoke JWT/attestation protocol; do
+not replace these checks with stored JWTs or unauthenticated workflow API results.
 
 For supported GitHub attestations, the installed CLI exposes `--signer-workflow`,
 `--signer-digest`, `--source-digest`, `--source-ref` and
@@ -160,7 +208,7 @@ These available flags are not evidence that this private repository can issue th
 3. Review exact authority-policy, GitHub customization and IAM plans. Prove real
    allowed pinned reads and denied arbitrary workflow, relative workflow, other SHA,
    PR/fork/tag, source writes and unrelated reads. No live change is approved here.
-4. Establish private build/gate provenance and independent historical verification.
+4. Establish KMS-backed private build/gate provenance and historical verification.
    Keep it a hard gate if service access or a reviewed equivalent is unavailable.
 5. Complete #41's artifact/tag/authority/receipt chain and the separate custody,
    off-host access, ledger, limits and significance-policy reviews. No new host
@@ -168,7 +216,10 @@ These available flags are not evidence that this private repository can issue th
 6. Preserve the existing phase branch/PR. Do not merge the foundation merely to
    create a main trigger. Pinned reusable-workflow publication and subsequent
    default-branch automatic-trigger acceptance need an explicit reviewed bootstrap
-   sequence; changing the one-phase/one-PR delivery order is not implicit.
+   sequence; changing the one-phase/one-PR delivery order is not implicit. Keep the
+   production source profiles deny-all while publishing/rehearsing the pinned
+   implementation. Merging offline implementation is not freshness delivery or
+   permission to enable activation. A one-PR bootstrap exception is still pending.
 7. Only after actual automatic activation, forced-failure rollback, distinct
    Telegram delivery/outage and representative resource evidence may a source
    profile be enabled. Routine candidates then require no per-update owner approval.
@@ -182,10 +233,12 @@ private-attestation availability, caller-controlled checkout/cache execution and
 the distinction between release integrity and repository availability. All are
 explicit gates above, not permission to relax the release contract.
 
-This keeps the repository private and avoids purchasing a branch-protection plan,
-but adds independent verifier/provenance work and manual approval for new code
-baselines. It preserves unattended routine data updates within approved scope.
-There is no measured performance claim or new operational credential in this design.
+This keeps the repository private without requiring a branch-protection plan.
+Immutable base layering avoids a general-purpose image-equivalence system, and
+maintained signing tooling avoids bespoke cryptography. Manual approval remains
+necessary for new code baselines, not passing routine data updates. AWS lists
+USD 1/month per KMS key plus requests; exact region/cost and policy still need review.
+There is no representative performance claim or new operational credential.
 
 ## Sources Checked On 2026-10-05
 
@@ -195,5 +248,7 @@ There is no measured performance claim or new operational credential in this des
 - [Repository OIDC REST API](https://docs.github.com/en/rest/actions/oidc)
 - [Private artifact-attestation availability](https://docs.github.com/en/code-security/getting-started/github-security-features#artifact-attestations)
 - [Immutable release guarantees](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
+- [Cosign AWS KMS key management](https://docs.sigstore.dev/cosign/key_management/overview/#aws)
+- [AWS KMS pricing](https://aws.amazon.com/kms/pricing/)
 - Local `gh attestation verify --help`, GitHub CLI 2.102.0: reusable workflow signer
   identity, exact digest flags and certificate/predicate trust distinction.
