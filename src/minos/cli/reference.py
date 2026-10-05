@@ -27,7 +27,7 @@ from minos.domain.search import (
     prepare_query,
 )
 from minos.ingest.jgp_catalog import GROUP_CODE_REGEX
-from minos.store.artifact import dataset_identity, read_regular_file
+from minos.store.artifact import ArtifactManifest, dataset_identity, read_regular_file
 
 DISCLAIMER = "Reference only. Code documented care completely and correctly; do not infer diagnoses or billability."
 
@@ -77,7 +77,9 @@ class _CommandParsers(Protocol):
     def add_parser(self, name: str, *, help: str = "") -> ArgumentParser: ...
 
 
-def add_reference_commands(commands: _CommandParsers) -> None:
+def add_reference_commands(
+    commands: _CommandParsers, *, allow_s3_archive: bool = False
+) -> None:
     search = commands.add_parser(
         "search", help="Search a verified local reference bundle."
     )
@@ -127,7 +129,14 @@ def add_reference_commands(commands: _CommandParsers) -> None:
     _ = build.add_argument(
         "--manifest", type=Path, required=True, help="Reviewed JSON source manifest."
     )
-    _ = build.add_argument("--archive-root", type=Path, required=True)
+    archive = build.add_mutually_exclusive_group(required=True)
+    _ = archive.add_argument("--archive-root", type=Path)
+    if allow_s3_archive:
+        _ = archive.add_argument(
+            "--archive-s3-selection",
+            type=Path,
+            help="Exact versioned S3 transport pins for every reviewed input.",
+        )
     _ = build.add_argument("--output", type=Path, required=True)
     _ = build.add_argument("--previous-bundle", type=Path)
     _ = build.add_argument("--json", action="store_true", dest="output_json")
@@ -237,12 +246,16 @@ def execute_reference(arguments: dict[str, object]) -> int:
             output_json,
         )
     except ReferenceError, OSError:
-        return _error(
-            3,
-            "data_error",
-            "Reference data could not be verified, built or read.",
-            output_json,
-        )
+        return reference_data_error(output_json)
+
+
+def reference_data_error(output_json: bool) -> int:
+    return _error(
+        3,
+        "data_error",
+        "Reference data could not be verified, built or read.",
+        output_json,
+    )
 
 
 def _build(arguments: _BuildArguments) -> int:
@@ -261,20 +274,32 @@ def _build(arguments: _BuildArguments) -> int:
         arguments.output,
         previous_bundle=arguments.previous_bundle,
     )
+    print_build_result(result, output_json=arguments.output_json)
+    return 0
+
+
+def print_build_result(
+    result: ArtifactManifest,
+    *,
+    output_json: bool,
+    archive_selection_sha256: str | None = None,
+) -> None:
+    identity = dataset_identity(result.dataset)
     response: dict[str, object] = {
         "version": 1,
         "status": "built",
-        "dataset_id": dataset_identity(manifest),
+        "dataset_id": identity,
         "database_sha256": result.database_sha256,
         "row_counts": result.row_counts,
         "disclaimer": DISCLAIMER,
     }
+    if archive_selection_sha256 is not None:
+        response["archive_selection_sha256"] = archive_selection_sha256
     print(
         json.dumps(response, ensure_ascii=False, sort_keys=True)
-        if arguments.output_json
-        else f"Built {dataset_identity(manifest)}; SHA-256 {result.database_sha256}\n{DISCLAIMER}"
+        if output_json
+        else f"Built {identity}; SHA-256 {result.database_sha256}\n{DISCLAIMER}"
     )
-    return 0
 
 
 class _NoCatalogInBundle(Exception):
