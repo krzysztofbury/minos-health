@@ -59,6 +59,32 @@ directory is private source-bearing output, not a repository artifact or part
 of the cloud test fixtures. Temporary bundles, copied mutation source, wheels and
 virtual environments are disposed by task-owned scratch wrappers.
 
+## Browser Startup Race Recovery (2026-10-05)
+
+General hosted CI `37361709217` passed at `c873b31`. Validation run `37361709208`
+failed in `jgp-browser.mjs` with an empty port after Chrome's port file became
+readable. Search, preferences, fallback, conditions and JGP-search browser checks
+had already passed; this was not evidence that JGP page assertions passed.
+
+The five harnesses with the same read-and-break pattern now share a bounded
+`waitForDevToolsPort` reader. It waits for a complete valid port line, not mere
+file existence, and checks browser exit/signal/spawn failure before returning.
+It retains the 60-second refusal bound and uses fixed diagnostics. The separate
+page-target and all UI/privacy assertions are unchanged. The empty-file and dead
+browser regressions failed against the extracted old behavior before the fix.
+Five Node tests now pass and run in the hosted validation workflow.
+
+Before/after TigerStyle review focused on #2 bounded startup, #6 refusing invalid
+ports and #12 handling process failure without extending waits indefinitely.
+Local full API/edge/browser smoke passes through real Chromium, including JGP
+catalog/filter/date/group, procedure ranks and the existing filter/privacy gates.
+An initial local image smoke used the scratch wrapper's private umask for nginx
+inputs and failed before browsers; the corrected child umask matches hosted CI
+without changing the private scratch root or any application check. Both attempts'
+task-owned images, containers, profiles and scratch were removed. No application
+or production configuration changed. Hosted validation for the fix remains pending
+until its new pushed revision passes.
+
 ## Remaining Gates
 
 - Protected-default-branch OIDC role evidence and hosted complete real-selection
