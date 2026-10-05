@@ -52,7 +52,7 @@ EXPECTED_TAGS = {
     "Repository": "krzysztofbury/minos-health",
 }
 EXPECTED_POLICY_SHA256 = {
-    "acceptance_operator_boundary": "124dbccc1b978439d325130e7ae37cde0caa0be44363e939524e0f5247f73d86",
+    "acceptance_operator_boundary": "467f052b28ba661edd43ea30652c069835486163386c47063d7d8b8716be57ef",
     "acceptance_watcher_boundary": "91ab68d1b81b319c49134c39730361e3e4598aa7f6a5ac41014f0e6b38185d0b",
     "github_reader_boundary": "73bcefd93a5886a60fc799194ac4c5568823fe7f86799257d7eb961da9930f80",
     "production_operator_boundary": "f13c1342409b8bd4d9e68c53e6485447871d1fa769bed14a0c2588f0f40b431b",
@@ -61,6 +61,9 @@ EXPECTED_POLICY_SHA256 = {
 }
 PREVIOUS_ACCEPTANCE_OPERATOR_SHA256 = (
     "c48b2378feb4cb75fbcf616c58884bed462fcad100c82e787e3225ffbdf64c14"
+)
+PREVIOUS_ACCEPTANCE_PROVIDER_SHA256 = (
+    "124dbccc1b978439d325130e7ae37cde0caa0be44363e939524e0f5247f73d86"
 )
 PREVIOUS_PRODUCTION_OPERATOR_SHA256 = (
     "684745fd184c208c721f61843cbc0f6633b0588f80b0796cd46969f2f9ba0f7a"
@@ -580,6 +583,14 @@ def validate_read_preflight_update(document: object) -> None:
     previous = boundary_before.get("policy")
     if not isinstance(previous, str):
         raise PlanError("previous boundary unavailable")
+    if (
+        hashlib.sha256(previous.encode()).hexdigest()
+        == PREVIOUS_ACCEPTANCE_PROVIDER_SHA256
+    ):
+        validate_acceptance_provider_policy(
+            previous, inline_before, boundary_after, inline_after
+        )
+        return
     require(
         hashlib.sha256(previous.encode()).hexdigest()
         == PREVIOUS_ACCEPTANCE_OPERATOR_SHA256,
@@ -644,6 +655,54 @@ def validate_read_preflight_update(document: object) -> None:
     )
     updated = decode_policy(boundary_after.get("policy"), "updated acceptance boundary")
     require(updated == old_policy, "boundary adds permissions beyond scoped role read")
+    require(
+        decode_policy(inline_after.get("policy"), "updated inline") == updated,
+        "updated inline differs from boundary",
+    )
+
+
+def validate_acceptance_provider_policy(
+    previous: str,
+    inline_before: dict[str, object],
+    boundary_after: dict[str, object],
+    inline_after: dict[str, object],
+) -> None:
+    """Correct exactly two API-to-IAM names, never resources or write permissions."""
+    old_policy = decode_policy(previous, "previous acceptance boundary")
+    require(
+        decode_policy(inline_before.get("policy"), "previous inline") == old_policy,
+        "previous inline differs from boundary",
+    )
+    buckets = [
+        item
+        for item in policy_statements(old_policy)
+        if item.get("Sid") == "ManageOnlyDisposableBuckets"
+    ]
+    require(len(buckets) == 1, "disposable bucket statement missing")
+    bucket = buckets[0]
+    require(
+        bucket.get("Resource") == "arn:aws:s3:::minos-health-watcher-acceptance-*",
+        "bucket read scope changed",
+    )
+    actions = statement_actions(bucket)
+    require(
+        actions.count("s3:GetBucketAccelerateConfiguration") == 1,
+        "previous acceleration action differs",
+    )
+    require(
+        actions.count("s3:GetBucketReplication") == 1,
+        "previous replication action differs",
+    )
+    bucket["Action"] = [
+        "s3:GetAccelerateConfiguration"
+        if action == "s3:GetBucketAccelerateConfiguration"
+        else "s3:GetReplicationConfiguration"
+        if action == "s3:GetBucketReplication"
+        else action
+        for action in actions
+    ]
+    updated = decode_policy(boundary_after.get("policy"), "updated acceptance boundary")
+    require(updated == old_policy, "boundary changes more than two provider reads")
     require(
         decode_policy(inline_after.get("policy"), "updated inline") == updated,
         "updated inline differs from boundary",

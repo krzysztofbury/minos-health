@@ -348,10 +348,16 @@ def validate_aws_resources(
 
 
 def _validate_live_permissions_boundary(role: Mapping[str, Any]) -> None:
-    if role.get("PermissionsBoundary") != {
-        "PermissionsBoundaryType": "PermissionsBoundaryPolicy",
-        "PermissionsBoundaryArn": EXPECTED_PERMISSIONS_BOUNDARY_ARN,
-    }:
+    boundary = role.get("PermissionsBoundary")
+    # IAM returns Policy in real responses; the SDK model names the same type
+    # PermissionsBoundaryPolicy. Neither spelling relaxes the exact ARN check.
+    if (
+        not isinstance(boundary, Mapping)
+        or set(boundary) != {"PermissionsBoundaryType", "PermissionsBoundaryArn"}
+        or boundary.get("PermissionsBoundaryType")
+        not in ("Policy", "PermissionsBoundaryPolicy")
+        or boundary.get("PermissionsBoundaryArn") != EXPECTED_PERMISSIONS_BOUNDARY_ARN
+    ):
         raise GuardError("IAM role permissions boundary is not exact")
 
 
@@ -2016,7 +2022,14 @@ def _validate_lifecycle(value: object) -> None:
         identifier = item.get("ID")
         if not isinstance(identifier, str) or identifier in actual_by_id:
             raise GuardError("bucket lifecycle rules are mismatched")
-        actual_by_id[identifier] = item
+        normalized = dict(item)
+        # An explicit empty prefix and an empty filter both cover the bucket.
+        # Normalize only this observed service spelling, never a scoped filter.
+        if identifier == "abort-incomplete-multipart-uploads" and normalized.get(
+            "Filter"
+        ) == {"Prefix": ""}:
+            normalized["Filter"] = {}
+        actual_by_id[identifier] = normalized
     expected_by_id = {str(item["ID"]): item for item in expected}
     if actual_by_id != expected_by_id:
         raise GuardError("bucket lifecycle rules are mismatched")

@@ -188,6 +188,15 @@ def _simulate(
 
 
 def _verify_decisions(iam: _IamClient, roles: dict[str, str]) -> None:
+    for action in ("s3:GetAccelerateConfiguration", "s3:GetReplicationConfiguration"):
+        for resource, expected in (
+            (
+                f"arn:aws:s3:::minos-health-watcher-acceptance-{ACCOUNT}-0123456789abcdef",
+                "allowed",
+            ),
+            ("arn:aws:s3:::unrelated-bucket", "implicitDeny"),
+        ):
+            _simulate(iam, roles["acceptance_operator"], action, resource, expected)
     user = f"arn:aws:iam::{ACCOUNT}:user/minos-health-watcher"
     _simulate(
         iam,
@@ -338,7 +347,7 @@ def main() -> int:
         )
         return 1
     print(
-        "Verified three bounded IAM roles, six boundary policies, seven deny/allow decisions, and versioned state recovery access."
+        "Verified three bounded IAM roles, six boundary policies, eleven deny/allow decisions, and versioned state recovery access."
     )
     return 0
 
