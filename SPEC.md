@@ -91,7 +91,7 @@ Two interfaces share the same domain behaviour:
 - Accounts, personalization beyond the browser-local search filter preference,
   favourites, or mutable user and product data. The owner-approved filter setting
   stores only source selections and a 90-day expiry, automatically after a filter
-  change, with an inline notice and reset but no opt-in. It never stores queries,
+  change, with a reset but no opt-in or inline notice. It never stores queries,
   medical codes or user identifiers; see the decisions record for privacy limits. The
   watcher control database is operational state and is explicitly allowed.
 - WHO ICD-10, WHO ICD-9, ICD-9-CM-US variants until separate source and
