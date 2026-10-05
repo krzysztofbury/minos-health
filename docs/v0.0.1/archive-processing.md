@@ -149,3 +149,9 @@ Implement/review the needed release boundary before enabling unattended
 activation. Existing source/policy/legal gates are not waived by a successful
 archive build. No production configuration or notification secret changes are
 part of the first chunk.
+
+The owner authorized drafting a [routine-data authority proposal](routine-data-authority-proposal.md)
+to resolve unattended signing without putting the operator root key online.
+This is permission to design, not acceptance of delegation or authorization to
+provision keys, change IAM or activate production. #41 remains unchanged pending
+that review.
