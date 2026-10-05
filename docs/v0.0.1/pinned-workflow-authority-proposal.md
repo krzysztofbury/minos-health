@@ -42,6 +42,19 @@ describe this as equivalent repository protection or guaranteed availability.
 
 ## 1. Cloud Access Only From Immutable Reusable Jobs
 
+The nonprivileged inspector `scripts/observe_reusable_oidc.py` now accepts only
+same-repository PR contexts targeting `main`, requests audience
+`minos-health-nonprivileged-rehearsal` (never `sts.amazonaws.com`), and returns
+allowlisted bounded claims as `unverified_oidc_claim_observation`. It does not
+verify a JWT signature, authorize a workflow, retain tokens or call AWS. A
+name-only subject is reported as an immutable-subject mismatch, not accepted as
+an IAM fallback. The hosted reusable-workflow/caller pin is a subsequent chunk.
+
+Local tests exercise explicit job SHA/reference agreement, immutable IDs,
+unsupported contexts before token requests, HTTPS host/redirect restrictions,
+response bounds and refusal without token/bearer/extra-claim output. This is
+diagnostic preparation, not GitHub service acceptance or privileged processing.
+
 Use a fully qualified reusable-workflow reference ending in an owner-reviewed
 40-character commit SHA, not `@main`, a tag, or a relative workflow reference.
 Authorize its exact `job_workflow_ref` through GitHub's customized OIDC subject.

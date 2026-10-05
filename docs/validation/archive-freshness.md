@@ -218,6 +218,23 @@ upstream URLs or `IsLatest` as selection authority. One-version-only is an expli
 supported archive condition, not an assertion that all historical archives meet
 it. No live S3 read, IAM grant, GitHub setting or production change was made.
 
+### Nonprivileged Claim Inspector (2026-10-05)
+
+Twenty-five inspector cases pass with synthetic JWT samples and the real HTTPX
+wire adapter. JWT signatures are intentionally not verified; output explicitly
+says `unverified_oidc_claim_observation`. Only bounded allowlisted public workflow
+metadata is returned. HTTP redirects, foreign request hosts, unsupported PR/fork/
+tag contexts and the AWS audience are refused, and service query parameters are
+preserved. A name-only subject remains a visible mismatch, never an IAM fallback.
+
+The complete local worktree suite passes: 1,788 tests, 23 opt-in skips; all
+repository checks pass. The pinned hosted caller is not installed by this script
+chunk. No token was requested locally, no JWT/bearer was stored or logged, and no
+cloud signing, IAM/GitHub setting, secret or production change occurred. Review
+applied TigerStyle #2 response/timeout bounds, #6 explicit scope and #12 redacted
+transport failures. The private audience is intentionally incompatible with the
+existing AWS role's `sts.amazonaws.com` audience restriction.
+
 - Protected-default-branch OIDC role evidence and hosted complete real-selection
   repeated builds. The disposable S3 results below do not establish that boundary.
 - Artifact metadata/provenance reconciliation, including how the candidate audit
