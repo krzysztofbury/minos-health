@@ -11,6 +11,15 @@ release.
 
 ### Added
 
+- Explicit pinned-release `minos data diff` for verified bundle directories,
+  covering terminology, catalog base values/applicability and conditions graph,
+  list, correspondence and evidence changes with bounded Markdown/JSON output.
+- Private-source ICD-9 5.89/5.90 and conditions 74/102 logical-diff gold checks,
+  provenance-safe predecessor pins and an actionable new-base-act review checklist.
+- Owner-confirmed 2026-10-05 policy for automatic activation of validated routine
+  data-only updates, retaining/rolling back the last good compatible release and
+  requiring durable detailed Telegram failure alerts. The #21 pipeline and
+  notification integration remain unimplemented and are not enabled here.
 - Reviewed service-applicability evidence for BAW amendment `74/2026/DSOZ`,
   separate from publication and entry into force, without inferring dates for
   other documents.

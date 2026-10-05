@@ -476,12 +476,46 @@ SQLite. S3 is not a database and contains no mutable watcher-state object or
 provenance sidecars. Immutable control-database recovery images are distinct
 from source cursors.
 
-Issue #21 turns reviewed changes into data PRs with manifest changes and diffs.
-An operator-dispatched protected workflow identifies one verified recovery image
-through the read-only GitHub OIDC archive role and exports only the selected
-bounded change record; the watcher receives no GitHub credential. A human
-approves and CI builds immutable artifacts. The "CI never follows latest" rule
-is unchanged. Details in [data-sources.md](data-sources.md).
+Issue #21 turns verified change records into pinned manifest changes, logical
+diffs and immutable artifacts. Automatic selection runs downstream of the
+watcher through the scoped read-only GitHub OIDC archive role; the watcher
+receives no GitHub credential. The "CI never follows latest" rule is unchanged.
+Details in [data-sources.md](data-sources.md).
+
+### Automatic Routine Data Activation And Failure Alerts (2026-10-05)
+
+The owner explicitly confirmed automatic activation for validated routine
+data-only updates, superseding the earlier human-approved-per-update policy
+and the conflicting #21 comment. A reviewed policy governs supported source,
+layout, applicability, integrity, provenance, compatibility and runtime gates.
+New base acts, unexplained logical changes, licence changes, unsupported layouts,
+ambiguous applicability and legal/source disagreement stop for investigation.
+Parser, schema, application, infrastructure and promotion-policy changes remain
+reviewed code changes. No individual approval is needed for a passing routine
+candidate; an auditable data PR or change record remains mandatory.
+
+Failed parsing or any other processing/publication/activation gate retains the
+last known-good compatible release. Failed post-activation checks restore the
+complete previous set. Application-activation checkpoints advance only after
+durable verified success, independently of successful watcher capture.
+
+Each failed candidate produces an actionable Telegram notification using the
+existing Kuma notification destination, with a separately identified data-update
+event. Include bounded source/change/candidate identity, failing stage, stable
+error code, allowlisted expected/observed checks, retained or rolled-back release,
+and a private diagnostic receipt/workflow link. Do not send arbitrary exception
+text, stack traces, source payloads, medical queries, encounter data, credentials,
+signed URLs or local paths. Secrets stay in the trusted notification boundary;
+ordinary build and pull-request jobs do not receive Telegram or production keys.
+
+The incident and delivery intent must be durable before sending. Retry delivery
+with bounded backoff, deduplicate by candidate and failure identity, and report
+delivery failure separately; notification failure never changes activation
+success/failure or loses the incident. Distinct failed candidates need alerts
+even when a Kuma monitor is already down. The existing watcher pushes only
+generic `completed`/`failed` messages, so it does not yet satisfy this detailed
+alert contract. #21 owns implementation and actual Telegram delivery evidence.
+No unattended processing or notification integration is enabled by this record.
 
 ### Frontend
 

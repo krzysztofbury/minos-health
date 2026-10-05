@@ -198,7 +198,10 @@ it. New captures do not automatically invalidate existing application coverage.
 5. **Immutable application artifacts.** A reviewed source/transform pair builds
    a complete checksummed reference bundle. Compatible application/API and
    static artifacts are released together through the existing deployment
-   process after separate owner approval, never an in-place database patch.
+   process, never an in-place database patch. Under the 2026-10-05 #21 policy,
+   passing routine data-only candidates activate automatically; failed or
+   significant candidates retain the last good release and notify the owner.
+   Source/transform policy changes still require separate review.
    Older releases remain available for covered service/knowledge dates; rollback
    restores a compatible artifact set rather than repairing rows on the host.
 6. **Consumers (#32 and later).** CLI/store/API/UI and later offline snapshots

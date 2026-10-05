@@ -42,8 +42,13 @@ def query_budget(
     *,
     seconds: float = 1.0,
     operations: int = 2_000_000,
+    shared: QueryBudget | None = None,
 ) -> Generator[QueryBudget]:
-    budget = QueryBudget(seconds=seconds, operations=operations)
+    budget = (
+        shared
+        if shared is not None
+        else QueryBudget(seconds=seconds, operations=operations)
+    )
     previous = _ACTIVE.get()
     active = (*previous, (connection, budget))
     token = _ACTIVE.set(active)

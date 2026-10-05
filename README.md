@@ -63,7 +63,14 @@ The watcher container runs APScheduler and a separate mutable control SQLite
 database. It stores exact raw bytes and revisioned control-database recovery
 images in private versioned S3. GitHub-hosted Actions build and test the images
 but do not run production schedules. Collectors in issues #6-#8 emit change
-records and issue #21 proposes reviewed manifest PRs.
+records. Issue #21 will build pinned proposals and automatically activate
+policy-qualified routine data updates, retaining the last good release and
+sending detailed Telegram failure alerts. That pipeline is not enabled yet.
+
+Offline `minos data diff` compares explicitly pinned terminology, catalog and
+conditions releases in verified bundle directories, with bounded Markdown/JSON
+reports. See [the CLI contract](docs/v0.0.1/release-diff.md) and
+[validation evidence](docs/validation/release-diff.md).
 
 The same Mikr.us host also runs self-hosted Uptime Kuma 2.5.5 at
 `status.minoshealth.pl`. Its public page is limited to coarse service state;

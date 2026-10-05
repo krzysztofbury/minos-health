@@ -585,23 +585,79 @@ quiet window is not representative verification.
 
 ## Data Refresh Operations
 
-An upstream refresh is not an automatic production update:
+Owner-approved policy, 2026-10-05: supported routine data-only changes activate
+automatically after all reviewed gates pass. Capture alone is not promotion.
+The #21 pipeline is still unimplemented; current validation deployments remain
+explicit operator actions until that separately tested boundary is delivered.
 
 1. The watcher detects a source change and archives exact raw bytes to S3.
 2. It commits the observation, artifact references, source cursor, and bounded
    change or incident record to the control database.
-3. An operator dispatches the issue #21 workflow with a selected recovery-image
-   key, version ID, and checksum. The protected default-branch workflow uses the
-   read-only GitHub OIDC archive role, verifies the image, extracts only the
-   selected bounded change record, and opens a manifest pull request with
-   provenance and a human-readable diff. The watcher receives no GitHub token.
-4. The operator reviews source terms, dates, ruleset pairing, and unexplained
-   changes.
-5. CI builds and verifies a new immutable reference database and images.
-6. A signed release promotes the already tested digest set to Mikr.us.
+3. #21 automatically selects an exact recovery image and change record. Its
+   protected processing workflow uses the read-only GitHub OIDC archive role to
+   verify key, version, checksum, revision and observation identity, then emits
+   a pinned manifest proposal with provenance and a logical diff. The watcher
+   receives no GitHub token. Manual dispatch is a recovery path, not a routine gate.
+4. Apply the reviewed significance policy to source terms, structure, dates,
+   ruleset pairing, unresolved references, logical changes and runtime behavior.
+   Routine candidates proceed; failed or significant candidates require review.
+5. Build and verify a complete immutable reference database and compatible images.
+6. Automatically promote the exact tested candidate through the signed release
+   contract, verify actual public behavior and record durable activation. Roll
+   back the complete set on failed post-activation checks, never individual rows.
 
 Large or unexplained source diffs block release. A new base act requires manual
 review beyond automated comparison.
+
+### New Base Act And Conditions Review Checklist
+
+A new base act is not a routine amendment even when its workbook parses:
+
+1. Pin the act, consolidation/amendment lineage and exact attachment bytes.
+   Independently record publication, entry into force, service applicability and
+   knowledge evidence; never derive them from a filename or download date.
+2. Verify workbook layout, sheets, merged-cell structure, column meanings,
+   source consumption and parser/transformation identity. A new layout needs a
+   reviewed parser change, not wider automatic acceptance bounds.
+3. Review old/new group/product codes and catalog context (1a versus 1ae),
+   renumbered legal clauses, directional list labels and source-local vocabulary.
+   Do not equate internal row/list/selector IDs across releases or infer renamed
+   groups from similar titles. Record explicit correspondence or unpaired changes.
+4. Compare condition trees, Boolean operators, selectors, thresholds, ranks,
+   age/LOS boundaries, discharge modes, exclusions and guarded source fragments.
+   Retain unsupported conditions and their reasons; they must not disappear or
+   become executable defaults during a renumbering or structural rewrite.
+5. Recheck source-local list membership including duplicates and markers, then
+   recompute exact dictionary correspondence against explicit ICD release pins.
+   Missing dictionary matches stay visible, not deleted or replaced by parents.
+6. Review catalog/conditions/algorithm/dictionary pairing, MODTAR binding state,
+   supersession, gaps, retroactivity and row-level deferred applicability. Exercise
+   both sides of every changed boundary plus knowledge dates before/after publication.
+7. Inspect the complete logical diff and separate substantive changes from source
+   row/order/provenance movement. Run build/open integrity and actual CLI checks;
+   record exact old/new identities, reviewer and dispositions for unexplained changes.
+8. Approve a new supported policy/profile only after representative runtime and
+   rollback evidence. Stop #21 promotion and notify the owner until these checks
+   are reviewed; a readable diff is evidence, not automatic legal clearance.
+
+### Failed Data Updates And Telegram
+
+Record a durable incident and notification intent before attempting delivery.
+Send each failed candidate to the existing Kuma Telegram destination with its
+source/change/candidate identity, failing stage, stable failure code, bounded
+allowlisted expected/observed checks, active retained/rollback release and a
+private receipt or workflow link. Details must come from typed safe diagnostics,
+not raw exception strings or source rows. No queries, encounter data, credentials,
+signed URLs, headers, cookies, local paths or stack traces enter Telegram.
+
+Use a distinct data-update event/target, not a watcher heartbeat that could
+misreport a successful capture. Generic watcher `failed` pushes are insufficient.
+Each distinct failed candidate must notify even if the monitor is already down;
+bounded retries deduplicate one failure, not all subsequent failures. Keep
+delivery intent pending on send failure and expose its separate incident for
+operator retry. A send failure cannot mark processing successful, undo a valid
+activation, advance the activation cursor or erase the original failure.
+Verify actual private delivery and redaction before enabling #21 automation.
 
 ## Mutable Product Data Gate
 

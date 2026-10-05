@@ -39,8 +39,11 @@ Two interfaces share the same domain behaviour:
 - Immutable raw snapshot archive in private versioned S3. Publishers can change
   file sets or reuse URLs without useful content validators; an uncaptured
   predecessor may be unrecoverable.
-- Automated data-update pull requests carrying manifest changes and
-  human-readable diffs. Automation proposes; a human reviews and merges.
+- Automatic routine data updates carrying pinned manifest changes, logical
+  diffs and validation evidence. Policy-qualified data-only changes activate
+  without per-update approval; failed or significant changes retain the last
+  good release and notify the owner through Telegram. Parser, schema, policy
+  and application changes still require review. Implementation belongs to #21.
 
 ### Included In v0.0.1
 
@@ -274,8 +277,13 @@ The build process must:
 
 CI must never silently replace a pinned source with the latest upstream file.
 The source collectors in issues #6-#8 detect changes, archive raw files, and
-emit change records. The automation in issue #21 turns reviewed change records
-into manifest pull requests; refreshing data is always a reviewed change.
+emit change records. Issue #21 selects verified change records, builds pinned
+manifest proposals and logical diffs, and automatically activates routine
+data-only changes only after every reviewed policy gate passes. Failed parsing,
+verification, applicability, compatibility or runtime checks stop promotion and
+produce a durable incident plus an actionable Telegram notification. This
+2026-10-05 owner decision supersedes per-update human approval; it does not
+permit following mutable latest sources or automatically changing parsers.
 
 ## Search Behaviour
 

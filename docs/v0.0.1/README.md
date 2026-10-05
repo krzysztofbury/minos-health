@@ -28,14 +28,17 @@ model.
   runtime, S3 archive, and Cloudflare Tunnel.
 - [operations.md](operations.md): logging, monitoring, backups, rollback,
   recovery, and verification.
+- [release-diff.md](release-diff.md): selected-scope logical release comparisons,
+  explicit pinning, Markdown/JSON output and limits for #20/#31.
 
 ## Release Definition
 
 `v0.0.1` is complete only when:
 
 1. Phase 0 watchers run on schedule, archive every exact metadata observation
-   and selected in-scope source file, and issue #21 opens reviewed data PRs
-   with diffs from their change records.
+    and selected in-scope source file; issue #21 builds pinned proposals/diffs,
+    automatically activates validated routine data-only changes and retains the
+    last good release with detailed Telegram alerts on failure.
 2. The pinned multi-source ruleset (ICD-10 PL, ICD-9 PL, JGP katalog and
    charakterystyka, algorithm metadata) transforms reproducibly into a
    validated bitemporal database with provenance and checksums.

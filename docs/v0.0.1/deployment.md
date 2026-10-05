@@ -208,11 +208,19 @@ read-only access to reviewed source snapshots for a full artifact build. It
 publishes only to private GHCR and GitHub release storage. It does not connect
 to the production host during ordinary builds.
 
-The issue #21 PR handoff is a separate operator-dispatched workflow from the
-protected default branch. It receives one allowlisted recovery-image identity
+The issue #21 processing handoff is a separate trusted workflow from the
+protected default branch. Automatic selection supplies one verified recovery-image identity
 and bounded change-record identity, uses the read-only OIDC role, verifies both,
 and exports only the selected normalized proposal. Pull-request jobs receive no
 archive role, and the production watcher receives no GitHub credential.
+
+The 2026-10-05 owner policy requires automatic activation of passing routine
+data-only updates, with no per-update manual dispatch, merge or deployment gate.
+Manual dispatch remains a recovery path. Failed or significant candidates retain
+the last good compatible release and produce a detailed privacy-safe Telegram
+notification to the existing Kuma destination. Trusted activation/notification
+credentials stay separate from ordinary builds and untrusted PR jobs. #21 owns
+implementation and delivery/rollback evidence; this policy does not enable it.
 
 GitHub service limits change and must be rechecked before enabling full-data
 builds. Image retention remains bounded while preserving the current and prior
