@@ -21,4 +21,4 @@ jobs:
     permissions:
       contents: read
       id-token: write # Pass permission for a non-AWS claim observation, never a cloud role.
-    uses: krzysztofbury/minos-health/.github/workflows/freshness-oidc-reusable.yml@67d3c510d6774094eb54009536f1c8c1e3349af3
+    uses: krzysztofbury/minos-health/.github/workflows/freshness-oidc-reusable.yml@ccffdf593ed4eab8da0a4730bf6d301fd86b5a89
