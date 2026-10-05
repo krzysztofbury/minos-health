@@ -216,6 +216,76 @@ For supported GitHub attestations, the installed CLI exposes `--signer-workflow`
 must pass; caller-controllable predicate fields alone do not establish identity.
 These available flags are not evidence that this private repository can issue them.
 
+## Concrete Private Cosign Direction
+
+The locally rehearsed tool is Cosign **v3.1.3**, release commit
+`11926fa5bbbbde47e88fc006b625a17769b743b2`, Linux AMD64 binary SHA-256
+`4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71`
+(141,178,250 bytes). The release API reported that digest; the downloaded bytes
+matched it before execution. It uses Sigstore v1.10.8's maintained AWS adapter.
+Propose a dedicated `eu-central-1` KMS `ECC_NIST_P256` key, `SIGN_VERIFY` usage,
+`ECDSA_SHA_256` signing algorithm with `DIGEST` message type. This is a proposed
+provisioning input, not a created key or a live KMS interoperability claim.
+
+The adapter source calls `kms:GetPublicKey`, `kms:DescribeKey` and `kms:Sign`.
+The signing role should allow only those actions on the new exact key ARN;
+constrain `kms:Sign` by algorithm and message type. Do not grant create/alias,
+policy changes, grants, encryption/decryption, arbitrary keys or broad S3 reads.
+Use the key ARN in `awskms:///arn:aws:kms:...:key/...`, not a mutable alias or
+caller-supplied endpoint. Clear configured endpoint/TLS overrides, disable
+metadata/profile/container credential fallback and admit only short-lived
+credentials obtained by the final exact-workflow OIDC role. The saved Terraform,
+key/admin policy, reviewed workflow SHA, cost/budget and real allowed/denied KMS
+rehearsal remain separate required approvals/evidence.
+
+`infra/signing/private-signing-config.json` is an explicit no-services Cosign
+configuration. Its current file SHA-256 is
+`e65f88212df6cdc44d8fe31bbb4430e94c55ca35ce18c16d71ce94ab4d92c393`.
+It contains no Fulcio, Rekor, OIDC or TSA endpoint. Do not use
+`--use-signing-config=false` as a privacy control: the actual v3.1.3 binary tried
+public Rekor with that flag in a network-disabled synthetic rehearsal. Instead
+pass the reviewed configuration file explicitly:
+
+```text
+cosign attest-blob --signing-config private-signing-config.json --key <exact-KMS-ARN-URI> --predicate <trusted-derived-predicate> --type <reviewed-predicate-URI> --bundle <private-bundle> <exact-subject>
+cosign verify-blob-attestation --key <retained-owner-pinned-public-PEM> --bundle <private-bundle> --insecure-ignore-tlog --type <reviewed-predicate-URI> <exact-subject>
+```
+
+These command shapes are not a production interface accepting arbitrary paths,
+digests or predicates. The real issuer must independently derive the reviewed
+predicate and subjects, and the real verifier must also check their complete
+schema, pinned implementation identity, candidate/gates and current authority.
+`--insecure-ignore-tlog` is deliberate only for this private retained-key path;
+no certificate/keyless fallback or other verification bypass is allowed.
+
+The observed bundle format is Sigstore v0.3; `attest-blob` emits in-toto
+**Statement/v0.1**, not v1. This concrete format must be admitted by the final
+reviewed verifier; Go imports or modern documentation do not establish output
+schema. Historical verification uses retained exact public PEM bytes and the
+owner's signed key/implementation authorization, without contacting KMS or
+depending on a mutable alias. Rotate with a new key and independently authorized
+generation, retaining prior public keys, bundles and authority evidence. No
+automatic asymmetric-key rotation, delegated self-renewal or key deletion before
+historical retention/recovery review is assumed.
+
+`scripts/smoke_private_cosign.py` reproduces local synthetic signing and retained
+key verification inside a non-root, read-only, capability-dropped container with
+`--network none`, a checksum-verified binary and no cloud/OIDC/host credentials.
+It verifies the actual DSSE subject/predicate and refuses wrong public key,
+predicate type, subject bytes and signature. It never invokes a parser or a real
+KMS signing call. Successful offline commands plus no-service configuration
+establish that public service access is unnecessary for that path; they are not
+a packet-capture claim about the future KMS-connected job.
+
+Production signing still needs an independently reviewed sandbox: parsers/builds
+receive only pinned data and trusted tools in a credential-free network-disabled
+container, with no Docker socket or OIDC/AWS request environment. A fresh trusted
+coordinator must recompute byte identities and independent gate results before
+KMS signing. KMS egress must not imply public Sigstore egress; validate the final
+network allowlist on the real runner. Preserve a separate trusted-time/witness
+and off-host receipt protocol. These private bundles have **no witnessed time**
+and cannot satisfy freshness, revocation or historical cutoff alone.
+
 ## Acceptance And Cutover
 
 1. Locally test the complete data-tree/runtime boundary with real Git objects and
