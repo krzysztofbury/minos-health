@@ -1,0 +1,5 @@
+{
+  "tests/evaluation/search-gold-v1.json": "905bebb5851d78788d013f616b35b6d752393b832b1c62c3ffadfccdd4fb4515",
+  "tests/fixtures/jgp-search-gold.json": "2eda1f1de45e145fd05f29572bfb2953a5a20225dc1160981bc301b49f80749b",
+  "manifests/sources/search-synonyms-reviewed-v1.json": "26624910bc87f21efbbc5f15e7cd309ac0a2180b294acc2e9781b4b22f4a117a"
+}

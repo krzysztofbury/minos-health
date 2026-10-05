@@ -126,8 +126,10 @@ def test_folded_profile_keeps_exact_precedence_and_legacy_bundle_compatibility(
         assert not legacy.hits
 
 
-@pytest.mark.parametrize("elapsed_seconds,refused", [(0.3, False), (0.401, True)])
-def test_search_has_one_bounded_400ms_deadline(
+@pytest.mark.parametrize(
+    "elapsed_seconds,refused", [(0.3, False), (0.6, False), (2.001, True)]
+)
+def test_search_allows_slow_results_with_one_bounded_deadline(
     search_bundle: Path,
     monkeypatch: pytest.MonkeyPatch,
     elapsed_seconds: float,
@@ -135,13 +137,13 @@ def test_search_has_one_bounded_400ms_deadline(
 ) -> None:
     import time
 
-    from minos.domain.reference import QueryLimitError
+    from minos.domain.reference import QueryTimeoutError
 
     clock = iter((0.0,))
     monkeypatch.setattr(time, "monotonic", lambda: next(clock, elapsed_seconds))
     with open_reference_connection(search_bundle) as connection:
         if refused:
-            with pytest.raises(QueryLimitError, match="execution limit"):
+            with pytest.raises(QueryTimeoutError, match="elapsed deadline"):
                 _ = search_reference(
                     connection, SearchRequest("icd10-pl", prepare_query("E11"))
                 )

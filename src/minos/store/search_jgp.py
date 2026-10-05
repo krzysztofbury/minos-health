@@ -24,8 +24,7 @@ from minos.store.query_budget import query_budget
 def _selected_manifest(
     connection: sqlite3.Connection, day: date
 ) -> ConditionsManifest | None:
-    # The caller owns its query budget. Entering the store selector's nested
-    # budget would replace and then clear the search SQL progress handler.
+    # The caller owns the aggregate search budget, including this selection.
     horizon = cast(
         tuple[str] | None,
         connection.execute("SELECT as_of FROM characteristics_knowledge").fetchone(),

@@ -1,7 +1,7 @@
 # Decisions
 
 Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
-2026-09-23, 2026-10-01, 2026-10-02, and 2026-10-03
+2026-09-23, 2026-10-01, 2026-10-02, 2026-10-03, and 2026-10-05
 
 ## Product
 
@@ -197,6 +197,21 @@ WHO-specific ICD-10 and international ICD-9 redistribution rights are
 unresolved and those datasets are excluded.
 
 ## Architecture
+
+### Reviewed Dictionary Expansion And Search Recovery
+
+On 2026-10-05 the owner requested dictionary implementation with before/after
+review and preferred useful results beyond 250/400 ms to blank failures.
+After reviewing the full external dictionary's wrong-sense regression, the
+owner selected a source-reviewed subset with explicit JGP related-procedure
+labels. The external dictionary produces review candidates, not automatically
+active mappings. Exact matches, source labels, qualifiers and dated scope stay
+authoritative.
+
+The implementation uses bounded waiting, cooperative search/stage deadlines,
+and distinct capacity, timeout and result-bound errors. Latency targets do not
+justify presenting failed work as no matches. Evidence and remaining VPS release
+checks are in [dictionary search recovery](../validation/dictionary-search-recovery.md).
 
 ### Python Application
 

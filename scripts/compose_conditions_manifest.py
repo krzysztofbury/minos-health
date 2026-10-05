@@ -55,7 +55,7 @@ class Arguments(argparse.Namespace):
     output: Path = Path()
     modifiers: Path | None = None
     search_profile: Literal["polish-folded-1"] | None = None
-    synonyms: Path | None = None
+    synonyms: Path = Path("manifests/sources/search-synonyms-reviewed-v1.json")
 
 
 def main() -> None:
@@ -73,7 +73,11 @@ def main() -> None:
     _ = parser.add_argument("--output", type=Path, required=True)
     _ = parser.add_argument("--modifiers", type=Path)
     _ = parser.add_argument("--search-profile", choices=("polish-folded-1",))
-    _ = parser.add_argument("--synonyms", type=Path)
+    _ = parser.add_argument(
+        "--synonyms",
+        type=Path,
+        default=Path("manifests/sources/search-synonyms-reviewed-v1.json"),
+    )
     args = Arguments()
     _ = parser.parse_args(namespace=args)
     base = DatasetManifest.model_validate_json(bounded_read(args.base))
@@ -90,11 +94,10 @@ def main() -> None:
         data["transform_version"] = "jgp-reference-conditions-modifiers-v3"
     if args.search_profile is not None:
         data["search_profile"] = args.search_profile
-    if args.synonyms is not None:
-        entries = TypeAdapter(tuple[SearchSynonym, ...]).validate_json(
-            bounded_read(args.synonyms)
-        )
-        data["search_synonyms"] = [entry.model_dump(mode="json") for entry in entries]
+    entries = TypeAdapter(tuple[SearchSynonym, ...]).validate_json(
+        bounded_read(args.synonyms)
+    )
+    data["search_synonyms"] = [entry.model_dump(mode="json") for entry in entries]
     manifest = DatasetManifest.model_validate_json(json.dumps(data))
     with args.output.open("x", encoding="utf-8") as target:
         _ = target.write(manifest.model_dump_json(indent=2) + "\n")

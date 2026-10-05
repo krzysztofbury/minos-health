@@ -270,6 +270,17 @@ PAGES = (
         ("validation",),
         analytics=False,
     ),
+    Page(
+        "unavailable.html",
+        "unavailable.html",
+        "/unavailable",
+        "Ponów odczyt - Minos Health",
+        "Serwis jest chwilowo niedostępny. Spróbuj ponownie.",
+        "noindex, nofollow",
+        None,
+        ("validation",),
+        analytics=False,
+    ),
 )
 
 
@@ -313,6 +324,8 @@ def render_page(page: Page, mode: Mode) -> str:
     )
     scripts = PLAUSIBLE if page.analytics else ""
     if page.script:
+        if page.script in ("/search.js", "/dictionary.js"):
+            scripts += '    <script defer src="/request.js"></script>\n'
         scripts += f'    <script defer src="{page.script}"></script>\n'
     rendered = _fill(
         layout,
@@ -352,7 +365,7 @@ def render_site(mode: Mode) -> dict[str, bytes]:
     else:
         files["site.css"] = stylesheet
     if mode == "validation":
-        for name in ("search.js", "dictionary.js", "jgp.js"):
+        for name in ("request.js", "search.js", "dictionary.js", "jgp.js"):
             files[name] = (WEB / name).read_bytes()
         for name in FONTS:
             files[f"fonts/{name}"] = (WEB / "fonts" / name).read_bytes()

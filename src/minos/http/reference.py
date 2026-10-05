@@ -4,7 +4,7 @@ import sqlite3
 from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
-from threading import Lock
+from threading import Condition
 from typing import NamedTuple, final
 
 from minos.domain.morphology import PolishMorphology
@@ -29,7 +29,9 @@ class ReferencePool:
         if not 1 <= capacity <= 4:
             raise ValueError("invalid reference worker capacity")
         self._stack = ExitStack()
-        self._lock = Lock()
+        self._lock = Condition()
+        self._waiting = 0
+        self._closed = False
         self._database = bundle / DATABASE_NAME
         self._leases: list[Lease] = []
         self.manifest: ArtifactManifest
@@ -65,6 +67,17 @@ class ReferencePool:
             raise ArtifactError("reference artifact changed after startup")
         with self._lock:
             if not self._leases:
+                if self._waiting >= 4:
+                    raise CapacityError
+                self._waiting += 1
+                try:
+                    if not self._lock.wait_for(
+                        lambda: bool(self._leases) or self._closed, timeout=0.5
+                    ):
+                        raise CapacityError
+                finally:
+                    self._waiting -= 1
+            if self._closed:
                 raise CapacityError
             lease = self._leases.pop()
         try:
@@ -72,6 +85,10 @@ class ReferencePool:
         finally:
             with self._lock:
                 self._leases.append(lease)
+                self._lock.notify()
 
     def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            self._lock.notify_all()
         self._stack.close()

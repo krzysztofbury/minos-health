@@ -7,7 +7,7 @@ from typing import cast
 
 from minos.domain.normalization import normalize_description
 from minos.domain.reference import ArtifactError
-from minos.domain.search import SearchRequest, fold_polish, prepare_query
+from minos.domain.search import SearchRequest, fold_polish, prepare_query, text_tokens
 from minos.ingest.search_synonyms import SearchSynonym
 from minos.store.artifact import canonical_json
 
@@ -55,6 +55,27 @@ def validate_search_synonyms(
         raise ArtifactError("reviewed synonym policy conflicts with pinned manifest")
     for entry in entries:
         if entry.status != "reviewed":
+            continue
+        if entry.system == "jgp-szp":
+            expected_words = set(
+                text_tokens(normalize_description(entry.source_wording))
+            )
+            labels = cast(
+                list[tuple[str]],
+                connection.execute(
+                    "SELECT DISTINCT name FROM group_definition WHERE (? IS NULL OR release_id=?) LIMIT 20001",
+                    (entry.release_id, entry.release_id),
+                ).fetchall(),
+            )
+            if len(labels) > 20000:
+                raise ArtifactError("group synonym validation exceeds label bound")
+            if not any(
+                expected_words <= set(text_tokens(normalize_description(label)))
+                for (label,) in labels
+            ):
+                raise ArtifactError(
+                    "reviewed group wording is absent from its pinned catalog"
+                )
             continue
         found = cast(
             tuple[int] | None,

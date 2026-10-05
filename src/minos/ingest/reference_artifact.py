@@ -301,6 +301,11 @@ def _review_summary(
         lines.append(
             f"Characteristics knowledge horizon: {manifest.characteristics_knowledge_as_of}; {manifest.characteristics_knowledge_evidence}"
         )
+    from minos.ingest.search_synonyms import dictionary_notice
+
+    notice = dictionary_notice(manifest.search_synonyms)
+    if notice:
+        lines.extend(("", "Reviewed dictionary source licence:", notice))
     return ("\n".join(lines) + "\n").encode()
 
 

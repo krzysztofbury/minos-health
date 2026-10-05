@@ -70,29 +70,25 @@
   }
 
   function failureMessage(code) {
-    if (code === "limit_exceeded") return "Wyszukiwanie tej frazy trwało zbyt długo. Spróbuj ponownie albo wpisz dokładniejszy opis.";
+    if (code === "query_timeout" || code === "request_timeout") return "Wyszukiwanie trwało zbyt długo. To nie oznacza braku dopasowań. Możesz spróbować ponownie.";
+    if (code === "limit_exceeded") return "Zapytanie przekroczyło bezpieczny limit przetwarzania. Wpisz dokładniejszy opis albo kod.";
     if (code === "busy") return "Wyszukiwarka jest teraz zajęta. Spróbuj ponownie za chwilę.";
     if (code === "invalid_request") return "Tego zapytania nie da się wyszukać. Zmień frazę.";
     return "Słownik jest chwilowo niedostępny. Spróbuj ponownie za chwilę.";
   }
 
-  function lookup(system, query, limit, signal) {
+  function lookup(system, query, limit, signal, state) {
     var release = releases[system];
-    return fetch("/api/v1/search", {
+    return window.MinosRequest("/api/v1/search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ system: system, release_id: system === "jgp" ? undefined : release.release_id, query: query, limit: limit }),
       cache: "no-store",
       credentials: "omit",
       signal: signal
-    }).then(function (response) {
-      return response.json().catch(function () { return {}; }).then(function (body) {
-        if (response.ok && Array.isArray(body.results)) return body;
-        var code = body && body.error && body.error.code;
-        var error = new Error("search failed");
-        error.code = code || (response.status >= 500 ? "unavailable" : "invalid_request");
-        throw error;
-      });
+    }, state).then(function (body) {
+      if (Array.isArray(body.results)) return body;
+      throw new Error("invalid lookup response");
     });
   }
 
@@ -155,7 +151,7 @@
     suggestController = new AbortController();
     var signal = suggestController.signal;
     Promise.all(systems.map(function (system) {
-      return lookup(system, query, SUGGEST_LIMIT, signal)
+      return lookup(system, query, SUGGEST_LIMIT, signal, { retry: false })
         .then(function (answer) { return answer.results.map(function (hit) { return { system: system, code: hit.code, label: hit.label, href: system === "jgp" ? hit.href : undefined }; }); })
         .catch(function () { return []; });
     })).then(function (perSystem) {
@@ -175,6 +171,7 @@
     if (hit.match_type === "morphology_tokens") return element("span", "badge badge-muted", "inna forma słowa");
     if (hit.match_type === "folded_tokens") return element("span", "badge badge-muted", "bez polskich znaków");
     if (hit.match_type === "synonym_tokens") return element("span", "badge badge-muted", "synonim: " + hit.synonym_source_wording);
+    if (hit.match_type === "related_tokens") return element("span", "badge badge-muted", "powiązana procedura: " + hit.synonym_source_wording);
     if (hit.match_type === "substring") return element("span", "badge badge-muted", "fragment słowa");
     return null;
   }
@@ -294,7 +291,7 @@
     group.foot.replaceChildren();
     var retry = element("button", "button button-quiet", "Spróbuj ponownie");
     retry.type = "button";
-    retry.addEventListener("click", function () { loadGroup(group, system, query); });
+    retry.addEventListener("click", function () { loadGroup(group, system, query).catch(function () { /* Replaced search. */ }); });
     group.foot.append(retry);
     group.foot.hidden = false;
   }
@@ -302,21 +299,58 @@
   function loadGroup(group, system, query) {
     group.count.textContent = "Szukam…";
     var signal = searchController ? searchController.signal : undefined;
-    return lookup(system, query, FIRST_PAGE, signal).then(function (answer) {
+    group.section.setAttribute("aria-busy", "true");
+    group.section.dataset.searchState = "pending";
+    group.body.replaceChildren();
+    group.foot.hidden = true;
+    var waiting = window.setTimeout(function () {
+      if (!signal || !signal.aborted) group.count.textContent = "Wciąż szukam. Przygotowanie wyników trwa dłużej niż zwykle…";
+    }, 500);
+    return lookup(system, query, FIRST_PAGE, signal, { onRetry: function () {
+      window.clearTimeout(waiting);
+      if (!signal || !signal.aborted) group.count.textContent = "Serwis jest zajęty. Ponawiam za chwilę…";
+    } }).then(function (answer) {
+      if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
       fillGroup(group, system, query, answer, FIRST_PAGE);
+      group.section.dataset.searchState = answer.status === "not_covered" ? "uncovered" : "ready";
+      group.section.dataset.resultCount = String(answer.results.length);
       return answer.results.length;
     }).catch(function (error) {
       if (error.name === "AbortError") throw error;
       failGroup(group, system, query, error.code);
-      return 0;
+      group.section.dataset.searchState = "failed";
+      return null;
+    }).finally(function () {
+      window.clearTimeout(waiting);
+      group.section.setAttribute("aria-busy", "false");
+      if (!signal || !signal.aborted) summarizeResults();
     });
   }
 
+  function summarizeResults() {
+    var sections = Array.from(groups.children);
+    if (sections.some(function (section) { return section.dataset.searchState === "pending"; })) return;
+    var failures = sections.filter(function (section) { return section.dataset.searchState === "failed"; }).length;
+    if (failures) {
+      statusLine.textContent = failures === sections.length ? "Nie udało się zakończyć wyszukiwania. Powody i przyciski ponowienia znajdziesz poniżej." : "Część słowników nie odpowiedziała. Dostępne wyniki i opcje ponowienia znajdziesz poniżej.";
+      return;
+    }
+    if (sections.some(function (section) { return section.dataset.searchState === "uncovered"; })) {
+      statusLine.textContent = "Nie wszystkie katalogi obejmują wybrany dzień. Szczegóły znajdziesz poniżej.";
+      return;
+    }
+    var total = sections.reduce(function (sum, section) { return sum + Number(section.dataset.resultCount || 0); }, 0);
+    statusLine.textContent = total ? "Kliknij pozycję, aby zobaczyć jej opis i miejsce w słowniku." : "Nic nie znaleziono. Sprawdź pisownię albo wpisz kod.";
+  }
+
   function runSearch() {
+    window.clearTimeout(suggestTimer);
+    if (suggestController) suggestController.abort();
     closeSuggestions();
     var query = normalize(input.value);
     var problem = validate(query);
     var systems = selectedSystems();
+    if (searchController) searchController.abort();
     results.hidden = false;
     statusLine.classList.remove("is-error");
     if (problem || !systems.length) {
@@ -326,7 +360,6 @@
       input.focus();
       return;
     }
-    if (searchController) searchController.abort();
     searchController = new AbortController();
     start.hidden = true;
     groups.replaceChildren();
@@ -335,12 +368,7 @@
       var group = groupSection(system);
       groups.append(group.section);
       return loadGroup(group, system, query);
-    })).then(function (counts) {
-      var total = counts.reduce(function (sum, count) { return sum + count; }, 0);
-      statusLine.textContent = total
-        ? "Kliknij pozycję, aby zobaczyć jej opis i miejsce w słowniku."
-        : "Nic nie znaleziono. Sprawdź pisownię albo wpisz kod.";
-    }).catch(function () { /* A newer search replaced this one. */ });
+    })).catch(function () { /* A newer search replaced this one. */ });
   }
 
   function setUnavailable(message) {
@@ -351,6 +379,7 @@
   }
 
   input.addEventListener("input", function () {
+    if (suggestController) suggestController.abort();
     window.clearTimeout(suggestTimer);
     suggestTimer = window.setTimeout(suggest, 220);
   });

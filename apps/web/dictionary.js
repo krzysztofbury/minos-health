@@ -7,6 +7,7 @@
   var NAMES = { "icd10-pl": "ICD-10", "icd9-pl": "ICD-9" };
   var HANDOFF_KEY = "minos.dictionary.query";
   var SEARCH_LIMIT = 20;
+  var searchController;
   var NOTE_TITLES = {
     includes: "Obejmuje",
     excludes: "Nie obejmuje",
@@ -61,19 +62,12 @@
   }
 
   function fetchJson(url, options) {
-    return fetch(url, Object.assign({ cache: "no-store", credentials: "omit" }, options || {}))
-      .then(function (response) {
-        return response.json().catch(function () { return {}; }).then(function (body) {
-          if (response.ok) return body;
-          var error = new Error("request failed");
-          error.code = (body && body.error && body.error.code) || "unavailable";
-          throw error;
-        });
-      });
+    return window.MinosRequest(url, options, { onRetry: function () { setStatus("Słownik jest zajęty. Ponawiam za chwilę…", false); } });
   }
 
   function failure(code) {
-    if (code === "limit_exceeded") return "To zapytanie trwało zbyt długo. Spróbuj ponownie albo wpisz dokładniejszą frazę.";
+    if (code === "query_timeout" || code === "request_timeout") return "Odczyt trwał zbyt długo. To nie oznacza braku danych. Możesz spróbować ponownie.";
+    if (code === "limit_exceeded") return "Zapytanie przekroczyło limit przetwarzania. Wpisz dokładniejszą frazę albo kod.";
     if (code === "busy") return "Słownik jest teraz zajęty. Spróbuj ponownie za chwilę.";
     if (code === "not_found") return "Tej pozycji nie ma w słowniku.";
     return "Słownik jest chwilowo niedostępny. Odśwież stronę za chwilę.";
@@ -372,11 +366,21 @@
   }
 
   function search(query, limit) {
+    if (searchController) searchController.abort();
+    searchController = new AbortController();
+    var signal = searchController.signal;
+    var waiting = window.setTimeout(function () {
+      if (!signal.aborted) setStatus("Wciąż szukam. Przygotowanie wyników trwa dłużej niż zwykle…");
+    }, 500);
     return fetchJson("/api/v1/search", {
       method: "POST",
+      signal: signal,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ system: system, release_id: release.release_id, query: query, limit: limit })
-    });
+    }).then(function (answer) {
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+      return answer;
+    }).finally(function () { window.clearTimeout(waiting); });
   }
 
   function openCode(code) {
@@ -394,7 +398,7 @@
       return reveal(path.map(function (step) { return step.ordinal; })).then(function () {
         setStatus("Pokazano kod " + code + " w słowniku.");
       });
-    }).catch(function (error) { setStatus(failure(error.code), true); });
+    }).catch(function (error) { if (error.name !== "AbortError") setStatus(failure(error.code), true); });
   }
 
   function narrow(query) {
@@ -445,7 +449,7 @@
       } else {
         setStatus((answer.truncated ? "Pokazano " + matches + " najlepszych dopasowań" : "Znaleziono " + matches + (matches === 1 ? " pozycję" : " pozycji")) + " w miejscu, w którym występują w słowniku.");
       }
-    }).catch(function (error) { setStatus(failure(error.code), true); });
+    }).catch(function (error) { if (error.name !== "AbortError") setStatus(failure(error.code), true); });
   }
 
   form.addEventListener("submit", function (event) {
@@ -456,6 +460,7 @@
     narrow(query);
   });
   reset.addEventListener("click", function () {
+    if (searchController) searchController.abort();
     input.value = "";
     showRoots();
     detail.replaceChildren(element("p", "detail-empty", "Wybierz pozycję, aby zobaczyć jej opis, uwagi i miejsce w słowniku."));
