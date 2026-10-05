@@ -75,6 +75,10 @@ phases strictly in order, not as parallel branches:
         Immutable releases are freshly confirmed disabled. An OIDC `main` subject
         alone is not proof of branch protection. See the
         [remote safeguard evidence](docs/validation/archive-freshness.md#remote-release-safeguard-preflight-2026-10-05).
+        Owner selected design of [alternative pinned-workflow safeguards](docs/v0.0.1/pinned-workflow-authority-proposal.md),
+        not a plan upgrade or public repository. The proposal keeps immutable
+        owner-approved execution and independent release verification; it is not
+        approved policy or a live OIDC/IAM/provenance change.
         See [archive processing](docs/v0.0.1/archive-processing.md)
        for the chunk contract and remaining gates. #41's signed compatible release
        authority remains a dependency before unattended activation is enabled.

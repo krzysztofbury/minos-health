@@ -303,6 +303,13 @@ resource limits are not substitutes for correctness or performance acceptance.
 
 ## Review Decisions Before Implementation
 
+The private-repository protection preflight returned a GitHub plan restriction.
+The owner requested an [alternative pinned-workflow authority design](pinned-workflow-authority-proposal.md)
+instead of purchasing protection or making the repository public. That request
+authorizes design only: the replacement trust boundary, exact OIDC/IAM cutover,
+private provenance protocol and bootstrap sequence still require review. `main`
+is not silently relabeled protected, and #41's proof requirements remain intact.
+
 1. Preserve the owner-accepted offline delegated model, with independent offline
    root authority for non-data changes. Acceptance of models/tests is not approval
    to enable delegated release authority in production or waive #41's remaining gates.

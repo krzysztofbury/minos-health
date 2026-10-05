@@ -290,3 +290,16 @@ blocker, not a request to approve each future data update.
 No GitHub setting, IAM policy, operational key, host service, notification or
 production release was changed. Implementation remains on the same freshness
 branch; no partial merge or freshness deployment is justified by these checks.
+
+The owner subsequently chose to design alternative safeguards while retaining
+the private repository/current plan. The
+[pinned-workflow authority proposal](../v0.0.1/pinned-workflow-authority-proposal.md)
+documents that alternative and its limits; implementation/enablement is not approved
+by the design request. An additional read-only GitHub OIDC customization check
+returns `use_default: true`, `use_immutable_subject: true`, and prefix
+`repo:krzysztofbury@5102389/minos-health@1325001960`. The repository API independently
+confirms owner ID `5102389` and repository ID `1325001960`. The checked-in IAM
+template uses the older name-only subject; no live AWS trust comparison or hosted
+assumption is claimed. GitHub's current documentation also limits private artifact
+attestations to Enterprise Cloud; available local CLI verification flags do not
+establish private issuance entitlement. No settings or credentials were changed.
