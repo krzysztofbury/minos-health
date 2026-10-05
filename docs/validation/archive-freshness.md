@@ -250,3 +250,43 @@ Hosted CI and validation-container/browser runs passed for the preceding reader
 and design revision `319769a648f967e6fb6f29cea998d16b310d440a` (runs
 `37341267904` and `37341267949`). That is not hosted evidence for later verifier
 code until its own pushed revision passes.
+
+## Remote Release-Safeguard Preflight (2026-10-05)
+
+Read-only authenticated GitHub API checks during continuation found a concrete
+protected-processing prerequisite, not an implementation checkpoint:
+
+- `gh auth status` confirms the active repository owner account is authenticated.
+- `gh repo view --json nameWithOwner,isPrivate,defaultBranchRef` confirms
+  `krzysztofbury/minos-health` remains private and its default branch is `main`.
+- Both `GET /repos/krzysztofbury/minos-health/branches/main/protection` and
+  `GET /repos/krzysztofbury/minos-health/rulesets` return HTTP 403 with GitHub's
+  message: `Upgrade to GitHub Pro or make this repository public to enable this feature.`
+  Authentication succeeds elsewhere; these responses identify a feature/plan
+  restriction, not an absent local credential. No branch-protection or ruleset
+  configuration could be verified through these endpoints.
+- `GET /repos/krzysztofbury/minos-health/immutable-releases` returns
+  `{"enabled":false,"enforced_by_owner":false}`. This is a fresh remote check,
+  separate from the earlier #41 settings observation.
+- `gh variable list` returns no repository variables. Workflow/archive settings
+  have not been provisioned by this preflight.
+- PR #140 is still open/draft at
+  `17f3bdf67520846cf1369549dd44459efda93f26` at the time of these checks.
+
+The archive-reader trust policy in `infra/terraform/watcher/iam.tf` matches an
+OIDC subject for the configured ref. A matching `refs/heads/main` subject proves
+the requesting ref, not enforced branch review, required checks or protection
+against direct writes. Do not label that check protected-branch evidence or
+grant privileged automatic processing on its strength alone.
+
+Owner action is required to make private-repository protection available and
+review its actual rules, or to approve a separately designed equivalent trust
+boundary. Changing the account plan, publishing the repository, changing release
+settings or relaxing protection is not authorized by this preflight. Source bytes,
+credentials and personal operational data must remain private. The already
+accepted automatic routine-update policy is unchanged; this is a release-safeguard
+blocker, not a request to approve each future data update.
+
+No GitHub setting, IAM policy, operational key, host service, notification or
+production release was changed. Implementation remains on the same freshness
+branch; no partial merge or freshness deployment is justified by these checks.

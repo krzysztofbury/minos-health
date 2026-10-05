@@ -68,6 +68,13 @@ phases strictly in order, not as parallel branches:
         Owner-approved offline delegated signature/scope checks are added for the
         #41 prerequisite, with canonical embedded data retained. They are not full
         release authorization; key provisioning and automatic activation stay gated.
+        Remote release preflight now finds GitHub HTTP 403 for private-repository
+        branch protection and rulesets, explicitly requiring GitHub Pro or a public
+        repository. Keep this repository private; owner action or a separately
+        reviewed equivalent trust boundary is required before privileged processing.
+        Immutable releases are freshly confirmed disabled. An OIDC `main` subject
+        alone is not proof of branch protection. See the
+        [remote safeguard evidence](docs/validation/archive-freshness.md#remote-release-safeguard-preflight-2026-10-05).
         See [archive processing](docs/v0.0.1/archive-processing.md)
        for the chunk contract and remaining gates. #41's signed compatible release
        authority remains a dependency before unattended activation is enabled.
