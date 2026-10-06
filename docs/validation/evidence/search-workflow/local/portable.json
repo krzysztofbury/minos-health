@@ -1,0 +1,572 @@
+{
+  "baseline_regressions": [],
+  "candidate_evaluation": false,
+  "candidate_notice": "Hypothetical terminology proposals only; this does not approve synonyms or a release.",
+  "candidate_top1": 37,
+  "candidate_top5": 42,
+  "cases": [
+    {
+      "candidate_rank": 6,
+      "category": "ambiguity/ranking",
+      "duration_ms": 14.542863005772233,
+      "failure": null,
+      "id": "G01",
+      "rank": 6,
+      "source": "practitioner",
+      "top1": false,
+      "top5": false
+    },
+    {
+      "candidate_rank": 1,
+      "category": "ranking",
+      "duration_ms": 8.626899973023683,
+      "failure": null,
+      "id": "G02",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "ranking",
+      "duration_ms": 8.516933012288064,
+      "failure": null,
+      "id": "G03",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "ambiguity",
+      "duration_ms": 9.020759956911206,
+      "failure": null,
+      "id": "G04",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 9.71200002823025,
+      "failure": null,
+      "id": "G05",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 7.524106011260301,
+      "failure": null,
+      "id": "G06",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "derivation",
+      "duration_ms": 11.587606044486165,
+      "failure": null,
+      "id": "G07",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "qualifier",
+      "duration_ms": 7.320724020246416,
+      "failure": null,
+      "id": "G08",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": null,
+      "category": "typo",
+      "duration_ms": 12.5197300221771,
+      "failure": null,
+      "id": "G09",
+      "rank": null,
+      "source": "proposed",
+      "top1": false,
+      "top5": false
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 13.036500022280961,
+      "failure": null,
+      "id": "G10",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "no diacritics",
+      "duration_ms": 14.550717023666948,
+      "failure": null,
+      "id": "G11",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "ranking",
+      "duration_ms": 8.36114096455276,
+      "failure": null,
+      "id": "G12",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "colloquial",
+      "duration_ms": 11.229272000491619,
+      "failure": null,
+      "id": "G13",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "colloquial",
+      "duration_ms": 10.720947000663728,
+      "failure": null,
+      "id": "G14",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "no diacritics",
+      "duration_ms": 12.184127990622073,
+      "failure": null,
+      "id": "G15",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 7.162335969042033,
+      "failure": null,
+      "id": "G16",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "no diacritics",
+      "duration_ms": 9.636568953283131,
+      "failure": null,
+      "id": "G17",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "colloquial",
+      "duration_ms": 7.722648966591805,
+      "failure": null,
+      "id": "G18",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 5,
+      "category": "ranking",
+      "duration_ms": 11.080333031713963,
+      "failure": null,
+      "id": "G19",
+      "rank": 5,
+      "source": "proposed",
+      "top1": false,
+      "top5": true
+    },
+    {
+      "candidate_rank": 5,
+      "category": "no diacritics",
+      "duration_ms": 16.267634986434132,
+      "failure": null,
+      "id": "G20",
+      "rank": 5,
+      "source": "proposed",
+      "top1": false,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "abbreviation",
+      "duration_ms": 11.951058986596763,
+      "failure": null,
+      "id": "G21",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 9.093416971154511,
+      "failure": null,
+      "id": "G22",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 10.177083953749388,
+      "failure": null,
+      "id": "G23",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 8.41731601394713,
+      "failure": null,
+      "id": "G24",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 10.273966996464878,
+      "failure": null,
+      "id": "G25",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 5.109437042847276,
+      "failure": null,
+      "id": "G26",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "Latin/Polish",
+      "duration_ms": 7.502936001401395,
+      "failure": null,
+      "id": "G27",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "Latin/Polish",
+      "duration_ms": 7.506072986871004,
+      "failure": null,
+      "id": "G28",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 2,
+      "category": "inflection",
+      "duration_ms": 6.6582480212673545,
+      "failure": null,
+      "id": "G29",
+      "rank": 2,
+      "source": "practitioner",
+      "top1": false,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 19.252117024734616,
+      "failure": null,
+      "id": "G30",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 5.560243967920542,
+      "failure": null,
+      "id": "G31",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "ranking",
+      "duration_ms": 4.844218026846647,
+      "failure": null,
+      "id": "G32",
+      "rank": 1,
+      "source": "practitioner",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "word order",
+      "duration_ms": 4.644903005100787,
+      "failure": null,
+      "id": "G33",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "Latin/Polish",
+      "duration_ms": 7.809742994140834,
+      "failure": null,
+      "id": "G34",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "colloquial",
+      "duration_ms": 11.481095978524536,
+      "failure": null,
+      "id": "G35",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 5,
+      "category": "colloquial",
+      "duration_ms": 8.507795981131494,
+      "failure": null,
+      "id": "G36",
+      "rank": 5,
+      "source": "proposed",
+      "top1": false,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 8.175430994015187,
+      "failure": null,
+      "id": "G37",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "Latin/Polish",
+      "duration_ms": 4.763545992318541,
+      "failure": null,
+      "id": "G38",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 2,
+      "category": "word order",
+      "duration_ms": 5.613553978037089,
+      "failure": null,
+      "id": "G39",
+      "rank": 2,
+      "source": "proposed",
+      "top1": false,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 8.006442978512496,
+      "failure": null,
+      "id": "G40",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "colloquial",
+      "duration_ms": 5.689998040907085,
+      "failure": null,
+      "id": "G41",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "Latin/Polish",
+      "duration_ms": 5.635536042973399,
+      "failure": null,
+      "id": "G42",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "exact",
+      "duration_ms": 7.608255022205412,
+      "failure": null,
+      "id": "G43",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    },
+    {
+      "candidate_rank": 1,
+      "category": "no diacritics",
+      "duration_ms": 8.054283040110022,
+      "failure": null,
+      "id": "G44",
+      "rank": 1,
+      "source": "proposed",
+      "top1": true,
+      "top5": true
+    }
+  ],
+  "categories": {
+    "Latin/Polish": {
+      "cases": 5,
+      "top1": 5,
+      "top5": 5
+    },
+    "abbreviation": {
+      "cases": 1,
+      "top1": 1,
+      "top5": 1
+    },
+    "ambiguity": {
+      "cases": 1,
+      "top1": 1,
+      "top5": 1
+    },
+    "ambiguity/ranking": {
+      "cases": 1,
+      "top1": 0,
+      "top5": 0
+    },
+    "colloquial": {
+      "cases": 6,
+      "top1": 5,
+      "top5": 6
+    },
+    "derivation": {
+      "cases": 1,
+      "top1": 1,
+      "top5": 1
+    },
+    "exact": {
+      "cases": 14,
+      "top1": 14,
+      "top5": 14
+    },
+    "inflection": {
+      "cases": 1,
+      "top1": 0,
+      "top5": 1
+    },
+    "no diacritics": {
+      "cases": 5,
+      "top1": 4,
+      "top5": 5
+    },
+    "qualifier": {
+      "cases": 1,
+      "top1": 1,
+      "top5": 1
+    },
+    "ranking": {
+      "cases": 5,
+      "top1": 4,
+      "top5": 5
+    },
+    "typo": {
+      "cases": 1,
+      "top1": 0,
+      "top5": 0
+    },
+    "word order": {
+      "cases": 2,
+      "top1": 1,
+      "top5": 2
+    }
+  },
+  "database_sha256": "84e1731e3ac6dc0512c4f461145c7f433cbd014aa439c16dfca37d50185e5ee8",
+  "dataset_id": "8b67585350698d8808890a32063e4689c47de2ebd369de3850c5d070ac07a1dc",
+  "fixture_sha256": "905bebb5851d78788d013f616b35b6d752393b832b1c62c3ffadfccdd4fb4515",
+  "fixture_source": "https://github.com/krzysztofbury/minos-health/issues/126",
+  "fixture_version": 1,
+  "gate_policy": "Only practitioner-reviewed baseline regressions may block; proposed cases are reported, not release gates.",
+  "index": "portable",
+  "reviewed_baseline_regressions": [],
+  "service_date": "2026-10-04",
+  "top1": 37,
+  "top5": 42,
+  "total": 44
+}

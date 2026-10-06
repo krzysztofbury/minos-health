@@ -1,0 +1,178 @@
+{
+  "cases": [
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S01",
+      "kind": "qualifier",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 0,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S02",
+      "kind": "qualifier",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 0,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S03",
+      "kind": "qualifier",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 0,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S04",
+      "kind": "qualifier",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 0,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S05",
+      "kind": "qualifier",
+      "rank": 1,
+      "returned_codes": [
+        "81.51"
+      ],
+      "suggestion_count": 0,
+      "top5": true
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S06",
+      "kind": "qualifier",
+      "rank": 1,
+      "returned_codes": [
+        "81.54"
+      ],
+      "suggestion_count": 0,
+      "top5": true
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S07",
+      "kind": "qualifier",
+      "rank": 1,
+      "returned_codes": [
+        "81.55"
+      ],
+      "suggestion_count": 0,
+      "top5": true
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S08",
+      "kind": "qualifier",
+      "rank": 1,
+      "returned_codes": [
+        "81.53"
+      ],
+      "suggestion_count": 0,
+      "top5": true
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S09",
+      "kind": "ambiguity",
+      "rank": 1,
+      "returned_codes": [
+        "H70.0"
+      ],
+      "suggestion_count": 0,
+      "top5": true
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S10",
+      "kind": "negation",
+      "rank": null,
+      "returned_codes": [
+        "I23.3",
+        "I24.0"
+      ],
+      "suggestion_count": 0,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S11",
+      "kind": "negation",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 0,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": true,
+      "failure": null,
+      "id": "S12",
+      "kind": "unrelated",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 1,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": true,
+      "failure": null,
+      "id": "S13",
+      "kind": "unrelated",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 0,
+      "top5": false
+    },
+    {
+      "contradictory_hits": [],
+      "empty_expectation_met": null,
+      "failure": null,
+      "id": "S14",
+      "kind": "typo",
+      "rank": null,
+      "returned_codes": [],
+      "suggestion_count": 1,
+      "top5": false
+    }
+  ],
+  "database_sha256": "84e1731e3ac6dc0512c4f461145c7f433cbd014aa439c16dfca37d50185e5ee8",
+  "dataset_id": "8b67585350698d8808890a32063e4689c47de2ebd369de3850c5d070ac07a1dc",
+  "fixture_sha256": "af952ac7d7c7a45e43226a7656e02f35ca072575dbe4dc736c67074e82d6dc7a",
+  "index": "portable",
+  "notice": "Observation only. Not clinical validation or an independently reviewed held-out gate. Suggestions are never accepted as search hits.",
+  "review_status": "source_based_pending_independent_and_practitioner_review",
+  "service_date": "2026-10-04"
+}

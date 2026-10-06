@@ -50,9 +50,9 @@ accepted the real ICD-9 Markdown diff. On 2026-10-06 the owner reprioritized
 client validation over unattended-release infrastructure and requested merging
 only the useful completed subset of #140.
 
-Immediate cleanup: retain #19's exact-version S3 build adapter, its focused
+Completed in #142 at `902496d` without deployment: retain #19's exact-version S3 build adapter, its focused
 real-S3 evidence and scoped acceptance repairs, plus Chromium startup reliability.
-The smaller branch is `feat/validation-archive-build`. The existing artifact
+The merged smaller branch was `feat/validation-archive-build`. The existing artifact
 manifest is unchanged; transport pins stay separate. #19 remains open for
 hosted complete real-source determinism and workflow-role acceptance, not more
 parser work. See [archive processing](docs/v0.0.1/archive-processing.md).
@@ -64,6 +64,21 @@ Then execute these client-facing phases in order:
        unchanged gold sets, obtain practitioner and independent held-out review,
        record hosted evaluation, and measure complete user workflows and
        representative capacity rather than inferring them from quiet probes.
+       PR #143 records the unchanged hosted 37/44 top-1, 42/44 top-5 and 12/12
+       JGP results, separate 14-case source-based safety observations, and local
+       packaged browser workflows. All 40 scripted discoveries complete in both
+       220/120/150 ms single-user runs. The rejected 150 ms experiment improves
+       suggestion medians by about 70 ms but still increases slower-typing
+       suggestion requests 18.4x. Conditional deployment requires a passing
+       four-browser capacity comparison and final CI/preflight. The repeated
+       150 ms capacity run fails: 9/160 searches have failed sources and 4/160
+       target discoveries fail, versus complete 220 ms final results. The owner
+       then authorized restoring 220 ms, pushing, merging and validation deployment
+       after final runtime/CI/preflight checks. Do not deploy 150 ms or treat
+       passing CI as capacity acceptance. Clinical,
+       independently held-out, incumbent and multi-user/actual-host capacity
+       acceptance remain open; record the actual activation receipt separately. See
+       [search workflow evidence](docs/validation/search-workflow.md).
 2. [ ] #34-#36: build the explainable grouper with deterministic encounter
        validation and source-backed traces. #37 practitioner gold encounters and
        #46/#129 modifier/legal reconciliation remain gates; unbound modifiers
@@ -75,7 +90,8 @@ integration, fault and representative-performance gates before deployment.
 Update this checklist and its evidence before closing delivered issues. Do not
 combine the phases into one branch or weaken blocked acceptance to clear an issue.
 
-Deferred: #21 unattended processing/activation and its authority, OCI, signing,
+Deferred: #21 is closed as superseded, not delivered. Unattended
+processing/activation and its authority, OCI, signing,
 journal and detailed-notification work are parked in
 [#141](https://github.com/krzysztofbury/minos-health/issues/141). Preserve #140
 and `feat/archive-application-freshness`; do not merge unused foundations.

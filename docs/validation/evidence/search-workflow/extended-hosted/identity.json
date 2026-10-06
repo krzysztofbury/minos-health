@@ -1,0 +1,9 @@
+{
+  "source_revision": "3977c30759e0deeb202b86f19b45ba692ab02f56",
+  "run_id": "37435838355",
+  "fixture_sha256": {
+    "tests/evaluation/search-gold-v1.json": "905bebb5851d78788d013f616b35b6d752393b832b1c62c3ffadfccdd4fb4515",
+    "tests/evaluation/search-safety-v1.json": "af952ac7d7c7a45e43226a7656e02f35ca072575dbe4dc736c67074e82d6dc7a",
+    "tests/fixtures/jgp-search-gold.json": "2eda1f1de45e145fd05f29572bfb2953a5a20225dc1160981bc301b49f80749b"
+  }
+}

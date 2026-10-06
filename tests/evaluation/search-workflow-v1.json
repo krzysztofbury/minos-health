@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "notice": "Scripted non-patient reference discovery tasks, not practitioner choices or encounter qualification. All three sources stay enabled.",
+  "tasks": [
+    {"id":"W01","query":"E11.9","group_prefix":"/slowniki/icd-10/","href_prefix":"/slowniki/icd-10/E11.9"},
+    {"id":"W02","query":"zawal serca","group_prefix":"/slowniki/icd-10/","href_prefix":"/slowniki/icd-10/I21"},
+    {"id":"W03","query":"całkowita pierwotna wymiana stawu kolanowego","group_prefix":"/slowniki/icd-9/","href_prefix":"/slowniki/icd-9/81.54"},
+    {"id":"W04","query":"H21","group_prefix":"/jgp/","href_prefix":"/jgp/","href_suffix":"/H21"},
+    {"id":"W05","query":"rekonstrukcja implantów mocujących","group_prefix":"/jgp/","href_prefix":"/jgp/","href_suffix":"/H21"}
+  ]
+}

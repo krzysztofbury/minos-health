@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from pydantic import ValidationError
 
 from minos.domain.reference import (
     ConceptDescription,
@@ -33,6 +34,8 @@ from minos.store.reference_build import (
 )
 from minos.store.search import search_reference
 from scripts.evaluate_search import EvaluationError, GoldSet, evaluate
+from scripts.evaluate_search_safety import SafetySet
+from scripts.evaluate_search_safety import evaluate as evaluate_safety
 
 ROOT = Path(__file__).parents[2]
 
@@ -396,6 +399,104 @@ def test_evaluation_reports_all_cases_without_query_text_and_checks_exact_releas
     absent = gold.cases[0].model_copy(update={"codes": ("ZZ99",)})
     with pytest.raises(EvaluationError, match="exact pinned release"):
         _ = evaluate(search_bundle, gold.model_copy(update={"cases": (absent,)}))
+
+
+@pytest.mark.parametrize("index", ["auto", "portable"])
+def test_safety_report_records_contradictions_and_never_accepts_spelling_suggestions(
+    search_bundle: Path, index: IndexMode
+) -> None:
+    probes = SafetySet.model_validate_json(
+        json.dumps(
+            {
+                "version": 1,
+                "review_status": "source_based_pending_independent_and_practitioner_review",
+                "service_date": "2026-10-04",
+                "releases": {"icd10-pl": "icd10-synthetic-v1"},
+                "cases": [
+                    {
+                        "id": "S01",
+                        "system": "icd10-pl",
+                        "query": "Testowy wariant",
+                        "kind": "qualifier",
+                        "acceptable": ["E11.0"],
+                        "contradictory": ["E10.0"],
+                        "source_url": "https://example.org/synthetic",
+                        "rationale": "Synthetic contradictory source wording.",
+                    },
+                    {
+                        "id": "S02",
+                        "system": "icd10-pl",
+                        "query": "cukrzyac",
+                        "kind": "typo",
+                        "acceptable": ["E11"],
+                        "contradictory": [],
+                        "source_url": "https://example.org/synthetic",
+                        "rationale": "Synthetic typo, never silently accept correction.",
+                    },
+                    {
+                        "id": "S03",
+                        "system": "icd10-pl",
+                        "query": "drukarka rower",
+                        "kind": "unrelated",
+                        "acceptable": [],
+                        "contradictory": [],
+                        "expect_empty": True,
+                        "source_url": "https://example.org/synthetic",
+                        "rationale": "Synthetic empty-result control.",
+                    },
+                    {
+                        "id": "S04",
+                        "system": "icd10-pl",
+                        "query": "*",
+                        "kind": "unrelated",
+                        "acceptable": [],
+                        "contradictory": [],
+                        "expect_empty": True,
+                        "source_url": "https://example.org/synthetic",
+                        "rationale": "Failed search is not a successful empty result.",
+                    },
+                ],
+            }
+        )
+    )
+    report = evaluate_safety(search_bundle, probes, index)
+    rows = cast(list[dict[str, object]], report["cases"])
+    assert rows[0]["rank"] == 1
+    assert rows[0]["contradictory_hits"] == [{"code": "E10.0", "rank": 2}]
+    assert rows[1]["rank"] is None
+    assert rows[1]["suggestion_count"]
+    assert rows[1]["returned_codes"] == []
+    assert rows[2]["empty_expectation_met"] is True
+    assert rows[3]["empty_expectation_met"] is False
+    assert rows[3]["failure"] == "SearchInputError"
+    assert all(case.query not in json.dumps(report) for case in probes.cases)
+    for field in ("acceptable", "contradictory"):
+        absent = probes.cases[0].model_copy(update={field: ("ZZ99",)})
+        with pytest.raises(EvaluationError, match="pinned release"):
+            _ = evaluate_safety(
+                search_bundle, probes.model_copy(update={"cases": (absent,)}), index
+            )
+
+
+@pytest.mark.parametrize(
+    "corruption", ["overlap", "empty_target", "duplicate", "release_mismatch"]
+)
+def test_safety_corpus_rejects_ambiguous_observation_contract(corruption: str) -> None:
+    data = cast(
+        dict[str, object],
+        json.loads((ROOT / "tests/evaluation/search-safety-v1.json").read_bytes()),
+    )
+    cases = cast(list[dict[str, object]], data["cases"])
+    if corruption == "overlap":
+        cases[0]["contradictory"] = cases[0]["acceptable"]
+    elif corruption == "empty_target":
+        cases[0]["expect_empty"] = True
+    elif corruption == "duplicate":
+        cases[1]["id"] = cases[0]["id"]
+    else:
+        del cast(dict[str, object], data["releases"])["icd10-pl"]
+    with pytest.raises(ValidationError):
+        _ = SafetySet.model_validate_json(json.dumps(data))
 
 
 @pytest.mark.parametrize("index", ["auto", "portable"])

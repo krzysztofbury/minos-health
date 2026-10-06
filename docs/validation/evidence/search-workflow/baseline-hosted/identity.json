@@ -1,0 +1,11 @@
+{
+  "source_revision": "902496d36a5548779f5808e144f217f27a1c0ef9",
+  "run_id": "37433519986",
+  "run_url": "https://github.com/krzysztofbury/minos-health/actions/runs/37433519986",
+  "conclusion": "success",
+  "fixture_sha256": {
+    "tests/evaluation/search-gold-v1.json": "905bebb5851d78788d013f616b35b6d752393b832b1c62c3ffadfccdd4fb4515",
+    "tests/fixtures/jgp-search-gold.json": "2eda1f1de45e145fd05f29572bfb2953a5a20225dc1160981bc301b49f80749b"
+  },
+  "notice": "Identity record added after downloading the original unchanged ICD reports. This baseline workflow did not run the JGP evaluator. The JGP fixture hash records preservation, not hosted JGP acceptance."
+}

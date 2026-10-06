@@ -1,0 +1,2362 @@
+{
+  "browser": "Chrome/152.0.7977.82",
+  "debounce_ms": 220,
+  "rows": [
+    {
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 245.30000001192093,
+      "typing_ms": 254.39999997615814,
+      "submit_to_results_ms": 41.799999952316284,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 77.66541899999993,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 273.0999999642372,
+      "typing_ms": 624.9000000357628,
+      "submit_to_results_ms": 64.89999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 117.61753700000008,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 272.0999999642372,
+      "typing_ms": 2686.300000011921,
+      "submit_to_results_ms": 53.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 60.81341100000009,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 248.10000002384186,
+      "typing_ms": 125,
+      "submit_to_results_ms": 30.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 60.854237999999896,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 270,
+      "typing_ms": 2056.899999976158,
+      "submit_to_results_ms": 62.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.01084600000104,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 240.9000000357628,
+      "typing_ms": 247.79999995231628,
+      "submit_to_results_ms": 39.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 35.87571399999979,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 304.19999998807907,
+      "typing_ms": 620.1000000238419,
+      "submit_to_results_ms": 68.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 42.22049800000059,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 275.60000002384186,
+      "typing_ms": 2679.399999976158,
+      "submit_to_results_ms": 71.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 34.07535999999891,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 247.80000001192093,
+      "typing_ms": 123.80000001192093,
+      "submit_to_results_ms": 29.899999976158142,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 41.15991600000052,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 284.60000002384186,
+      "typing_ms": 2053.699999988079,
+      "submit_to_results_ms": 66,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 45.25406999999905,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 241.69999998807907,
+      "typing_ms": 247.89999997615814,
+      "submit_to_results_ms": 39.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 36.20766899999944,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 270.60000002384186,
+      "typing_ms": 621.5999999642372,
+      "submit_to_results_ms": 77.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 39.32795299999998,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 265.7999999523163,
+      "typing_ms": 2675.300000011921,
+      "submit_to_results_ms": 64.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 42.53388900000209,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 249.29999995231628,
+      "typing_ms": 124.60000002384186,
+      "submit_to_results_ms": 33.59999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 43.67161599999963,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 279.39999997615814,
+      "typing_ms": 2044.4000000357628,
+      "submit_to_results_ms": 59.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 35.88588399999935,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 245.39999997615814,
+      "typing_ms": 729,
+      "submit_to_results_ms": 37.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 52.5520170000018,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 278.2000000476837,
+      "typing_ms": 1822.699999988079,
+      "submit_to_results_ms": 61.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.536134000001766,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 281.7000000476837,
+      "typing_ms": 7841.899999976158,
+      "submit_to_results_ms": 63.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 41.18415200000163,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 240.80000001192093,
+      "typing_ms": 364.10000002384186,
+      "submit_to_results_ms": 37.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 50.32627400000638,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 275.0999999642372,
+      "typing_ms": 6016.699999988079,
+      "submit_to_results_ms": 72.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 35.79614600000059,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 331.2000000476837,
+      "typing_ms": 248.19999998807907,
+      "submit_to_results_ms": 110.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.89921999999933,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 334.30000001192093,
+      "typing_ms": 622.6999999880791,
+      "submit_to_results_ms": 115.09999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 99.83434100000159,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 323.39999997615814,
+      "typing_ms": 2666.400000035763,
+      "submit_to_results_ms": 118.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.30535399999644,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 349,
+      "typing_ms": 125,
+      "submit_to_results_ms": 115.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 115.89684200000193,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 331.5,
+      "typing_ms": 2057.099999964237,
+      "submit_to_results_ms": 125.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.35385600000154,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321,
+      "typing_ms": 249.30000001192093,
+      "submit_to_results_ms": 114,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.9812929999971,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332,
+      "typing_ms": 623.3000000119209,
+      "submit_to_results_ms": 111.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.06004400000529,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 320.80000001192093,
+      "typing_ms": 2671.899999976158,
+      "submit_to_results_ms": 114.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.32889799999975,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 336.5,
+      "typing_ms": 123.69999998807907,
+      "submit_to_results_ms": 116.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.69849499999691,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.80000001192093,
+      "typing_ms": 2053,
+      "submit_to_results_ms": 115.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 112.69385299998976,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 325.19999998807907,
+      "typing_ms": 248.30000001192093,
+      "submit_to_results_ms": 113.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.85627200000454,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.69999998807907,
+      "typing_ms": 623.1999999880791,
+      "submit_to_results_ms": 128.4000000357628,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 104.65608699999575,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 333.0999999642372,
+      "typing_ms": 2686.5,
+      "submit_to_results_ms": 125.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 104.82240099999763,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 345.69999998807907,
+      "typing_ms": 123.90000003576279,
+      "submit_to_results_ms": 111.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 111.29945299999963,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 324.5,
+      "typing_ms": 2058.7000000476837,
+      "submit_to_results_ms": 119.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.48224900000787,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332,
+      "typing_ms": 728.1000000238419,
+      "submit_to_results_ms": 111.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.13198200000625,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 335.7000000476837,
+      "typing_ms": 1822.3999999761581,
+      "submit_to_results_ms": 114.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.22999600000912,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322,
+      "typing_ms": 7834.400000035763,
+      "submit_to_results_ms": 119.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 100.22758700000122,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.80000001192093,
+      "typing_ms": 365.10000002384186,
+      "submit_to_results_ms": 116.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 111.558223,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    },
+    {
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 324,
+      "typing_ms": 6013.600000023842,
+      "submit_to_results_ms": 120.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.62520999999833,
+      "search_requests": [
+        {
+          "system": "icd10-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 4,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd10-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "icd9-pl",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        },
+        {
+          "system": "jgp",
+          "limit": 10,
+          "status": 200,
+          "cancelled": false
+        }
+      ]
+    }
+  ],
+  "limitations": "Local packaged API/edge, no production contention. Mobile viewport with emulated latency is not physical mobile hardware. Scripted completion/rank, not practitioner errors, confusion or incumbent comparison. Detail includes up to 50ms polling. First pass is not guaranteed cold server.",
+  "faults": {
+    "transient_busy_retry": "passed",
+    "partial_timeout_not_empty": "passed",
+    "manual_recovery": "passed"
+  },
+  "privacy": "POST-only searches; no query URLs, cookies or storage",
+  "database_sha256": "84e1731e3ac6dc0512c4f461145c7f433cbd014aa439c16dfca37d50185e5ee8",
+  "dataset_id": "8b67585350698d8808890a32063e4689c47de2ebd369de3850c5d070ac07a1dc",
+  "task_fixture_sha256": "15e84d784276cf755c7d9301574cb3e4d0258bd3ce1e8d94a8214a32fb3deaa0",
+  "source_revision": "da85bc6520c02c87084f3d7ff04ecffdf4d99063",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "harness_sha256": {
+    "scripts/measure_search_workflow.py": "ce51d2129ee8a15b6ff9c80eade9d3f7454a880e74d136d6178ec56404e60b23",
+    "tests/browser/search-workflow-browser.mjs": "a0bc8d02c6ffe1f0147cecd9e12ff0ce7c1e3c2a50d0aa4c871a9a8a177203ea"
+  },
+  "api_image_id": "sha256:fc0db54ac0d215e4d4fd691ec6e738c169181723efca47f831376570711fe508",
+  "edge_image_id": "sha256:52ded5e2656b8db5afb6ae496ad3317d51ce51a61d23522047a823ccfa824944",
+  "platform": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+  "logical_cpus": 16,
+  "api_limits": {
+    "cpus": 1,
+    "memory_mib": 512,
+    "workers": 1,
+    "pool_size": 4
+  },
+  "edge_limits": {
+    "cpus": 0.5,
+    "memory_mib": 64
+  },
+  "first_server_text_http_ms": 21.043737011495978,
+  "api_peak_memory_bytes": 202522624,
+  "query_free_container_logs": true,
+  "api_search_status_counts": {
+    "200": 295
+  }
+}
