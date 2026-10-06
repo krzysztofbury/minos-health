@@ -1,9 +1,10 @@
 # Archive Processing And Application Freshness
 
-Status: #19/#21 implementation started on `feat/archive-application-freshness`.
-The first chunk adds explicitly pinned S3 materialization to the existing
-reference builder. Automatic selection, promotion, activation and detailed
-Telegram delivery are not implemented or enabled by this chunk.
+Status: useful #19 build work retained on `feat/validation-archive-build`,
+2026-10-06. The remaining #140 automation work is preserved on
+`feat/archive-application-freshness` and parked in #141. Automatic selection,
+promotion, activation and detailed Telegram delivery are not enabled. Reviewed
+updates continue; automation is not a prerequisite for client validation.
 
 ## Archive Build Boundary (#19)
 
@@ -77,7 +78,10 @@ boundary; see [evidence](../validation/archive-freshness.md). Protected-ref OIDC
 and hosted full real-selection repeated builds remain #19 gates. Do not
 upload private raw bytes or source-bearing diffs merely to obtain CI evidence.
 
-## Subsequent Chunks (#21)
+## Deferred Target (#21/#141)
+
+The following is future acceptance scope, not the next execution checklist.
+Resume only after the owner prioritizes automation based on validation evidence.
 
 1. Verify bounded control recovery images and select exact `source_changes`
    rows with source/run/observation/revision identity assertions. Keep capture

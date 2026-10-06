@@ -44,6 +44,9 @@ Two interfaces share the same domain behaviour:
   without per-update approval; failed or significant changes retain the last
   good release and notify the owner through Telegram. Parser, schema, policy
   and application changes still require review. Implementation belongs to #21.
+  Owner scope revision, 2026-10-06: unattended activation is deferred in #141,
+  not a prerequisite for current client validation. Continue reviewed updates;
+  preserve the automatic-update safety contract for any later resumption.
 
 ### Included In v0.0.1
 
@@ -284,6 +287,11 @@ verification, applicability, compatibility or runtime checks stop promotion and
 produce a durable incident plus an actionable Telegram notification. This
 2026-10-05 owner decision supersedes per-update human approval; it does not
 permit following mutable latest sources or automatically changing parsers.
+
+The 2026-10-06 owner decision parks implementation in #141 while retaining the
+useful #19 pinned archive build path. Practitioner relevance and complete workflow
+speed now take priority. Reviewed validation updates remain explicit operator
+actions; this scope change does not waive source, privacy or rollback checks.
 
 ## Search Behaviour
 

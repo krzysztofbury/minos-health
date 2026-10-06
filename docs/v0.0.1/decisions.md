@@ -517,6 +517,30 @@ generic `completed`/`failed` messages, so it does not yet satisfy this detailed
 alert contract. #21 owns implementation and actual Telegram delivery evidence.
 No unattended processing or notification integration is enabled by this record.
 
+### Validation-Stage Scope And Deferred Automation (2026-10-06)
+
+The owner reprioritized practitioner value over unattended-release infrastructure.
+Merge the useful completed subset of #140: pinned S3 materialization for the
+existing builder, scoped acceptance repairs and Chromium test-startup reliability.
+Preserve the rest on its branch and defer it in #141, rather than merge unused
+release-authority, OCI overlay, processing-journal and signing prototypes.
+
+The 2026-10-05 automatic-activation contract above remains the safety contract
+if automation resumes, not a validation-stage delivery prerequisite. Validation
+continues through the reviewed update process with exact artifacts, source and
+privacy checks, compatible last-good rollback and explicit operator actions.
+Next work is #126 and #25/#42 practitioner relevance and complete workflow-speed
+validation; #34-#36 grouper work follows its encounter and legal-binding gates.
+Keep dictionary and embedding experiments separate with unchanged gold sets.
+#19 and #21 are not closed as delivered by this split; #41 remains independent.
+
+The owner already applied the custom GitHub OIDC subject template. Hosted
+non-AWS [attempt 2](https://github.com/krzysztofbury/minos-health/actions/runs/37372958134/attempts/2)
+passed, proving observed claim shape only. It neither repairs the old archive-reader
+IAM trust nor establishes cryptographically verified provenance or activation.
+Do not silently roll back this change or provision IAM/KMS/signer/host services.
+Future live changes still require exact reviewed plans.
+
 ### Frontend
 
 Frontend source lives under `apps/web`. The first webpage may remain static

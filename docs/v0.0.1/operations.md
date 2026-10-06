@@ -585,6 +585,11 @@ quiet window is not representative verification.
 
 ## Data Refresh Operations
 
+Current validation scope, 2026-10-06: unattended processing/activation is parked
+in #141. Continue the reviewed operator update process and existing validation
+deployment playbook; do not enable automation or change live trust/credentials.
+The numbered pipeline below describes the deferred target, not current operations.
+
 Owner-approved policy, 2026-10-05: supported routine data-only changes activate
 automatically after all reviewed gates pass. Capture alone is not promotion.
 The #21 pipeline is still unimplemented; current validation deployments remain

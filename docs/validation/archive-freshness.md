@@ -1,8 +1,33 @@
 # Archive Freshness Evidence
 
-Status: local work on `feat/archive-application-freshness`, 2026-10-05.
-This is a #19 foundation for #21, not a merged/deployed freshness pipeline.
+Status: useful #19 subset extracted to `feat/validation-archive-build`, 2026-10-06.
+The original branch and #140 preserve deferred prototypes under #141. This is
+an operator build tool, not an enabled/deployed unattended freshness pipeline.
 Contract and remaining boundaries: [archive processing](../v0.0.1/archive-processing.md).
+
+## Useful-Subset Review (2026-10-06)
+
+The extracted branch retains the operational archive CLI/build adapter and its
+owning integration/real-S3 tests, the previously approved acceptance-policy
+repair, and the bounded Chromium startup fix. It excludes every processing,
+authority, OCI-overlay, signing and OIDC-rehearsal prototype. #141 preserves those
+on the original branch; no test or production seam is added just to keep them.
+
+TigerStyle review checked #2 bounded transfer/startup, #4 paired input/response
+identity, #6 unsupported-state refusal and #12 stream/client cleanup and redaction.
+Existing archive integration cases exercise the actual CLI and transactional
+builder, not mocked parser outcomes; real-S3 cases remain separate wire/IAM proof.
+
+After extraction, all repository pre-commit checks passed, including the full
+Python suite, warning-clean Ruff/mypy/BasedPyright, security and workflow checks.
+All five Node startup regressions passed. An isolated installed wheel, run outside
+the checkout, built both local and SDK-stubbed S3 synthetic bundles with matching
+database bytes. Offline imports remained free of cloud/watcher runtime adapters.
+Both task scratch directories, wheels, virtualenvs and synthetic bundles were
+removed. Prior real-S3 results below are retained evidence, not a new cloud run.
+Hosted container/browser and general CI evidence must pass on the extracted PR
+before merge. No throughput, representative capacity or production update is
+claimed by this scope split.
 
 ## Changed Boundary
 
@@ -85,12 +110,18 @@ task-owned images, containers, profiles and scratch were removed. No application
 or production configuration changed. Hosted validation for the fix remains pending
 until its new pushed revision passes.
 
-## Remaining Gates
+## Remaining Build Gates And Deferred Automation
 
 - Protected-default-branch OIDC role evidence and hosted complete real-selection
   repeated builds. The disposable S3 results below do not establish that boundary.
 - Artifact metadata/provenance reconciliation, including how the candidate audit
   retains the canonical transport selection and verified build identity.
+
+The transport selection stays separate from the existing `manifest.json` artifact
+contract. Build identity/source/checksum/count fields are already present. Hosted
+complete real-source determinism and workflow-role acceptance remain #19 evidence
+gaps. The following #21 automation gates are parked in #141, not client-validation
+blockers:
 - #21 verified recovery-image/change selection, independent durable processing
   state, cursor/idempotency/coalescing/fencing and source-specific proposals.
 - Explicit reviewed significance criteria and representative processing/resource
