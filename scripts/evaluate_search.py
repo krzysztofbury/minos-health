@@ -276,6 +276,10 @@ def main() -> None:
             content = read_regular_file(args.candidate_synonyms)
             candidates = TypeAdapter(tuple[SearchSynonym, ...]).validate_json(content)
         report = evaluate(args.bundle, gold, index=args.index, candidates=candidates)
+        report["fixture_sha256"] = hashlib.sha256(
+            read_regular_file(args.fixture)
+        ).hexdigest()
+        report["index"] = args.index
         if content:
             report["candidate_input_sha256"] = hashlib.sha256(content).hexdigest()
     except EvaluationError, ReferenceError, ValidationError, OSError:
