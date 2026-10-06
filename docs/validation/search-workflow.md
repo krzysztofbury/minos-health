@@ -243,6 +243,51 @@ commits need their own final-head checks. No merge or activation is established
 by these observations. Deployment must preserve the exact bundle, operational
 services and prior rollback identities, and use reviewed exact main artifacts.
 
+### Repeated capacity result: 150 ms fails the release gate
+
+The repeated comparison at `54495b7` uses the repaired observation harness,
+the exact production database and four concurrent Chromium processes. Both
+phases record all 160 observations with no browser execution errors; failed
+sources are retained rather than hidden or counted as successful empty results.
+Reports: `local/capacity-220-repeat.json` and `local/capacity-150-repeat.json`.
+
+| Outcome | 220 ms | 150 ms |
+| --- | ---: | ---: |
+| Correct target discoveries at rank 1 | 160/160 | 156/160 |
+| Observations with all three final sources ready | 160/160 | 151/160 |
+| Failed final source responses | 0/480 | 16/480 |
+| Missing final suggestion displays | 1/160 | 16/160 |
+| Server search HTTP 200 events | 1,031 | 1,838 |
+| Server search busy HTTP 429 events | 5 | 1,297 |
+| Browser-observed HTTP 503 responses | 0 | 4 |
+| API peak memory, MiB | 210.6 | 219.8 |
+| Readiness after browser load | ready | ready |
+
+All nine incomplete searches occur at 180 ms typing cadence: eight desktop
+and one mobile. Four lose the target discovery; the other five retain the target
+but still have failed source responses. All 16 failed source outcomes are HTTP
+429 after the normal submitted-search retry. Some additional busy responses
+recover successfully; these do not erase failures. API log status counts and
+browser wire counts differ because cancelled requests may still complete on
+the server and Uvicorn can reject before application telemetry.
+
+Desktop slower-typing submit-to-settled median worsens from 65.5 to 679.9 ms,
+including failed outcomes. Suggestions remain faster when available, but that
+does not satisfy co-equal correctness and performance requirements. No resource
+limits, deadlines, source filters, ranking or retry behavior were changed.
+Injected recovery, filter preferences, query privacy and final readiness still
+pass; they are not substitutes for successful ordinary submissions under load.
+Real screenshots show partial/all-source busy feedback and manual retry controls,
+not a fictitious empty-results success.
+
+**Hold merge and deployment of 150 ms.** The owner's authorization was
+conditional on passing gates, which this run fails. Recommend restoring 220 ms
+while retaining the evidence, or separately review a bounded request-pacing/
+cancellation fix and remeasure before activation. Do not silently restore the
+owner-selected value, waive the failed gate or compensate with unreviewed
+resource/deadline changes. Actual-host capacity, sustained load and launch SLOs
+remain unproved even for the passing local 220 ms phase.
+
 ## Remaining practitioner protocol
 
 Run the same documented tasks with a coder in their actual incumbent workflow

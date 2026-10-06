@@ -1,0 +1,5698 @@
+{
+  "browser": "Chrome/152.0.7977.82",
+  "debounce_ms": 220,
+  "limitations": "Local packaged API/edge, no production contention. Mobile viewport with emulated latency is not physical mobile hardware. Scripted completion/rank, not practitioner errors, confusion or incumbent comparison. Detail includes up to 50ms polling. First pass is not guaranteed cold server.",
+  "privacy": "POST-only searches; no query URLs, cookies or storage",
+  "sessions": 4,
+  "execution_errors": [],
+  "faults_by_session": [
+    {
+      "transient_busy_retry": "passed",
+      "partial_timeout_not_empty": "passed",
+      "manual_recovery": "passed"
+    },
+    {
+      "transient_busy_retry": "passed",
+      "partial_timeout_not_empty": "passed",
+      "manual_recovery": "passed"
+    },
+    {
+      "transient_busy_retry": "passed",
+      "partial_timeout_not_empty": "passed",
+      "manual_recovery": "passed"
+    },
+    {
+      "transient_busy_retry": "passed",
+      "partial_timeout_not_empty": "passed",
+      "manual_recovery": "passed"
+    }
+  ],
+  "execution_method": "Four concurrent independent Chromium processes, frozen 40-observation harness, one shared packaged API/edge, 1 CPU/512 MiB. Raw per-row request lists aggregated by limit/status/cancellation; other task observations retained. Baseline context changes only SUGGEST_DELAY_MS to 220 and reconciles its verified checksum inventory. Browser errors remain explicit and fail the acceptance gate; partial rows never imply completion. Local only, no host load or sustained launch SLO claim.",
+  "rows": [
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 253.19999998807907,
+      "typing_ms": 250.80000001192093,
+      "submit_to_results_ms": 35.89999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 225.34107200000017,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 655.5,
+      "typing_ms": 621.9000000357628,
+      "submit_to_results_ms": 495,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 68.84253600000011,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 275.5,
+      "typing_ms": 2669.300000011921,
+      "submit_to_results_ms": 70.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 58.65091200000006,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 314.60000002384186,
+      "typing_ms": 124.39999997615814,
+      "submit_to_results_ms": 46.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 62.244738999999754,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 286.89999997615814,
+      "typing_ms": 2048,
+      "submit_to_results_ms": 68.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 37.35638199999994,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 268.5,
+      "typing_ms": 249.10000002384186,
+      "submit_to_results_ms": 66.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 43.38543800000116,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 272,
+      "typing_ms": 619,
+      "submit_to_results_ms": 68.89999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 46.53775499999938,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 273.5,
+      "typing_ms": 2666.199999988079,
+      "submit_to_results_ms": 73.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 36.21123799999987,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 249.30000001192093,
+      "typing_ms": 124.90000003576279,
+      "submit_to_results_ms": 34.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 44.40314099999887,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 300.60000002384186,
+      "typing_ms": 2041.1000000238419,
+      "submit_to_results_ms": 68.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 46.10653500000262,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 239.79999995231628,
+      "typing_ms": 247.70000004768372,
+      "submit_to_results_ms": 41.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 36.293282000002364,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 288.10000002384186,
+      "typing_ms": 618.8000000119209,
+      "submit_to_results_ms": 70.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 44.7980839999982,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": null,
+      "typing_ms": 2662.2999999523163,
+      "submit_to_results_ms": 69.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 95.7334869999977,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 2
+        },
+        {
+          "limit": 4,
+          "status": 429,
+          "cancelled": false,
+          "count": 1
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 251.30000001192093,
+      "typing_ms": 123.19999998807907,
+      "submit_to_results_ms": 35.89999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 47.315355999999156,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 292.19999998807907,
+      "typing_ms": 2045.5,
+      "submit_to_results_ms": 59.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 54.64070999999967,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 241.60000002384186,
+      "typing_ms": 729.6999999880791,
+      "submit_to_results_ms": 35.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 46.524319000000105,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 270.9000000357628,
+      "typing_ms": 1819.5999999642372,
+      "submit_to_results_ms": 69.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 47.02824600000167,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 269.80000001192093,
+      "typing_ms": 7836,
+      "submit_to_results_ms": 69.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 47.521514000000025,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 239.80000001192093,
+      "typing_ms": 365.5,
+      "submit_to_results_ms": 32,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 45.02351700000145,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 275.0999999642372,
+      "typing_ms": 6010.600000023842,
+      "submit_to_results_ms": 73,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 36.01266300000134,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.80000001192093,
+      "typing_ms": 247.89999997615814,
+      "submit_to_results_ms": 112.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.36638800000219,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.0999999642372,
+      "typing_ms": 619.1000000238419,
+      "submit_to_results_ms": 112.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.17626099999325,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.30000001192093,
+      "typing_ms": 2658.099999964237,
+      "submit_to_results_ms": 109.29999995231628,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.68428399999539,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 348.0999999642372,
+      "typing_ms": 125.10000002384186,
+      "submit_to_results_ms": 112.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 110.5683480000007,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 327.30000001192093,
+      "typing_ms": 2042.199999988079,
+      "submit_to_results_ms": 119.79999995231628,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 110.75117100000352,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 333.4000000357628,
+      "typing_ms": 248.29999995231628,
+      "submit_to_results_ms": 115.20000004768372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 110.03711800000019,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332.69999998807907,
+      "typing_ms": 619.3000000119209,
+      "submit_to_results_ms": 125.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 105.02898199999618,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.7999999523163,
+      "typing_ms": 2658.7000000476837,
+      "submit_to_results_ms": 112.79999995231628,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.22193500000867,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 346.69999998807907,
+      "typing_ms": 124.39999997615814,
+      "submit_to_results_ms": 114.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.43540600000415,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.19999998807907,
+      "typing_ms": 2033.800000011921,
+      "submit_to_results_ms": 116,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.65651200000138,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 325.10000002384186,
+      "typing_ms": 248.79999995231628,
+      "submit_to_results_ms": 124.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 103.57468700000027,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 323.69999998807907,
+      "typing_ms": 617.1999999880791,
+      "submit_to_results_ms": 123.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 101.56525800000236,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.4000000357628,
+      "typing_ms": 2660.599999964237,
+      "submit_to_results_ms": 128.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.7565889999969,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 348.2000000476837,
+      "typing_ms": 123.79999995231628,
+      "submit_to_results_ms": 114.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.1739729999972,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.5999999642372,
+      "typing_ms": 2039.9000000357628,
+      "submit_to_results_ms": 124,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.0083719999966,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 320.5999999642372,
+      "typing_ms": 728,
+      "submit_to_results_ms": 115.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.5869900000107,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 319.60000002384186,
+      "typing_ms": 1820,
+      "submit_to_results_ms": 114.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.7336260000011,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 334.30000001192093,
+      "typing_ms": 7837.699999988079,
+      "submit_to_results_ms": 114.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.85203799999726,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 323.89999997615814,
+      "typing_ms": 364.30000001192093,
+      "submit_to_results_ms": 120.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.54183400000329,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 0,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 330.5,
+      "typing_ms": 6012.699999988079,
+      "submit_to_results_ms": 111.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.88100199999462,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 261.5,
+      "typing_ms": 249.69999998807907,
+      "submit_to_results_ms": 45.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 223.02749199999994,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 669,
+      "typing_ms": 621,
+      "submit_to_results_ms": 1078.2000000476837,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 66.88897199999974,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 2
+        },
+        {
+          "limit": 4,
+          "status": 429,
+          "cancelled": false,
+          "count": 1
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 429,
+          "cancelled": false,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 264.10000002384186,
+      "typing_ms": 2668.7999999523163,
+      "submit_to_results_ms": 315,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 58.1368650000004,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 238.5999999642372,
+      "typing_ms": 127.70000004768372,
+      "submit_to_results_ms": 33.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 63.22871999999916,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 500.39999997615814,
+      "typing_ms": 2042.6000000238419,
+      "submit_to_results_ms": 595.7999999523163,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 54.421769999999015,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 251,
+      "typing_ms": 249.9000000357628,
+      "submit_to_results_ms": 51.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 45.231949999999415,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 502.39999997615814,
+      "typing_ms": 621.5,
+      "submit_to_results_ms": 344,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 51.09499500000129,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 475.19999998807907,
+      "typing_ms": 2659.600000023842,
+      "submit_to_results_ms": 265.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 38.36126100000183,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 246.29999995231628,
+      "typing_ms": 124.30000001192093,
+      "submit_to_results_ms": 46.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 42.33259899999757,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 589.8000000119209,
+      "typing_ms": 2044,
+      "submit_to_results_ms": 381.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.17800700000225,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 254.39999997615814,
+      "typing_ms": 247.80000001192093,
+      "submit_to_results_ms": 38.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 51.05087099999946,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 303.60000002384186,
+      "typing_ms": 618.2999999523163,
+      "submit_to_results_ms": 668.3000000119209,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 37.611660999999,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 281.2000000476837,
+      "typing_ms": 2668,
+      "submit_to_results_ms": 130.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.69594999999754,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 247.19999998807907,
+      "typing_ms": 124.40000003576279,
+      "submit_to_results_ms": 31,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 44.122784000002866,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 293.39999997615814,
+      "typing_ms": 2041.800000011921,
+      "submit_to_results_ms": 107.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 34.69708100000207,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 246,
+      "typing_ms": 727.3999999761581,
+      "submit_to_results_ms": 39.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 37.57697499999995,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 279.69999998807907,
+      "typing_ms": 1822,
+      "submit_to_results_ms": 78.59999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 39.76916699999856,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 275.39999997615814,
+      "typing_ms": 7834.100000023842,
+      "submit_to_results_ms": 69,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 46.264310000005935,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 247.30000001192093,
+      "typing_ms": 364.60000002384186,
+      "submit_to_results_ms": 31.399999976158142,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 44.67470100000355,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 319.5,
+      "typing_ms": 6003.800000011921,
+      "submit_to_results_ms": 99.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 43.86990800000058,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328,
+      "typing_ms": 247.5999999642372,
+      "submit_to_results_ms": 122.89999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.8241579999958,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.5,
+      "typing_ms": 619.2999999523163,
+      "submit_to_results_ms": 119.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 100.33150100000057,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.89999997615814,
+      "typing_ms": 2667,
+      "submit_to_results_ms": 112,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.3094809999966,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 348.19999998807907,
+      "typing_ms": 123.40000003576279,
+      "submit_to_results_ms": 114.29999995231628,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 115.759278000005,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 330.19999998807907,
+      "typing_ms": 2039.6000000238419,
+      "submit_to_results_ms": 114,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.60934399999678,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 329.5,
+      "typing_ms": 246.5999999642372,
+      "submit_to_results_ms": 113.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.80376999999862,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.60000002384186,
+      "typing_ms": 618.5,
+      "submit_to_results_ms": 120.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 103.84558699999616,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.69999998807907,
+      "typing_ms": 2659.699999988079,
+      "submit_to_results_ms": 117.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 111.02247100000386,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 347.19999998807907,
+      "typing_ms": 124,
+      "submit_to_results_ms": 113,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.0324280000059,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 326.69999998807907,
+      "typing_ms": 2041.800000011921,
+      "submit_to_results_ms": 126.70000004768372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.12232699999004,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332,
+      "typing_ms": 248,
+      "submit_to_results_ms": 115.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 102.9558229999966,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.10000002384186,
+      "typing_ms": 617.1999999880791,
+      "submit_to_results_ms": 128.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.44460200000321,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.5,
+      "typing_ms": 2658.5,
+      "submit_to_results_ms": 111.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.49590799999714,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 350,
+      "typing_ms": 123.80000001192093,
+      "submit_to_results_ms": 117.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 110.99553899999592,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 329.60000002384186,
+      "typing_ms": 2041,
+      "submit_to_results_ms": 119,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.54790700000012,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332.80000001192093,
+      "typing_ms": 727.3999999761581,
+      "submit_to_results_ms": 115.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 103.49116900000081,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 329.89999997615814,
+      "typing_ms": 1824.9000000357628,
+      "submit_to_results_ms": 112.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.19178699998884,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 324.10000002384186,
+      "typing_ms": 7829.899999976158,
+      "submit_to_results_ms": 122.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 102.82094800000777,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.89999997615814,
+      "typing_ms": 364,
+      "submit_to_results_ms": 121.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.59223799999745,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 1,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 336.30000001192093,
+      "typing_ms": 6007.699999988079,
+      "submit_to_results_ms": 117,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.09806199999002,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 250.9000000357628,
+      "typing_ms": 254.5999999642372,
+      "submit_to_results_ms": 51.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 75.69660399999998,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 278.60000002384186,
+      "typing_ms": 624.3999999761581,
+      "submit_to_results_ms": 60.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 429.660206,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 275.2000000476837,
+      "typing_ms": 2668.199999988079,
+      "submit_to_results_ms": 69.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 61.437622000000374,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 247.80000001192093,
+      "typing_ms": 124.59999996423721,
+      "submit_to_results_ms": 32.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 59.109543999999914,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 277.4000000357628,
+      "typing_ms": 2044.3999999761581,
+      "submit_to_results_ms": 75.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.88214100000005,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 242.0999999642372,
+      "typing_ms": 247.10000002384186,
+      "submit_to_results_ms": 42.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 39.33860900000036,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 659.9000000357628,
+      "typing_ms": 622.8000000119209,
+      "submit_to_results_ms": 70.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 49.21314600000005,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 280.5,
+      "typing_ms": 2670.800000011921,
+      "submit_to_results_ms": 60.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.709225999999035,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 247.10000002384186,
+      "typing_ms": 124.59999996423721,
+      "submit_to_results_ms": 30.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 58.66362500000105,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 280.10000002384186,
+      "typing_ms": 2043.699999988079,
+      "submit_to_results_ms": 78.59999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 91.07133199999953,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 245.29999995231628,
+      "typing_ms": 249.30000001192093,
+      "submit_to_results_ms": 29.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 90.7093109999987,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 272.19999998807907,
+      "typing_ms": 620.6000000238419,
+      "submit_to_results_ms": 78.89999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.33775699999751,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 631.6999999880791,
+      "typing_ms": 2661.600000023842,
+      "submit_to_results_ms": 403.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 42.70127099999809,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 246.4000000357628,
+      "typing_ms": 123.69999998807907,
+      "submit_to_results_ms": 29.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.88958499999717,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 399,
+      "typing_ms": 2042.5999999642372,
+      "submit_to_results_ms": 96.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 41.441813000001275,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 240.5,
+      "typing_ms": 731.1999999880791,
+      "submit_to_results_ms": 34.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 45.79813400000057,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 280.30000001192093,
+      "typing_ms": 1822.5,
+      "submit_to_results_ms": 78.20000004768372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.34292700000151,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 270.39999997615814,
+      "typing_ms": 7834.5,
+      "submit_to_results_ms": 69.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 49.84853899999871,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 242.39999997615814,
+      "typing_ms": 364.9000000357628,
+      "submit_to_results_ms": 38.09999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 35.39832800000295,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 279.2999999523163,
+      "typing_ms": 6008.300000011921,
+      "submit_to_results_ms": 78.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 90.57526599999983,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 329.39999997615814,
+      "typing_ms": 247.30000001192093,
+      "submit_to_results_ms": 122.59999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.01002799999696,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.69999998807907,
+      "typing_ms": 618.6999999880791,
+      "submit_to_results_ms": 121.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 111.03921299999638,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 327.9000000357628,
+      "typing_ms": 2657,
+      "submit_to_results_ms": 110.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 104.33126099999936,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 335.69999998807907,
+      "typing_ms": 123.5,
+      "submit_to_results_ms": 117.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 110.71304000000237,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.9000000357628,
+      "typing_ms": 2037.199999988079,
+      "submit_to_results_ms": 112.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 111.66303600000538,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 329.69999998807907,
+      "typing_ms": 246.5,
+      "submit_to_results_ms": 108.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 104.62477099999523,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 325.0999999642372,
+      "typing_ms": 618,
+      "submit_to_results_ms": 120.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 101.35486300000048,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 338.5,
+      "typing_ms": 2658.400000035763,
+      "submit_to_results_ms": 122.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 113.42965700000059,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 346.19999998807907,
+      "typing_ms": 123.80000001192093,
+      "submit_to_results_ms": 113.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.62524300000223,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332.10000002384186,
+      "typing_ms": 2038.6000000238419,
+      "submit_to_results_ms": 114.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.15388699999312,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.9000000357628,
+      "typing_ms": 247.19999998807907,
+      "submit_to_results_ms": 116.70000004768372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.10386300001119,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.30000001192093,
+      "typing_ms": 616.1000000238419,
+      "submit_to_results_ms": 129.4000000357628,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 105.72867599999881,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.19999998807907,
+      "typing_ms": 2656.100000023842,
+      "submit_to_results_ms": 116.59999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.94252899999265,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 333.19999998807907,
+      "typing_ms": 124,
+      "submit_to_results_ms": 115.59999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.84756999999809,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 334.39999997615814,
+      "typing_ms": 2040.9000000357628,
+      "submit_to_results_ms": 117.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.42821100000583,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 329.60000002384186,
+      "typing_ms": 727.3999999761581,
+      "submit_to_results_ms": 111.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 105.7666070000123,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.5,
+      "typing_ms": 1819.199999988079,
+      "submit_to_results_ms": 120.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 100.34087499999441,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 334.30000001192093,
+      "typing_ms": 7834.100000023842,
+      "submit_to_results_ms": 114.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.50432400000864,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.9000000357628,
+      "typing_ms": 364.5999999642372,
+      "submit_to_results_ms": 118.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 111.35684799999581,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 2,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 348,
+      "typing_ms": 6007.800000011921,
+      "submit_to_results_ms": 111.20000004768372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.64626999999746,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 261.60000002384186,
+      "typing_ms": 249.39999997615814,
+      "submit_to_results_ms": 45.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 226.92235600000004,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 651,
+      "typing_ms": 621,
+      "submit_to_results_ms": 1060.6000000238419,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 65.37100800000007,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 429,
+          "cancelled": false,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 269.5999999642372,
+      "typing_ms": 2665.400000035763,
+      "submit_to_results_ms": 335.5999999642372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 57.815371000000596,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 241.30000001192093,
+      "typing_ms": 127,
+      "submit_to_results_ms": 38.90000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 60.17130999999972,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 497.39999997615814,
+      "typing_ms": 2047.800000011921,
+      "submit_to_results_ms": 578.3999999761581,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 51.6694639999987,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 251,
+      "typing_ms": 250.30000001192093,
+      "submit_to_results_ms": 51,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 45.40040699999918,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 502.80000001192093,
+      "typing_ms": 620.8999999761581,
+      "submit_to_results_ms": 344.2999999523163,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 51.22850500000095,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 477,
+      "typing_ms": 2659.800000011921,
+      "submit_to_results_ms": 263.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 38.387329999997746,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 246.39999997615814,
+      "typing_ms": 124.20000004768372,
+      "submit_to_results_ms": 46.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 42.33875000000262,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 588.8999999761581,
+      "typing_ms": 2042,
+      "submit_to_results_ms": 381.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.19208299999809,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 254.39999997615814,
+      "typing_ms": 247.9000000357628,
+      "submit_to_results_ms": 38,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 100.33600099999967,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 721.5,
+      "typing_ms": 616.2000000476837,
+      "submit_to_results_ms": 1030.1000000238419,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 44.09364900000219,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 429,
+          "cancelled": false,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 293,
+      "typing_ms": 2663,
+      "submit_to_results_ms": 57.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 50.775031999997736,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 247.9000000357628,
+      "typing_ms": 124.80000001192093,
+      "submit_to_results_ms": 32.700000047683716,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 60.965211999999156,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 278.69999998807907,
+      "typing_ms": 2041.199999988079,
+      "submit_to_results_ms": 62,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 40.793032999998104,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 241.5,
+      "typing_ms": 729.0999999642372,
+      "submit_to_results_ms": 41.09999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 39.874024000000645,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 270.69999998807907,
+      "typing_ms": 1822,
+      "submit_to_results_ms": 64.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 93.11684599999717,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 266.5,
+      "typing_ms": 7828.899999976158,
+      "submit_to_results_ms": 63.39999997615814,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 42.83429099999921,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 241.69999998807907,
+      "typing_ms": 364.5,
+      "submit_to_results_ms": 41,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 53.61231599999883,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "desktop",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 0,
+      "suggestion_ms": 284.19999998807907,
+      "typing_ms": 6002.800000011921,
+      "submit_to_results_ms": 66.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 43.77335600000515,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 330.30000001192093,
+      "typing_ms": 247,
+      "submit_to_results_ms": 129.19999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 119.7836959999986,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 327.19999998807907,
+      "typing_ms": 626.8000000119209,
+      "submit_to_results_ms": 124.5,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 112.3643149999989,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.5999999642372,
+      "typing_ms": 2660.300000011921,
+      "submit_to_results_ms": 111.20000004768372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 105.85980399999971,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 348.89999997615814,
+      "typing_ms": 123.5,
+      "submit_to_results_ms": 115.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 110.32075199999963,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 60,
+      "cache": "first_pass",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.0999999642372,
+      "typing_ms": 2037.5,
+      "submit_to_results_ms": 116.59999996423721,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 113.27287299999443,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 328.9000000357628,
+      "typing_ms": 247,
+      "submit_to_results_ms": 113.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.29157600000326,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.30000001192093,
+      "typing_ms": 617.1000000238419,
+      "submit_to_results_ms": 112.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.4933749999982,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 321.39999997615814,
+      "typing_ms": 2658.400000035763,
+      "submit_to_results_ms": 144.5999999642372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 104.04852799999935,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 348.69999998807907,
+      "typing_ms": 123.80000001192093,
+      "submit_to_results_ms": 116.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 111.1467840000114,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 1,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332.60000002384186,
+      "typing_ms": 2038.699999988079,
+      "submit_to_results_ms": 125.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.46149400000286,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 322.69999998807907,
+      "typing_ms": 246.5,
+      "submit_to_results_ms": 121.20000004768372,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.42243199999211,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 329.30000001192093,
+      "typing_ms": 617.5,
+      "submit_to_results_ms": 121.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 100.48415499999828,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 326,
+      "typing_ms": 2661.400000035763,
+      "submit_to_results_ms": 126.10000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 103.53356900000654,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 345.80000001192093,
+      "typing_ms": 124.89999997615814,
+      "submit_to_results_ms": 111.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.55634199999622,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 2,
+      "typing_cadence_ms": 60,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 324.89999997615814,
+      "typing_ms": 2044.4000000357628,
+      "submit_to_results_ms": 118.40000003576279,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 108.56464799999958,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W01",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 326,
+      "typing_ms": 728.4000000357628,
+      "submit_to_results_ms": 124.80000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 103.24230000001262,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W02",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 332.2999999523163,
+      "typing_ms": 1822.9000000357628,
+      "submit_to_results_ms": 113.69999998807907,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 109.34478499999386,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W03",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 331.5,
+      "typing_ms": 7841.5,
+      "submit_to_results_ms": 112,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 107.41151900000114,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W04",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 324.39999997615814,
+      "typing_ms": 364,
+      "submit_to_results_ms": 123.60000002384186,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.84992299998703,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    },
+    {
+      "session": 3,
+      "id": "W05",
+      "device": "mobile",
+      "repetition": 0,
+      "typing_cadence_ms": 180,
+      "cache": "warm_browser",
+      "emulated_latency_ms": 80,
+      "suggestion_ms": 325.10000002384186,
+      "typing_ms": 6005.399999976158,
+      "submit_to_results_ms": 122.30000001192093,
+      "rank": 1,
+      "completed": true,
+      "service_date": "2026-10-06",
+      "source_states": [
+        "ready",
+        "ready",
+        "ready"
+      ],
+      "detail_ms": 106.56382400001166,
+      "request_status_counts": [
+        {
+          "limit": 4,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        },
+        {
+          "limit": 10,
+          "status": 200,
+          "cancelled": false,
+          "count": 3
+        }
+      ]
+    }
+  ],
+  "database_sha256": "0c4936ccc405388e66b17791eea5d86e0148054930ec3c187dc2b6a997ce261d",
+  "dataset_id": "60c3c2d3a12de1d84ef17644765869eb0309ccc5e1e8e7957eaf876622cc72e0",
+  "task_fixture_sha256": "15e84d784276cf755c7d9301574cb3e4d0258bd3ce1e8d94a8214a32fb3deaa0",
+  "source_revision": "54495b708f6633593a125b72353ab491bad94883",
+  "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "harness_sha256": {
+    "scripts/measure_search_workflow.py": "fbca585f139f4f756bf92caa9e45234d4703f34d85c61146e20a5a1281c62645",
+    "tests/browser/search-workflow-browser.mjs": "d98c4b197790a4ef778aec49ce87d04c8c84f7fdc70af6c8e21c644ab012658c"
+  },
+  "api_image_id": "sha256:7e5ca040c2576c2a72860da61762bf08242670cff5f004e6c67ea1e19595143d",
+  "edge_image_id": "sha256:1cf8f54c889b7271ed0292158e9567d813189dd6ecb17b6bfbcda5b0385e0798",
+  "platform": "Linux-7.2.5-3-omarchy-x86_64-with-glibc2.44",
+  "logical_cpus": 16,
+  "api_limits": {
+    "cpus": 1,
+    "memory_mib": 512,
+    "workers": 1,
+    "pool_size": 4
+  },
+  "edge_limits": {
+    "cpus": 0.5,
+    "memory_mib": 64
+  },
+  "first_server_text_http_ms": 20.784221007488668,
+  "api_peak_memory_bytes": 220835840,
+  "query_free_container_logs": true,
+  "api_search_status_counts": {
+    "200": 1031,
+    "429": 5
+  },
+  "readiness_after_browser_load": true,
+  "expected_observations": 160,
+  "final_results_gate": true,
+  "missing_final_suggestions": 1,
+  "unexecuted_observations": 0
+}

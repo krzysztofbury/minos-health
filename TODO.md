@@ -70,8 +70,11 @@ Then execute these client-facing phases in order:
        220/120/150 ms single-user runs. The final owner-selected 150 ms improves
        suggestion medians by about 70 ms but still increases slower-typing
        suggestion requests 18.4x. Conditional deployment requires a passing
-       four-browser capacity comparison and final CI/preflight; the initial
-       150 ms capacity run is incomplete, not acceptance. Clinical,
+       four-browser capacity comparison and final CI/preflight. The repeated
+       150 ms capacity run fails: 9/160 searches have failed sources and 4/160
+       target discoveries fail, versus complete 220 ms final results. Hold merge
+       and deployment pending an owner choice of 220 ms or a separately reviewed
+       pacing fix; do not treat passing CI as capacity acceptance. Clinical,
        independently held-out, incumbent and multi-user/actual-host capacity
        acceptance remain open; no merge/deployment is implied. See
        [search workflow evidence](docs/validation/search-workflow.md).
