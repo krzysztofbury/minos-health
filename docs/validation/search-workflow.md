@@ -9,6 +9,12 @@ Measure the shipped search before changing it. Keep the original 44 ICD cases,
 embedding experiments remain separate. Do not convert a spelling suggestion
 into an accepted result or change targets to improve scores.
 
+The only application change is the owner-requested suggestion quiet period:
+`SUGGEST_DELAY_MS = 120` in `apps/web/search.js`, previously 220 ms. A named
+constant keeps the static asset explicit without adding deployment environment
+plumbing. Enter and search submission remain immediate; ranking, rewrites,
+filter preferences/defaults/reset and privacy disclosure are unchanged.
+
 The hosted baseline uses main revision
 `902496d36a5548779f5808e144f217f27a1c0ef9`, run
 [37433519986](https://github.com/krzysztofbury/minos-health/actions/runs/37433519986).
@@ -16,6 +22,14 @@ Both offline engines report 37/44 top-1 and 42/44 top-5. G01 remains rank 6;
 G09 has no returned acceptable code. The successful workflow is evidence of
 execution, not practitioner acceptance. Reports are retained under
 `evidence/search-workflow/baseline-hosted/`.
+
+Extended hosted run
+[37435838355](https://github.com/krzysztofbury/minos-health/actions/runs/37435838355)
+at `3977c30759e0deeb202b86f19b45ba692ab02f56` passed with the same ICD scores,
+12/12 unchanged JGP targets, and the separate safety observations below. Exact
+fixture hashes and query-free reports are retained under
+`evidence/search-workflow/extended-hosted/`. Local safety reports match the
+hosted reports exactly in both engines; ICD/JGP timing samples are not identical.
 
 The full reference selection has 32,609 concept rows, 3,627 versioned group
 definitions and 119,078 characteristics-code evidence rows. It includes all
@@ -59,18 +73,39 @@ pins before querying. Failure is never counted as a successful empty response.
 A lexical negation match is an observed risk, not a clinical recommendation.
 No clean top-5 score can erase contradictory lower-ranked results.
 
+| Probes | Observed output in both engines | Limit |
+| --- | --- | --- |
+| S01-S04 diabetes type/complications | No hits; selected targets missed | Qualified retrieval remains a gap |
+| S05-S08 joint and primary/revision wording | Selected targets at rank 1 | Source-name discovery, not encounter qualification |
+| S09 mastoid versus appendix | H70.0 at rank 1 | One ambiguity observation |
+| S10-S11 negation | S10 returns I23.3 and I24.0; S11 empty | No selected contradictory target, not clinical negation understanding |
+| S12-S13 unrelated controls | No hits; S12 has one spelling suggestion | Suggestions are not accepted hits |
+| S14 typo | No hits; one spelling suggestion | Explicit correction remains necessary |
+
+There are no evaluator failures or selected contradictory codes in the returned
+top 20. This checks only the enumerated contradiction inventory, not every
+potentially inappropriate code. The probes' S01/S02 identifiers are local to
+this fixture, not the practitioner engine scenarios S01/S02 in #126/#37.
+
+Do not fix the diabetes misses by dropping type/complication qualifiers or
+silently propagating parent labels into child matches. Any broader hierarchical
+matching needs accepted-contract review and separate safety evidence first.
+
 ## Browser method
 
 `tests/evaluation/search-workflow-v1.json` contains five scripted public-reference
 discovery tasks: exact diagnosis, folded wording, qualified procedure, exact
 JGP group and group-name morphology. All three source filters stay enabled.
-Three repetitions per task use desktop and mobile viewports in real Chromium.
+At 60 ms typing cadence, three repetitions per task use desktop and mobile
+viewports in real Chromium; at 180 ms, one repetition per task/viewport gives
+40 observations per debounce run.
 Mobile uses 80 ms emulated network latency and bounded transfer rates. It is
 not a physical mobile device or a measured production network.
 
-- Insert characters via Chromium's input protocol at nominal 60 ms cadence.
-- Measure the last input through visible suggestions, including the existing
-  220 ms debounce. Absent suggestions are recorded, not silently successful.
+- Insert characters via Chromium's input protocol at nominal 60 or 180 ms cadence.
+- Measure the last input through visible suggestions, including the served
+  debounce. Absent suggestions are recorded, not silently successful. Intermediate
+  renders do not retain a previous input's timestamp.
 - Measure submit through all-source settled results with in-page timestamps
   and two animation frames. Failed/uncovered sources remain separate states.
 - Record expected-target rank/completion and click to the actual detail page.
@@ -90,6 +125,68 @@ artifacts. Limits match the accepted local validation boundary: API one CPU,
 bundle/fixture fingerprints, source revision, working-tree diff fingerprint,
 browser version and local platform are recorded. Small samples are descriptive,
 not launch SLOs, production capacity or watcher-contention evidence.
+
+## Controlled 220/120 ms comparison
+
+The 2026-10-06 runs use Chromium 152.0.7977.82 on the same Linux workstation,
+identical harness/fixture/bundle hashes and clean tracked working trees. The
+220 ms baseline is revision `da85bc6520c02c87084f3d7ff04ecffdf4d99063`; 120 ms
+is `a024a64a6f7be5d4c63166d5f19cca98a9f8ee0b`. Reports are
+`evidence/search-workflow/local/workflow-220.json` and `workflow-120.json`.
+The earlier 30-observation `workflow.json` is supporting history, not the
+controlled comparison. Image identities are recorded in each report.
+
+Values below are min/median/max milliseconds, not percentiles or an SLO.
+
+| Viewport/cadence | Suggestions, 220 ms | Suggestions, 120 ms | Submitted results, 120 ms | Detail click, 120 ms |
+| --- | --- | --- | --- | --- |
+| Desktop/60 ms, n=15 | 240.9/270.0/304.2 | 136.9/163.6/180.6 | 29.8/61.8/94.0 | 24.7/41.6/75.5 |
+| Desktop/180 ms, n=5 | 240.8/275.1/281.7 | 145.0/171.0/176.0 | 30.6/56.0/93.9 | 34.3/42.9/54.7 |
+| Mobile/60 ms, n=15 | 320.8/331.2/349.0 | 219.8/233.9/250.1 | 111.1/115.1/126.8 | 100.1/106.9/111.3 |
+| Mobile/180 ms, n=5 | 321.8/324.0/335.7 | 221.9/227.1/228.1 | 119.4/125.9/127.1 | 101.3/104.4/108.2 |
+
+Both runs complete all 40 scripted discoveries at target rank 1, with all three
+submitted source states ready and service date 2026-10-06. Suggestions are
+present for every final query. The 120 ms fast-cadence medians improve by
+106.4 ms desktop and 97.3 ms mobile. The 150 ms starting UI budget is still
+not met uniformly; immediate submission timing is a different measurement.
+
+### Request-volume tradeoff and review boundary
+
+| Per viewport | Suggestion requests, 220 ms | Suggestion requests, 120 ms | Submission requests in each run |
+| --- | ---: | ---: | ---: |
+| 60 ms cadence, 15 observations | 45 | 45 | 45 |
+| 180 ms cadence, 5 observations | 15 | 276 | 15 |
+
+At slower typing, 120 ms sends a three-source suggestion batch for nearly every
+character after the minimum query length. That is **18.4x more suggestion
+requests**, or 9.7x total search requests in the five-task phase. Desktop observes
+all 276 suggestion responses as HTTP 200. Mobile cancels 261 intermediate browser
+requests before response delivery; only the final 15 suggestion responses are
+observed as HTTP 200. Cancellation prevents stale publication, not proof that
+server work stops: API telemetry still records completion. Across workflow,
+fault recovery and the separate filter suite, server search counts are 295 versus
+817, all HTTP 200. Injected busy/timeout responses are local transport faults,
+not server error telemetry.
+
+Fresh-process first text HTTP requests are 21.0 versus 19.5 ms; API cgroup peaks
+are 193.1 versus 194.7 MiB. These sequential samples do not establish sustained
+concurrency, production capacity, cold filesystem behavior or watcher overlap.
+Earlier four-session all-filter evidence already includes capacity errors;
+do not infer that 120 ms is production-safe from these error-free sequential runs.
+
+Retain the owner-requested 120 ms change for PR review, not activation. Its
+measured load tradeoff needs explicit review and separately authorized bounded
+multi-user capacity evidence before deployment. Do not tune deadlines/resources,
+add caching or redesign the UI without a demonstrated boundary and review.
+
+Transient busy retry, settled partial-timeout feedback, manual recovery, POST-only
+queries, query-free container logs and no query/cookie storage passed in both
+runs. The separate filter suite passed defaults, persistence/restart, fixed expiry,
+empty intent, unavailable sources, reset, blocked/malformed storage, keyboard,
+zoom and cancellation checks. Desktop/mobile results and partial-error screenshots
+were visually inspected in real Chromium output; layouts and failure feedback
+remain readable without horizontal overflow.
 
 ## Remaining practitioner protocol
 
