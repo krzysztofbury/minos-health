@@ -12,8 +12,9 @@ embedding experiments remain separate. Do not convert a spelling suggestion
 into an accepted result or change targets to improve scores.
 
 The only application change is the owner-requested suggestion quiet period:
-`SUGGEST_DELAY_MS = 150` in `apps/web/search.js`, previously 220 ms. The owner
-selected 150 ms after reviewing the separate 120 ms experiment below. A named
+`SUGGEST_DELAY_MS = 220` in `apps/web/search.js`. The owner restored the original
+220 ms timing after the 150 ms capacity failure recorded below. The 120/150 ms
+values remain experimental evidence, not release settings. A named
 constant keeps the static asset explicit without adding deployment environment
 plumbing. Enter and search submission remain immediate; ranking, rewrites,
 filter preferences/defaults/reset and privacy disclosure are unchanged.
@@ -178,8 +179,9 @@ concurrency, production capacity, cold filesystem behavior or watcher overlap.
 Earlier four-session all-filter evidence already includes capacity errors;
 do not infer that 120 ms is production-safe from these error-free sequential runs.
 
-The 120 ms experiment is not the selected release value. The final 150 ms
-choice and its capacity gate are recorded below. Do not tune deadlines/resources,
+The 120 ms experiment is not the selected release value. The subsequent 150 ms
+experiment, failed capacity gate and restored 220 ms choice are recorded below.
+Do not tune deadlines/resources,
 add caching or redesign the UI without a demonstrated boundary and review.
 
 Transient busy retry, settled partial-timeout feedback, manual recovery, POST-only
@@ -287,6 +289,32 @@ cancellation fix and remeasure before activation. Do not silently restore the
 owner-selected value, waive the failed gate or compensate with unreviewed
 resource/deadline changes. Actual-host capacity, sustained load and launch SLOs
 remain unproved even for the passing local 220 ms phase.
+
+### Owner-authorized restoration and validation deployment
+
+After reviewing the failed gate, the owner explicitly requested restoring
+220 ms, pushing, merging and deploying. `SUGGEST_DELAY_MS` is now 220 again;
+the only application change versus the original browser is naming this existing
+delay. Enter/search submission, ranking, synonyms, filters, retry behavior and
+resource limits remain unchanged. The 150 ms hold above applies to that rejected
+experiment, not the restored setting.
+
+The exact production-bundle four-browser 220 ms phase completes all 160 target
+discoveries with every final source ready. Its five server busy responses and
+one missing final suggestion remain recorded limitations, not an error-free or
+sustained actual-host capacity claim. Verify the restored packaged runtime and
+final-head CI before merge, and complete access/package-privacy, health/headroom,
+exact artifact and rollback preflight before activation. Preserve the existing
+production dataset, watcher, tunnel and Kuma. No production load test or pruning
+is part of this instruction.
+
+Close only issues with fully met acceptance. #25 still lacks practitioner/
+incumbent utility and the recorded UI-budget acceptance; #42 lacks actual-host
+load/overlap/SLO/cost evidence; #126 lacks practitioner and independently reviewed
+held-out safety acceptance. They remain open despite delivering this bounded
+engineering-evidence chunk. Deployment receipt, exact final revision and public
+desktop/mobile browser checks belong in #143 and the linked issues after actual
+activation, not as inferred success from these local reports.
 
 ## Remaining practitioner protocol
 

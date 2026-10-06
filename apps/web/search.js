@@ -12,7 +12,7 @@
   var FIRST_PAGE = 10;
   var MAX_RESULTS = 20;
   var SUGGEST_LIMIT = 4;
-  var SUGGEST_DELAY_MS = 150;
+  var SUGGEST_DELAY_MS = 220;
   var HANDOFF_KEY = "minos.dictionary.query";
   var FILTER_KEY = "minos.search.filters.v1";
   var FILTER_TTL_MS = 90 * 24 * 60 * 60 * 1000;

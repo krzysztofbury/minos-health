@@ -67,16 +67,17 @@ Then execute these client-facing phases in order:
        PR #143 records the unchanged hosted 37/44 top-1, 42/44 top-5 and 12/12
        JGP results, separate 14-case source-based safety observations, and local
        packaged browser workflows. All 40 scripted discoveries complete in both
-       220/120/150 ms single-user runs. The final owner-selected 150 ms improves
+       220/120/150 ms single-user runs. The rejected 150 ms experiment improves
        suggestion medians by about 70 ms but still increases slower-typing
        suggestion requests 18.4x. Conditional deployment requires a passing
        four-browser capacity comparison and final CI/preflight. The repeated
        150 ms capacity run fails: 9/160 searches have failed sources and 4/160
-       target discoveries fail, versus complete 220 ms final results. Hold merge
-       and deployment pending an owner choice of 220 ms or a separately reviewed
-       pacing fix; do not treat passing CI as capacity acceptance. Clinical,
+       target discoveries fail, versus complete 220 ms final results. The owner
+       then authorized restoring 220 ms, pushing, merging and validation deployment
+       after final runtime/CI/preflight checks. Do not deploy 150 ms or treat
+       passing CI as capacity acceptance. Clinical,
        independently held-out, incumbent and multi-user/actual-host capacity
-       acceptance remain open; no merge/deployment is implied. See
+       acceptance remain open; record the actual activation receipt separately. See
        [search workflow evidence](docs/validation/search-workflow.md).
 2. [ ] #34-#36: build the explainable grouper with deterministic encounter
        validation and source-backed traces. #37 practitioner gold encounters and
