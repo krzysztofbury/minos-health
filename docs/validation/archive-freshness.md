@@ -29,6 +29,27 @@ Hosted container/browser and general CI evidence must pass on the extracted PR
 before merge. No throughput, representative capacity or production update is
 claimed by this scope split.
 
+## Pinned API Package Repair (2026-10-06)
+
+The extracted PR's first hosted general CI run `37430396866` passed. Validation
+run `37430396791` passed the real container/browser smoke, then refused the API
+image for seven fixable HIGH/CRITICAL findings in `perl-base=5.36.0-7+deb12u3`.
+The pinned Python base predates Debian's fixed `5.36.0-7+deb12u4` package.
+
+The API Dockerfile now installs that exact security version alongside the existing
+pinned PCRE2 fix. A disposable base container verified package availability and
+installation. Trivy v0.70.0, with a fresh database and the unchanged hosted
+HIGH/CRITICAL, fixable-vulnerability policy, found zero such findings in the
+rebuilt local API image. No vulnerability exclusion or threshold was changed.
+The rebuilt API/edge smoke passed through real Chromium, including search,
+preferences, fallback, conditions, JGP and ranks, privacy, bounded synthetic load,
+and stopped-API readiness recovery. These are regression smoke results, not
+representative production-capacity evidence. The full Python suite passed with
+1,643 tests and 23 opt-in skips. Owned images, containers, browser profiles,
+scanner cache and scratch were removed; shared build caches were not pruned.
+Hosted checks must rerun on the pushed repair before merge. The owner explicitly
+requested no deployment for this operator-tooling-only PR.
+
 ## Changed Boundary
 
 The operational `minos data build` accepts an exact S3 transport selection and
