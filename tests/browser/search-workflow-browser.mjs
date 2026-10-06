@@ -126,8 +126,10 @@ try {
           const group = links.filter(link => link.pathname.startsWith(${JSON.stringify(task.group_prefix)}));
           const rank = group.findIndex(link => link.pathname.startsWith(selector) && link.pathname.endsWith(${JSON.stringify(task.href_suffix || "")})) + 1;
           return {submit_to_results_ms: window.observation.resultEnd-window.observation.submitStart, rank: rank || null, completed: rank > 0,
+            service_date: document.querySelector('#group-jgp').textContent.match(/[0-9]{4}-[0-9]{2}-[0-9]{2}/)?.[0] || null,
             source_states: [...document.querySelectorAll('.result-group')].map(node => node.dataset.searchState)};
         })()`);
+        assert.match(observed.service_date || '', /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "Displayed service date must be recorded");
         const calls = requests.slice(offset);
         if (repetition === 0) await snapshot(`${device}-${task.id}`);
         let detail_ms = null;
@@ -157,6 +159,8 @@ try {
   await evaluate(`window.fetch=async (url,options) => url === '/api/v1/search' && JSON.parse(options.body).system === 'icd10-pl' ? new Response(JSON.stringify({error:{code:'query_timeout'}}),{status:504}) : window.originalFetch(url,options);
     document.querySelector('#search-form').requestSubmit()`);
   await wait("document.querySelector('.result-group').dataset.searchState === 'failed'");
+  await wait(settled);
+  assert.equal(await evaluate("document.querySelector('#results-status').textContent.includes('Część słowników nie odpowiedziała')"), true);
   assert.equal(await evaluate("document.querySelector('#results-status').textContent.includes('Nic nie znaleziono')"), false);
   await snapshot("mobile-partial-timeout");
   await evaluate("window.fetch=window.originalFetch; document.querySelector('.result-group-foot button').click()");
