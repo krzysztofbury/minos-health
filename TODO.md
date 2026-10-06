@@ -67,8 +67,11 @@ Then execute these client-facing phases in order:
        PR #143 records the unchanged hosted 37/44 top-1, 42/44 top-5 and 12/12
        JGP results, separate 14-case source-based safety observations, and local
        packaged browser workflows. All 40 scripted discoveries complete in both
-       220/120 ms runs. Owner-requested 120 ms improves suggestion medians by about
-       100 ms but increases slower-typing suggestion requests 18.4x. Clinical,
+       220/120/150 ms single-user runs. The final owner-selected 150 ms improves
+       suggestion medians by about 70 ms but still increases slower-typing
+       suggestion requests 18.4x. Conditional deployment requires a passing
+       four-browser capacity comparison and final CI/preflight; the initial
+       150 ms capacity run is incomplete, not acceptance. Clinical,
        independently held-out, incumbent and multi-user/actual-host capacity
        acceptance remain open; no merge/deployment is implied. See
        [search workflow evidence](docs/validation/search-workflow.md).

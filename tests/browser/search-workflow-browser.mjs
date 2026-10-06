@@ -146,7 +146,11 @@ try {
             service_date: document.querySelector('#group-jgp').textContent.match(/[0-9]{4}-[0-9]{2}-[0-9]{2}/)?.[0] || null,
             source_states: [...document.querySelectorAll('.result-group')].map(node => node.dataset.searchState)};
         })()`);
-        assert.match(observed.service_date || '', /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "Displayed service date must be recorded");
+        if (observed.source_states[2] === "ready") {
+          assert.match(observed.service_date || '', /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "Ready JGP results must display their service date");
+        } else {
+          await snapshot(`${device}-${task.id}-${typing_cadence_ms}-${repetition}-failed-source`);
+        }
         const calls = requests.slice(offset);
         if (repetition === 0 && typing_cadence_ms === 60) await snapshot(`${device}-${task.id}`);
         let detail_ms = null;
@@ -159,6 +163,7 @@ try {
           detail_ms = performance.now() - started;
         }
         rows.push({ id: task.id, device, repetition, typing_cadence_ms, cache: repetition || typing_cadence_ms === 180 ? "warm_browser" : "first_pass", emulated_latency_ms: latency, ...suggestion, ...observed, detail_ms, search_requests: calls });
+        await writeFile(path.join(output, "workflow-partial.json"), JSON.stringify({ browser: version.product, debounce_ms, status: "incomplete", rows }, null, 2) + "\n");
         assert.equal(await evaluate("Boolean(localStorage.length || sessionStorage.length || document.cookie)"), false);
       }
     }

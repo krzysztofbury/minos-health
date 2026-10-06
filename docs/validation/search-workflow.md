@@ -1,6 +1,8 @@
 # Search relevance, safety and workflow baseline
 
-Issues: #126, #25 and #42. One branch and PR, with no deployment.
+Issues: #126, #25 and #42. One branch and PR. The owner later authorized merge
+and validation deployment only if CI, capacity and preflight gates pass; no
+production load test is authorized.
 
 ## Scope and evidence rules
 
@@ -10,7 +12,8 @@ embedding experiments remain separate. Do not convert a spelling suggestion
 into an accepted result or change targets to improve scores.
 
 The only application change is the owner-requested suggestion quiet period:
-`SUGGEST_DELAY_MS = 120` in `apps/web/search.js`, previously 220 ms. A named
+`SUGGEST_DELAY_MS = 150` in `apps/web/search.js`, previously 220 ms. The owner
+selected 150 ms after reviewing the separate 120 ms experiment below. A named
 constant keeps the static asset explicit without adding deployment environment
 plumbing. Enter and search submission remain immediate; ranking, rewrites,
 filter preferences/defaults/reset and privacy disclosure are unchanged.
@@ -175,9 +178,8 @@ concurrency, production capacity, cold filesystem behavior or watcher overlap.
 Earlier four-session all-filter evidence already includes capacity errors;
 do not infer that 120 ms is production-safe from these error-free sequential runs.
 
-Retain the owner-requested 120 ms change for PR review, not activation. Its
-measured load tradeoff needs explicit review and separately authorized bounded
-multi-user capacity evidence before deployment. Do not tune deadlines/resources,
+The 120 ms experiment is not the selected release value. The final 150 ms
+choice and its capacity gate are recorded below. Do not tune deadlines/resources,
 add caching or redesign the UI without a demonstrated boundary and review.
 
 Transient busy retry, settled partial-timeout feedback, manual recovery, POST-only
@@ -187,6 +189,59 @@ empty intent, unavailable sources, reset, blocked/malformed storage, keyboard,
 zoom and cancellation checks. Desktop/mobile results and partial-error screenshots
 were visually inspected in real Chromium output; layouts and failure feedback
 remain readable without horizontal overflow.
+
+## Selected 150 ms and deployment gates
+
+The owner selected 150 ms, then authorized commit/push/CI, production preflight
+and merge/deployment only if all gates pass. The single-user run at
+`cff5c4867c27f8fa210f81be299d85d3f3edc7ab` uses the same frozen harness and
+evaluation bundle as the 220/120 comparison; see `local/workflow-150.json`.
+It completes all 40 tasks at rank 1 with all submitted sources ready. Recovery,
+privacy and the complete filter-preference suite pass, with desktop/mobile and
+partial-error screenshots visually inspected.
+
+| Viewport/cadence | Suggestions, min/median/max ms | Submitted results, min/median/max ms |
+| --- | --- | --- |
+| Desktop/60 ms, n=15 | 168.0/200.7/216.9 | 28.7/65.9/103.4 |
+| Desktop/180 ms, n=5 | 163.1/203.9/211.6 | 29.0/60.7/70.9 |
+| Mobile/60 ms, n=15 | 248.0/259.4/279.5 | 111.9/121.1/126.6 |
+| Mobile/180 ms, n=5 | 250.3/256.0/263.9 | 113.0/115.6/122.6 |
+
+The fast-cadence suggestion medians improve by 69.3 ms desktop and 71.8 ms
+mobile against 220 ms. Slower typing still sends 276 suggestions per viewport,
+not the baseline's 15. Server telemetry is 817 HTTP 200 responses; first text
+HTTP is 20.7 ms and API peak memory 197.6 MiB. This sequential result is not
+multi-user acceptance or an error-free production claim.
+
+The production preflight observes revision `1d1e8b4` with database SHA-256
+`0c4936ccc405388e66b17791eea5d86e0148054930ec3c187dc2b6a997ce261d` and
+dataset identity
+`60c3c2d3a12de1d84ef17644765869eb0309ccc5e1e8e7957eaf876622cc72e0`.
+The evaluation selection differs in transformation and recorded lockfile identity,
+not selected source facts. Do not substitute that evaluation artifact during this
+code-only update. A local rebuild using the deployed selection identities must
+match the production database exactly before capacity/deployment preparation.
+
+Initial bounded four-browser comparison uses the exact deployed database and
+the same one-CPU/512 MiB API. Four independent Chromium processes execute the
+40-observation script against one shared API/edge per phase. The 220 ms phase
+completes 160/160 tasks with no missing final suggestions and three server busy
+429s alongside 1,033 HTTP 200s; query privacy and recovery pass. The initial
+150 ms phase stops in two sessions on a missing JGP service date and establishes
+no complete acceptance report. The harness formerly required a date even for
+failed source states. Capture these failures explicitly and repeat both phases;
+do not waive the final all-sources-ready/rank/completion gate or report the
+incomplete run as success. The initial 220 ms report is `local/capacity-220.json`.
+
+Initial host access is fresh dedicated-key SSH with the pinned host key. The
+read-only state check reports healthy API/edge, 1,253 MiB available memory,
+18.5 GiB free disk and the expected operational service identities. Package
+visibility preflight is blocked because local GitHub authentication lacks
+`read:packages`; restore that access before continuing production work.
+CI and container/browser checks pass on `cff5c48`, but new harness/evidence
+commits need their own final-head checks. No merge or activation is established
+by these observations. Deployment must preserve the exact bundle, operational
+services and prior rollback identities, and use reviewed exact main artifacts.
 
 ## Remaining practitioner protocol
 
@@ -201,8 +256,8 @@ raw medical queries, screen recordings or HIS screenshots. Review proposed
 gold targets and safety contradictions before accepting clinical relevance.
 There is no practitioner session or incumbent access in this engineering run.
 Those acceptance items, faster-than-incumbent claims and actual-host SLOs stay
-open. No production load test, resource tuning or infrastructure change is
-authorized by this PR.
+open. Conditional validation deployment does not authorize a production load
+test, resource tuning or infrastructure change.
 
 ## Reproduction
 

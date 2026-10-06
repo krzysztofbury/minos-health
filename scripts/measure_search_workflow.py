@@ -133,6 +133,9 @@ def measure(
                         )
         if not search_status_counts:
             raise ValueError("workflow search telemetry was not observed")
+        status, readiness, _ = get_json(base, "/readyz")
+        if status != 200 or readiness.get("status") != "ready":
+            raise ValueError("workflow readiness did not recover after browser load")
         peak = int(
             docker(
                 "exec",
@@ -182,6 +185,7 @@ def measure(
                 "api_peak_memory_bytes": peak,
                 "query_free_container_logs": True,
                 "api_search_status_counts": search_status_counts,
+                "readiness_after_browser_load": True,
             }
         )
         _ = (output / "workflow.json").write_text(json.dumps(workflow, indent=2) + "\n")
