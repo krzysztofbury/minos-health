@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { waitForDevToolsPort } from "./devtools-port.mjs";
 
 const [, , executable, url, output] = process.argv;
 assert.ok(executable && url && output);
@@ -24,13 +25,7 @@ async function pageTarget(port) {
 
 let socket;
 try {
-  let port;
-  // Same 60 s startup window as sources-browser.mjs; slow CI runners need >10 s.
-  for (let i = 0; i < 1200; i++) {
-    try { port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; }
-    catch { if (browser.exitCode !== null) throw new Error("browser startup failed"); await new Promise((resolve) => setTimeout(resolve, 50)); }
-  }
-  assert.ok(port);
+  const port = await waitForDevToolsPort(browser, profile);
   socket = new WebSocket((await pageTarget(port)).webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
   let id = 0;

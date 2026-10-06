@@ -113,6 +113,18 @@ READ_PREFLIGHT_SCENARIOS = (
     ),
 )
 
+ACCEPTANCE_PROVIDER_SCENARIOS = tuple(
+    Scenario("acceptance_operator_boundary", action, resource, expected)
+    for action in ("s3:GetAccelerateConfiguration", "s3:GetReplicationConfiguration")
+    for resource, expected in (
+        (
+            f"arn:aws:s3:::minos-health-watcher-acceptance-{ACCOUNT}-0123456789abcdef",
+            "allowed",
+        ),
+        ("arn:aws:s3:::unrelated-bucket", "implicitDeny"),
+    )
+)
+
 PRODUCTION_PROVIDER_SCENARIOS = (
     Scenario(
         "production_operator_boundary",
@@ -461,6 +473,7 @@ def main() -> int:
         )
         scenarios = (
             SCENARIOS
+            + ACCEPTANCE_PROVIDER_SCENARIOS
             + (READ_PREFLIGHT_SCENARIOS if is_read_preflight_update(document) else ())
             + (
                 PRODUCTION_PROVIDER_SCENARIOS

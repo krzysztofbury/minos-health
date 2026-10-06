@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { waitForDevToolsPort } from "./devtools-port.mjs";
 
 const [, , chromium, pageUrl, rskFixture, bawFixture, outputDirectory] = process.argv;
 assert.ok(chromium && pageUrl && rskFixture && bawFixture && outputDirectory);
@@ -57,15 +58,7 @@ async function pageTarget(port) {
 }
 
 async function connect(profile, process) {
-  let port;
-  for (let attempt = 0; attempt < 1200; attempt++) {
-    try { port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0]; break; }
-    catch {
-      if (process.exitCode !== null) throw new Error("Chromium exited before starting CDP");
-      await new Promise((resolve) => setTimeout(resolve, 50));
-    }
-  }
-  assert.ok(port, "Chromium did not start CDP");
+  const port = await waitForDevToolsPort(process, profile);
   const target = await pageTarget(port);
   const socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {

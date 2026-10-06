@@ -43,23 +43,28 @@ day-to-day order.
       mutation or fault injection, integration, and pair-programmer review gates
       for implementation chunks.
 
-## Owner-Ordered Next Work (2026-10-05)
+## Owner-Ordered Validation Work (2026-10-06)
 
-Finish the reviewed #20/#31 merge and guarded deployment first. Then execute
-these phases strictly in order, not as parallel branches:
+#20/#31 merged in #139 and deployed at `1d1e8b4` on 2026-10-05. The owner
+accepted the real ICD-9 Markdown diff. On 2026-10-06 the owner reprioritized
+client validation over unattended-release infrastructure and requested merging
+only the useful completed subset of #140.
 
-1. [ ] #19/#21: close the archive-to-application freshness gap. Select exact
-       verified archive changes, build and validate pinned complete candidates,
-       automatically activate passing routine data-only updates, retain/restore
-       the last good compatible set on failure, and deliver durable detailed
-       privacy-safe Telegram alerts. Capture alone never advances application
-       activation; actual promotion, rollback and notification evidence is required.
-2. [ ] #126 and #25/#42: strengthen relevance safety and measure actual
+Immediate cleanup: retain #19's exact-version S3 build adapter, its focused
+real-S3 evidence and scoped acceptance repairs, plus Chromium startup reliability.
+The smaller branch is `feat/validation-archive-build`. The existing artifact
+manifest is unchanged; transport pins stay separate. #19 remains open for
+hosted complete real-source determinism and workflow-role acceptance, not more
+parser work. See [archive processing](docs/v0.0.1/archive-processing.md).
+
+Then execute these client-facing phases in order:
+
+1. [ ] #126 and #25/#42: strengthen relevance safety and measure actual
        user-visible performance before further search expansion. Preserve the
        unchanged gold sets, obtain practitioner and independent held-out review,
        record hosted evaluation, and measure complete user workflows and
        representative capacity rather than inferring them from quiet probes.
-3. [ ] #34-#36: build the explainable grouper with deterministic encounter
+2. [ ] #34-#36: build the explainable grouper with deterministic encounter
        validation and source-backed traces. #37 practitioner gold encounters and
        #46/#129 modifier/legal reconciliation remain gates; unbound modifiers
        must never be interpreted as no modifiers or base points as final tariffs.
@@ -69,6 +74,21 @@ review/merge its PR before starting the next phase; run its relevant runtime,
 integration, fault and representative-performance gates before deployment.
 Update this checklist and its evidence before closing delivered issues. Do not
 combine the phases into one branch or weaken blocked acceptance to clear an issue.
+
+Deferred: #21 unattended processing/activation and its authority, OCI, signing,
+journal and detailed-notification work are parked in
+[#141](https://github.com/krzysztofbury/minos-health/issues/141). Preserve #140
+and `feat/archive-application-freshness`; do not merge unused foundations.
+Continue reviewed validation updates. Automatic activation is not a prerequisite
+for the phases above. #41's signed-release obligation and all source, privacy,
+applicability and last-good rollback requirements remain intact.
+
+The owner-applied GitHub OIDC subject customization passed the non-AWS hosted
+[attempt-2 rehearsal](https://github.com/krzysztofbury/minos-health/actions/runs/37372958134/attempts/2).
+This is observed claim shape, not AWS trust or activation acceptance. The old
+archive-reader IAM subject was not repaired; future live changes require an
+exact reviewed plan. No new IAM/KMS/host changes or activation are approved.
+Dictionary and embedding experiments remain separate and use unchanged gold sets.
 
 ## Reference Delivery Sequence (2026-10-02, reconciled 2026-10-05)
 

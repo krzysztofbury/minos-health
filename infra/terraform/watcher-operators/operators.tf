@@ -180,8 +180,8 @@ locals {
         Action = [
           "s3:GetBucketLocation", "s3:GetBucketTagging", "s3:PutBucketTagging",
           "s3:GetBucketCORS", "s3:GetBucketWebsite",
-          "s3:GetBucketAccelerateConfiguration", "s3:GetBucketRequestPayment",
-          "s3:GetBucketLogging", "s3:GetBucketReplication",
+          "s3:GetAccelerateConfiguration", "s3:GetBucketRequestPayment",
+          "s3:GetBucketLogging", "s3:GetReplicationConfiguration",
           "s3:GetBucketObjectLockConfiguration",
           "s3:GetBucketVersioning", "s3:PutBucketVersioning",
           "s3:GetBucketPolicy", "s3:PutBucketPolicy", "s3:DeleteBucketPolicy",

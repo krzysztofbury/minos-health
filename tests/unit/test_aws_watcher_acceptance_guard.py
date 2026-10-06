@@ -1077,6 +1077,7 @@ class FakeIam:
         self.role_error_code: str | None = None
         self.role_id = ROLE_ID
         self.permissions_boundary_arn = EXPECTED_PERMISSIONS_BOUNDARY_ARN
+        self.permissions_boundary_type = "PermissionsBoundaryPolicy"
         self.requested_role_names: list[object] = []
         self.policy_names = [f"{expected_role_name(RUN_ID)}-archive"]
         self.attached: list[dict[str, str]] = []
@@ -1101,7 +1102,7 @@ class FakeIam:
                 "Arn": f"arn:aws:iam::{ACCOUNT_ID}:role/{role_name}",
                 "RoleId": self.role_id,
                 "PermissionsBoundary": {
-                    "PermissionsBoundaryType": "PermissionsBoundaryPolicy",
+                    "PermissionsBoundaryType": self.permissions_boundary_type,
                     "PermissionsBoundaryArn": self.permissions_boundary_arn,
                 },
                 "Tags": self.tags,
@@ -1139,6 +1140,7 @@ class FakeS3:
             "RestrictPublicBuckets": True,
         }
         self.lifecycle_drift = False
+        self.abort_filter: dict[str, object] = {}
 
     def head_bucket(self, **kwargs: object) -> Mapping[str, Any]:
         self.requested_head_buckets.append(kwargs.get("Bucket"))
@@ -1231,7 +1233,7 @@ class FakeS3:
             {
                 "ID": "abort-incomplete-multipart-uploads",
                 "Status": "Enabled",
-                "Filter": {},
+                "Filter": self.abort_filter,
                 "AbortIncompleteMultipartUpload": {"DaysAfterInitiation": 7},
             }
         )
@@ -1297,6 +1299,76 @@ def test_live_resource_guard_checks_names_identity_and_tags() -> None:
 
     iam = FakeIam(_aws_tags())
     iam.permissions_boundary_arn = "arn:aws:iam::218375352108:policy/wrong"
+    with pytest.raises(GuardError, match="permissions boundary"):
+        validate_aws_resources(
+            FakeSts(),
+            FakeS3([]),
+            iam,
+            bucket=expected_bucket_name(RUN_ID),
+            role_name=expected_role_name(RUN_ID),
+            role_id=ROLE_ID,
+            run_id=RUN_ID,
+            operator_arn=OPERATOR_ARN,
+            region=REGION,
+        )
+
+
+@pytest.mark.parametrize("abort_filter", [{}, {"Prefix": ""}])
+def test_live_lifecycle_accepts_only_equivalent_whole_bucket_abort_filter(
+    abort_filter: dict[str, object],
+) -> None:
+    s3 = FakeS3([])
+    s3.abort_filter = abort_filter
+    assert (
+        validate_aws_resources(
+            FakeSts(),
+            s3,
+            FakeIam(_aws_tags()),
+            bucket=expected_bucket_name(RUN_ID),
+            role_name=expected_role_name(RUN_ID),
+            role_id=ROLE_ID,
+            run_id=RUN_ID,
+            operator_arn=OPERATOR_ARN,
+            region=REGION,
+        )
+        == "active"
+    )
+    s3.abort_filter = {"Prefix": "blobs/"}
+    with pytest.raises(GuardError, match="lifecycle rules"):
+        validate_aws_resources(
+            FakeSts(),
+            s3,
+            FakeIam(_aws_tags()),
+            bucket=expected_bucket_name(RUN_ID),
+            role_name=expected_role_name(RUN_ID),
+            role_id=ROLE_ID,
+            run_id=RUN_ID,
+            operator_arn=OPERATOR_ARN,
+            region=REGION,
+        )
+
+
+@pytest.mark.parametrize("boundary_type", ["Policy", "PermissionsBoundaryPolicy"])
+def test_live_boundary_accepts_service_and_sdk_type_with_exact_arn(
+    boundary_type: str,
+) -> None:
+    iam = FakeIam(_aws_tags())
+    iam.permissions_boundary_type = boundary_type
+    assert (
+        validate_aws_resources(
+            FakeSts(),
+            FakeS3([]),
+            iam,
+            bucket=expected_bucket_name(RUN_ID),
+            role_name=expected_role_name(RUN_ID),
+            role_id=ROLE_ID,
+            run_id=RUN_ID,
+            operator_arn=OPERATOR_ARN,
+            region=REGION,
+        )
+        == "active"
+    )
+    iam.permissions_boundary_type = "UnknownBoundary"
     with pytest.raises(GuardError, match="permissions boundary"):
         validate_aws_resources(
             FakeSts(),

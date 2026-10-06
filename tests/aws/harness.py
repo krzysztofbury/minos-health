@@ -60,13 +60,15 @@ class ManifestRecordingS3Client:
         return getattr(self._client, name)
 
     def put_object(self, **kwargs: object) -> Any:
+        key = _key_argument(kwargs)
         response = self._client.put_object(**kwargs)
-        self._record_response(_key_argument(kwargs), response, "version")
+        self._record_response(key, response, "version")
         return response
 
     def copy_object(self, **kwargs: object) -> Any:
+        key = _key_argument(kwargs)
         response = self._client.copy_object(**kwargs)
-        self._record_response(_key_argument(kwargs), response, "version")
+        self._record_response(key, response, "version")
         return response
 
     def delete_object(self, **kwargs: object) -> Any:
@@ -96,6 +98,7 @@ def _key_argument(arguments: dict[str, object]) -> str:
     key = arguments.get("Key")
     if not isinstance(key, str):
         raise RuntimeError("S3 operation does not contain a valid object key")
+    validate_acceptance_key(key)
     return key
 
 
