@@ -111,6 +111,7 @@ def measure(
                 timeout=180,
                 check=True,
             )
+        search_status_counts: dict[str, int] = {}
         for container in (api, edge):
             logs = docker("logs", container)
             task_data = cast(
@@ -119,6 +120,19 @@ def measure(
             for task in task_data["tasks"]:
                 if task["query"] in logs:
                     raise ValueError("workflow query appeared in logs")
+            if container == api:
+                for line in logs.splitlines():
+                    _, separator, tail = line.partition("{")
+                    if not separator:
+                        continue
+                    event = cast(dict[str, object], json.loads("{" + tail))
+                    if event.get("route") == "/api/v1/search":
+                        status_code = str(event["status_code"])
+                        search_status_counts[status_code] = (
+                            search_status_counts.get(status_code, 0) + 1
+                        )
+        if not search_status_counts:
+            raise ValueError("workflow search telemetry was not observed")
         peak = int(
             docker(
                 "exec",
@@ -167,6 +181,7 @@ def measure(
                 "first_server_text_http_ms": cold_ms,
                 "api_peak_memory_bytes": peak,
                 "query_free_container_logs": True,
+                "api_search_status_counts": search_status_counts,
             }
         )
         _ = (output / "workflow.json").write_text(json.dumps(workflow, indent=2) + "\n")

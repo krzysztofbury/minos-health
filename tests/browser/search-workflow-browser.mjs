@@ -35,7 +35,7 @@ try {
   socket = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener("open", resolve, { once: true }); socket.addEventListener("error", reject, { once: true }); });
   let id = 0;
-  const pending = new Map(), errors = [], requests = [];
+  const pending = new Map(), errors = [], requests = [], requestStates = new Map();
   socket.addEventListener("message", ({ data }) => {
     const message = JSON.parse(data);
     if (message.id) {
@@ -48,8 +48,16 @@ try {
       if (request.url.endsWith("/api/v1/search")) {
         assert.equal(request.method, "POST");
         const body = JSON.parse(request.postData);
-        requests.push({ system: body.system, limit: body.limit });
+        const state = { system: body.system, limit: body.limit, status: null, cancelled: false };
+        requests.push(state);
+        requestStates.set(message.params.requestId, state);
       }
+    } else if (message.method === "Network.responseReceived") {
+      const state = requestStates.get(message.params.requestId);
+      if (state) state.status = message.params.response.status;
+    } else if (message.method === "Network.loadingFailed") {
+      const state = requestStates.get(message.params.requestId);
+      if (state) state.cancelled = Boolean(message.params.canceled);
     }
   });
   const send = (method, params = {}) => new Promise((resolve, reject) => {
@@ -81,11 +89,17 @@ try {
     // Timestamp DOM completion in the page, then wait two animation frames.
     // Polling only retrieves that timestamp; it does not add 50 ms to latency.
     await evaluate(`window.observation = {};
-      const observer = new MutationObserver(() => {
+      const observer = new MutationObserver(records => {
         const state = window.observation;
-        if (state.suggestStart !== undefined && state.suggestEnd === undefined && document.querySelector('#suggestions .suggestion')) {
+        const popup = document.querySelector('#suggestions');
+        const changed = records.some(record => record.target === popup || popup.contains(record.target));
+        if (changed && state.suggestStart !== undefined && state.suggestEnd === undefined && document.querySelector('#suggestions .suggestion')) {
+          const generation = state.suggestGeneration;
+          const query = document.querySelector('#query').value;
           state.suggestEnd = null;
-          requestAnimationFrame(() => requestAnimationFrame(() => { state.suggestEnd = performance.now(); }));
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            if (state.suggestGeneration === generation && document.querySelector('#query').value === query) state.suggestEnd = performance.now();
+          }));
         }
         if (state.submitStart !== undefined && state.resultEnd === undefined && ${settled}) {
           state.resultEnd = null;
@@ -101,20 +115,23 @@ try {
   };
   await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable");
   const version = await send("Browser.getVersion");
+  await home();
+  const debounce_ms = await evaluate("fetch('/search.js').then(response => response.text()).then(body => Number((body.match(/SUGGEST_DELAY_MS = ([0-9]+)/) || body.match(/setTimeout[(]suggest, ([0-9]+)[)]/))[1]))");
   const rows = [];
   for (const [device, width, height, latency] of [["desktop",1440,1000,0], ["mobile",390,844,80]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     await send("Network.emulateNetworkConditions", { offline: false, latency, downloadThroughput: latency ? 2000000 : -1, uploadThroughput: latency ? 500000 : -1 });
-    for (let repetition = 0; repetition < 3; repetition++) {
+    for (const [typing_cadence_ms, repetitions] of [[60, 3], [180, 1]]) {
+    for (let repetition = 0; repetition < repetitions; repetition++) {
       for (const task of tasks) {
         await home();
         const offset = requests.length;
         await evaluate('document.querySelector("#query").focus(); window.observation.typingStart = performance.now()');
         for (const character of task.query) {
           // Last input event is the keypress-to-suggestions origin, including debounce.
-          await evaluate("window.observation.suggestStart = performance.now(); delete window.observation.suggestEnd");
+          await evaluate("window.observation.suggestGeneration = (window.observation.suggestGeneration || 0) + 1; window.observation.suggestStart = performance.now(); delete window.observation.suggestEnd");
           await send("Input.insertText", { text: character });
-          await new Promise(resolve => setTimeout(resolve, 60));
+          await new Promise(resolve => setTimeout(resolve, typing_cadence_ms));
         }
         await wait('Number.isFinite(window.observation.suggestEnd) || performance.now()-window.observation.suggestStart >= 3000');
         const suggestion = await evaluate('({suggestion_ms: Number.isFinite(window.observation.suggestEnd) ? window.observation.suggestEnd-window.observation.suggestStart : null, typing_ms: window.observation.suggestStart-window.observation.typingStart})');
@@ -131,7 +148,7 @@ try {
         })()`);
         assert.match(observed.service_date || '', /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/, "Displayed service date must be recorded");
         const calls = requests.slice(offset);
-        if (repetition === 0) await snapshot(`${device}-${task.id}`);
+        if (repetition === 0 && typing_cadence_ms === 60) await snapshot(`${device}-${task.id}`);
         let detail_ms = null;
         if (observed.completed) {
           const started = performance.now();
@@ -141,9 +158,10 @@ try {
           await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))');
           detail_ms = performance.now() - started;
         }
-        rows.push({ id: task.id, device, repetition, cache: repetition ? "warm_browser" : "first_pass", emulated_latency_ms: latency, ...suggestion, ...observed, detail_ms, search_requests: calls });
+        rows.push({ id: task.id, device, repetition, typing_cadence_ms, cache: repetition || typing_cadence_ms === 180 ? "warm_browser" : "first_pass", emulated_latency_ms: latency, ...suggestion, ...observed, detail_ms, search_requests: calls });
         assert.equal(await evaluate("Boolean(localStorage.length || sessionStorage.length || document.cookie)"), false);
       }
+    }
     }
   }
   // A transport-only local fault exercises the unchanged all-source UI.
@@ -167,7 +185,7 @@ try {
   await wait(ready);
   assert.deepEqual(errors, []);
   await writeFile(path.join(output, "workflow.json"), JSON.stringify({
-    browser: version.product, rows,
+    browser: version.product, debounce_ms, rows,
     limitations: "Local packaged API/edge, no production contention. Mobile viewport with emulated latency is not physical mobile hardware. Scripted completion/rank, not practitioner errors, confusion or incumbent comparison. Detail includes up to 50ms polling. First pass is not guaranteed cold server.",
     faults: {transient_busy_retry: "passed", partial_timeout_not_empty: "passed", manual_recovery: "passed"},
     privacy: "POST-only searches; no query URLs, cookies or storage"
