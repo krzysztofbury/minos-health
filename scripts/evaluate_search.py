@@ -267,7 +267,8 @@ def main() -> None:
     args = Arguments()
     _ = parser.parse_args(namespace=args)
     try:
-        gold = GoldSet.model_validate_json(read_regular_file(args.fixture))
+        fixture_content = read_regular_file(args.fixture)
+        gold = GoldSet.model_validate_json(fixture_content)
         if args.gate_reviewed and args.candidate_synonyms is not None:
             raise EvaluationError("candidate evaluation cannot be a release gate")
         candidates: tuple[SearchSynonym, ...] = ()
@@ -276,9 +277,7 @@ def main() -> None:
             content = read_regular_file(args.candidate_synonyms)
             candidates = TypeAdapter(tuple[SearchSynonym, ...]).validate_json(content)
         report = evaluate(args.bundle, gold, index=args.index, candidates=candidates)
-        report["fixture_sha256"] = hashlib.sha256(
-            read_regular_file(args.fixture)
-        ).hexdigest()
+        report["fixture_sha256"] = hashlib.sha256(fixture_content).hexdigest()
         report["index"] = args.index
         if content:
             report["candidate_input_sha256"] = hashlib.sha256(content).hexdigest()

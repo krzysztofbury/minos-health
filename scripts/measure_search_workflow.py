@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 from typing import cast, final
 
+from minos.domain.reference import ReferenceError
 from minos.store.artifact import dataset_identity
 from minos.store.reference import read_artifact_manifest
 from scripts.check_reference_web import get_json
@@ -67,6 +68,8 @@ def measure(
         status, metadata, _ = get_json(base, "/api/v1/releases")
         if status != 200:
             raise ValueError("workflow metadata unavailable")
+        if metadata.get("dataset_id") != dataset_identity(manifest.dataset):
+            raise ValueError("workflow runtime dataset conflicts with bundle")
         source = next(
             source
             for source in cast(list[dict[str, str]], metadata["releases"])
@@ -189,7 +192,14 @@ def main() -> None:
     _ = parser.add_argument("--chromium", default="chromium")
     args = Arguments()
     _ = parser.parse_args(namespace=args)
-    measure(args.bundle, args.output, args.api_image, args.edge_image, args.chromium)
+    try:
+        measure(
+            args.bundle, args.output, args.api_image, args.edge_image, args.chromium
+        )
+    except ReferenceError, ValueError, OSError, subprocess.SubprocessError:
+        parser.exit(
+            2, "Local workflow observation failed; no acceptance report established.\n"
+        )
 
 
 if __name__ == "__main__":

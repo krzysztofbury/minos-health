@@ -101,9 +101,6 @@ try {
   };
   await send("Page.enable"); await send("Runtime.enable"); await send("Network.enable");
   const version = await send("Browser.getVersion");
-  const metadataURL = new URL("/api/v1/releases", url);
-  metadataURL.hostname = "127.0.0.1";
-  const metadata = await (await fetch(metadataURL, { headers: { Host: "minoshealth.pl" } })).json();
   const rows = [];
   for (const [device, width, height, latency] of [["desktop",1440,1000,0], ["mobile",390,844,80]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
@@ -166,8 +163,7 @@ try {
   await wait(ready);
   assert.deepEqual(errors, []);
   await writeFile(path.join(output, "workflow.json"), JSON.stringify({
-    browser: version.product, database_sha256: metadata.database_sha256,
-    dataset_id: metadata.dataset_id, rows,
+    browser: version.product, rows,
     limitations: "Local packaged API/edge, no production contention. Mobile viewport with emulated latency is not physical mobile hardware. Scripted completion/rank, not practitioner errors, confusion or incumbent comparison. Detail includes up to 50ms polling. First pass is not guaranteed cold server.",
     faults: {transient_busy_retry: "passed", partial_timeout_not_empty: "passed", manual_recovery: "passed"},
     privacy: "POST-only searches; no query URLs, cookies or storage"
