@@ -7,14 +7,22 @@ Conditions, selection and points remain #35.
 
 import sqlite3
 from datetime import date
-from typing import cast
+from typing import NoReturn, cast
 
 from minos.domain.encounter import Encounter
 from minos.domain.grouper import ExecutionKey, GrouperError
 from minos.domain.grouper_candidates import CandidateResult, Catalog
-from minos.domain.grouper_rules import GroupingResult, GroupRules
+from minos.domain.grouper_rules import (
+    GroupingResult,
+    GroupRules,
+    ModifierBindingUnbound,
+    ModifierEligibilityUnsupported,
+    StayFacts,
+)
+from minos.domain.reference import SourceError
 from minos.grouper.candidates import derive
 from minos.grouper.conditions import evaluate_group, facts_from
+from minos.grouper.points import base_points
 from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.grouper.szp_2026 import ENGINE_VERSION
 from minos.store.grouper_bundle import (
@@ -25,6 +33,8 @@ from minos.store.grouper_bundle import (
     load_graph,
 )
 from minos.store.grouper_rules import group_rules
+from minos.store.jgp_modifier_binding import require_modifier_binding
+from minos.store.jgp_ruleset import resolve_ruleset
 from minos.store.query_budget import query_budget
 
 
@@ -89,7 +99,7 @@ def evaluate_candidates(
     service_date: date,
     reporting_month: date,
 ) -> GroupingResult:
-    """Candidates plus the approved-subset verdict for each, in candidate order."""
+    """Candidates, approved-subset verdicts, base points and the valid ranking."""
     candidates, graphs = _prepare(
         connection, dataset_id, encounter, service_date, reporting_month
     )
@@ -105,10 +115,53 @@ def evaluate_candidates(
             codes,
         ):
             rules[(item.catalog, item.code)] = item
+    stay = StayFacts(
+        encounter.hospitalization_type,
+        encounter.admitted_on == encounter.discharged_on,
+        facts.days,
+    )
+    chosen = [rules[(c.catalog, c.group)] for c in candidates.candidates]
+    evaluations = tuple(evaluate_group(item, facts) for item in chosen)
+    points = tuple(base_points(item, stay) for item in chosen)
+    valid = [
+        (evaluation, amount.total_hundredths)
+        for evaluation, amount in zip(evaluations, points, strict=True)
+        if evaluation.status == "valid"
+    ]
+    # Unknown points sort after known ones; ties keep catalog and code order.
+    valid.sort(
+        key=lambda item: (
+            item[1] is None,
+            -(item[1] or 0),
+            item[0].catalog,
+            item[0].group,
+        )
+    )
     return GroupingResult(
         candidates,
-        tuple(
-            evaluate_group(rules[(c.catalog, c.group)], facts)
-            for c in candidates.candidates
-        ),
+        evaluations,
+        points,
+        tuple((evaluation.catalog, evaluation.group) for evaluation, _ in valid),
+    )
+
+
+def final_points(connection: sqlite3.Connection, result: GroupingResult) -> NoReturn:
+    """#35 step 4: base points are never returned as final points.
+
+    An unbound, missing or mismatched MODTAR binding refuses explicitly. A
+    reviewed binding still refuses until modifier eligibility is evaluated;
+    that is a distinct error, never "no modifiers apply".
+    """
+    sources = result.candidates.sources
+    ruleset = resolve_ruleset(connection, sources.service_date, None)
+    if ruleset["release_id"] != sources.catalog_release_id:
+        raise GrouperError("final points ruleset conflicts with grouping sources")
+    try:
+        _ = require_modifier_binding(connection, ruleset)
+    except SourceError as error:
+        raise ModifierBindingUnbound(
+            "final points need a reviewed MODTAR binding for the service date"
+        ) from error
+    raise ModifierEligibilityUnsupported(
+        "modifier eligibility is not evaluated; no final points"
     )

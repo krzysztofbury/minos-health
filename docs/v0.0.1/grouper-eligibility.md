@@ -1,10 +1,11 @@
-# Grouper Eligibility: Approved Condition Subset
+# Grouper Eligibility, Base Points And Ranking
 
-Issue #35, first chunk. Entry point: `minos.grouper.pipeline.evaluate_candidates`.
-It derives candidates (#34, [grouper execution](grouper-execution.md)) and
-evaluates each against the owner-approved executable subset of attachment 9
-(decision 2026-10-07 in `decisions.md`). Base points and modifiers come in later
-chunks; this result carries `scope="conditions_without_points"`.
+Issue #35. Entry point: `minos.grouper.pipeline.evaluate_candidates`. It
+derives candidates (#34, [grouper execution](grouper-execution.md)), evaluates
+each against the owner-approved executable subset of attachment 9 (decision
+2026-10-07 in `decisions.md`), attaches catalog base points for the settlement
+mode and ranks the valid groups. The result carries
+`scope="base_points_without_modifiers"`; `final_points` always refuses.
 
 ## Result
 
@@ -35,6 +36,41 @@ discharge mode, clinical measures, programme membership, ORPHA codes, `not`,
 `when`, unsupported extractions, unexpanded classification families and groups
 with several reference roots.
 
+## Base Points And Ranking
+
+`base_points` reads the governing catalog row's measures (points in hundredths)
+and labels every answer `catalog_base_points_without_modifiers`. Columns follow
+the attachment 1a headers:
+
+| Settlement | Catalog 1a column |
+| --- | --- |
+| `one_day` type, admission = discharge date | G, one-day treatment |
+| Admission = discharge date | I, same-day value |
+| Algorithm duration 1 or 2 days | J or K |
+| Otherwise | E (hospitalization) or F (planned) |
+| Hospitalization type, duration over H financed days | plus (duration - H) x L |
+
+A blank short-stay column keeps the group's standard value and is labelled
+`short_stay_column_blank`; this reading of a blank cell is visible in every
+answer. Catalog 1ae uses its own columns; its same-day and one-day stays depend
+on a stay under 12 hours, which the encounter does not report, so they stay
+undetermined. Points are also undetermined without a unique governing row, a
+known product-free duration, a value for the reported mode, or consistent
+one-day dates.
+
+`ranking` lists exactly the valid groups, highest known total first (unknown
+totals last, then catalog and code). Per paragraph 113 it is a choice for the
+provider, not a single answer.
+
+## Final Points Refusal
+
+`final_points(connection, result)` never returns base points as final points.
+Without a reviewed MODTAR binding for the service date it raises
+`ModifierBindingUnbound` (every real bundle today; #46, #129). With a reviewed
+binding it raises `ModifierEligibilityUnsupported`, because contract, provider
+and legal-clause eligibility facts are not evaluated. That is a distinct
+error, never "no modifiers apply".
+
 ## Evidence
 
 Unit tests cover each rule; 13 deliberate breakages of the evaluator were each
@@ -51,6 +87,15 @@ attachment 9 labels (46/2026 after 102):
   three-procedure count is outside the subset.
 - Death discharge: every extracted discharge-mode condition is unsupported, so
   that path stays `undetermined` until a reviewed interpretation exists.
+
+- Ranking: for a 2-day child hernia, F72 (column K, 3959.00 points) ranks
+  above PZF09 (no 2-day column, standard 3598.00 points, labelled
+  `short_stay_column_blank`), and `final_points` refuses with
+  `ModifierBindingUnbound`.
+
+Base-point rules have their own unit tests; seven of eight deliberate
+breakages were caught, and the eighth (`<=` to `<` on the financed-stay limit)
+is equivalent at the boundary, where both give zero extra days.
 
 Real-data note: on the 46/2026 after-102 sheet, 491 of 629 `1a` groups are fully
 extracted and 612 have a single root. Groups using unapproved kinds stay

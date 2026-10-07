@@ -16,8 +16,9 @@ from minos.domain.encounter import (
     SettlementProduct,
     WardStay,
 )
+from minos.domain.grouper_rules import ModifierBindingUnbound
 from minos.domain.jgp_ruleset import NoRulesetForDate
-from minos.grouper.pipeline import derive_candidates, evaluate_candidates
+from minos.grouper.pipeline import derive_candidates, evaluate_candidates, final_points
 from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.ingest.grouper_algorithm import load_algorithm
 from minos.ingest.komunikat_manifest import KomunikatManifest
@@ -284,3 +285,36 @@ def test_real_pinned_ruleset_evaluates_the_approved_condition_subset() -> None:
             product_reporting="complete",
         )
         assert _statuses(stroke, day)["A49"] == status
+
+
+@pytest.mark.jgp_live
+def test_real_pinned_ruleset_ranks_valid_groups_by_catalog_base_points() -> None:
+    """Catalog 1a, 46/2026 after 102: F72 K (2-day) 3959.00, PZF09 E 3598.00
+    with no 2-day column. Paragraph 113: both valid, highest value first."""
+    day = date(2026, 10, 2)
+    child = replace(
+        _hernia(day), product_reporting="complete", birth_date=date(2021, 3, 3)
+    )
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            child,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+        points = {
+            c.group: p
+            for c, p in zip(result.candidates.candidates, result.points, strict=True)
+        }
+        assert result.ranking == (("1a", "F72"), ("1a", "PZF09"))
+        assert (points["F72"].measure, points["F72"].total_hundredths) == (
+            "two_day_stay",
+            395900,
+        )
+        assert (
+            points["PZF09"].reason,
+            points["PZF09"].total_hundredths,
+        ) == ("short_stay_column_blank", 359800)
+        with pytest.raises(ModifierBindingUnbound):
+            final_points(connection, result)

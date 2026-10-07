@@ -26,13 +26,27 @@ def group_rules(
         nodes = tuple(by_group.get(code, ()))
         with query_budget(connection):
             rows = cast(
-                list[tuple[int]],
+                list[tuple[int, int]],
                 connection.execute(
-                    """SELECT procedural FROM group_definition
+                    """SELECT source_row, procedural FROM group_definition
                     WHERE release_id=? AND catalog=? AND code=? AND service_from<=?
-                      AND (service_to IS NULL OR service_to>=?) LIMIT 9""",
+                      AND (service_to IS NULL OR service_to>=?)
+                    ORDER BY source_row LIMIT 9""",
                     (catalog_release_id, graph.catalog, code, day, day),
                 ).fetchall(),
+            )
+            values = (
+                cast(
+                    list[tuple[str, int]],
+                    connection.execute(
+                        """SELECT measure, amount FROM group_base_value
+                        WHERE release_id=? AND catalog=? AND source_row=?
+                        ORDER BY measure LIMIT 17""",
+                        (catalog_release_id, graph.catalog, rows[0][0]),
+                    ).fetchall(),
+                )
+                if len(rows) == 1
+                else []
             )
         referenced = sorted(
             {identity for node in nodes for identity in selector_ids(node.payload)}
@@ -48,10 +62,12 @@ def group_rules(
                 graph.catalog,
                 code,
                 len(rows),
-                len(rows) == 1 and rows[0][0] == 1,
+                len(rows) == 1 and rows[0][1] == 1,
                 roots.get(code, ()),
                 nodes,
                 tuple(selectors),
+                rows[0][0] if len(rows) == 1 else None,
+                tuple(values),
             )
         )
     return tuple(result)

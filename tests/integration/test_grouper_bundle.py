@@ -7,18 +7,29 @@ from collections.abc import Iterator
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from minos.domain import jgp_conditions as c
 from minos.domain.encounter import Diagnosis, Encounter, Procedure, WardStay
 from minos.domain.grouper import GrouperError
-from minos.grouper.pipeline import derive_candidates, evaluate_candidates
+from minos.domain.grouper_candidates import CandidateResult, GroupingSources
+from minos.domain.grouper_rules import (
+    GroupingResult,
+    ModifierBindingUnbound,
+    ModifierEligibilityUnsupported,
+)
+from minos.grouper.pipeline import derive_candidates, evaluate_candidates, final_points
 from minos.grouper.szp_2026 import ALGORITHM_SHA256
 from minos.ingest.jgp_conditions_codec import encode
+from minos.ingest.reference_artifact import build_reference_artifact
 from minos.store.grouper_bundle import directional_index, grouping_sources
+from minos.store.jgp_ruleset import resolve_ruleset
 from minos.store.reference import open_reference_bundle
+from tests.fixtures.grouper import encounter, key, registry
 from tests.integration.test_jgp_condition_consumers import consumer_bundle
+from tests.integration.test_jgp_modifier_binding import binding_dataset
 
 RELEASE = "conditions-current"
 
@@ -231,8 +242,57 @@ def test_pipeline_evaluates_candidates_against_the_governing_catalog(
     )
     by_group = {(e.catalog, e.group): e for e in result.evaluations}
     assert by_group[("1a", "A01")].status == status
-    assert result.scope == "conditions_without_points"
+    assert result.ranking == ((("1a", "A01"),) if status == "valid" else ())
+    a01 = result.points[[c.group for c in result.candidates.candidates].index("A01")]
+    assert a01.determined and a01.measure == "hospitalization"
+    assert result.scope == "base_points_without_modifiers"
     # AU01 and N09 have attachment 9 rows but no catalog row on the date.
-    for key in (("1ae", "AU01"), ("1a", "N09")):
-        assert by_group[key].status == "invalid"
-        assert by_group[key].reasons == ("not_in_governing_catalog",)
+    for group in (("1ae", "AU01"), ("1a", "N09")):
+        assert by_group[group].status == "invalid"
+        assert by_group[group].reasons == ("not_in_governing_catalog",)
+
+
+def test_final_points_refuse_an_unbound_modifier_binding(
+    edited: sqlite3.Connection,
+) -> None:
+    result = evaluate_candidates(
+        edited,
+        "synthetic-dataset",
+        _episode(Procedure("100.01", date(2026, 10, 2), "ward")),
+        service_date=date(2026, 10, 5),
+        reporting_month=date(2026, 10, 1),
+    )
+    assert result.points[0].kind == "catalog_base_points_without_modifiers"
+    with pytest.raises(ModifierBindingUnbound):
+        final_points(edited, result)
+
+
+@pytest.mark.parametrize(
+    ("service_date", "error"),
+    [
+        (date(2026, 10, 1), ModifierEligibilityUnsupported),
+        (date(2027, 1, 1), ModifierBindingUnbound),
+    ],
+)
+def test_reviewed_binding_still_refuses_unevaluated_eligibility(
+    tmp_path: Path, service_date: date, error: type[Exception]
+) -> None:
+    # A reviewed binding is necessary, not sufficient: eligibility facts are
+    # not evaluated, which is distinct from "no modifiers apply".
+    bundle = tmp_path / "bound"
+    _ = build_reference_artifact(binding_dataset(tmp_path), tmp_path, bundle)
+    with open_reference_bundle(bundle) as (connection, _):
+        catalog = cast(
+            str, resolve_ruleset(connection, service_date, None)["release_id"]
+        )
+        sources = GroupingSources(
+            "d", service_date, catalog, "characteristics", "icd9", "icd10", "algorithm"
+        )
+        result = GroupingResult(
+            CandidateResult(sources, registry().execute(key(), encounter()), (), ()),
+            (),
+            (),
+            (),
+        )
+        with pytest.raises(error):
+            final_points(connection, result)

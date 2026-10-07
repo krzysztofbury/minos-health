@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from minos.domain import jgp_conditions as c
+from minos.domain.encounter import HospitalizationType
 from minos.domain.grouper import GrouperError
 from minos.domain.grouper_candidates import CandidateResult, Catalog
 
@@ -38,6 +39,10 @@ class GroupRules:
     roots: tuple[int, ...]
     nodes: tuple[c.Condition, ...]
     selectors: tuple[SelectorCodes, ...]
+    # The single governing row and its catalog measures (points in hundredths,
+    # financed stays in days); empty unless exactly one row governs the date.
+    source_row: int | None = None
+    base_values: tuple[tuple[str, int], ...] = ()
 
     def __post_init__(self) -> None:
         if len(self.nodes) > MAX_GROUP_NODES:
@@ -68,15 +73,61 @@ class GroupEvaluation:
     nodes: tuple[NodeVerdict, ...]
 
 
+@dataclass(frozen=True)
+class StayFacts:
+    hospitalization_type: HospitalizationType
+    same_day: bool
+    # Algorithm duration, known only for a complete, product-free report.
+    days: int | None
+
+
+@dataclass(frozen=True, repr=False)
+class BasePoints:
+    """Catalog base points for the settlement mode; never final points."""
+
+    determined: bool
+    reason: str
+    measure: str | None = None
+    base_hundredths: int | None = None
+    extra_days: int = 0
+    extra_hundredths: int = 0
+    kind: Literal["catalog_base_points_without_modifiers"] = (
+        "catalog_base_points_without_modifiers"
+    )
+
+    @property
+    def total_hundredths(self) -> int | None:
+        if self.base_hundredths is None:
+            return None
+        return self.base_hundredths + self.extra_hundredths
+
+
 @dataclass(frozen=True, repr=False)
 class GroupingResult:
     candidates: CandidateResult
-    # One evaluation per candidate, in candidate order.
+    # One evaluation and one base-points answer per candidate, in order.
     evaluations: tuple[GroupEvaluation, ...]
-    scope: Literal["conditions_without_points"] = "conditions_without_points"
+    points: tuple[BasePoints, ...]
+    # Valid groups by base points, highest first (paragraph 113: the
+    # provider chooses; the first is the highest value, not "the" answer).
+    ranking: tuple[tuple[Catalog, str], ...]
+    scope: Literal["base_points_without_modifiers"] = "base_points_without_modifiers"
 
     def __post_init__(self) -> None:
-        if [(e.catalog, e.group) for e in self.evaluations] != [
-            (c.catalog, c.group) for c in self.candidates.candidates
-        ]:
+        order = [(c.catalog, c.group) for c in self.candidates.candidates]
+        if [(e.catalog, e.group) for e in self.evaluations] != order:
             raise GrouperError("evaluations must follow the candidates")
+        if len(self.points) != len(order):
+            raise GrouperError("base points must follow the candidates")
+        valid = {(e.catalog, e.group) for e in self.evaluations if e.status == "valid"}
+        if set(self.ranking) != valid or len(self.ranking) != len(valid):
+            raise GrouperError("ranking must list exactly the valid groups")
+
+
+class ModifierBindingUnbound(GrouperError):
+    """No reviewed MODTAR binding governs the date; final points are refused."""
+
+
+class ModifierEligibilityUnsupported(GrouperError):
+    """A reviewed binding exists, but modifier eligibility facts (contract,
+    provider, legal clauses) are not evaluated, so no final points exist."""
