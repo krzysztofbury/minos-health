@@ -326,8 +326,9 @@ def test_real_pinned_ruleset_ranks_valid_groups_by_catalog_base_points() -> None
             points["PZF09"].reason,
             points["PZF09"].total_hundredths,
         ) == ("short_stay_column_blank", 359800)
-        with pytest.raises(ModifierBindingUnbound):
-            final_points(connection, result)
+        if not manifest.dataset.modifier_bindings:
+            with pytest.raises(ModifierBindingUnbound):
+                _ = final_points(connection, manifest.dataset, result, frozenset())
 
 
 @pytest.mark.parametrize(
@@ -356,3 +357,85 @@ def test_real_pinned_death_discharge_path_follows_the_label_grammar(
         product_reporting="complete",
     )
     assert _statuses(episode, day)["D45"] == status
+
+
+@pytest.mark.jgp_live
+def test_real_pinned_final_points_apply_declared_modifiers_only() -> None:
+    """Owner rules 2026-10-07 with MODTAR generation 102 bound. Hand-checked:
+    F72 4067.00 x 1.4 (section 17(6a), declared) = 5693.80; PZF09 3598.00 x
+    1.2 (17.10, age 2, declared) = 4317.60; 17.11 (ages 3-8) is rejected and
+    17.18 stays possible (+691.39 on F72)."""
+    day = date(2026, 10, 2)
+    admitted = day - timedelta(days=5)
+    toddler = Encounter(
+        admitted,
+        day,
+        "hospitalization",
+        Diagnosis("K40.9", hospitalization_level=True),
+        (WardStay("surgery", "4500", admitted, day),),
+        procedures=(Procedure("53.03", admitted + timedelta(days=1), "surgery"),),
+        birth_date=date(2024, 3, 3),
+        product_reporting="complete",
+    )
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        if not manifest.dataset.modifier_bindings:
+            pytest.skip("bundle carries no reviewed MODTAR binding")
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            toddler,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+        answers = final_points(
+            connection, manifest.dataset, result, frozenset({"17.10", "manual-17-6a"})
+        )
+    by_group = {item.group: item for item in answers}
+    assert [item.group for item in answers] == ["F72", "PZF09"]
+    assert by_group["F72"].total_hundredths == 569380
+    assert by_group["PZF09"].total_hundredths == 431760
+    outcomes = {d.symbol: d.outcome for d in by_group["PZF09"].decisions}
+    assert outcomes["17.11"] == "rejected"
+    gain = next(d for d in by_group["F72"].decisions if d.symbol == "17.18")
+    assert (gain.outcome, gain.would_add_hundredths) == ("possible", 69139)
+
+
+@pytest.mark.parametrize(
+    ("day", "total", "applied"),
+    [(date(2026, 9, 30), 406700, False), (date(2026, 10, 1), 569380, True)],
+)
+@pytest.mark.jgp_live
+def test_real_pinned_final_points_across_the_october_supplement_boundary(
+    day: date, total: int, applied: bool
+) -> None:
+    """Section 17(6a) starts on 2026-10-01 (102/2026 section 4(4)). F72
+    standard value 4067.00; with the declared bilateral supplement x 1.4 =
+    5693.80 from October only."""
+    admitted = day - timedelta(days=5)
+    adult = Encounter(
+        admitted,
+        day,
+        "hospitalization",
+        Diagnosis("K40.2", hospitalization_level=True),
+        (WardStay("surgery", "4500", admitted, day),),
+        procedures=(Procedure("53.03", admitted + timedelta(days=1), "surgery"),),
+        birth_date=date(1975, 3, 3),
+        product_reporting="complete",
+    )
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        if not manifest.dataset.modifier_bindings:
+            pytest.skip("bundle carries no reviewed MODTAR binding")
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            adult,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+        answers = final_points(
+            connection, manifest.dataset, result, frozenset({"manual-17-6a"})
+        )
+    f72 = next(item for item in answers if item.group == "F72")
+    assert f72.total_hundredths == total
+    symbols = {d.symbol for d in f72.decisions if d.outcome == "applied"}
+    assert ("manual-17-6a" in symbols) is applied

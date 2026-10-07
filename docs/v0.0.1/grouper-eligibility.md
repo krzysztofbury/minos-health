@@ -5,7 +5,8 @@ derives candidates (#34, [grouper execution](grouper-execution.md)), evaluates
 each against the owner-approved executable subset of attachment 9 (decision
 2026-10-07 in `decisions.md`), attaches catalog base points for the settlement
 mode and ranks the valid groups. The result carries
-`scope="base_points_without_modifiers"`; `final_points` always refuses.
+`scope="base_points_without_modifiers"`; `final_points` adds reviewed
+modifiers on request.
 
 ## Result
 
@@ -64,14 +65,31 @@ one-day dates.
 totals last, then catalog and code). Per paragraph 113 it is a choice for the
 provider, not a single answer.
 
-## Final Points Refusal
+## Final Points
 
-`final_points(connection, result)` never returns base points as final points.
-Without a reviewed MODTAR binding for the service date it raises
-`ModifierBindingUnbound` (every real bundle today; #46, #129). With a reviewed
-binding it raises `ModifierEligibilityUnsupported`, because contract, provider
-and legal-clause eligibility facts are not evaluated. That is a distinct
-error, never "no modifiers apply".
+`final_points(connection, dataset, result, declared)` returns final points for
+every valid group, highest total first. It follows the owner tariff assumptions
+of 2026-10-07 (`decisions.md`):
+
+- Without a reviewed MODTAR binding for the service date it raises
+  `ModifierBindingUnbound`; base points are never returned as final points.
+  The reviewed conditions selector binds generation 102 to every 2026 catalog
+  (see [MODTAR ingest](jgp-modifiers-ingest.md)).
+- Only modifiers mapped to the group on the service date are considered: MODTAR
+  rows as published and the section 17(6a) supplement from 2026-10-01.
+- A modifier applies only when the caller declares its symbol (provider facts
+  such as contract scope, tiers, DiLO, KOC, or encounter facts such as a
+  bilateral operation). Clause age conditions are checked from the encounter:
+  17.1 below 18, 17.10 below 3 and 17.11 from 3 to 8 completed years; an
+  unknown age is `undetermined`, an age outside the clause `rejected`.
+- Mapped but undeclared modifiers are `possible`, each with the hundredths it
+  would add on its own. Declared symbols not mapped to the group are noted and
+  never applied. Two declared symbols citing one clause are alternatives and
+  give no total.
+- Applicable coefficients multiply exactly; the total is rounded half-up once to
+  0.01 point. Services from January to August carry a note that the 14/2026
+  food-standard ratio is not computed, and the #129 group/symbol pairs carry a
+  note that they follow MODTAR rather than the act.
 
 ## Evidence
 
@@ -93,12 +111,19 @@ attachment 9 labels (46/2026 after 102):
 
 - Ranking: for a 2-day child hernia, F72 (column K, 3959.00 points) ranks
   above PZF09 (no 2-day column, standard 3598.00 points, labelled
-  `short_stay_column_blank`), and `final_points` refuses with
-  `ModifierBindingUnbound`.
+  `short_stay_column_blank`); an unbound bundle refuses final points.
+- Final points: for a 2-year-old's 5-day hernia stay with 17.10 and the 17(6a)
+  supplement declared, F72 is 4067.00 x 1.4 = 5693.80 and PZF09 is
+  3598.00 x 1.2 = 4317.60; 17.11 is rejected on age and 17.18 stays possible
+  (+691.39 on F72).
+- Modifier boundary: an adult F72 hernia with 17(6a) declared is 4067.00 on
+  2026-09-30 and 5693.80 on 2026-10-01.
 
 Base-point rules have their own unit tests; seven of eight deliberate
 breakages were caught, and the eighth (`<=` to `<` on the financed-stay limit)
-is equivalent at the boundary, where both give zero extra days.
+is equivalent at the boundary, where both give zero extra days. All nine
+deliberate breakages of the final-points rules (age bounds, declaration,
+multiplication, rounding, alternatives, notes) were caught.
 
 - Death discharge: D45 (owner label grammar, see
   [conditions ingest](jgp-conditions-ingest.md)) needs principal J96.x from

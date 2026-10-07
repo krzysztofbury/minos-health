@@ -7,16 +7,16 @@ Conditions, selection and points remain #35.
 
 import sqlite3
 from datetime import date
-from typing import NoReturn, cast
+from typing import cast
 
 from minos.domain.encounter import Encounter
 from minos.domain.grouper import ExecutionKey, GrouperError
 from minos.domain.grouper_candidates import CandidateResult, Catalog
 from minos.domain.grouper_rules import (
+    FinalPoints,
     GroupingResult,
     GroupRules,
     ModifierBindingUnbound,
-    ModifierEligibilityUnsupported,
     StayFacts,
 )
 from minos.domain.reference import SourceError
@@ -25,6 +25,8 @@ from minos.grouper.conditions import evaluate_group, facts_from
 from minos.grouper.points import base_points
 from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.grouper.szp_2026 import ENGINE_VERSION
+from minos.grouper.tariff import final_group_points
+from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.grouper_bundle import (
     CharacteristicsGraph,
     grouping_sources,
@@ -33,7 +35,10 @@ from minos.store.grouper_bundle import (
     load_graph,
 )
 from minos.store.grouper_rules import group_rules
-from minos.store.jgp_modifier_binding import require_modifier_binding
+from minos.store.jgp_modifier_binding import (
+    require_modifier_binding,
+    reviewed_group_modifiers,
+)
 from minos.store.jgp_ruleset import resolve_ruleset
 from minos.store.query_budget import query_budget
 
@@ -145,12 +150,18 @@ def evaluate_candidates(
     )
 
 
-def final_points(connection: sqlite3.Connection, result: GroupingResult) -> NoReturn:
-    """#35 step 4: base points are never returned as final points.
+def final_points(
+    connection: sqlite3.Connection,
+    dataset: DatasetManifest,
+    result: GroupingResult,
+    declared: frozenset[str],
+) -> tuple[FinalPoints, ...]:
+    """Final points for every valid group, highest total first (#35).
 
-    An unbound, missing or mismatched MODTAR binding refuses explicitly. A
-    reviewed binding still refuses until modifier eligibility is evaluated;
-    that is a distinct error, never "no modifiers apply".
+    Without a reviewed MODTAR binding for the service date this refuses with
+    `ModifierBindingUnbound`; base points are never returned as final points.
+    Provider and encounter facts the encounter lacks come from `declared`
+    modifier symbols (owner decision 2026-10-07).
     """
     sources = result.candidates.sources
     ruleset = resolve_ruleset(connection, sources.service_date, None)
@@ -162,6 +173,34 @@ def final_points(connection: sqlite3.Connection, result: GroupingResult) -> NoRe
         raise ModifierBindingUnbound(
             "final points need a reviewed MODTAR binding for the service date"
         ) from error
-    raise ModifierEligibilityUnsupported(
-        "modifier eligibility is not evaluated; no final points"
+    points = {
+        (c.catalog, c.group): p
+        for c, p in zip(result.candidates.candidates, result.points, strict=True)
+    }
+    answers: list[FinalPoints] = []
+    for catalog, group in result.ranking:
+        reviewed = reviewed_group_modifiers(connection, dataset, ruleset, group)
+        mappings = [
+            *cast(list[dict[str, object]], reviewed["dictionary_mappings"]),
+            *cast(list[dict[str, object]], reviewed["legal_supplements"]),
+        ]
+        answers.append(
+            final_group_points(
+                catalog,
+                group,
+                points[(catalog, group)],
+                mappings,
+                declared,
+                result.candidates.preparation.completed_years,
+                sources.service_date,
+            )
+        )
+    answers.sort(
+        key=lambda item: (
+            item.total_hundredths is None,
+            -(item.total_hundredths or 0),
+            item.catalog,
+            item.group,
+        )
     )
+    return tuple(answers)

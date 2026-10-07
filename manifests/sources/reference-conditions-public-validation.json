@@ -1,7 +1,252 @@
 {
   "schema_version": 1,
-  "transform_version": "jgp-conditions-reference-v3",
+  "transform_version": "jgp-reference-conditions-modifiers-v4",
   "lockfile_sha256": "2343f00e7db876cc5c6920c2e87126b10ef9f7383c8295b6b559d3690133c203",
+  "search_profile": "polish-folded-1",
+  "search_synonyms": [
+    {
+      "id": "inguinal-phrase",
+      "version": 1,
+      "system": "icd10-pl",
+      "term": "przepuklina pachwiny",
+      "source_wording": "przepuklina pachwinowa",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Przepuklina_pachwinowa&oldid=79587133",
+      "evidence": "The definition places the hernia in the groin. The pinned Polish category uses pachwinowa. Whole-phrase terminology equivalence; no laterality or complication inferred.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd10-rsk-013-f3dc9811520e"
+    },
+    {
+      "id": "diabetes-type-1",
+      "version": 1,
+      "system": "icd10-pl",
+      "term": "cukrzyca typu 1",
+      "source_wording": "cukrzyca insulinozależna",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Cukrzyca_typu_1&oldid=78072196",
+      "evidence": "Opening definition explicitly gives the insulin-dependent synonym, matching the pinned category wording. Type is explicit in the entire phrase; no inference from treatment.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd10-rsk-013-f3dc9811520e"
+    },
+    {
+      "id": "diabetes-type-2",
+      "version": 1,
+      "system": "icd10-pl",
+      "term": "cukrzyca typu 2",
+      "source_wording": "cukrzyca insulinoniezależna",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Cukrzyca_typu_2&oldid=77176275",
+      "evidence": "Opening definition explicitly gives the non-insulin-dependent synonym, matching the pinned category wording. No inference from current insulin treatment; surrounding complication qualifiers remain.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd10-rsk-013-f3dc9811520e"
+    },
+    {
+      "id": "copd-abbreviation",
+      "version": 1,
+      "system": "icd10-pl",
+      "term": "POChP",
+      "source_wording": "przewlekłe obturacyjne choroby płuc",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Przewlekła_obturacyjna_choroba_płuc&oldid=79675890",
+      "evidence": "Opening definition expands POChP. The plural spelling is the pinned Polish category wording, not a claim of exacerbation or multiple conditions.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd10-rsk-013-f3dc9811520e"
+    },
+    {
+      "id": "appendix-excision-full",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "wycięcie wyrostka robaczkowego",
+      "source_wording": "appendektomia",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Appendektomia&oldid=74177446",
+      "evidence": "Opening definition explicitly identifies surgical removal of the appendix. Pinned NFZ procedure wording is Appendektomia. No operative technique inferred.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+    },
+    {
+      "id": "appendix-excision-short",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "wycięcie wyrostka",
+      "source_wording": "appendektomia",
+      "source_url": "https://github.com/krzysztofbury/minos-health/issues/125",
+      "evidence": "Practitioner explicitly supplied this shortened procedure-search term. Restrict to the whole query because wyrostek alone names other anatomical processes; never substitute inside mastoid or bony-process phrases.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "whole_query_only": true
+    },
+    {
+      "id": "appendix-laparoscopic",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "laparoskopowe usunięcie wyrostka",
+      "source_wording": "appendektomia laparoskopowo",
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=93",
+      "evidence": "Pinned NFZ wording explicitly names laparoscopic appendectomy. Appendix removal equivalence is established by the cited appendectomy definition in the companion full-phrase entry; the query explicitly names laparoscopic technique. Whole-query restriction avoids other anatomical processes.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "whole_query_only": true
+    },
+    {
+      "id": "gallbladder-removal",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "usunięcie pęcherzyka żółciowego",
+      "source_wording": "cholecystektomia",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Cholecystektomia&oldid=76088829",
+      "evidence": "Opening definition explicitly identifies gallbladder removal, matching NFZ Cholecystektomia. No laparoscopic or open technique inferred.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+    },
+    {
+      "id": "hip-implant-colloquial",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "endoproteza biodra",
+      "source_wording": "endoprotezoplastyka stawu biodrowego",
+      "source_url": "https://github.com/krzysztofbury/minos-health/issues/125",
+      "evidence": "Practitioner explicitly uses this as a procedure-search phrase. Endoprotezoplastyka definition identifies replacement by an artificial joint. This labelled whole-query lookup returns source procedure alternatives, not evidence of implantation or a total/partial technique. Device/history/revision qualifiers cannot use this rewrite.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "whole_query_only": true
+    },
+    {
+      "id": "hip-replacement",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "wymiana stawu biodrowego",
+      "source_wording": "endoprotezoplastyka stawu biodrowego",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Endoprotezoplastyka&oldid=74693788",
+      "evidence": "Definition describes replacing the natural joint with an artificial joint. Pinned NFZ wording has total and partial alternatives; both stay visible, no technique is inferred.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+    },
+    {
+      "id": "knee-implant-colloquial",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "endoproteza kolana",
+      "source_wording": "wymiana stawu kolanowego",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Endoprotezoplastyka&oldid=74693788",
+      "evidence": "The definition describes replacement of a natural joint by an endoprosthesis; the endoprosthesis definition explicitly includes the knee. Whole-query procedure terminology lookup only. Device/history/revision qualifiers cannot use this rewrite, and the result does not establish that a procedure occurred.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
+      "whole_query_only": true
+    },
+    {
+      "id": "phacoemulsification",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "fakoemulsyfikacja",
+      "source_wording": "rozpuszczenie soczewki i aspiracja zaćmy",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Fakoemulsyfikacja&oldid=72040884",
+      "evidence": "Operation description explicitly describes ultrasonic lens fragmentation and simultaneous aspiration. Rewrite is the pinned Polish NFZ wording, not a US ICD-9-CM import. No implant, anesthetic or eligibility inference.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+    },
+    {
+      "id": "tonsillectomy",
+      "version": 1,
+      "system": "icd9-pl",
+      "term": "tonsillektomia",
+      "source_wording": "wycięcie migdałków podniebiennych",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Tonsillektomia&oldid=74702417",
+      "evidence": "Opening definition explicitly identifies removal of palatine tonsils, matching the pinned Polish NFZ wording. Does not infer adenoid removal.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
+      "reviewed_on": "2026-10-04",
+      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+    },
+    {
+      "id": "wordnet-heart-infarction",
+      "version": 1,
+      "system": "icd10-pl",
+      "term": "zawał serca",
+      "source_wording": "zawał mięśnia sercowego",
+      "source_url": "https://github.com/omwn/omw-data/releases/tag/v2.0",
+      "evidence": "Pinned omw-pl:2.0 synset omw-pl-14112855-n contains both phrases. Archive SHA-256 afe0034c25f7c8ff71390768ec238380086cf382164840a9e55237ec9e872c7b. Expand the explicit heart phrase, never shorten it to ambiguous zawal. Source labels retain acuity and complication distinctions.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review; not practitioner validation",
+      "reviewed_on": "2026-10-05",
+      "release_id": "icd10-rsk-013-f3dc9811520e"
+    },
+    {
+      "id": "wordnet-appendix-short",
+      "version": 1,
+      "system": "icd10-pl",
+      "term": "wyrostek",
+      "source_wording": "wyrostek robaczkowy",
+      "source_url": "https://github.com/omwn/omw-data/releases/tag/v2.0",
+      "evidence": "Pinned omw-pl:2.0 synset omw-pl-05537576-n contains both terms. Archive SHA-256 afe0034c25f7c8ff71390768ec238380086cf382164840a9e55237ec9e872c7b. Issue 125 supplies the short appendix-search convention. Whole-query restriction excludes other anatomical processes; alternatives remain visible and no appendicitis is inferred.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review; not practitioner validation",
+      "reviewed_on": "2026-10-05",
+      "release_id": "icd10-rsk-013-f3dc9811520e",
+      "whole_query_only": true
+    },
+    {
+      "id": "jgp-endoprosthesis",
+      "version": 1,
+      "system": "jgp-szp",
+      "term": "endoproteza",
+      "source_wording": "endoprotezoplastyka",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Endoprotezoplastyka&oldid=74693788",
+      "evidence": "Definition identifies replacement of a natural joint by an artificial joint. Whole-query procedure lookup only, not implant status or eligibility. No joint, primary/revision or total/partial technique inferred.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review; not practitioner validation",
+      "reviewed_on": "2026-10-05",
+      "whole_query_only": true,
+      "relation": "related_procedure"
+    },
+    {
+      "id": "jgp-hip-endoprosthesis",
+      "version": 1,
+      "system": "jgp-szp",
+      "term": "endoproteza biodra",
+      "source_wording": "endoprotezoplastyka biodra",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Endoprotezoplastyka&oldid=74693788",
+      "evidence": "Definition and issue 125 establish the procedure-search convention. The query explicitly supplies hip; pinned catalog names supply procedures. Whole-query restriction excludes device history and technique qualifiers.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review; not practitioner validation",
+      "reviewed_on": "2026-10-05",
+      "whole_query_only": true,
+      "relation": "related_procedure"
+    },
+    {
+      "id": "jgp-knee-endoprosthesis",
+      "version": 1,
+      "system": "jgp-szp",
+      "term": "endoproteza kolana",
+      "source_wording": "endoprotezoplastyka kolana",
+      "source_url": "https://pl.wikipedia.org/w/index.php?title=Endoprotezoplastyka&oldid=74693788",
+      "evidence": "Definition identifies joint replacement; the query explicitly supplies knee and source catalog names provide matching procedures. Whole-query restriction excludes device history and primary/revision qualifiers.",
+      "status": "reviewed",
+      "reviewer": "Automated source terminology review; not practitioner validation",
+      "reviewed_on": "2026-10-05",
+      "whole_query_only": true,
+      "relation": "related_procedure"
+    }
+  ],
   "sources": [
     {
       "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
@@ -732,6 +977,114 @@
           "unmatched_codes": 12
         }
       }
+    }
+  ],
+  "modifiers": [
+    {
+      "release_id": "modtar-2026-szp-gen-100-c41d8741deb6",
+      "year": 2026,
+      "generation": 100,
+      "grouper_type": "SZP",
+      "xml": {
+        "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=MODTAR&nrGen=100",
+        "sha256": "c41d8741deb6afb333d130b9846be54668e854303839249c7f28f97e5f08d83c",
+        "size_bytes": 520252,
+        "fetched_at": "2026-10-03T17:28:02.522298Z"
+      },
+      "display": {
+        "page_id": 7297,
+        "label": "202662",
+        "published_on": "2026-08-20",
+        "dictionary_valid_from": "2026-08-20",
+        "file": {
+          "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/Index/7297?kod=MODTAR",
+          "sha256": "97bf05c86f944793edd1569e67360e317727a72412c10cc2f77b71826bab2f51",
+          "size_bytes": 187805,
+          "fetched_at": "2026-10-03T17:28:02.586718Z"
+        }
+      },
+      "expected_modifiers": 1608,
+      "expected_periods": 1607,
+      "expected_group_mappings": 1607,
+      "expected_inactive_empty": 1,
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; noncommercial reference research, not commercial legal clearance",
+      "notices": [
+        "Pinned CZS MODTAR source evidence, not reviewed tariff eligibility. Dictionary publication and validity dates are not reporting-period applicability.",
+        "Inactive empty records and repeated symbols are preserved. Legal-overlay review and compatible catalog binding remain pending."
+      ]
+    },
+    {
+      "release_id": "modtar-2026-szp-gen-102-22595df09b3a",
+      "year": 2026,
+      "generation": 102,
+      "grouper_type": "SZP",
+      "xml": {
+        "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=MODTAR&nrGen=102",
+        "sha256": "22595df09b3aac1af31a2db5450267fc9c352e7f30672079ab767e78f78611c1",
+        "size_bytes": 521552,
+        "fetched_at": "2026-10-03T17:28:02.911280Z"
+      },
+      "display": {
+        "page_id": 7364,
+        "label": "202664",
+        "published_on": "2026-09-24",
+        "dictionary_valid_from": "2026-09-24",
+        "file": {
+          "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/Index/7364?kod=MODTAR",
+          "sha256": "da1dd2d71f4c7b02d11f0a48849503e949be27f040feabc4f1617b354a225e7b",
+          "size_bytes": 187805,
+          "fetched_at": "2026-10-03T17:28:02.969861Z"
+        }
+      },
+      "expected_modifiers": 1612,
+      "expected_periods": 1611,
+      "expected_group_mappings": 1611,
+      "expected_inactive_empty": 1,
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "license": "No stated publisher license; noncommercial reference research, not commercial legal clearance",
+      "notices": [
+        "Pinned CZS MODTAR source evidence, not reviewed tariff eligibility. Dictionary publication and validity dates are not reporting-period applicability.",
+        "Inactive empty records and repeated symbols are preserved. Legal-overlay review and compatible catalog binding remain pending."
+      ]
+    }
+  ],
+  "modifier_bindings": [
+    {
+      "catalog_release_id": "jgp-catalog-101-2025-after-14-c9a1cd619a78",
+      "modifier_release_id": "modtar-2026-szp-gen-102-22595df09b3a",
+      "overlay": {
+        "sha256": "60f960b1dbcfe4b80e01137408e1c657b3fd74eb9179251d219391d4883c882e",
+        "size_bytes": 727109
+      },
+      "reviewed_on": "2026-10-07",
+      "knowledge_from": "2026-09-24",
+      "reviewer": "Project owner decision 2026-10-07",
+      "evidence": "NFZ will not answer #129. Owner assumption: MODTAR as published (generation 102) wins for every 2026 catalog; section 17(6a) is a declared supplement. Overlay generated by scripts/build_modtar_overlay.py; see docs/v0.0.1/decisions.md."
+    },
+    {
+      "catalog_release_id": "jgp-catalog-46-2026-original-3d4197ceb459",
+      "modifier_release_id": "modtar-2026-szp-gen-102-22595df09b3a",
+      "overlay": {
+        "sha256": "60f960b1dbcfe4b80e01137408e1c657b3fd74eb9179251d219391d4883c882e",
+        "size_bytes": 727109
+      },
+      "reviewed_on": "2026-10-07",
+      "knowledge_from": "2026-09-24",
+      "reviewer": "Project owner decision 2026-10-07",
+      "evidence": "NFZ will not answer #129. Owner assumption: MODTAR as published (generation 102) wins for every 2026 catalog; section 17(6a) is a declared supplement. Overlay generated by scripts/build_modtar_overlay.py; see docs/v0.0.1/decisions.md."
+    },
+    {
+      "catalog_release_id": "jgp-catalog-46-2026-after-102-32dc947fc6ac",
+      "modifier_release_id": "modtar-2026-szp-gen-102-22595df09b3a",
+      "overlay": {
+        "sha256": "60f960b1dbcfe4b80e01137408e1c657b3fd74eb9179251d219391d4883c882e",
+        "size_bytes": 727109
+      },
+      "reviewed_on": "2026-10-07",
+      "knowledge_from": "2026-09-24",
+      "reviewer": "Project owner decision 2026-10-07",
+      "evidence": "NFZ will not answer #129. Owner assumption: MODTAR as published (generation 102) wins for every 2026 catalog; section 17(6a) is a declared supplement. Overlay generated by scripts/build_modtar_overlay.py; see docs/v0.0.1/decisions.md."
     }
   ],
   "characteristics_knowledge_as_of": "2026-10-02",

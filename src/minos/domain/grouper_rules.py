@@ -128,6 +128,27 @@ class ModifierBindingUnbound(GrouperError):
     """No reviewed MODTAR binding governs the date; final points are refused."""
 
 
-class ModifierEligibilityUnsupported(GrouperError):
-    """A reviewed binding exists, but modifier eligibility facts (contract,
-    provider, legal clauses) are not evaluated, so no final points exist."""
+type ModifierOutcome = Literal["applied", "possible", "rejected", "undetermined"]
+
+
+@dataclass(frozen=True, repr=False)
+class ModifierDecision:
+    symbol: str
+    provenance: Literal["MODTAR", "manual_legal_overlay"]
+    source_citation: str
+    coefficient_millionths: int
+    outcome: ModifierOutcome
+    reason: str
+    # For a possible modifier: the hundredths it would add on its own.
+    would_add_hundredths: int | None = None
+
+
+@dataclass(frozen=True, repr=False)
+class FinalPoints:
+    catalog: Catalog
+    group: str
+    base: BasePoints
+    decisions: tuple[ModifierDecision, ...]
+    # Base x applied coefficients, rounded half-up once to 0.01 point.
+    total_hundredths: int | None
+    notes: tuple[str, ...]

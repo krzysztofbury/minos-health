@@ -169,7 +169,13 @@ footer legend explain these differences. Scope cells use the legend in
 
 These explanations still need owner acceptance before an overlay uses them.
 
-#### Still open, for an NFZ clarification request
+#### Answered by owner assumption on 2026-10-07
+
+NFZ will not answer these questions (#129). The owner decided that MODTAR as
+published wins (`decisions.md`, Tariff Assumptions Without NFZ Answers), so
+each pair below follows the dictionary and final points carry a `#129` note.
+The table is kept as the record of the differences.
+
 
 | Service date / governing catalog | Symbols | Question for source clarification |
 | --- | --- | --- |
@@ -316,3 +322,27 @@ Raw sources and generated databases remain private and uncommitted. Receipts
 for this investigation are retained under the ignored
 `test-output/jgp-reference-32-46-6tsdi3pb/` directory. The private MODTAR capture
 is under `data/private-fixtures/jgp-modtar-32-46-2e2fmme3/`.
+
+## Owner-Assumed Reviewed Binding (2026-10-07)
+
+`scripts/build_modtar_overlay.py` deterministically writes the overlay for
+generation 102 into the content-addressed archive. Each MODTAR mapping keeps its
+dictionary months as its service window, and the section 17(6a) supplement
+(F72/F73, 1.4, from 2026-10-01) is attached as a separately attributed manual
+provision. Reconciliation against the real catalog windows passes for all
+1,612 mappings: 101/2025 after 14 governs January-April, 46/2026 original
+May-June and 46/2026 after 102 July-December.
+
+`manifests/sources/jgp-modtar-reference.json` binds that overlay (SHA-256
+`60f960b1...`) to those three catalogs, knowable from 2026-09-24 and reviewed on
+2026-10-07 by owner decision; the research candidates it supersedes are
+removed. The reviewed conditions selector composes it with transform
+`jgp-reference-conditions-modifiers-v4` and builds a schema 8 bundle (422 MiB)
+whose ruleset reports a reviewed generation 102 binding on every 2026 date.
+Production is unchanged.
+
+```sh
+uv run python -m scripts.build_modtar_overlay \
+  --modifiers manifests/sources/jgp-modtar-reference.json --generation 102 \
+  --archive-root data/archive --catalog-bundle data/bundles/<conditions-bundle>
+```
