@@ -1,9 +1,10 @@
-# Deterministic Grouper Execution: Preparation Slice
+# Deterministic Grouper Execution: Preparation And Candidates
 
-Issue #34 implementation chunk following the reviewed encounter boundary.
-Entry point: `minos.grouper.registry.EngineRegistry.execute`. This slice runs
-algorithm preparation; it does **not** return candidate JGPs, settlement points,
-final eligibility or a legally complete ruleset. No HTTP/CLI grouping endpoint,
+Issue #34, following the reviewed encounter boundary. Entry points:
+`minos.grouper.registry.EngineRegistry.execute` runs algorithm preparation, and
+`minos.grouper.pipeline.derive_candidates` runs it from one verified bundle and
+derives directional candidate groups. Neither returns final eligibility,
+settlement points or a legally complete ruleset. No HTTP/CLI grouping endpoint,
 web change or deployment is included.
 
 ## Exact Dispatch And Source Ownership
@@ -143,18 +144,86 @@ tie and missing stay coverage producing an unjustified duration. An installed
 wheel smoke exercised the actual registry/engine from an isolated environment
 without development dependencies.
 
-Still required for #34: composite source/date binding, reviewed executable
-condition roots and supported policies, candidate derivation/routing, excluded
-product classification and semantics, and real pinned-rule encounter acceptance. The
-existing proposed/unsupported attachment 9 records are untouched. #35 retains
-tariff calculation and unbound-modifier refusal; #36 retains full explanatory
-and near-miss presentation. #34 remains open and nothing is deployed.
+Composite binding, candidate derivation and real pinned-rule acceptance are
+now covered below. #35 retains condition evaluation (reviewed executable roots
+and policies), group selection, tariff calculation and unbound-modifier
+refusal; #36 retains full explanatory and near-miss presentation. Settlement
+product (W/V) exclusions moved to #145. Nothing is
+deployed.
 
-## Next Review Gate: Composite And Executable Binding
+## Candidate Derivation From One Bundle
 
-The source-aware preparation key is not a reviewed composite ruleset. Candidate
-derivation must validate all of the following together before any eligible
-candidate can be returned:
+`derive_candidates(connection, dataset_id, encounter, service_date=...,
+reporting_month=...)` reads every source from one opened, checksum-verified
+reference bundle. The dataset manifest is the owner-reviewed composite: it pins
+catalog, attachment 9, terminologies and the algorithm notice together.
+
+- The algorithm notice, its three digests and the SZP rank and specialty
+  tables come from the bundle (`algorithm_release`, `procedure_rank`,
+  `department_specialty`). Exactly one notice must be present, and the engine
+  still accepts only the reviewed DOCX digest.
+- The service date is explicit and must lie within the episode. It selects the
+  attachment 9 release (`resolve_characteristics`) and the catalog release
+  (`resolve_ruleset`). The attachment 9 manifest must name that same catalog
+  release and the algorithm's ICD-9 release, and both sheets (1a, 1ae) must
+  resolve to the same attachment 9 release. Any disagreement is an error.
+- Preparation then runs through the exact registry binding built from those
+  sources, keyed by the dataset identity and the explicit reporting month.
+
+A candidate is a group whose attachment 9 directional lists (paragraph 103,
+"warunki kierunkowe") contain a prepared fact:
+
+- Requirements come from every list-bearing condition of the group (presence,
+  count, all-members, list coverage, date relation, laterality, procedure
+  duration), following unions. Lists under a `not` never create a candidate.
+  Unsupported nodes still contribute their lists, so the set errs towards
+  inclusion; such candidates report `fully_interpreted=False`.
+- A principal-role diagnosis list matches only the principal diagnosis; every
+  other role matches any prepared diagnosis. Procedure lists match prepared
+  procedures.
+- Only retained facts make a `retained_fact` candidate. Unresolved facts
+  (unknown attribution, missing rank) and classification families, which are
+  never expanded, can only make an `unresolved_fact` candidate. Excluded facts,
+  including rank-0 procedures, never count.
+- Groups with no directional list are reported as `underivable`, never
+  silently dropped.
+
+Candidates carry the matched nodes, lists and attachment 9 evidence rows, and
+`conditions="not_evaluated"`. Absence from the list is not proof that a group
+fails; presence is not eligibility. Ordering is canonical (catalog, group).
+
+On the real bundle a call takes about 200 ms, most of it building the
+directional index; caching that per bundle belongs with the first runtime
+caller. This is a local measurement, not a capacity claim.
+
+### #34 Acceptance Evidence
+
+| #34 step | Evidence |
+| --- | --- |
+| 1. Bounded encounter model | `minos.domain.encounter`, `tests/unit/test_encounter.py` |
+| 2. Exact registry, no fallback | `EngineRegistry`, unknown-binding tests |
+| 3. Qualification, exclusions, ranking, candidates | `szp_2026.prepare`, `grouper.candidates`, `store.grouper_bundle` |
+| 4. Typed trace | `Decision` events with source coordinates; candidate evidence rows |
+| 5. Property-based determinism | Hypothesis tests for preparation and candidates |
+| Acceptance: real pinned ruleset | `test_real_pinned_ruleset_prepares_and_derives_dated_candidates` |
+
+The real-ruleset test is opt-in (`MINOS_GROUPER_BUNDLE`, a bundle built from
+`manifests/sources/reference-conditions-public-validation.json`) and was run
+locally on 2026-10-07. Hand-checked against attachment 9 46/2026 after 102:
+
+- Head injury (principal S06.0, hospitalization level) with 01.01 performed in
+  ICU (specialty 4260): the procedure is excluded, ward duration is 12 - 5 = 7
+  days, and A01 is a candidate only through its principal-diagnosis list.
+- Hernia repair 53.03 (SZP rank 3): F72 is a candidate citing row 7991,
+  "wymagane wskazanie procedury z listy procedur F72".
+- The same hernia in June resolves the original 46/2026 catalog and attachment
+  9 together; an April date has no attachment 9 release and is refused.
+- Reordered stays produce identical candidates and preparation traces.
+
+## Next Review Gate: Eligibility (#35)
+
+Directional candidates are not eligibility. Before #35 can report a group as
+valid, all of the following must hold together:
 
 1. Exact catalog, attachment 9, terminology, algorithm, ranks and specialty source
    identities, plus product and contract/routing evidence needed by the pathway.
