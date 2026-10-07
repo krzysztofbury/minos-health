@@ -171,8 +171,8 @@ the Docker socket.
 
    ```sh
    uv run python -m minos data build \
-     --manifest manifests/sources/reference-ranks-public-validation.json \
-     --archive-root ~/.cache/minos-local/archive --output /path/to/new/bundle
+     --manifest manifests/sources/reference-catalog-public-validation.json \
+     --archive-root data/archive --output data/bundles/bundle-<revision>
    ```
 
 4. Deploy:

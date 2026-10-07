@@ -25,7 +25,8 @@ from scripts.build_validation_edge import build  # noqa: E402
 from scripts.render_validation_compose import api_service  # noqa: E402
 
 PROJECT = "minos-local-site"
-STATE = Path.home() / ".cache/minos-local-site"
+# Generated, licensed local state stays in the repository's ignored data/.
+STATE = ROOT / "data/local-site"
 API_IMAGE = "minos-reference-api:validation-local"
 EDGE_IMAGE = "minos-reference-edge:validation-local"
 
