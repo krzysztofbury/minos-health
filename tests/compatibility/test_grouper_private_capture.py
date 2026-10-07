@@ -17,7 +17,7 @@ from minos.domain.encounter import (
     WardStay,
 )
 from minos.domain.jgp_ruleset import NoRulesetForDate
-from minos.grouper.pipeline import derive_candidates
+from minos.grouper.pipeline import derive_candidates, evaluate_candidates
 from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.ingest.grouper_algorithm import load_algorithm
 from minos.ingest.komunikat_manifest import KomunikatManifest
@@ -227,3 +227,60 @@ def test_real_pinned_ruleset_prepares_and_derives_dated_candidates() -> None:
                 service_date=date(2026, 4, 20),
                 reporting_month=date(2026, 4, 1),
             )
+
+
+def _statuses(encounter: Encounter, day: date) -> dict[str, str]:
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            encounter,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+    return {item.group: item.status for item in result.evaluations}
+
+
+@pytest.mark.jgp_live
+def test_real_pinned_ruleset_evaluates_the_approved_condition_subset() -> None:
+    """#35 paths hand-checked against attachment 9 46/2026 after 102 labels.
+
+    F72: procedure from list F72. PZF09: age below 18 and a list procedure.
+    A01: procedure and principal diagnosis from lists A01. T07 ("Leczenie
+    zachowawcze urazów"): principal diagnosis from list T07. A49 ("Udar mózgu
+    - leczenie > 3 dni"): principal from list A50, three procedures from list
+    A49 and a stay over 3 days; the count is outside the approved subset.
+    """
+    day = date(2026, 10, 2)
+    adult = replace(_hernia(day), product_reporting="complete")
+    child = replace(adult, birth_date=date(2021, 3, 3))
+    assert _statuses(adult, day)["F72"] == "valid"
+    assert _statuses(adult, day)["PZF09"] == "invalid"
+    assert _statuses(child, day)["PZF09"] == "valid"
+    trauma = Encounter(
+        date(2026, 9, 20),
+        day,
+        "hospitalization",
+        Diagnosis("S06.0", hospitalization_level=True),
+        (
+            WardStay("neuro", "4570", date(2026, 9, 20), date(2026, 9, 22)),
+            WardStay("icu", "4260", date(2026, 9, 22), date(2026, 9, 27)),
+            WardStay("neuro-2", "4570", date(2026, 9, 27), day),
+        ),
+        procedures=(Procedure("01.01", date(2026, 9, 23), "icu"),),
+        birth_date=date(1975, 3, 3),
+    )
+    statuses = _statuses(trauma, day)
+    assert (statuses["A01"], statuses["T07"]) == ("invalid", "valid")
+    for days, status in ((2, "invalid"), (10, "undetermined")):
+        admitted = day - timedelta(days=days)
+        stroke = Encounter(
+            admitted,
+            day,
+            "hospitalization",
+            Diagnosis("I63.9", hospitalization_level=True),
+            (WardStay("neuro", "4220", admitted, day),),
+            birth_date=date(1950, 1, 1),
+            product_reporting="complete",
+        )
+        assert _statuses(stroke, day)["A49"] == status

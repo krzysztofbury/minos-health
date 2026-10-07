@@ -440,6 +440,16 @@ Owner decisions while reviewing #144 against the pinned algorithm `1.1.2026`:
   means the month's last day, and age is reached at its start. Someone born on
   February 29 completes a year on February 28 of a non-leap year.
 
+### Executable Attachment 9 Subset (2026-10-07)
+
+All attachment 9 conditions are machine-extracted and stored as `proposed`.
+For #35 the owner approved a minimal executable subset: diagnosis list
+presence by role, procedure list presence, `all`/`any`, age in completed years
+and stay-length bounds (only with a complete, product-free report while #145
+is open). Only groups with a single reference root are evaluated. Every other
+kind, policy or root shape evaluates to `undetermined` with a reason and is
+never guessed into a valid or invalid group.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with

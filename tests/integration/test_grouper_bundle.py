@@ -4,6 +4,7 @@ import json
 import shutil
 import sqlite3
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -12,7 +13,7 @@ import pytest
 from minos.domain import jgp_conditions as c
 from minos.domain.encounter import Diagnosis, Encounter, Procedure, WardStay
 from minos.domain.grouper import GrouperError
-from minos.grouper.pipeline import derive_candidates
+from minos.grouper.pipeline import derive_candidates, evaluate_candidates
 from minos.grouper.szp_2026 import ALGORITHM_SHA256
 from minos.ingest.jgp_conditions_codec import encode
 from minos.store.grouper_bundle import directional_index, grouping_sources
@@ -207,3 +208,31 @@ def test_pipeline_refuses_unbound_requests(
                 service_date=service_date,
                 reporting_month=date(2026, 10, 1),
             )
+
+
+@pytest.mark.parametrize(
+    ("stay", "status"),
+    [("ward", "valid"), ("icu", "invalid")],
+)
+def test_pipeline_evaluates_candidates_against_the_governing_catalog(
+    edited: sqlite3.Connection, stay: str, status: str
+) -> None:
+    # A01 needs a procedure from list 1 and a principal diagnosis from list 2.
+    facts = replace(
+        _episode(Procedure("100.01", date(2026, 10, 2 if stay == "ward" else 4), stay)),
+        product_reporting="complete",
+    )
+    result = evaluate_candidates(
+        edited,
+        "synthetic-dataset",
+        facts,
+        service_date=date(2026, 10, 5),
+        reporting_month=date(2026, 10, 1),
+    )
+    by_group = {(e.catalog, e.group): e for e in result.evaluations}
+    assert by_group[("1a", "A01")].status == status
+    assert result.scope == "conditions_without_points"
+    # AU01 and N09 have attachment 9 rows but no catalog row on the date.
+    for key in (("1ae", "AU01"), ("1a", "N09")):
+        assert by_group[key].status == "invalid"
+        assert by_group[key].reasons == ("not_in_governing_catalog",)
