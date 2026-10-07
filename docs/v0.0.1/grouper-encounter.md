@@ -28,6 +28,11 @@ contain unknown dates. No product classification or W/V exclusion type is inferr
 or accepted from the caller. The preparation result reports classification as
 unbound until a reviewed product catalog and interpretation policy exist.
 
+Diagnoses carry one reporting level: an episode-local stay attribution, an
+explicit `hospitalization_level` report (the SWIAD `hospitalizacja` causes of
+paragraph 143), or neither, which means attribution is unknown. A diagnosis
+cannot claim both levels.
+
 Age is either an exact birth date or reported completed years **at admission**,
 never both. Completed years cannot supply week/month precision by inventing a
 birth date. No age or duration computation is performed in this chunk. Discharge

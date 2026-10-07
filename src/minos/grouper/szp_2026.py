@@ -8,7 +8,7 @@ import calendar
 import re
 from datetime import date
 
-from minos.domain.encounter import Encounter, Procedure, WardStay
+from minos.domain.encounter import Diagnosis, Encounter, Procedure, WardStay
 from minos.domain.grouper import (
     AlgorithmData,
     CountingPolicy,
@@ -131,6 +131,16 @@ def _qualify(
     return "retained", "stay_retained"
 
 
+def _qualify_diagnosis(
+    fact: Diagnosis, stays: dict[str, Outcome], covered: bool
+) -> tuple[Outcome, Reason]:
+    # Paragraph 143 groups on the hospitalization-level SWIAD causes. They are
+    # not codes of a ward stay, so paragraph 119 stay exclusion cannot drop them.
+    if fact.hospitalization_level:
+        return "retained", "hospitalization_level_diagnosis"
+    return _qualify(fact.stay_id, stays, covered)
+
+
 def _diagnoses(
     encounter: Encounter,
     stays: dict[str, Outcome],
@@ -138,16 +148,19 @@ def _diagnoses(
     trace: TraceAccumulator,
 ) -> tuple[QualifiedDiagnosis, tuple[QualifiedDiagnosis, ...]]:
     principal = encounter.principal_diagnosis
-    outcome, reason = _qualify(principal.stay_id, stays, covered)
+    outcome, reason = _qualify_diagnosis(principal, stays, covered)
     trace.append(
         Decision("principal_diagnosis", 1, outcome, reason, _algorithm(119, 143))
     )
     secondary: list[QualifiedDiagnosis] = []
     for ordinal, fact in enumerate(
-        sorted(encounter.secondary_diagnoses, key=lambda d: (d.code, d.stay_id or "")),
+        sorted(
+            encounter.secondary_diagnoses,
+            key=lambda d: (d.code, d.hospitalization_level, d.stay_id or ""),
+        ),
         1,
     ):
-        state, why = _qualify(fact.stay_id, stays, covered)
+        state, why = _qualify_diagnosis(fact, stays, covered)
         trace.append(
             Decision("secondary_diagnosis", ordinal, state, why, _algorithm(119, 143))
         )
@@ -234,23 +247,15 @@ def _age(encounter: Encounter, trace: TraceAccumulator) -> int | None:
     born = encounter.birth_date
     admitted = encounter.admitted_on
     if born is not None:
-        if (
-            (born.month, born.day) == (2, 29)
-            and not calendar.isleap(admitted.year)
-            and (admitted.month, admitted.day) == (2, 28)
-        ):
-            trace.append(
-                Decision(
-                    "age", 1, "unresolved", "leap_boundary_unreviewed", _algorithm(189)
-                )
-            )
-            return None
-        value = (
-            admitted.year
-            - born.year
-            - ((admitted.month, admitted.day) < (born.month, born.day))
-        )
+        birthday = (born.month, born.day)
         reason = "birth_date_years"
+        if birthday == (2, 29) and not calendar.isleap(admitted.year):
+            # Civil Code art. 112: a missing day means the month's last day, and
+            # age is reached at its start (owner decision 2026-10-07).
+            birthday = (2, 28)
+            if (admitted.month, admitted.day) == birthday:
+                reason = "birth_date_years_leap_day"
+        value = admitted.year - born.year - ((admitted.month, admitted.day) < birthday)
     trace.append(Decision("age", 1, "recorded", reason, _algorithm(189), value))
     return value
 
@@ -261,6 +266,21 @@ def _ward_duration(
     covered: bool,
     trace: TraceAccumulator,
 ) -> int | None:
+    if (
+        encounter.hospitalization_type == "one_day"
+        and encounter.discharged_on != encounter.admitted_on
+    ):
+        # Paragraphs 146-147 give the one-day formula only for dw = dp.
+        trace.append(
+            Decision(
+                "ward_duration",
+                1,
+                "unresolved",
+                "one_day_dates_inconsistent",
+                _algorithm(146, 147),
+            )
+        )
+        return None
     if not covered or "unresolved" in stays.values():
         trace.append(
             Decision(

@@ -109,6 +109,11 @@ def test_completed_years_are_an_alternative_not_an_invented_birth_date(
         ("procedures", [{"code": "00.121", "performed_on": "2025-12-31"}]),
         ("procedures", [{"code": "00.121", "stay_id": "unknown"}]),
         ("principal_diagnosis", {"code": "A00", "stay_id": "unknown"}),
+        (
+            "principal_diagnosis",
+            {"code": "A00", "stay_id": "ward-a", "hospitalization_level": True},
+        ),
+        ("principal_diagnosis", {"code": "A00", "hospitalization_level": "yes"}),
         ("principal_diagnosis", {"code": "a00"}),
         ("principal_diagnosis", {"code": "A00\n"}),
         ("principal_diagnosis", {"code": "A" * 17}),
@@ -417,3 +422,14 @@ def test_domain_rejects_invalid_product_types_dates_and_reporting() -> None:
                 SettlementProduct("5.52.01.0001363", ended_on=date(2026, 1, 5)),
             ),
         )
+
+
+def test_hospitalization_level_diagnosis_is_a_distinct_reported_level() -> None:
+    data = reported_json()
+    data["principal_diagnosis"] = {"code": "A00", "hospitalization_level": True}
+    result = parse_encounter(json.dumps(data).encode())
+    assert result.principal_diagnosis == Diagnosis("A00", None, True)
+    # Omitted level is unknown attribution, not a hospitalization-level report.
+    assert result.secondary_diagnoses == (Diagnosis("B00"),)
+    with pytest.raises(EncounterInputError, match="two reporting levels"):
+        _ = Diagnosis("A00", "ward-a", True)

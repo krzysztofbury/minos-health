@@ -60,6 +60,9 @@ are copied into execution fixtures or a commercial artifact.
   service code is the reported service-type token. A product identifier is not
   silently decoded into that token. Missing/unsupported predicates remain
   unresolved. This is not service-code dictionary validation.
+- Hospitalization-level diagnoses (paragraph 143) are retained regardless of
+  stay exclusions; they are not codes of a ward stay (owner decision
+  2026-10-07).
 - Diagnoses and procedures attributed to excluded stays are excluded before
   ranking. Unattributed facts remain unresolved if any stay could be excluded;
   no ward is guessed from a procedure's date. All reported occurrences survive
@@ -69,9 +72,13 @@ are copied into execution fixtures or a commercial artifact.
   rank is unresolved, never zero. Rank-2 routing, rank-4 allocation and E11/N24
   date exceptions require the later characteristic/routing binding.
 - Completed years use exact birth date at admission or the explicitly reported
-  years-at-admission alternative. A February-29 birth observed on February 28
-  in a non-leap year remains unresolved: no anniversary convention is invented.
+  years-at-admission alternative. A February-29 birth completes a year at the
+  start of February 28 in a non-leap year (Civil Code art. 112, owner decision
+  2026-10-07); the trace records `birth_date_years_leap_day` on that date.
   Week/month age conditions are not evaluated.
+- A `one_day` report must have equal admission and discharge dates
+  (paragraphs 146-147); otherwise ward duration is unresolved with
+  `one_day_dates_inconsistent`, never silently computed.
 - Ward-adjusted days use same-day duration 1, otherwise discharge minus
   admission, then subtract the union of wholly excluded stays. Overlapping and
   adjacent-day intervals are merged as in paragraphs 169-186. This is **not**
@@ -168,11 +175,10 @@ adjustments (153-154). Missing endpoints, overlaps and short V intervals need
 source-backed policies before subtraction; reported completeness does not resolve
 them. No exclusion type can be supplied by the encounter caller.
 
-The review also identified a selection-policy conflict: #35 asks for best-group
-point ordering, while algorithm paragraph 113 leaves selection among valid JGPs
-to the reporting provider. This chunk does not change the accepted specification
-or implement a highest-points winner. Resolve that conflict explicitly before
-implementing selection.
+The selection-policy conflict is resolved (owner decision 2026-10-07, see
+`decisions.md`): paragraph 113 leaves the choice among valid JGPs to the
+reporting provider, so #35 returns every qualifying group ordered by base
+points and highlights the highest value instead of reporting one winner.
 
 ## Source Binding And Product Boundary Verification
 

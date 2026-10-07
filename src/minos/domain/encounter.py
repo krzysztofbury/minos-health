@@ -45,13 +45,24 @@ def _date(value: date) -> None:
 
 @dataclass(frozen=True, repr=False)
 class Diagnosis:
+    """A stay attribution, an explicit hospitalization-level report, or neither.
+
+    Hospitalization-level SWIAD causes (algorithm paragraph 143) are episode
+    facts, not codes of a ward stay. Neither marker means attribution unknown.
+    """
+
     code: str
     stay_id: str | None = None
+    hospitalization_level: bool = False
 
     def __post_init__(self) -> None:
         _code(self.code)
         if self.stay_id is not None:
             _stay_id(self.stay_id)
+        if type(self.hospitalization_level) is not bool:
+            raise EncounterInputError("invalid diagnosis reporting level")
+        if self.hospitalization_level and self.stay_id is not None:
+            raise EncounterInputError("diagnosis has two reporting levels")
 
 
 @dataclass(frozen=True, repr=False)

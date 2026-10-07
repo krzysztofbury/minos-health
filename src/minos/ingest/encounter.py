@@ -49,8 +49,10 @@ class _CodeFact(_Input):
 
 
 class _Diagnosis(_CodeFact):
+    hospitalization_level: bool = False
+
     def to_domain(self) -> Diagnosis:
-        return Diagnosis(self.code, self.stay_id)
+        return Diagnosis(self.code, self.stay_id, self.hospitalization_level)
 
 
 class _Procedure(_CodeFact):

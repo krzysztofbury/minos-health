@@ -14,6 +14,7 @@ from minos.domain.encounter import (
     MAX_SETTLEMENT_PRODUCTS,
     MAX_STAYS,
     Diagnosis,
+    HospitalizationType,
     Procedure,
     ProductReporting,
     SettlementProduct,
@@ -255,6 +256,37 @@ def test_service_condition_is_exact_not_inferred_from_a_product(
     )
 
 
+def test_hospitalization_level_diagnoses_survive_an_excluded_icu_stay() -> None:
+    # Paragraph 143 groups on hospitalization-level causes; paragraph 119 drops
+    # only codes of the excluded stay. Unknown attribution stays unresolved.
+    original = encounter()
+    stays = (
+        WardStay("ward", "4000", date(2026, 10, 1), date(2026, 10, 5)),
+        WardStay("icu", "4260", date(2026, 10, 5), date(2026, 10, 10)),
+    )
+    facts = replace(
+        original,
+        stays=stays,
+        principal_diagnosis=Diagnosis("I21", hospitalization_level=True),
+        secondary_diagnoses=(
+            Diagnosis("E11", hospitalization_level=True),
+            Diagnosis("J96", "icu"),
+            Diagnosis("N18"),
+        ),
+        procedures=(),
+    )
+    result = registry().execute(key(), facts)
+    assert result.principal_diagnosis.outcome == "retained"
+    assert {d.fact.code: d.outcome for d in result.secondary_diagnoses} == {
+        "E11": "retained",
+        "J96": "excluded",
+        "N18": "unresolved",
+    }
+    reasons = [d.reason for d in result.trace if d.stage == "principal_diagnosis"]
+    assert reasons == ["hospitalization_level_diagnosis"]
+    assert result.ward_adjusted_days == 4
+
+
 def test_unsupported_specialty_predicate_blocks_instead_of_becoming_empty() -> None:
     data = algorithm()
     data = replace(data, specialties=(replace(data.specialties[0], icd_codes="A00"),))
@@ -355,18 +387,37 @@ def test_source_duration_example_merges_overlap_and_adjacent_excluded_stays() ->
     [
         (date(2026, 10, 1), date(2008, 10, 2), 17),
         (date(2026, 10, 2), date(2008, 10, 2), 18),
-        (date(2026, 2, 28), date(2008, 2, 29), None),
+        # Civil Code art. 112: the year completes at the start of February 28.
+        (date(2026, 2, 27), date(2008, 2, 29), 17),
+        (date(2026, 2, 28), date(2008, 2, 29), 18),
         (date(2026, 3, 1), date(2008, 2, 29), 18),
+        (date(2028, 2, 28), date(2008, 2, 29), 19),
+        (date(2028, 2, 29), date(2008, 2, 29), 20),
     ],
 )
-def test_completed_years_use_admission_not_discharge_and_block_leap_ambiguity(
+def test_completed_years_use_admission_and_civil_code_leap_day(
     admitted: date,
     birth: date,
-    expected: int | None,
+    expected: int,
 ) -> None:
-    stay = WardStay("main", "4000", admitted, date(2026, 10, 10))
-    facts = replace(encounter(), admitted_on=admitted, birth_date=birth, stays=(stay,))
-    assert registry().execute(key(), facts).completed_years == expected
+    stay = WardStay("main", "4000", admitted, admitted)
+    facts = replace(
+        encounter(),
+        admitted_on=admitted,
+        discharged_on=admitted,
+        birth_date=birth,
+        stays=(stay,),
+        procedures=(),
+    )
+    result = registry().execute(key(), facts)
+    assert result.completed_years == expected
+    age = next(d for d in result.trace if d.stage == "age")
+    assert age.reason == (
+        "birth_date_years_leap_day"
+        if (birth.month, birth.day, admitted.month, admitted.day) == (2, 29, 2, 28)
+        and admitted.year % 4 != 0
+        else "birth_date_years"
+    )
 
 
 def test_reported_age_and_zero_day_episode_are_not_reinterpreted() -> None:
@@ -383,6 +434,31 @@ def test_reported_age_and_zero_day_episode_are_not_reinterpreted() -> None:
     assert result.completed_years == 18
     assert result.ward_adjusted_days == 1
     assert next(d for d in result.trace if d.stage == "age").reason == "reported_years"
+
+
+@pytest.mark.parametrize(
+    ("hospitalization_type", "expected"), [("one_day", None), ("planned", 1)]
+)
+def test_one_day_type_requires_same_day_dates_for_duration(
+    hospitalization_type: str, expected: int | None
+) -> None:
+    # Paragraphs 146-147 define the one-day formula for dw = dp only; a one-day
+    # report spanning two dates is contradictory, not one day of hospitalization.
+    original = encounter()
+    discharged = date(2026, 10, 2)
+    facts = replace(
+        original,
+        hospitalization_type=cast(HospitalizationType, hospitalization_type),
+        discharged_on=discharged,
+        stays=(replace(original.stays[0], discharged_on=discharged),),
+        procedures=(),
+    )
+    result = registry().execute(key(), facts)
+    assert result.ward_adjusted_days == expected
+    duration = next(d for d in result.trace if d.stage == "ward_duration")
+    assert duration.reason == (
+        "one_day_dates_inconsistent" if expected is None else "ward_duration_calculated"
+    )
 
 
 def test_trace_has_capacity_for_maximum_encounter_and_fails_on_overflow() -> None:
