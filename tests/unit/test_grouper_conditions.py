@@ -1,6 +1,8 @@
 """Approved attachment 9 subset (#35): one test per rule, synthetic rules."""
 
 from dataclasses import replace
+from datetime import date
+from typing import Literal
 
 import pytest
 
@@ -10,6 +12,8 @@ from minos.domain.grouper import Outcome
 from minos.domain.grouper_rules import GroupRules, SelectorCodes
 from minos.grouper.conditions import Facts, evaluate_group, facts_from
 from tests.fixtures.grouper import encounter, key, registry
+
+type CountingPolicy = Literal["distinct_codes", "repeat_occurrences", "review_required"]
 
 LIST_A = SelectorCodes(1, frozenset({"10.1", "10.2"}), ())
 LIST_B = SelectorCodes(2, frozenset({"10.2", "20.1"}), ())
@@ -200,7 +204,7 @@ def test_family_and_unapproved_kinds_stay_undetermined() -> None:
         ((("10.1", "retained", 1),), 5, "met"),  # paragraph 109: rank < 2
         ((("10.1", "retained", 2),), 5, "met"),  # rank 2 and over 1 day
         ((("10.1", "retained", 2),), 1, "not_met"),
-        ((("10.1", "retained", 3),), 5, "undetermined"),  # paragraph 110
+        ((("99.9", "retained", 3),), 5, "undetermined"),  # paragraph 110
         ((("10.1", "excluded", 3),), 5, "met"),
         ((("10.1", "unresolved", None),), 5, "undetermined"),
     ],
@@ -228,11 +232,6 @@ def test_catalog_and_root_ambiguity_never_produce_a_valid_group() -> None:
         rules(1, PROCEDURE_A, catalog_rows=2), facts(("10.1", "retained", 3))
     )
     assert twice.status == "undetermined"
-    roots = replace(rules(1, PROCEDURE_A, PROCEDURE_B), roots=(1, 2))
-    assert (
-        evaluate_group(roots, facts(("10.1", "retained", 3))).reasons[0]
-        == "multiple_roots_unreviewed"
-    )
 
 
 @pytest.mark.parametrize(
@@ -258,3 +257,121 @@ def test_stay_length_is_usable_only_with_a_complete_product_free_report(
     )
     assert prepared.ward_adjusted_days == 9
     assert facts_from(prepared).days == days
+
+
+@pytest.mark.parametrize(
+    ("procedures", "conditions"),
+    [
+        ((("20.1", "retained", 3),), "met"),  # second root alone
+        ((("10.1", "unresolved", None),), "undetermined"),
+        ((), "not_met"),
+    ],
+)
+def test_several_reference_roots_are_alternatives(
+    procedures: tuple[tuple[str, Outcome, int | None], ...], conditions: str
+) -> None:
+    alternatives = replace(rules(1, PROCEDURE_A, PROCEDURE_B), roots=(1, 2))
+    result = evaluate_group(alternatives, facts(*procedures))
+    assert result.conditions == conditions
+    assert result.reasons[0] == "roots_as_alternatives"
+
+
+def count(required: int, policy: CountingPolicy = "review_required") -> c.Condition:
+    return node(
+        9,
+        "procedure_count",
+        c.Count(1, required, "source_cardinality", policy, None),
+    )
+
+
+@pytest.mark.parametrize(
+    ("occurrences", "required", "policy", "verdict"),
+    [
+        # Distinct codes on distinct dates (paragraphs 103, 134).
+        ((("10.1", 2), ("10.2", 3)), 2, "review_required", "met"),
+        ((("10.1", 2), ("10.2", 2)), 2, "review_required", "not_met"),
+        ((("10.1", 2), ("10.1", 3)), 2, "review_required", "not_met"),
+        # Paragraph 136: missing dates count as one shared day.
+        ((("10.1", None), ("10.2", None)), 2, "review_required", "not_met"),
+        # Repeats are allowed only where the label says so.
+        ((("10.1", 2), ("10.1", 3)), 2, "repeat_occurrences", "met"),
+        ((("10.1", 2), ("10.1", 2)), 2, "repeat_occurrences", "not_met"),
+        # A matching, not a greedy pick: 10.1 must give way to 10.2 on day 2.
+        ((("10.1", 2), ("10.1", 3), ("10.2", 2)), 2, "review_required", "met"),
+    ],
+)
+def test_procedure_count_uses_distinct_codes_on_distinct_days(
+    occurrences: tuple[tuple[str, int | None], ...],
+    required: int,
+    policy: CountingPolicy,
+    verdict: str,
+) -> None:
+    facts_with_dates = Facts(
+        ("S06.0", "retained"),
+        (),
+        tuple((code, "retained", 3) for code, _ in occurrences),
+        40,
+        5,
+        tuple(None if d is None else date(2026, 10, d) for _, d in occurrences),
+    )
+    result = evaluate_group(rules(9, count(required, policy)), facts_with_dates)
+    assert result.conditions == verdict
+
+
+def test_unconfirmed_procedures_only_make_a_count_undetermined() -> None:
+    rank_1 = Facts(
+        ("S06.0", "retained"),
+        (),
+        (("10.1", "retained", 3), ("10.2", "retained", 1)),
+        40,
+        5,
+        (date(2026, 10, 2), date(2026, 10, 3)),
+    )
+    assert evaluate_group(rules(9, count(2)), rank_1).nodes[-1].reason == (
+        "count_needs_unresolved"
+    )
+    shared = node(10, "all", c.Expression((1, 9)))
+    both = Facts(
+        ("S06.0", "retained"),
+        (),
+        (("10.1", "retained", 3), ("10.2", "retained", 3)),
+        40,
+        5,
+        (date(2026, 10, 2), date(2026, 10, 3)),
+    )
+    result = evaluate_group(rules(10, PROCEDURE_A, count(2), shared), both)
+    assert result.nodes[-1].reason == "shared_fact_unreviewed"
+
+
+@pytest.mark.parametrize(
+    ("mode", "verdict"), [(9, "met"), (2, "not_met"), (None, "undetermined")]
+)
+def test_discharge_mode_matches_the_reported_code(
+    mode: int | None, verdict: str
+) -> None:
+    death = node(11, "discharge_mode", c.DischargeMode((9,)))
+    reported = replace(facts(), discharge_mode=mode)
+    assert evaluate_group(rules(11, death), reported).conditions == verdict
+
+
+def test_count_spanning_other_nodes_stays_undetermined() -> None:
+    spanning = node(
+        9,
+        "procedure_count",
+        c.Count(1, 1, "minimum", "review_required", None, (1,)),
+    )
+    result = evaluate_group(rules(9, spanning), facts(("10.1", "retained", 3)))
+    assert result.nodes[-1].reason == "count_scope_unreviewed"
+
+
+def test_rank_3_procedure_from_the_groups_own_lists_directs_to_it() -> None:
+    # Paragraph 105: a directing procedure is assigned to the group whose list
+    # contains it, so it cannot point to some other surgical group.
+    own = evaluate_group(
+        rules(1, PROCEDURE_A, procedural=False), facts(("10.1", "retained", 3))
+    )
+    assert (own.routing, own.status) == ("met", "valid")
+    other = evaluate_group(
+        rules(3, PRINCIPAL, procedural=False), facts(("99.9", "retained", 3))
+    )
+    assert other.routing == "undetermined"

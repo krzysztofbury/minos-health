@@ -250,7 +250,7 @@ def test_real_pinned_ruleset_evaluates_the_approved_condition_subset() -> None:
     A01: procedure and principal diagnosis from lists A01. T07 ("Leczenie
     zachowawcze urazów"): principal diagnosis from list T07. A49 ("Udar mózgu
     - leczenie > 3 dni"): principal from list A50, three procedures from list
-    A49 and a stay over 3 days; the count is outside the approved subset.
+    A49 (distinct codes on distinct days) and a stay over 3 days.
     """
     day = date(2026, 10, 2)
     adult = replace(_hernia(day), product_reporting="complete")
@@ -273,7 +273,13 @@ def test_real_pinned_ruleset_evaluates_the_approved_condition_subset() -> None:
     )
     statuses = _statuses(trauma, day)
     assert (statuses["A01"], statuses["T07"]) == ("invalid", "valid")
-    for days, status in ((2, "invalid"), (10, "undetermined")):
+    imaging = ("88.900", "88.911", "87.033")  # list A49, SZP rank 3
+    for days, procedures, status in (
+        (2, imaging, "invalid"),  # stay not over 3 days
+        (10, (), "invalid"),  # fewer than three procedures
+        (10, imaging, "valid"),
+        (10, ("88.900", "88.900", "88.900"), "invalid"),  # one code, counted once
+    ):
         admitted = day - timedelta(days=days)
         stroke = Encounter(
             admitted,
@@ -281,6 +287,10 @@ def test_real_pinned_ruleset_evaluates_the_approved_condition_subset() -> None:
             "hospitalization",
             Diagnosis("I63.9", hospitalization_level=True),
             (WardStay("neuro", "4220", admitted, day),),
+            procedures=tuple(
+                Procedure(code, admitted + timedelta(days=offset), "neuro")
+                for offset, code in enumerate(procedures)
+            ),
             birth_date=date(1950, 1, 1),
             product_reporting="complete",
         )

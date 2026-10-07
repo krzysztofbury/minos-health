@@ -450,6 +450,41 @@ is open). Only groups with a single reference root are evaluated. Every other
 kind, policy or root shape evaluates to `undetermined` with a reason and is
 never guessed into a valid or invalid group.
 
+### Tariff Assumptions Without NFZ Answers (2026-10-07)
+
+The owner stated that NFZ will not answer the open MODTAR questions (#129).
+These owner assumptions replace the answers and unblock #35:
+
+- MODTAR as published wins. NFZ's settlement systems apply MODTAR, so it
+  reflects what is paid. The six differences in #129 (DU58, Q16E, S21-S23,
+  robotic groups under 17.18, PZA04/PZF13, PZD04A) follow the dictionary and are
+  shown as known risks next to the affected answers.
+- Generation 102 (published 2026-09-24) binds every 2026 catalog from that
+  knowledge date; earlier knowledge dates stay unbound.
+- Section 17(6a) (simultaneous bilateral inguinal hernia, F72/F73, 1.4, from
+  2026-10-01) is missing from MODTAR but undisputed. It is a separately
+  attributed legal supplement that the caller must declare.
+- Modifier eligibility facts that the encounter does not carry (contract
+  scope, provider tiers, DiLO, KOC, bilateral operations) are declared by the
+  caller. A mapped but undeclared modifier is reported as possible, with the
+  value it would add; it is never applied silently.
+- Applicable coefficients multiply: base x c1 x c2. Each clause reads
+  "korygowana jest z zastosowaniem współczynnika"; the act states no
+  combination rule.
+- Final points are computed exactly and rounded half-up once to 0.01 point.
+- The January-August 2026 food-standard ratio (14/2026 section 2) is out of
+  scope; answers for those service dates carry a visible note.
+- The executable attachment 9 subset widens to discharge mode, procedure
+  counts (distinct codes on distinct dates; a missing date counts as the same
+  day, paragraph 136) and multi-root groups read as alternatives (any root
+  met). Negative lists stay undetermined.
+- Label grammar: semicolons separate required parts; within a part "oraz",
+  "i" and commas are AND, while "lub"/"albo" join only the adjacent
+  alternatives (OR binds tighter than AND). D45 therefore reads: principal
+  from D45 AND secondary from D3 AND procedure from D45 AND age over 17 AND
+  (stay over 7 days OR discharge mode 9). Labels that still do not parse under
+  this rule stay undetermined.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with

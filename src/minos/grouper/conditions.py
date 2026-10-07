@@ -8,6 +8,7 @@ ranks 1-4 (paragraphs 75-79), two required facts never share one code
 
 import itertools
 from dataclasses import dataclass
+from datetime import date
 
 from minos.domain import jgp_conditions as c
 from minos.domain.grouper import GrouperError, Outcome, PreparationResult
@@ -35,9 +36,15 @@ class Facts:
     years: int | None
     # Algorithm duration, known only when no settlement product can change it.
     days: int | None
+    # Aligned with `procedures`; a missing date counts as one shared day
+    # (paragraph 136). Empty means every date is unknown.
+    procedure_dates: tuple[date | None, ...] = ()
+    discharge_mode: int | None = None
 
 
-def facts_from(preparation: PreparationResult) -> Facts:
+def facts_from(
+    preparation: PreparationResult, discharge_mode: int | None = None
+) -> Facts:
     product_free = (
         preparation.product_reporting == "complete"
         and not preparation.settlement_products
@@ -49,6 +56,8 @@ def facts_from(preparation: PreparationResult) -> Facts:
         tuple((p.fact.code, p.outcome, p.rank) for p in preparation.procedures),
         preparation.completed_years,
         preparation.ward_adjusted_days if product_free else None,
+        tuple(p.fact.performed_on for p in preparation.procedures),
+        discharge_mode,
     )
 
 
@@ -145,7 +154,79 @@ def _leaf(
             return "undetermined", "duration_unresolved", frozenset()
         met = all(_compare(days, b.comparison, b.days) for b in payload.bounds)
         return ("met" if met else "not_met"), "duration_compared", frozenset()
+    if node.kind == "procedure_count" and isinstance(payload, c.Count):
+        return _count(payload, selectors[payload.selector_id], facts)
+    if node.kind == "discharge_mode" and isinstance(payload, c.DischargeMode):
+        if facts.discharge_mode is None:
+            return "undetermined", "discharge_mode_unknown", frozenset()
+        met = facts.discharge_mode in payload.allowed_reported_codes
+        return ("met" if met else "not_met"), "discharge_mode_compared", frozenset()
     return "undetermined", f"not_executable:{node.kind}", frozenset()
+
+
+type _Occurrence = tuple[str, date | None]
+
+
+def _matching(occurrences: list[_Occurrence], repeat: bool) -> int:
+    """Largest set of occurrences on pairwise distinct days and, unless the
+    label allows repeats, pairwise distinct codes (paragraphs 103, 134, 136)."""
+    if repeat:
+        return len({day for _, day in occurrences})
+    edges: dict[str, set[date | None]] = {}
+    for code, day in occurrences:
+        edges.setdefault(code, set()).add(day)
+    owner: dict[date | None, str] = {}
+    for code in sorted(edges):
+        # Iterative augmenting path (Kuhn); bounded by codes x days.
+        parent: dict[str, tuple[str, date | None] | None] = {code: None}
+        stack = [code]
+        found: tuple[str, date | None] | None = None
+        while stack and found is None:
+            current = stack.pop()
+            for day in sorted(edges[current], key=lambda d: (d is None, d or date.min)):
+                holder = owner.get(day)
+                if holder is None:
+                    found = (current, day)
+                    break
+                if holder not in parent:
+                    parent[holder] = (current, day)
+                    stack.append(holder)
+        while found is not None:
+            current, day = found
+            owner[day] = current
+            found = parent[current]
+    return len(owner)
+
+
+def _count(payload: c.Count, selector: SelectorCodes, facts: Facts) -> _Leaf:
+    if payload.included_node_ids:
+        return "undetermined", "count_scope_unreviewed", frozenset()
+    dates = facts.procedure_dates or (None,) * len(facts.procedures)
+    firm: list[_Occurrence] = []
+    maybe: list[_Occurrence] = []
+    for (code, outcome, rank), day in zip(facts.procedures, dates, strict=True):
+        listed = code in selector.codes
+        if outcome == "excluded" or (
+            not listed and not _in_family(code, selector.families)
+        ):
+            continue
+        short = facts.days is not None and facts.days <= 1
+        if (
+            listed
+            and outcome == "retained"
+            and (rank in (3, 4) or (rank == 2 and short))
+        ):
+            firm.append((code, day))
+        elif not (rank == 2 and facts.days is not None and not short):
+            # Unresolved facts, families, rank 1 and unknown-duration rank 2
+            # could still count; they can only make the count undetermined.
+            maybe.append((code, day))
+    repeat = payload.counting_policy == "repeat_occurrences"
+    if _matching(firm, repeat) >= payload.required_count:
+        return "met", "count_reached", frozenset(code for code, _ in firm)
+    if _matching(firm + maybe, repeat) >= payload.required_count:
+        return "undetermined", "count_needs_unresolved", frozenset()
+    return "not_met", "count_below_required", frozenset()
 
 
 def _distinct(sets: list[frozenset[str]]) -> bool | None:
@@ -168,6 +249,22 @@ def _all(
         return "not_met", "child_not_met"
     if "undetermined" in verdicts:
         return "undetermined", "child_undetermined"
+    counted = [
+        matched for node, _, matched in children if node.kind == "procedure_count"
+    ]
+    procedures = [
+        matched
+        for node, _, matched in children
+        if node.kind in ("procedure_presence", "procedure_count")
+    ]
+    if counted and (
+        "procedure_presence" in nested
+        or "procedure_count" in nested
+        or any(a & b for a, b in itertools.combinations(procedures, 2))
+    ):
+        # A counted procedure must not also satisfy a sibling requirement;
+        # overlapping candidates need an unreviewed allocation.
+        return "undetermined", "shared_fact_unreviewed"
     for kind in ("diagnosis_presence", "procedure_presence"):
         sets = [matched for node, _, matched in children if node.kind == kind]
         if sets and kind in nested:
@@ -232,12 +329,12 @@ def _nested_kinds(payload: c.Expression, nodes: dict[int, c.Condition]) -> set[s
 
 
 def _evaluate(
-    rules: GroupRules, facts: Facts
+    rules: GroupRules, facts: Facts, root: int
 ) -> tuple[Verdict, tuple[NodeVerdict, ...]]:
     nodes = {node.identity: node for node in rules.nodes}
     selectors = {item.identity: item for item in rules.selectors}
     done: dict[int, tuple[Verdict, str, frozenset[str]]] = {}
-    stack = [rules.roots[0]]
+    stack = [root]
     for _ in range(4 * len(nodes) + 4):
         if not stack:
             break
@@ -265,26 +362,51 @@ def _evaluate(
         NodeVerdict(identity, verdict, reason)
         for identity, (verdict, reason, _) in sorted(done.items())
     )
-    return done[rules.roots[0]][0], trace
+    return done[root][0], trace
 
 
 def _routing(rules: GroupRules, facts: Facts) -> tuple[Verdict, str]:
     """Paragraphs 105-111 for conservative (non-procedural) groups."""
     if rules.procedural or rules.code in CONSERVATIVE_MARKER_GROUPS:
         return "met", "routing_not_restricted"
-    retained = [(o, r) for _, o, r in facts.procedures if o != "excluded"]
-    if any(outcome == "unresolved" for outcome, _ in retained):
+    retained = [(c, o, r) for c, o, r in facts.procedures if o != "excluded"]
+    if any(outcome == "unresolved" for _, outcome, _ in retained):
         return "undetermined", "unresolved_procedure"
-    if any(rank is not None and rank > 2 for _, rank in retained):
+    # Paragraph 105: a directing procedure from this group's own lists directs
+    # here, so only directing procedures outside them raise paragraph 110.
+    own = {code for selector in rules.selectors for code in selector.codes}
+    if any(
+        rank is not None and rank > 2 and code not in own for code, _, rank in retained
+    ):
         # Paragraph 110: allowed only if the surgical JGP is outside the ward's
         # contract scope, which is not an encounter fact.
         return "undetermined", "contract_scope_unknown"
-    if any(rank == 2 for _, rank in retained):
+    if any(rank == 2 for _, _, rank in retained):
         if facts.days is None:
             return "undetermined", "rank_2_duration_unknown"
         if facts.days <= 1:
             return "not_met", "minor_procedure_short_stay"
     return "met", "conservative_allowed"
+
+
+def _roots(rules: GroupRules, facts: Facts) -> tuple[Verdict, tuple[NodeVerdict, ...]]:
+    """Several reference roots are alternatives (owner decision 2026-10-07)."""
+    if not rules.roots:
+        return "undetermined", ()
+    verdicts: list[Verdict] = []
+    traced: dict[int, NodeVerdict] = {}
+    for root in rules.roots:
+        verdict, trace = _evaluate(rules, facts, root)
+        verdicts.append(verdict)
+        traced.update((item.node, item) for item in trace)
+    combined: Verdict = (
+        "met"
+        if "met" in verdicts
+        else "not_met"
+        if all(v == "not_met" for v in verdicts)
+        else "undetermined"
+    )
+    return combined, tuple(traced[key] for key in sorted(traced))
 
 
 def evaluate_group(rules: GroupRules, facts: Facts) -> GroupEvaluation:
@@ -296,12 +418,11 @@ def evaluate_group(rules: GroupRules, facts: Facts) -> GroupEvaluation:
     reasons: list[str] = []
     if rules.catalog_rows > 1:
         reasons.append("catalog_rows_ambiguous")
-    if len(rules.roots) != 1:
-        conditions: Verdict = "undetermined"
-        trace: tuple[NodeVerdict, ...] = ()
-        reasons.append("multiple_roots_unreviewed")
-    else:
-        conditions, trace = _evaluate(rules, facts)
+    conditions, trace = _roots(rules, facts)
+    if len(rules.roots) > 1:
+        reasons.append("roots_as_alternatives")
+    elif not rules.roots:
+        reasons.append("no_reference_root")
     routing, why = (
         _routing(rules, facts)
         if rules.catalog_rows == 1

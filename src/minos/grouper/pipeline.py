@@ -103,7 +103,7 @@ def evaluate_candidates(
     candidates, graphs = _prepare(
         connection, dataset_id, encounter, service_date, reporting_month
     )
-    facts = facts_from(candidates.preparation)
+    facts = facts_from(candidates.preparation, encounter.discharge_mode)
     rules: dict[tuple[str, str], GroupRules] = {}
     for graph in graphs:
         codes = [c.group for c in candidates.candidates if c.catalog == graph.catalog]
