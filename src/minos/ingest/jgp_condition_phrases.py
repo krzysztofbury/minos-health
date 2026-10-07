@@ -5,9 +5,10 @@ an atomic fragment never licenses discarding the rest of its source cell.
 """
 
 import heapq
+import itertools
 import re
 from dataclasses import replace
-from typing import Literal, cast, final
+from typing import Literal, cast, final, override
 
 from minos.domain import jgp_conditions as c
 from minos.domain.jgp_conditions_validation import MAX_CONDITIONS, MAX_SELECTORS
@@ -411,10 +412,89 @@ def _ordered_nodes(nodes: list[c.Condition]) -> tuple[c.Condition, ...]:
     return tuple(result)
 
 
+class _Spans(list[tuple[int, int]]):
+    """Records which fragments each phrase span produced (fragment first)."""
+
+    fragments: list[int]
+    owned: list[tuple[tuple[int, int], tuple[int, ...]]]
+    mark: int
+
+    def __init__(self, fragments: list[int]) -> None:
+        super().__init__()
+        self.fragments = fragments
+        self.owned = []
+        self.mark = 0
+
+    @override
+    def append(self, value: tuple[int, int], /) -> None:
+        super().append(value)
+        self.owned.append((value, tuple(self.fragments[self.mark :])))
+        self.mark = len(self.fragments)
+
+
+_FILLER = re.compile(r"\b(?:wymagane wskazanie|wskazanie)\b|-")
+_TOKEN = re.compile(r";|,|\b(?:oraz|i|lub|albo)\b|\S+")
+
+
+def _connector(gap: str) -> str | None:
+    """`part`, `and` or `or` for the text between two phrases, else None."""
+    tokens: list[str] = _TOKEN.findall(_FILLER.sub(" ", gap))
+    if any(token not in {";", ",", "oraz", "i", "lub", "albo"} for token in tokens):
+        return None
+    if ";" in tokens:
+        return None if {"lub", "albo"} & set(tokens) else "part"
+    if {"lub", "albo"} & set(tokens):
+        return None if {",", "oraz", "i"} & set(tokens) else "or"
+    return "and" if tokens else None
+
+
+def _grammar(
+    state: _State, group: str, row: int, text: str, spans: _Spans
+) -> int | None:
+    """Owner rule 2026-10-07: semicolons separate required parts; within a
+    part `oraz`/`i`/commas are AND and `lub`/`albo` join adjacent alternatives."""
+    owned = sorted(spans.owned)
+    claimed = [f for _, fragments in owned for f in fragments]
+    if sorted(claimed) != sorted(spans.fragments) or len(set(claimed)) != len(claimed):
+        return None
+    items = [(span, fragments) for span, fragments in owned if fragments]
+    if not items or any(a[0][1] > b[0][0] for a, b in itertools.pairwise(items)):
+        return None
+    if _TOKEN.findall(_FILLER.sub(" ", text[: items[0][0][0]])) or _TOKEN.findall(
+        _FILLER.sub(" ", text[items[-1][0][1] :]).strip(" .;")
+    ):
+        return None
+    nodes = [
+        f[0] if len(f) == 1 else state.add(group, "all", c.Expression(f), (row,))
+        for _, f in items
+    ]
+    parts: list[list[list[int]]] = [[[nodes[0]]]]
+    for (left, _), (right, _), node in zip(items, items[1:], nodes[1:], strict=False):
+        connector = _connector(text[left[1] : right[0]])
+        if connector is None:
+            return None
+        if connector == "part":
+            parts.append([[node]])
+        elif connector == "and":
+            parts[-1].append([node])
+        else:
+            parts[-1][-1].append(node)
+    conjuncts = [
+        alternatives[0]
+        if len(alternatives) == 1
+        else state.add(group, "any", c.Expression(tuple(alternatives)), (row,))
+        for part in parts
+        for alternatives in part
+    ]
+    if len(conjuncts) == 1:
+        return conjuncts[0]
+    return state.add(group, "all", c.Expression(tuple(conjuncts)), (row,))
+
+
 def _cell(state: _State, group: str, item: c.Evidence) -> int:
     text = " ".join(item.text.split())
     fragments: list[int] = []
-    spans: list[tuple[int, int]] = []
+    spans = _Spans(fragments)
     _secondary_exemption(state, group, item.row, text, fragments, spans)
     _scalar_fragments(state, group, item.row, text, fragments, spans)
     _list_fragments(state, group, item.row, text, fragments, spans)
@@ -457,11 +537,13 @@ def _cell(state: _State, group: str, item: c.Evidence) -> int:
         residue = residue.replace(",", " ")
     residue = residue.strip(" ;.\n")
     if residue or not fragments:
-        reason = (
-            "boolean_scope_unreviewed"
-            if re.search(r"\blub\b|\balbo\b", text)
-            else "unconsumed_source_text"
-        )
+        if re.search(r"\blub\b|\balbo\b", text):
+            parsed = _grammar(state, group, item.row, text, spans)
+            if parsed is not None:
+                return parsed
+            reason = "boolean_scope_unreviewed"
+        else:
+            reason = "unconsumed_source_text"
         return state.unknown(group, item.row, reason, tuple(fragments))
     if len(fragments) == 1:
         return fragments[0]

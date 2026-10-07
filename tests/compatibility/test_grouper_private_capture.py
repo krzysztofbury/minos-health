@@ -328,3 +328,31 @@ def test_real_pinned_ruleset_ranks_valid_groups_by_catalog_base_points() -> None
         ) == ("short_stay_column_blank", 359800)
         with pytest.raises(ModifierBindingUnbound):
             final_points(connection, result)
+
+
+@pytest.mark.parametrize(
+    ("days", "discharge_mode", "status"),
+    [(3, 9, "valid"), (3, 1, "invalid"), (10, 1, "valid"), (3, None, "undetermined")],
+)
+@pytest.mark.jgp_live
+def test_real_pinned_death_discharge_path_follows_the_label_grammar(
+    days: int, discharge_mode: int | None, status: str
+) -> None:
+    """D45 (owner grammar 2026-10-07): principal from list D45 (J96.0), secondary
+    from list D3 (D86.0), procedure from list D45 (93.921, rank 3), age over 17,
+    and a stay over 7 days or discharge mode 9 (death)."""
+    day = date(2026, 10, 2)
+    admitted = day - timedelta(days=days)
+    episode = Encounter(
+        admitted,
+        day,
+        "hospitalization",
+        Diagnosis("J96.0", hospitalization_level=True),
+        (WardStay("ward", "4000", admitted, day),),
+        (Diagnosis("D86.0", hospitalization_level=True),),
+        (Procedure("93.921", admitted + timedelta(days=1), "ward"),),
+        birth_date=date(1950, 1, 1),
+        discharge_mode=discharge_mode,
+        product_reporting="complete",
+    )
+    assert _statuses(episode, day)["D45"] == status

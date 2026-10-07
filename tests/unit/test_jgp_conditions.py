@@ -308,7 +308,8 @@ def test_five_title_only_groups_cannot_become_eligibility_conditions(code: str) 
 def test_unknown_remainder_and_inline_scope_are_not_an_invented_conjunction() -> None:
     for clause, reason in (
         ("wiek > 17 r.ż. and unreviewed clinical magic", "unconsumed_source_text"),
-        ("wiek > 17 r.ż. lub tryb wypisu 9", "boolean_scope_unreviewed"),
+        # Mixed connectors stay unreviewed even under the 2026-10-07 grammar.
+        ("wiek > 17 r.ż. lub, tryb wypisu 9", "boolean_scope_unreviewed"),
     ):
         sheet = interpret_sheet(phrase_sheet("A01", clause))
         root = next(
@@ -319,6 +320,24 @@ def test_unknown_remainder_and_inline_scope_are_not_an_invented_conjunction() ->
         assert root.status == "unsupported" and root.reason == reason
         assert isinstance(root.payload, c.Unsupported) and root.payload.fragments
         assert root.source_rows == (5,)
+
+
+def test_semicolons_join_parts_and_lub_binds_adjacent_alternatives() -> None:
+    # Owner grammar 2026-10-07 (D45 shape): age AND (stay OR death discharge).
+    sheet = interpret_sheet(
+        phrase_sheet("A01", "wiek > 17 r.ż.; czas pobytu >7 dni lub tryb wypisu 9")
+    )
+    nodes = {node.identity: node for node in sheet.conditions}
+    root = nodes[sheet.groups[0].roots[0]]
+    assert (root.kind, root.status) == ("all", "proposed")
+    assert isinstance(root.payload, c.Expression)
+    first, second = (nodes[i] for i in root.payload.children)
+    assert first.kind == "patient_age"
+    assert second.kind == "any" and isinstance(second.payload, c.Expression)
+    assert [nodes[i].kind for i in second.payload.children] == [
+        "episode_duration",
+        "discharge_mode",
+    ]
 
 
 def test_missing_unit_and_role_are_explicit_unsupported_evidence() -> None:
@@ -614,7 +633,7 @@ def _reachable_from_unsupported(sheet: c.Characteristics) -> set[int]:
     "clause",
     [
         "wiek > 17 r.ż. and unreviewed clinical magic",
-        "wiek > 17 r.ż. lub tryb wypisu 9",
+        "wiek > 17 r.ż. lub, tryb wypisu 9",
         "rozpoznania z listy rozpoznań A01; NYHA > II",
     ],
 )
@@ -639,7 +658,7 @@ def test_validation_refuses_a_proposed_child_of_an_unsupported_parent() -> None:
         validate_characteristics(replace(sheet, conditions=tampered))
 
 
-def test_commas_enumerate_clauses_like_oraz_but_never_decide_alternatives() -> None:
+def test_commas_enumerate_clauses_like_oraz_and_lub_binds_tighter() -> None:
     lists: tuple[tuple[str, c.System], ...] = (
         ("A01a", "icd9-pl"),
         ("A01", "icd10-pl"),
@@ -668,7 +687,14 @@ def test_commas_enumerate_clauses_like_oraz_but_never_decide_alternatives() -> N
         for n in alternative.conditions
         if n.identity == alternative.groups[0].roots[0]
     )
-    assert root.status == "unsupported" and root.reason == "boolean_scope_unreviewed"
+    # Owner grammar 2026-10-07: procedure AND (age OR principal diagnosis).
+    validate_characteristics(alternative)
+    nodes = {n.identity: n for n in alternative.conditions}
+    assert root.kind == "all" and isinstance(root.payload, c.Expression)
+    assert [nodes[i].kind for i in root.payload.children] == [
+        "procedure_presence",
+        "any",
+    ]
 
 
 @pytest.mark.parametrize(

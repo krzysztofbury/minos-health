@@ -100,6 +100,13 @@ Base-point rules have their own unit tests; seven of eight deliberate
 breakages were caught, and the eighth (`<=` to `<` on the financed-stay limit)
 is equivalent at the boundary, where both give zero extra days.
 
-Real-data note: on the 46/2026 after-102 sheet, 491 of 629 `1a` groups are fully
-extracted and 612 have a single root. Groups using unapproved kinds stay
+- Death discharge: D45 (owner label grammar, see
+  [conditions ingest](jgp-conditions-ingest.md)) needs principal J96.x from
+  list D45, a secondary diagnosis from list D3, a procedure from list D45, age
+  over 17 and a stay over 7 days or discharge mode 9. A 3-day stay is valid
+  with death (9), invalid with an ordinary discharge and `undetermined` when
+  the mode is not reported; a 10-day stay is valid either way.
+
+Real-data note: on the 46/2026 after-102 sheet, 499 of 629 `1a` groups are fully
+extracted (491 before the label grammar) and 612 have a single root. Groups using unapproved kinds stay
 `undetermined`; widening the subset is an owner decision per kind.

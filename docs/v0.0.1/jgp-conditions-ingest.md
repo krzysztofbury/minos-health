@@ -198,7 +198,15 @@ corrected the importer, with a failing test per change:
   uniform-status rule above.
 - Commas between enumerated clauses were left as residue, so 123 fully
   recognized current 1a cells became `unconsumed_source_text`. They are now
-  separators like `oraz`; any `lub`/`albo` still keeps a cell unsupported.
+  separators like `oraz`. Cells with `lub`/`albo` follow the owner grammar of
+  2026-10-07 (transform `jgp-conditions-reference-v3`): semicolons separate
+  required parts; within a part `oraz`, `i` and commas are AND and `lub`/`albo`
+  join only the adjacent alternatives. A cell whose leftover text is not a
+  single connector type between phrases, or whose phrases cannot be ordered,
+  stays `boolean_scope_unreviewed`. On 46/2026 after 102 this resolves 41 of
+  96 such `1a` cells (and 1 of 5 in `1ae`); fully interpreted `1a` groups rise
+  from 491 to 499, because some resolved cells still contain an unsupported
+  phrase.
 - Guard consequences require the reviewed whole-text shapes instead of a
   keyword plus every code in the annotation; procedure-title gaps are bounded
   and may not contain codes or clause words; title qualifiers compare each
