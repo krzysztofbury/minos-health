@@ -47,6 +47,7 @@ dev = [
     "types-openpyxl==3.1.5.20260827",
     "types-pyyaml>=6,<7",
     "zizmor>=1.30,<2",
+    "hypothesis>=6,<7",
 ]
 
 [build-system]

@@ -421,6 +421,25 @@ Owner decisions:
 See [JGP catalog ingestion](jgp-catalog-ingestion.md) and
 [MODTAR ingestion](jgp-modifiers-ingest.md).
 
+### Grouper Selection, Diagnosis Level And Age (2026-10-07)
+
+Owner decisions while reviewing #144 against the pinned algorithm `1.1.2026`:
+
+- Selection. Paragraph 113 leaves the choice among several valid JGPs for one
+  hospitalization to the reporting provider. Minos returns every qualifying
+  group with its base points, ordered by value, highlights the highest value
+  and labels the choice as the provider's. It never reports one group as the
+  correct result. This supersedes the single best-group step in #35 and suits
+  the discharge audit: a reported group can be compared with valid alternatives.
+- Diagnosis level. Paragraph 143 groups on the hospitalization-level SWIAD
+  causes (`przyczyna-glowna`, `przyczyna-wsp`). A diagnosis reported at that
+  level is never dropped by a paragraph 119 stay exclusion; a stay-attributed
+  diagnosis follows its stay; a diagnosis with neither marker remains
+  unresolved whenever an exclusion could apply.
+- Age. Completed years follow Civil Code art. 112: a missing anniversary day
+  means the month's last day, and age is reached at its start. Someone born on
+  February 29 completes a year on February 28 of a non-leap year.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with
