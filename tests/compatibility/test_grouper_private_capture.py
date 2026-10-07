@@ -16,8 +16,9 @@ from minos.domain.encounter import (
     SettlementProduct,
     WardStay,
 )
+from minos.domain.grouper_rules import ModifierBindingUnbound
 from minos.domain.jgp_ruleset import NoRulesetForDate
-from minos.grouper.pipeline import derive_candidates
+from minos.grouper.pipeline import derive_candidates, evaluate_candidates, final_points
 from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.ingest.grouper_algorithm import load_algorithm
 from minos.ingest.komunikat_manifest import KomunikatManifest
@@ -227,3 +228,214 @@ def test_real_pinned_ruleset_prepares_and_derives_dated_candidates() -> None:
                 service_date=date(2026, 4, 20),
                 reporting_month=date(2026, 4, 1),
             )
+
+
+def _statuses(encounter: Encounter, day: date) -> dict[str, str]:
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            encounter,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+    return {item.group: item.status for item in result.evaluations}
+
+
+@pytest.mark.jgp_live
+def test_real_pinned_ruleset_evaluates_the_approved_condition_subset() -> None:
+    """#35 paths hand-checked against attachment 9 46/2026 after 102 labels.
+
+    F72: procedure from list F72. PZF09: age below 18 and a list procedure.
+    A01: procedure and principal diagnosis from lists A01. T07 ("Leczenie
+    zachowawcze urazów"): principal diagnosis from list T07. A49 ("Udar mózgu
+    - leczenie > 3 dni"): principal from list A50, three procedures from list
+    A49 (distinct codes on distinct days) and a stay over 3 days.
+    """
+    day = date(2026, 10, 2)
+    adult = replace(_hernia(day), product_reporting="complete")
+    child = replace(adult, birth_date=date(2021, 3, 3))
+    assert _statuses(adult, day)["F72"] == "valid"
+    assert _statuses(adult, day)["PZF09"] == "invalid"
+    assert _statuses(child, day)["PZF09"] == "valid"
+    trauma = Encounter(
+        date(2026, 9, 20),
+        day,
+        "hospitalization",
+        Diagnosis("S06.0", hospitalization_level=True),
+        (
+            WardStay("neuro", "4570", date(2026, 9, 20), date(2026, 9, 22)),
+            WardStay("icu", "4260", date(2026, 9, 22), date(2026, 9, 27)),
+            WardStay("neuro-2", "4570", date(2026, 9, 27), day),
+        ),
+        procedures=(Procedure("01.01", date(2026, 9, 23), "icu"),),
+        birth_date=date(1975, 3, 3),
+    )
+    statuses = _statuses(trauma, day)
+    assert (statuses["A01"], statuses["T07"]) == ("invalid", "valid")
+    imaging = ("88.900", "88.911", "87.033")  # list A49, SZP rank 3
+    for days, procedures, status in (
+        (2, imaging, "invalid"),  # stay not over 3 days
+        (10, (), "invalid"),  # fewer than three procedures
+        (10, imaging, "valid"),
+        (10, ("88.900", "88.900", "88.900"), "invalid"),  # one code, counted once
+    ):
+        admitted = day - timedelta(days=days)
+        stroke = Encounter(
+            admitted,
+            day,
+            "hospitalization",
+            Diagnosis("I63.9", hospitalization_level=True),
+            (WardStay("neuro", "4220", admitted, day),),
+            procedures=tuple(
+                Procedure(code, admitted + timedelta(days=offset), "neuro")
+                for offset, code in enumerate(procedures)
+            ),
+            birth_date=date(1950, 1, 1),
+            product_reporting="complete",
+        )
+        assert _statuses(stroke, day)["A49"] == status
+
+
+@pytest.mark.jgp_live
+def test_real_pinned_ruleset_ranks_valid_groups_by_catalog_base_points() -> None:
+    """Catalog 1a, 46/2026 after 102: F72 K (2-day) 3959.00, PZF09 E 3598.00
+    with no 2-day column. Paragraph 113: both valid, highest value first."""
+    day = date(2026, 10, 2)
+    child = replace(
+        _hernia(day), product_reporting="complete", birth_date=date(2021, 3, 3)
+    )
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            child,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+        points = {
+            c.group: p
+            for c, p in zip(result.candidates.candidates, result.points, strict=True)
+        }
+        assert result.ranking == (("1a", "F72"), ("1a", "PZF09"))
+        assert (points["F72"].measure, points["F72"].total_hundredths) == (
+            "two_day_stay",
+            395900,
+        )
+        assert (
+            points["PZF09"].reason,
+            points["PZF09"].total_hundredths,
+        ) == ("short_stay_column_blank", 359800)
+        if not manifest.dataset.modifier_bindings:
+            with pytest.raises(ModifierBindingUnbound):
+                _ = final_points(connection, manifest.dataset, result, frozenset())
+
+
+@pytest.mark.parametrize(
+    ("days", "discharge_mode", "status"),
+    [(3, 9, "valid"), (3, 1, "invalid"), (10, 1, "valid"), (3, None, "undetermined")],
+)
+@pytest.mark.jgp_live
+def test_real_pinned_death_discharge_path_follows_the_label_grammar(
+    days: int, discharge_mode: int | None, status: str
+) -> None:
+    """D45 (owner grammar 2026-10-07): principal from list D45 (J96.0), secondary
+    from list D3 (D86.0), procedure from list D45 (93.921, rank 3), age over 17,
+    and a stay over 7 days or discharge mode 9 (death)."""
+    day = date(2026, 10, 2)
+    admitted = day - timedelta(days=days)
+    episode = Encounter(
+        admitted,
+        day,
+        "hospitalization",
+        Diagnosis("J96.0", hospitalization_level=True),
+        (WardStay("ward", "4000", admitted, day),),
+        (Diagnosis("D86.0", hospitalization_level=True),),
+        (Procedure("93.921", admitted + timedelta(days=1), "ward"),),
+        birth_date=date(1950, 1, 1),
+        discharge_mode=discharge_mode,
+        product_reporting="complete",
+    )
+    assert _statuses(episode, day)["D45"] == status
+
+
+@pytest.mark.jgp_live
+def test_real_pinned_final_points_apply_declared_modifiers_only() -> None:
+    """Owner rules 2026-10-07 with MODTAR generation 102 bound. Hand-checked:
+    F72 4067.00 x 1.4 (section 17(6a), declared) = 5693.80; PZF09 3598.00 x
+    1.2 (17.10, age 2, declared) = 4317.60; 17.11 (ages 3-8) is rejected and
+    17.18 stays possible (+691.39 on F72)."""
+    day = date(2026, 10, 2)
+    admitted = day - timedelta(days=5)
+    toddler = Encounter(
+        admitted,
+        day,
+        "hospitalization",
+        Diagnosis("K40.9", hospitalization_level=True),
+        (WardStay("surgery", "4500", admitted, day),),
+        procedures=(Procedure("53.03", admitted + timedelta(days=1), "surgery"),),
+        birth_date=date(2024, 3, 3),
+        product_reporting="complete",
+    )
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        if not manifest.dataset.modifier_bindings:
+            pytest.skip("bundle carries no reviewed MODTAR binding")
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            toddler,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+        answers = final_points(
+            connection, manifest.dataset, result, frozenset({"17.10", "manual-17-6a"})
+        )
+    by_group = {item.group: item for item in answers}
+    assert [item.group for item in answers] == ["F72", "PZF09"]
+    assert by_group["F72"].total_hundredths == 569380
+    assert by_group["PZF09"].total_hundredths == 431760
+    outcomes = {d.symbol: d.outcome for d in by_group["PZF09"].decisions}
+    assert outcomes["17.11"] == "rejected"
+    gain = next(d for d in by_group["F72"].decisions if d.symbol == "17.18")
+    assert (gain.outcome, gain.would_add_hundredths) == ("possible", 69139)
+
+
+@pytest.mark.parametrize(
+    ("day", "total", "applied"),
+    [(date(2026, 9, 30), 406700, False), (date(2026, 10, 1), 569380, True)],
+)
+@pytest.mark.jgp_live
+def test_real_pinned_final_points_across_the_october_supplement_boundary(
+    day: date, total: int, applied: bool
+) -> None:
+    """Section 17(6a) starts on 2026-10-01 (102/2026 section 4(4)). F72
+    standard value 4067.00; with the declared bilateral supplement x 1.4 =
+    5693.80 from October only."""
+    admitted = day - timedelta(days=5)
+    adult = Encounter(
+        admitted,
+        day,
+        "hospitalization",
+        Diagnosis("K40.2", hospitalization_level=True),
+        (WardStay("surgery", "4500", admitted, day),),
+        procedures=(Procedure("53.03", admitted + timedelta(days=1), "surgery"),),
+        birth_date=date(1975, 3, 3),
+        product_reporting="complete",
+    )
+    with open_reference_bundle(_real_bundle()) as (connection, manifest):
+        if not manifest.dataset.modifier_bindings:
+            pytest.skip("bundle carries no reviewed MODTAR binding")
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(manifest.dataset),
+            adult,
+            service_date=day,
+            reporting_month=day.replace(day=1),
+        )
+        answers = final_points(
+            connection, manifest.dataset, result, frozenset({"manual-17-6a"})
+        )
+    f72 = next(item for item in answers if item.group == "F72")
+    assert f72.total_hundredths == total
+    symbols = {d.symbol for d in f72.decisions if d.outcome == "applied"}
+    assert ("manual-17-6a" in symbols) is applied

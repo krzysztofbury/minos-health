@@ -7,6 +7,7 @@ re-check that the dated selections agree instead of trusting the pairing.
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from datetime import date
 from typing import cast
 
@@ -216,15 +217,28 @@ def _requirement(
     )
 
 
-def directional_index(
+@dataclass(frozen=True)
+class CharacteristicsGraph:
+    """One attachment 9 sheet, decoded once and shared by its readers."""
+
+    release_id: str
+    catalog: Catalog
+    # (group code, title row, ordered reference roots)
+    groups: tuple[tuple[str, int, tuple[int, ...]], ...]
+    nodes: dict[int, c.Condition]
+    selectors: dict[int, c.Selector]
+    members: dict[int, frozenset[str]]
+
+
+def load_graph(
     connection: sqlite3.Connection, release_id: str, catalog: Catalog
-) -> DirectionalIndex:
+) -> CharacteristicsGraph:
     key = (release_id, catalog)
     with query_budget(connection):
         groups = cast(
-            list[tuple[str, int]],
+            list[tuple[str, int, str]],
             connection.execute(
-                """SELECT code, title_row FROM characteristics_group
+                """SELECT code, title_row, roots_json FROM characteristics_group
                 WHERE release_id=? AND catalog=? ORDER BY code LIMIT 2001""",
                 key,
             ).fetchall(),
@@ -254,35 +268,59 @@ def directional_index(
             ).fetchall(),
         )
     if (
-        len(conditions) > MAX_CONDITIONS
+        len(groups) > 2000
+        or len(conditions) > MAX_CONDITIONS
         or len(selector_rows) > MAX_SELECTORS
         or len(member_rows) > MAX_MEMBERS
     ):
         raise ArtifactError("characteristics graph exceeds grouper bound")
-    selectors = {
-        item.identity: item for item in (decode_selector(t) for (t,) in selector_rows)
-    }
     grouped: dict[int, set[str]] = {}
     for list_id, code in member_rows:
         grouped.setdefault(list_id, set()).add(code)
-    members = {list_id: frozenset(codes) for list_id, codes in grouped.items()}
-    nodes = {
-        item.identity: item for item in (decode_condition(t) for (t,) in conditions)
-    }
-    negated = _negated(nodes)
+    return CharacteristicsGraph(
+        release_id,
+        catalog,
+        tuple(
+            (code, row, tuple(cast(list[int], json.loads(roots))))
+            for code, row, roots in groups
+        ),
+        {item.identity: item for item in (decode_condition(t) for (t,) in conditions)},
+        {
+            item.identity: item
+            for item in (decode_selector(t) for (t,) in selector_rows)
+        },
+        {list_id: frozenset(codes) for list_id, codes in grouped.items()},
+    )
+
+
+def owned_nodes(graph: CharacteristicsGraph) -> dict[str, list[c.Condition]]:
     by_group: dict[str, list[c.Condition]] = {}
-    for node in nodes.values():
+    for node in sorted(graph.nodes.values(), key=lambda item: item.identity):
         by_group.setdefault(node.group, []).append(node)
+    return by_group
+
+
+def selector_codes(
+    graph: CharacteristicsGraph, identity: int
+) -> tuple[set[str], set[str], set[int], set[int]]:
+    """Codes, unexpanded families, list ids and source rows of one selector."""
+    return _expand(identity, graph.selectors, graph.members)
+
+
+def index_from_graph(graph: CharacteristicsGraph) -> DirectionalIndex:
+    negated = _negated(graph.nodes)
+    by_group = owned_nodes(graph)
     result: list[GroupDirections] = []
-    for code, title_row in groups:
+    for code, title_row, _roots in graph.groups:
         owned = by_group.get(code, [])
         requirements = tuple(
             requirement
-            for node in sorted(owned, key=lambda item: item.identity)
+            for node in owned
             # Unsupported nodes still name their lists; keeping them errs towards
             # inclusion, and the candidate reports fully_interpreted=False.
             if node.identity not in negated
-            and (requirement := _requirement(node, selectors, members)) is not None
+            and (requirement := _requirement(node, graph.selectors, graph.members))
+            is not None
         )
         result.append(
             GroupDirections(
@@ -292,4 +330,10 @@ def directional_index(
                 bool(owned) and all(node.status == "proposed" for node in owned),
             )
         )
-    return DirectionalIndex(release_id, catalog, tuple(result))
+    return DirectionalIndex(graph.release_id, graph.catalog, tuple(result))
+
+
+def directional_index(
+    connection: sqlite3.Connection, release_id: str, catalog: Catalog
+) -> DirectionalIndex:
+    return index_from_graph(load_graph(connection, release_id, catalog))

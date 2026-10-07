@@ -84,14 +84,14 @@ def main() -> None:
     conditions = Selection.model_validate_json(bounded_read(args.conditions))
     data = base.model_dump(mode="json")
     data.update(conditions.model_dump(mode="json"))
-    data["transform_version"] = "jgp-conditions-reference-v2"
+    data["transform_version"] = "jgp-conditions-reference-v3"
     if args.modifiers is not None:
         data.update(
             ModifierSelection.model_validate_json(
                 bounded_read(args.modifiers)
             ).model_dump(mode="json")
         )
-        data["transform_version"] = "jgp-reference-conditions-modifiers-v3"
+        data["transform_version"] = "jgp-reference-conditions-modifiers-v4"
     if args.search_profile is not None:
         data["search_profile"] = args.search_profile
     entries = TypeAdapter(tuple[SearchSynonym, ...]).validate_json(

@@ -12,25 +12,44 @@ from typing import cast
 from minos.domain.encounter import Encounter
 from minos.domain.grouper import ExecutionKey, GrouperError
 from minos.domain.grouper_candidates import CandidateResult, Catalog
+from minos.domain.grouper_rules import (
+    FinalPoints,
+    GroupingResult,
+    GroupRules,
+    ModifierBindingUnbound,
+    StayFacts,
+)
+from minos.domain.reference import SourceError
 from minos.grouper.candidates import derive
+from minos.grouper.conditions import evaluate_group, facts_from
+from minos.grouper.points import base_points
 from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.grouper.szp_2026 import ENGINE_VERSION
+from minos.grouper.tariff import final_group_points
+from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.grouper_bundle import (
-    directional_index,
+    CharacteristicsGraph,
     grouping_sources,
+    index_from_graph,
     load_bundle_algorithm,
+    load_graph,
 )
+from minos.store.grouper_rules import group_rules
+from minos.store.jgp_modifier_binding import (
+    require_modifier_binding,
+    reviewed_group_modifiers,
+)
+from minos.store.jgp_ruleset import resolve_ruleset
 from minos.store.query_budget import query_budget
 
 
-def derive_candidates(
+def _prepare(
     connection: sqlite3.Connection,
     dataset_id: str,
     encounter: Encounter,
-    *,
     service_date: date,
     reporting_month: date,
-) -> CandidateResult:
+) -> tuple[CandidateResult, tuple[CharacteristicsGraph, ...]]:
     if type(encounter) is not Encounter or type(service_date) is not date:
         raise GrouperError("invalid candidate derivation request")
     # The governing date is the caller's explicit choice, but it must belong
@@ -58,8 +77,130 @@ def derive_candidates(
                 (sources.characteristics_release_id,),
             ).fetchall(),
         )
-    indexes = tuple(
-        directional_index(connection, sources.characteristics_release_id, catalog)
+    graphs = tuple(
+        load_graph(connection, sources.characteristics_release_id, catalog)
         for (catalog,) in catalogs
     )
-    return derive(preparation, indexes, sources)
+    indexes = tuple(index_from_graph(graph) for graph in graphs)
+    return derive(preparation, indexes, sources), graphs
+
+
+def derive_candidates(
+    connection: sqlite3.Connection,
+    dataset_id: str,
+    encounter: Encounter,
+    *,
+    service_date: date,
+    reporting_month: date,
+) -> CandidateResult:
+    return _prepare(connection, dataset_id, encounter, service_date, reporting_month)[0]
+
+
+def evaluate_candidates(
+    connection: sqlite3.Connection,
+    dataset_id: str,
+    encounter: Encounter,
+    *,
+    service_date: date,
+    reporting_month: date,
+) -> GroupingResult:
+    """Candidates, approved-subset verdicts, base points and the valid ranking."""
+    candidates, graphs = _prepare(
+        connection, dataset_id, encounter, service_date, reporting_month
+    )
+    facts = facts_from(candidates.preparation, encounter.discharge_mode)
+    rules: dict[tuple[str, str], GroupRules] = {}
+    for graph in graphs:
+        codes = [c.group for c in candidates.candidates if c.catalog == graph.catalog]
+        for item in group_rules(
+            connection,
+            graph,
+            candidates.sources.catalog_release_id,
+            service_date,
+            codes,
+        ):
+            rules[(item.catalog, item.code)] = item
+    stay = StayFacts(
+        encounter.hospitalization_type,
+        encounter.admitted_on == encounter.discharged_on,
+        facts.days,
+    )
+    chosen = [rules[(c.catalog, c.group)] for c in candidates.candidates]
+    evaluations = tuple(evaluate_group(item, facts) for item in chosen)
+    points = tuple(base_points(item, stay) for item in chosen)
+    valid = [
+        (evaluation, amount.total_hundredths)
+        for evaluation, amount in zip(evaluations, points, strict=True)
+        if evaluation.status == "valid"
+    ]
+    # Unknown points sort after known ones; ties keep catalog and code order.
+    valid.sort(
+        key=lambda item: (
+            item[1] is None,
+            -(item[1] or 0),
+            item[0].catalog,
+            item[0].group,
+        )
+    )
+    return GroupingResult(
+        candidates,
+        evaluations,
+        points,
+        tuple((evaluation.catalog, evaluation.group) for evaluation, _ in valid),
+    )
+
+
+def final_points(
+    connection: sqlite3.Connection,
+    dataset: DatasetManifest,
+    result: GroupingResult,
+    declared: frozenset[str],
+) -> tuple[FinalPoints, ...]:
+    """Final points for every valid group, highest total first (#35).
+
+    Without a reviewed MODTAR binding for the service date this refuses with
+    `ModifierBindingUnbound`; base points are never returned as final points.
+    Provider and encounter facts the encounter lacks come from `declared`
+    modifier symbols (owner decision 2026-10-07).
+    """
+    sources = result.candidates.sources
+    ruleset = resolve_ruleset(connection, sources.service_date, None)
+    if ruleset["release_id"] != sources.catalog_release_id:
+        raise GrouperError("final points ruleset conflicts with grouping sources")
+    try:
+        _ = require_modifier_binding(connection, ruleset)
+    except SourceError as error:
+        raise ModifierBindingUnbound(
+            "final points need a reviewed MODTAR binding for the service date"
+        ) from error
+    points = {
+        (c.catalog, c.group): p
+        for c, p in zip(result.candidates.candidates, result.points, strict=True)
+    }
+    answers: list[FinalPoints] = []
+    for catalog, group in result.ranking:
+        reviewed = reviewed_group_modifiers(connection, dataset, ruleset, group)
+        mappings = [
+            *cast(list[dict[str, object]], reviewed["dictionary_mappings"]),
+            *cast(list[dict[str, object]], reviewed["legal_supplements"]),
+        ]
+        answers.append(
+            final_group_points(
+                catalog,
+                group,
+                points[(catalog, group)],
+                mappings,
+                declared,
+                result.candidates.preparation.completed_years,
+                sources.service_date,
+            )
+        )
+    answers.sort(
+        key=lambda item: (
+            item.total_hundredths is None,
+            -(item.total_hundredths or 0),
+            item.catalog,
+            item.group,
+        )
+    )
+    return tuple(answers)

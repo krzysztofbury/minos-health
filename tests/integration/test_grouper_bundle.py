@@ -4,20 +4,37 @@ import json
 import shutil
 import sqlite3
 from collections.abc import Iterator
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 import pytest
 
 from minos.domain import jgp_conditions as c
 from minos.domain.encounter import Diagnosis, Encounter, Procedure, WardStay
 from minos.domain.grouper import GrouperError
-from minos.grouper.pipeline import derive_candidates
+from minos.domain.grouper_candidates import (
+    Candidate,
+    CandidateResult,
+    GroupingSources,
+)
+from minos.domain.grouper_rules import (
+    BasePoints,
+    GroupEvaluation,
+    GroupingResult,
+    ModifierBindingUnbound,
+)
+from minos.grouper.pipeline import derive_candidates, evaluate_candidates, final_points
 from minos.grouper.szp_2026 import ALGORITHM_SHA256
 from minos.ingest.jgp_conditions_codec import encode
+from minos.ingest.reference_artifact import build_reference_artifact
 from minos.store.grouper_bundle import directional_index, grouping_sources
-from minos.store.reference import open_reference_bundle
+from minos.store.jgp_ruleset import resolve_ruleset
+from minos.store.reference import open_reference_bundle, read_artifact_manifest
+from tests.fixtures.grouper import encounter, key, registry
 from tests.integration.test_jgp_condition_consumers import consumer_bundle
+from tests.integration.test_jgp_modifier_binding import binding_dataset
 
 RELEASE = "conditions-current"
 
@@ -207,3 +224,95 @@ def test_pipeline_refuses_unbound_requests(
                 service_date=service_date,
                 reporting_month=date(2026, 10, 1),
             )
+
+
+@pytest.mark.parametrize(
+    ("stay", "status"),
+    [("ward", "valid"), ("icu", "invalid")],
+)
+def test_pipeline_evaluates_candidates_against_the_governing_catalog(
+    edited: sqlite3.Connection, stay: str, status: str
+) -> None:
+    # A01 needs a procedure from list 1 and a principal diagnosis from list 2.
+    facts = replace(
+        _episode(Procedure("100.01", date(2026, 10, 2 if stay == "ward" else 4), stay)),
+        product_reporting="complete",
+    )
+    result = evaluate_candidates(
+        edited,
+        "synthetic-dataset",
+        facts,
+        service_date=date(2026, 10, 5),
+        reporting_month=date(2026, 10, 1),
+    )
+    by_group = {(e.catalog, e.group): e for e in result.evaluations}
+    assert by_group[("1a", "A01")].status == status
+    assert result.ranking == ((("1a", "A01"),) if status == "valid" else ())
+    a01 = result.points[[c.group for c in result.candidates.candidates].index("A01")]
+    assert a01.determined and a01.measure == "hospitalization"
+    assert result.scope == "base_points_without_modifiers"
+    # AU01 and N09 have attachment 9 rows but no catalog row on the date.
+    for group in (("1ae", "AU01"), ("1a", "N09")):
+        assert by_group[group].status == "invalid"
+        assert by_group[group].reasons == ("not_in_governing_catalog",)
+
+
+def test_final_points_refuse_an_unbound_modifier_binding(
+    edited: sqlite3.Connection, tmp_path: Path
+) -> None:
+    result = evaluate_candidates(
+        edited,
+        "synthetic-dataset",
+        _episode(Procedure("100.01", date(2026, 10, 2), "ward")),
+        service_date=date(2026, 10, 5),
+        reporting_month=date(2026, 10, 1),
+    )
+    assert result.points[0].kind == "catalog_base_points_without_modifiers"
+    dataset = read_artifact_manifest(consumer_bundle(tmp_path / "other")).dataset
+    with pytest.raises(ModifierBindingUnbound):
+        _ = final_points(edited, dataset, result, frozenset())
+
+
+@pytest.mark.parametrize("service_date", [date(2026, 10, 1), date(2027, 1, 1)])
+def test_reviewed_binding_applies_only_declared_modifiers(
+    tmp_path: Path, service_date: date
+) -> None:
+    manifest = binding_dataset(tmp_path)
+    bundle = tmp_path / "bound"
+    _ = build_reference_artifact(manifest, tmp_path, bundle)
+    with open_reference_bundle(bundle) as (connection, opened):
+        catalog = cast(
+            str, resolve_ruleset(connection, service_date, None)["release_id"]
+        )
+        sources = GroupingSources(
+            "d", service_date, catalog, "characteristics", "icd9", "icd10", "algorithm"
+        )
+        candidate = Candidate("1a", "A01", "retained_fact", (1,), (1,), (5,), True)
+        evaluation = GroupEvaluation(
+            "1a", "A01", "valid", "met", "met", ("routing_not_restricted",), ()
+        )
+        result = GroupingResult(
+            CandidateResult(
+                sources, registry().execute(key(), encounter()), (candidate,), ()
+            ),
+            (evaluation,),
+            (BasePoints(True, "standard_value", "hospitalization", 100000),),
+            (("1a", "A01"),),
+        )
+        if service_date.year == 2027:
+            # The reviewed binding covers 2026 only; later dates stay unbound.
+            with pytest.raises(ModifierBindingUnbound):
+                _ = final_points(connection, opened.dataset, result, frozenset())
+            return
+        plain = final_points(connection, opened.dataset, result, frozenset())
+        declared = final_points(
+            connection, opened.dataset, result, frozenset({"manual-17-6a"})
+        )
+    assert plain[0].total_hundredths == 100000
+    assert {d.outcome for d in plain[0].decisions} == {"possible"}
+    supplement = next(d for d in declared[0].decisions if d.symbol == "manual-17-6a")
+    assert (supplement.outcome, supplement.provenance) == (
+        "applied",
+        "manual_legal_overlay",
+    )
+    assert declared[0].total_hundredths == 140000
