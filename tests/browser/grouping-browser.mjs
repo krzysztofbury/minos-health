@@ -63,8 +63,27 @@ try {
     assert.ok(await evaluate("!document.getElementById('step-errors').hidden"));
     await shot("grouping-errors-" + name, false);
     await set("#age", String(e.age_completed_years));
-    await click(".help-toggle[aria-controls='discharge-help']");
-    assert.equal(await evaluate("document.getElementById('discharge-help').hidden"), false);
+    // Owner review: fields in one row start at the same height.
+    const top = selector => evaluate(`Math.round(document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect().top)`);
+    if (width > 900) {
+      assert.equal(await top("#admitted"), await top("#discharged"));
+      assert.equal(await top("#age"), await top("#discharge-select"));
+    }
+    // Explanations are tooltips, not text between label and field.
+    await click(".tip[aria-label='Wyjaśnienie: wiek w dniu przyjęcia']");
+    assert.ok(await evaluate("!document.getElementById('tooltip').hidden && document.getElementById('tooltip').textContent.includes('Ukończone lata')"));
+    await click("h2#step-0-title");
+    assert.ok(await evaluate("document.getElementById('tooltip').hidden"));
+    // Official discharge modes; the calendar speaks Polish whatever the browser language.
+    await wait("document.querySelector(\"#discharge-select option[value='9']\")");
+    assert.ok(await evaluate("document.querySelector(\"#discharge-select option[value='9']\").textContent.includes('zgon pacjenta')"));
+    await click("#admitted + .picker-button");
+    assert.ok(await evaluate("!document.getElementById('picker').hidden && /^(styczeń|luty|marzec|kwiecień|maj|czerwiec|lipiec|sierpień|wrzesień|październik|listopad|grudzień) \\d{4}$/.test(document.querySelector('.picker-title').textContent)"));
+    assert.ok(await evaluate("Array.from(document.querySelectorAll('.picker-weekday')).map(c => c.textContent).join(' ') === 'pn wt śr cz pt so nd'"));
+    await shot("grouping-calendar-" + name, false);
+    await click(".picker-cell[data-value$='-15']");
+    assert.ok(await evaluate("/^15\\.\\d{2}\\.\\d{4}$/.test(document.getElementById('admitted').value) && document.getElementById('picker').hidden"));
+    await set("#admitted", pl(e.admitted_on));
     assert.ok(await evaluate(`document.getElementById('service-discharge-label').textContent.includes(${JSON.stringify(pl(e.discharged_on))})`));
     if (body.service_date === e.discharged_on) await click("input[name=service-mode][value=discharge]");
     else { await click("input[name=service-mode][value=other]"); await set("#service-date", pl(body.service_date)); }
@@ -73,7 +92,17 @@ try {
     await next(1);
     // Step 2: the first stay starts with the episode dates.
     assert.equal(await evaluate("document.querySelector('#wards input.date-pl').value"), pl(e.admitted_on));
-    await set("#wards input[inputmode=numeric]:not(.date-pl)", e.stays[0].department);
+    // Specialty search by name; hospital wards rank first.
+    await set("#wards input[role=combobox]", "wewnętrz");
+    await evaluate("document.querySelector('#wards input[role=combobox]').focus()");
+    await wait("document.querySelector('#wards [role=option]')");
+    assert.equal(await evaluate("document.querySelector('#wards [role=option] .code-chip').textContent"), "4000");
+    await shot("grouping-specialty-" + name, false);
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown" });
+    await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter" });
+    assert.equal(await evaluate("document.querySelector('#wards input[role=combobox]').value"), "4000");
+    assert.ok(await evaluate("document.getElementById('case-summary').textContent.includes('Oddział chorób wewnętrznych')"));
+    await set("#wards input[role=combobox]", e.stays[0].department);
     await next(2);
     // Step 3: keyboard code search with complete suggestion labels, then the exact documented code.
     await set("#principal input", "E11.0");
@@ -94,6 +123,7 @@ try {
     await set("#procedures input.date-pl", pl(e.procedures[0].performed_on));
     await evaluate("const s=document.querySelector('#procedures select'); s.selectedIndex=1; s.dispatchEvent(new Event('change',{bubbles:true}))");
     await click("input[name=product-report][value=empty]");
+    if (width > 900) assert.equal(await top("#procedures select"), await top("#procedures input.date-pl"));
     await shot("grouping-procedures-" + name, false);
     await next(4);
     await wait(`document.querySelector('.verdict-group[data-group="${expected}"]')`);
