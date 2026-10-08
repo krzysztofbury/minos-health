@@ -44,49 +44,58 @@ try {
   const click = async selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
   const step = async index => wait(`!document.querySelector('[data-step="${index}"]').hidden`);
   const next = async index => { await click("#step-next"); await step(index); };
+  const pl = iso => iso.split("-").reverse().join(".");
+  // Typing digits only exercises the DD.MM.RRRR mask the way a coder types.
+  const type = async (selector, text) => { await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`); await evaluate(`(() => { const e=document.querySelector(${JSON.stringify(selector)}); e.value=''; })()`); await send("Input.insertText", { text }); };
   for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     await send("Page.navigate", { url: new URL("/gruper", url).href });
     await wait("document.readyState === 'complete' && document.querySelector('#group-fields') && !document.querySelector('#group-fields').disabled && document.fonts.status === 'loaded'");
     await shot("grouping-empty-" + name, false);
     const e = body.encounter;
-    // Step 1: a missing fact blocks the step and points to the field.
-    await set("#admitted", e.admitted_on); await set("#discharged", e.discharged_on);
+    // Step 1: dates in Polish format regardless of browser language; missing facts block the step.
+    await type("#admitted", e.admitted_on.split("-").reverse().join(""));
+    assert.equal(await evaluate("document.getElementById('admitted').value"), pl(e.admitted_on));
+    await set("#discharged", pl(e.discharged_on));
     await click("#step-next");
     assert.equal(await evaluate("document.querySelector('[data-step=\"0\"]').hidden"), false);
     assert.equal(await evaluate("document.getElementById('age').getAttribute('aria-invalid')"), "true");
     assert.ok(await evaluate("!document.getElementById('step-errors').hidden"));
     await shot("grouping-errors-" + name, false);
     await set("#age", String(e.age_completed_years));
-    await click("#fill-service-date"); await click("#fill-reporting-month");
-    assert.equal(await evaluate("document.getElementById('service-date').value"), e.discharged_on);
-    assert.equal(await evaluate("document.getElementById('reporting-month').value"), body.reporting_month.slice(0, 7));
-    if (body.service_date !== e.discharged_on) await set("#service-date", body.service_date);
+    await click(".help-toggle[aria-controls='discharge-help']");
+    assert.equal(await evaluate("document.getElementById('discharge-help').hidden"), false);
+    assert.ok(await evaluate(`document.getElementById('service-discharge-label').textContent.includes(${JSON.stringify(pl(e.discharged_on))})`));
+    if (body.service_date === e.discharged_on) await click("input[name=service-mode][value=discharge]");
+    else { await click("input[name=service-mode][value=other]"); await set("#service-date", pl(body.service_date)); }
+    await click("input[name=month-mode][value=discharge]");
+    await shot("grouping-hospitalization-" + name, false);
     await next(1);
     // Step 2: the first stay starts with the episode dates.
-    assert.equal(await evaluate("document.querySelector('#wards input[type=date]').value"), e.admitted_on);
-    await set("#wards input[type=text]", e.stays[0].department);
+    assert.equal(await evaluate("document.querySelector('#wards input.date-pl').value"), pl(e.admitted_on));
+    await set("#wards input[inputmode=numeric]:not(.date-pl)", e.stays[0].department);
     await next(2);
-    // Step 3: keyboard code search, then the exact documented code.
+    // Step 3: keyboard code search with complete suggestion labels, then the exact documented code.
     await set("#principal input", "E11.0");
     await evaluate("document.querySelector('#principal input').focus()");
     await wait("document.querySelector('#principal [role=option]')");
     assert.ok(await evaluate("document.querySelector('#principal [role=option]').textContent.length > 8"));
+    assert.ok(await evaluate("Array.from(document.querySelectorAll('#principal .suggestion-label')).every(label => label.scrollWidth <= label.clientWidth + 1)"));
+    await shot("grouping-search-" + name, false);
     await send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown" });
     await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter" });
     assert.equal(await evaluate("document.querySelector('#principal input').value"), "E11.0");
     await set("#principal input", e.principal_diagnosis.code);
     await evaluate("const p=document.querySelector('#principal select'); p.value='episode'; p.dispatchEvent(new Event('change',{bubbles:true}))");
     await next(3);
-    // Step 4: one procedure occurrence attributed to the first stay.
+    // Step 4: one procedure occurrence attributed to the first stay, then the product report.
     await click("#add-procedure");
-    await set("#procedures input[type=text]", e.procedures[0].code);
-    await set("#procedures input[type=date]", e.procedures[0].performed_on);
+    await set("#procedures .search-box input", e.procedures[0].code);
+    await set("#procedures input.date-pl", pl(e.procedures[0].performed_on));
     await evaluate("const s=document.querySelector('#procedures select'); s.selectedIndex=1; s.dispatchEvent(new Event('change',{bubbles:true}))");
-    await next(4);
     await click("input[name=product-report][value=empty]");
-    await shot("grouping-report-" + name, false);
-    await next(5);
+    await shot("grouping-procedures-" + name, false);
+    await next(4);
     await wait(`document.querySelector('.verdict-group[data-group="${expected}"]')`);
     assert.equal(await evaluate("location.pathname + location.search"), "/gruper");
     assert.equal(await evaluate("localStorage.length + sessionStorage.length"), 0);
@@ -97,6 +106,14 @@ try {
     await evaluate("window.scrollTo(0,0)");
     await wait("document.getAnimations().every(a => a.playState !== 'running')");
     await shot("grouping-result-" + name);
+    // A modifier is confirmed from the group's own possibilities and re-evaluates the case.
+    if (await evaluate(`!!document.querySelector('.verdict-group[data-group="${expected}"] .modifier input')`)) {
+      await click(`.verdict-group[data-group="${expected}"] .modifier input`);
+      await wait(`(() => { const box = document.querySelector('.verdict-group[data-group="${expected}"] .modifier input'); return box && box.checked && document.getElementById('group-status').className === 'visually-hidden' && document.getElementById('case-summary').textContent.includes('Potwierdzone modyfikatory'); })()`);
+      await shot("grouping-modifier-" + name, false);
+      await click(`.verdict-group[data-group="${expected}"] .modifier input`);
+      await wait(`(() => { const box = document.querySelector('.verdict-group[data-group="${expected}"] .modifier input'); return box && !box.checked; })()`);
+    }
     // Out-of-scope groups arrive once per reason and render as catalog code lists.
     const skipped = "Array.from(document.querySelectorAll('.result-technical details')).find(d => d.querySelector('summary').textContent.startsWith('Grupy poza oceną'))";
     await evaluate(`document.querySelector('.result-technical').open = true; (${skipped}).open = true`);
@@ -106,7 +123,7 @@ try {
 
     // Hold a fresh evaluation, edit the case, and release the obsolete answer.
     hold = true;
-    await click("[data-goto='4']"); await step(4); await next(5);
+    await click("[data-goto='3']"); await step(3); await next(4);
     for (let i = 0; i < 200 && !held; i++) await new Promise(r => setTimeout(r, 50));
     assert.ok(held);
     await click("[data-goto='0']"); await step(0);
@@ -115,9 +132,9 @@ try {
     await new Promise(r => setTimeout(r, 600));
     assert.equal(await evaluate("document.querySelectorAll('.verdict-group').length"), 0);
     await set("#age", String(e.age_completed_years));
-    await click("[data-goto='4']"); await step(4);
+    await click("[data-goto='3']"); await step(3);
     await click("input[name=product-report][value=present]");
-    await next(5);
+    await next(4);
     await wait("document.getElementById('group-answer').textContent.includes('nie jest jeszcze obsługiwany')");
     assert.equal(await evaluate("document.querySelectorAll('.verdict-group').length"), 0);
     await click("#clear-case");
@@ -129,7 +146,7 @@ try {
   // Chromium records the date input's built-in data: calendar icon as a request.
   // It never leaves the browser. Every actual network request stays same-origin.
   assert.deepEqual(requests.filter(r => new URL(r).protocol !== "data:" && (new URL(r).origin !== new URL(url).origin || new URL(r).search)), []);
-  console.log("Grouping browser passed: desktop/mobile steps, validation, keyboard code search, trace, stale response refusal, product refusal, clear and storage privacy.");
+  console.log("Grouping browser passed: desktop/mobile steps, Polish dates, validation, keyboard code search, modifier confirmation, trace, stale response refusal, product refusal, clear and storage privacy.");
 } finally {
   if (socket) socket.close();
   browser.kill("SIGTERM");

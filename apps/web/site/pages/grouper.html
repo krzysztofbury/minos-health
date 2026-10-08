@@ -9,14 +9,13 @@
         <noscript><p>Formularz wymaga JavaScript. Dostępne są także API i polecenie <code>minos group</code>.</p></noscript>
         <div class="wizard">
           <nav class="wizard-steps" aria-label="Kroki przypadku">
-            <p id="wizard-progress" class="wizard-progress">Krok 1 z 6</p>
+            <p id="wizard-progress" class="wizard-progress">Krok 1 z 5</p>
             <ol>
               <li><button type="button" data-goto="0">Hospitalizacja</button></li>
               <li><button type="button" data-goto="1">Pobyty na oddziałach</button></li>
               <li><button type="button" data-goto="2">Rozpoznania</button></li>
-              <li><button type="button" data-goto="3">Procedury</button></li>
-              <li><button type="button" data-goto="4">Raport i modyfikatory</button></li>
-              <li><button type="button" data-goto="5">Wynik</button></li>
+              <li><button type="button" data-goto="3">Procedury i produkty</button></li>
+              <li><button type="button" data-goto="4">Wynik</button></li>
             </ol>
           </nav>
           <form id="group-form" class="wizard-panel" autocomplete="off" novalidate>
@@ -26,13 +25,19 @@
 
               <section class="wizard-step" data-step="0" aria-labelledby="step-0-title">
                 <h2 id="step-0-title" tabindex="-1">Hospitalizacja</h2>
-                <p class="group-help">Daty i tryb z karty informacyjnej.</p>
+                <p class="group-help">Daty i tryb z karty informacyjnej. Daty wpisuj jako DD.MM.RRRR.</p>
                 <div class="field-grid">
-                  <label>Przyjęcie<input id="admitted" type="date" required></label>
-                  <label>Wypis<input id="discharged" type="date" required></label>
-                  <label>Wiek w dniu przyjęcia<span class="field-hint">ukończone lata</span><input id="age" type="number" min="0" max="200" step="1" inputmode="numeric" required></label>
-                  <label>Kod trybu wypisu<span class="field-hint">opcjonalnie</span><input id="discharge-mode" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="Nie podano"></label>
+                  <label>Przyjęcie<input id="admitted" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" required></label>
+                  <label>Wypis<input id="discharged" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" required></label>
+                  <label>Wiek w dniu przyjęcia<span class="field-hint">ukończone lata</span><input id="age" type="text" inputmode="numeric" maxlength="3" required></label>
+                  <div class="field">
+                    <div class="field-label"><label for="discharge-select">Tryb wypisu</label><button class="help-toggle" type="button" aria-expanded="false" aria-controls="discharge-help">Co to jest?</button></div>
+                    <span class="field-hint">opcjonalnie</span>
+                    <select id="discharge-select"><option value="">Nie podano</option><option value="9">9 - zgon pacjenta</option><option value="other">Inny kod</option></select>
+                  </div>
                 </div>
+                <p id="discharge-help" class="help-text" hidden>Kod trybu wypisu ze sprawozdania świadczenia. Obsługiwane reguły sprawdzają go tylko w nielicznych grupach, na przykład tryb 9 - zgon pacjenta. Jeśli nie masz kodu pod ręką, zostaw "Nie podano": takie warunki pozostaną nierozstrzygnięte, a nie spełnione.</p>
+                <label id="discharge-other" class="field-narrow" hidden>Kod trybu wypisu<span class="field-hint">1-99</span><input id="discharge-mode" type="text" inputmode="numeric" maxlength="2"></label>
                 <fieldset class="choice">
                   <legend>Tryb hospitalizacji</legend>
                   <label><input type="radio" name="hospitalization" value="hospitalization" checked>Hospitalizacja</label>
@@ -40,19 +45,26 @@
                   <label><input type="radio" name="hospitalization" value="one_day">Leczenie jednego dnia</label>
                 </fieldset>
                 <div class="field-grid">
-                  <label>Dzień świadczenia<span class="field-hint">wyznacza obowiązujące reguły</span><input id="service-date" type="date" required></label>
-                  <label>Miesiąc sprawozdawczy<span class="field-hint">RRRR-MM</span><input id="reporting-month" type="month" pattern="[0-9]{4}-[0-9]{2}" placeholder="RRRR-MM" required></label>
-                </div>
-                <div class="quick-fill">
-                  <button id="fill-service-date" class="button button-quiet button-small" type="button">Dzień świadczenia: dzień wypisu</button>
-                  <button id="fill-reporting-month" class="button button-quiet button-small" type="button">Miesiąc sprawozdawczy: miesiąc wypisu</button>
+                  <fieldset class="choice choice-stacked">
+                    <legend>Dzień świadczenia<span class="field-hint">wyznacza obowiązujące reguły</span></legend>
+                    <label><input type="radio" name="service-mode" value="discharge"><span id="service-discharge-label">Dzień wypisu</span></label>
+                    <label><input type="radio" name="service-mode" value="other">Inny dzień</label>
+                    <input id="service-date" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" aria-label="Inny dzień świadczenia" hidden>
+                  </fieldset>
+                  <fieldset class="choice choice-stacked">
+                    <legend>Miesiąc sprawozdawczy<span class="field-hint">miesiąc wysłania sprawozdania</span></legend>
+                    <label><input type="radio" name="month-mode" value="discharge"><span id="month-discharge-label">Miesiąc wypisu</span></label>
+                    <label><input type="radio" name="month-mode" value="other">Inny miesiąc</label>
+                    <input id="reporting-month" class="month-pl" type="text" inputmode="numeric" maxlength="7" placeholder="MM.RRRR" aria-label="Inny miesiąc sprawozdawczy" hidden>
+                  </fieldset>
                 </div>
               </section>
 
               <section class="wizard-step" data-step="1" aria-labelledby="step-1-title" hidden>
                 <h2 id="step-1-title" tabindex="-1">Pobyty na oddziałach</h2>
-                <p class="group-help">Każdy pobyt osobno, z kodem specjalności (część VIII kodu resortowego).</p>
-                <p id="ward-prefill" class="group-help" hidden>Pierwszy pobyt uzupełniono datami hospitalizacji. Zmień je, jeśli pacjent przebywał na kilku oddziałach.</p>
+                <p class="group-help">Każdy pobyt osobno. Pierwszy pobyt startuje z datami hospitalizacji; zmień je, jeśli pacjent przebywał na kilku oddziałach.</p>
+                <button class="help-toggle" type="button" aria-expanded="false" aria-controls="specialty-help">Skąd wziąć kod specjalności?</button>
+                <p id="specialty-help" class="help-text" hidden>To 4-cyfrowy kod specjalności komórki organizacyjnej (część VIII kodu resortowego oddziału), ten sam co w sprawozdaniu świadczenia, na przykład 4500. Wyszukiwanie po nazwie oddziału jest w przygotowaniu. Kod decyduje o wyłączeniu pobytu z grupowania.</p>
                 <div id="wards"></div>
                 <button id="add-ward" class="button button-quiet" type="button">Dodaj pobyt</button>
               </section>
@@ -67,27 +79,21 @@
               </section>
 
               <section class="wizard-step" data-step="3" aria-labelledby="step-3-title" hidden>
-                <h2 id="step-3-title" tabindex="-1">Procedury</h2>
+                <h2 id="step-3-title" tabindex="-1">Procedury i produkty</h2>
                 <p class="group-help">Każde wykonanie osobno, także powtórzenia. Brak daty lub pobytu pozostaje nieznany. Przypadek bez procedur jest dozwolony.</p>
                 <div id="procedures"></div>
                 <button id="add-procedure" class="button button-quiet" type="button">Dodaj procedurę</button>
-              </section>
-
-              <section class="wizard-step" data-step="4" aria-labelledby="step-4-title" hidden>
-                <h2 id="step-4-title" tabindex="-1">Raport i modyfikatory</h2>
-                <fieldset class="choice choice-stacked">
+                <fieldset class="choice choice-stacked report-choice">
                   <legend>Produkty rozliczeniowe w raporcie</legend>
                   <label><input type="radio" name="product-report" value="empty">Potwierdzony kompletny raport bez produktów</label>
                   <label><input type="radio" name="product-report" value="unknown" checked>Raport niepełny lub nie wiem</label>
                   <label><input type="radio" name="product-report" value="present">Raport zawiera produkty</label>
                 </fieldset>
-                <p class="group-help">Wyłączenia produktów nie są jeszcze obsługiwane. Ocenę kwalifikacji otrzyma tylko potwierdzony kompletny raport bez produktów.</p>
-                <label class="field-wide">Potwierdzone modyfikatory<span class="field-hint">opcjonalnie, symbole oddzielone przecinkami, np. 17.18</span><input id="modifiers" type="text" maxlength="500" spellcheck="false"></label>
-                <p class="group-help">Deklaruj wyłącznie modyfikatory, których wszystkie warunki potwierdza dokumentacja i umowa.</p>
+                <p class="group-help">Wyłączenia produktów nie są jeszcze obsługiwane. Ocenę kwalifikacji otrzyma tylko potwierdzony kompletny raport bez produktów. Modyfikatory potwierdzisz przy wyniku, dla konkretnej grupy.</p>
               </section>
 
-              <section class="wizard-step" data-step="5" aria-labelledby="step-5-title" hidden>
-                <h2 id="step-5-title" class="visually-hidden" tabindex="-1">Wynik</h2>
+              <section class="wizard-step" data-step="4" aria-labelledby="step-4-title" hidden>
+                <h2 id="step-4-title" class="visually-hidden" tabindex="-1">Wynik</h2>
                 <p id="group-status" role="status" aria-live="polite"></p>
                 <div id="group-answer"></div>
               </section>
@@ -101,7 +107,7 @@
           <aside class="case-card" aria-labelledby="case-card-title">
             <details id="case-card-details" open>
               <summary><h2 id="case-card-title">Karta przypadku</h2></summary>
-              <dl id="case-summary"></dl>
+              <ol id="case-summary" class="case-sections"></ol>
               <button id="clear-case" class="button button-quiet button-small" type="button">Wyczyść przypadek</button>
             </details>
           </aside>
