@@ -61,6 +61,7 @@ def group_rules(
                     tuple(sorted(families)),
                     tuple(sorted(lists)),
                     tuple(sorted(source_rows)),
+                    tuple(graph.labels.get(item, "") for item in sorted(lists)),
                 )
             )
         result.append(

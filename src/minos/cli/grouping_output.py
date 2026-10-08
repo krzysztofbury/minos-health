@@ -157,6 +157,7 @@ def node_output(event: NodeVerdict) -> dict[str, object]:
         "selector": {
             "identity": event.selector.identity,
             "list_ids": list(event.selector.list_ids),
+            "list_labels": list(event.selector.list_labels),
             "source_rows": list(event.selector.source_rows),
             "families": list(event.selector.families),
             "explicit_codes": sorted(event.selector.codes)

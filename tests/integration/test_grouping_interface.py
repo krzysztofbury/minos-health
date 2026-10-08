@@ -71,6 +71,34 @@ def test_http_and_installed_cli_share_versioned_trace(tmp_path: Path) -> None:
     assert not process.stderr
 
 
+def test_http_reuses_release_static_inputs_without_changing_answers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sqlite3
+
+    from minos.domain.grouper_candidates import Catalog
+    from minos.grouper import pipeline
+    from minos.store.grouper_bundle import CharacteristicsGraph, load_graph
+
+    loads: list[str] = []
+
+    def counted(
+        connection: sqlite3.Connection, release_id: str, catalog: Catalog
+    ) -> CharacteristicsGraph:
+        loads.append(release_id)
+        return load_graph(connection, release_id, catalog)
+
+    monkeypatch.setattr(pipeline, "load_graph", counted)
+    with TestClient(create_app(grouping_bundle(tmp_path))) as client:
+        first = client.post("/api/v1/group", json=grouping_body())
+        loaded = len(loads)
+        second = client.post("/api/v1/group", json=grouping_body())
+    assert first.status_code == second.status_code == 200
+    assert first.json() == second.json()
+    # #149: decoding the characteristics graph dominated every request.
+    assert loaded >= 1 and len(loads) == loaded
+
+
 def test_trace_preserves_attribution_and_canonical_stay_ordinals(
     tmp_path: Path,
 ) -> None:
@@ -215,6 +243,7 @@ def test_payload_caps_duplicate_keys_and_product_unknowns(tmp_path: Path) -> Non
 def test_grouping_admission_preserves_search_capacity_and_recovers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from minos.grouper.pipeline import PreparedSources
     from minos.http import grouping
     from minos.http.reference import ReferencePool
 
@@ -222,13 +251,13 @@ def test_grouping_admission_preserves_search_capacity_and_recovers(
     release = Event()
     original = grouping.evaluate
 
-    def held(pool: ReferencePool, body: bytes) -> bytes:
+    def held(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> bytes:
         # A real leased worker is busy, rather than a fabricated busy response.
         with pool.borrow():
             position = 0 if not started[0].is_set() else 1
             started[position].set()
             assert release.wait(5)
-        return original(pool, body)
+        return original(pool, body, prepared)
 
     with TestClient(create_app(grouping_bundle(tmp_path))) as client:
         monkeypatch.setattr(grouping, "evaluate", held)

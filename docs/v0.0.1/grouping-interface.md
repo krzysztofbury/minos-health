@@ -45,6 +45,18 @@ non-first-of-month reporting dates, and service dates outside the episode fail.
 Declared modifier symbols are bounded, distinct, explicit assertions of all
 required provider/encounter conditions, following the 2026-10-07 decision.
 
+The builder is a sequence of steps (hospitalization, ward stays, diagnoses,
+procedures, report and modifiers, result) with Back/Next navigation. Each step is
+validated before the next one opens; problems are listed above the step and
+point to the field. A case card summarizes the entered facts with a link back to
+each step. Grouping is requested only on the result step, not on every edit.
+Quick-fill buttons set the service date or reporting month to the discharge date
+on an explicit click; nothing is inferred silently. The first ward stay starts
+with the hospitalization dates, visibly and editably. The result lists the
+qualifying groups first, then a plain-language condition checklist in catalog
+vernacular (list labels, `< 18 r.ż.`), documentation checks, other candidates
+with their first failing or unresolved condition, and technical details.
+
 The builder supports repeated diagnoses, procedure occurrences and ward stays.
 It does not collect a stay's optional `service_code` (the API and CLI accept it).
 The pinned SZP dictionary has 94 specialty codes, all in the 1xxx range, whose
@@ -72,7 +84,8 @@ hundredths; coefficients are millionths. Unknown values remain JSON `null`.
   directional evidence, base points and optional final points.
 - `trace`: all consulted condition nodes, deterministically ordered by identity.
   Each event includes its source rows, parameters, matched codes, observed
-  scalars/count, selector/list identities and indexes into prepared facts.
+  scalars/count, selector/list identities, directional list labels
+  (`list_labels`, aligned with `list_ids`) and indexes into prepared facts.
   Shared subexpressions are represented once; expressions refer to child IDs.
 - `preparation`: preserved fact occurrences, ranks, exclusions, age, ward-adjusted
   duration, and source-linked preparation events with readable explanations.
@@ -117,6 +130,11 @@ checks are never mixed into the trace of the actual reported encounter.
 - Whole-evaluation budget: three seconds, 200,000 cooperative work checkpoints,
   and 20 million SQLite VM operations. SQL readers share the enclosing deadline.
   Limits return explicit errors rather than partial results.
+- Release-static inputs (algorithm tables, characteristics graphs and directional
+  indexes) are decoded and validated once per running app, which serves exactly
+  one verified bundle (#149). The first request after a start builds them.
+  Before this, production evaluations took 1.4-3.3 s and some exceeded the
+  budget; locally, repeated requests fell from about 240 ms to about 38 ms.
 - Response limit: 4 MiB, refused as a whole when exceeded. Error codes are fixed:
   `invalid_request` (400), `body_too_large` (413), `json_required` or
   `content_encoding_unsupported` (415), `no_ruleset_for_date`,
@@ -127,7 +145,7 @@ checks are never mixed into the trace of the actual reported encounter.
   and response buffering are disabled, and request buffers cover the body cap.
   The route rejects URL query parameters. API responses are `no-store`.
 - Every edit clears the old result immediately; obsolete responses cannot replace
-  newer state. The builder clears its case on page exit and offers explicit reset.
+  newer state. Leaving the result step and changing a fact requests a new answer. The builder clears its case on page exit and offers explicit reset.
 
 These are engineering limits, not validated clinical maxima or a host-capacity
 claim. The browser uses the existing POST search API, source selection rules,

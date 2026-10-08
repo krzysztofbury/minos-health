@@ -7,7 +7,7 @@ re-check that the dated selections agree instead of trusting the pairing.
 
 import json
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import cast
 
@@ -228,6 +228,8 @@ class CharacteristicsGraph:
     nodes: dict[int, c.Condition]
     selectors: dict[int, c.Selector]
     members: dict[int, frozenset[str]]
+    # Directional list id -> source label (for example F72), for explanations.
+    labels: dict[int, str] = field(default_factory=dict)
 
 
 def load_graph(
@@ -267,11 +269,20 @@ def load_graph(
                 (*key, MAX_MEMBERS + 1),
             ).fetchall(),
         )
+        label_rows = cast(
+            list[tuple[int, str]],
+            connection.execute(
+                """SELECT id, label FROM directional_list WHERE release_id=?
+                AND catalog=? ORDER BY id LIMIT 3001""",
+                key,
+            ).fetchall(),
+        )
     if (
         len(groups) > 2000
         or len(conditions) > MAX_CONDITIONS
         or len(selector_rows) > MAX_SELECTORS
         or len(member_rows) > MAX_MEMBERS
+        or len(label_rows) > 3000
     ):
         raise ArtifactError("characteristics graph exceeds grouper bound")
     grouped: dict[int, set[str]] = {}
@@ -290,6 +301,7 @@ def load_graph(
             for item in (decode_selector(t) for (t,) in selector_rows)
         },
         {list_id: frozenset(codes) for list_id, codes in grouped.items()},
+        dict(label_rows),
     )
 
 

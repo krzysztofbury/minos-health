@@ -1,62 +1,109 @@
       <div class="shell">
-        <header class="page-head">
+        <header class="page-head wizard-head">
           <p class="page-meta">JGP / ocena referencyjna</p>
           <h1>Sprawdź grupowanie przypadku</h1>
-          <p class="page-lead">Wprowadź udokumentowane fakty. Zobacz kwalifikujące grupy, punkty i warunki, które wpłynęły na wynik.</p>
-          <p class="group-help">Bez imienia, PESEL i opisu pacjenta. Formularz jest przetwarzany w pamięci, bez zapisu danych przypadku. Na tej stronie nie ma analityki.</p>
+          <p class="page-lead">Przepisz fakty z dokumentacji. Zobaczysz grupy spełniające obsługiwane warunki, punkty i powód decyzji.</p>
+          <p class="group-help">Bez imienia, PESEL i opisu pacjenta. Przypadek jest oceniany w pamięci i nie jest zapisywany. Na tej stronie nie ma analityki.</p>
         </header>
-        <p id="group-availability" class="group-notice" role="status">Sprawdzamy dostępność zestawu reguł...</p>
+        <p id="group-availability" class="group-help" role="status">Sprawdzamy dostępność zestawu reguł...</p>
         <noscript><p>Formularz wymaga JavaScript. Dostępne są także API i polecenie <code>minos group</code>.</p></noscript>
-        <div class="group-layout">
-          <form id="group-form" autocomplete="off" novalidate>
+        <div class="wizard">
+          <nav class="wizard-steps" aria-label="Kroki przypadku">
+            <p id="wizard-progress" class="wizard-progress">Krok 1 z 6</p>
+            <ol>
+              <li><button type="button" data-goto="0">Hospitalizacja</button></li>
+              <li><button type="button" data-goto="1">Pobyty na oddziałach</button></li>
+              <li><button type="button" data-goto="2">Rozpoznania</button></li>
+              <li><button type="button" data-goto="3">Procedury</button></li>
+              <li><button type="button" data-goto="4">Raport i modyfikatory</button></li>
+              <li><button type="button" data-goto="5">Wynik</button></li>
+            </ol>
+          </nav>
+          <form id="group-form" class="wizard-panel" autocomplete="off" novalidate>
             <fieldset id="group-fields" disabled>
               <legend class="visually-hidden">Fakty przypadku</legend>
-              <section class="group-panel" aria-labelledby="episode-title">
-                <h2 id="episode-title">1. Hospitalizacja</h2>
-                <div class="group-grid">
+              <div id="step-errors" class="wizard-errors" role="alert" hidden></div>
+
+              <section class="wizard-step" data-step="0" aria-labelledby="step-0-title">
+                <h2 id="step-0-title" tabindex="-1">Hospitalizacja</h2>
+                <p class="group-help">Daty i tryb z karty informacyjnej.</p>
+                <div class="field-grid">
                   <label>Przyjęcie<input id="admitted" type="date" required></label>
                   <label>Wypis<input id="discharged" type="date" required></label>
-                  <label>Wiek w dniu przyjęcia (ukończone lata)<input id="age" type="number" min="0" max="200" step="1" required></label>
-                  <label>Tryb hospitalizacji<select id="hospitalization"><option value="hospitalization">Hospitalizacja</option><option value="planned">Hospitalizacja planowa</option><option value="one_day">Leczenie jednego dnia</option></select></label>
-                  <label>Dzień świadczenia<input id="service-date" type="date" required></label>
-                  <label>Miesiąc sprawozdawczy<input id="reporting-month" type="month" pattern="[0-9]{4}-[0-9]{2}" placeholder="RRRR-MM" required></label>
-                  <label>Kod trybu wypisu (opcjonalnie)<input id="discharge-mode" type="number" min="1" max="99" step="1" placeholder="Nieznany"></label>
+                  <label>Wiek w dniu przyjęcia<span class="field-hint">ukończone lata</span><input id="age" type="number" min="0" max="200" step="1" inputmode="numeric" required></label>
+                  <label>Kod trybu wypisu<span class="field-hint">opcjonalnie</span><input id="discharge-mode" type="number" min="1" max="99" step="1" inputmode="numeric" placeholder="Nie podano"></label>
+                </div>
+                <fieldset class="choice">
+                  <legend>Tryb hospitalizacji</legend>
+                  <label><input type="radio" name="hospitalization" value="hospitalization" checked>Hospitalizacja</label>
+                  <label><input type="radio" name="hospitalization" value="planned">Hospitalizacja planowa</label>
+                  <label><input type="radio" name="hospitalization" value="one_day">Leczenie jednego dnia</label>
+                </fieldset>
+                <div class="field-grid">
+                  <label>Dzień świadczenia<span class="field-hint">wyznacza obowiązujące reguły</span><input id="service-date" type="date" required></label>
+                  <label>Miesiąc sprawozdawczy<span class="field-hint">RRRR-MM</span><input id="reporting-month" type="month" pattern="[0-9]{4}-[0-9]{2}" placeholder="RRRR-MM" required></label>
+                </div>
+                <div class="quick-fill">
+                  <button id="fill-service-date" class="button button-quiet button-small" type="button">Dzień świadczenia: dzień wypisu</button>
+                  <button id="fill-reporting-month" class="button button-quiet button-small" type="button">Miesiąc sprawozdawczy: miesiąc wypisu</button>
                 </div>
               </section>
-              <section class="group-panel" aria-labelledby="wards-title">
-                <h2 id="wards-title">2. Pobyty na oddziałach</h2>
-                <p class="group-help">Każdy pobyt osobno. Uzupełnij kod specjalności oraz jego rzeczywiste daty.</p>
+
+              <section class="wizard-step" data-step="1" aria-labelledby="step-1-title" hidden>
+                <h2 id="step-1-title" tabindex="-1">Pobyty na oddziałach</h2>
+                <p class="group-help">Każdy pobyt osobno, z kodem specjalności (część VIII kodu resortowego).</p>
+                <p id="ward-prefill" class="group-help" hidden>Pierwszy pobyt uzupełniono datami hospitalizacji. Zmień je, jeśli pacjent przebywał na kilku oddziałach.</p>
                 <div id="wards"></div>
                 <button id="add-ward" class="button button-quiet" type="button">Dodaj pobyt</button>
               </section>
-              <section class="group-panel" aria-labelledby="diagnoses-title">
-                <h2 id="diagnoses-title">3. Rozpoznania</h2>
-                <p class="group-help">Szukaj kodem lub opisem. Wybierz poziom zgłoszenia albo pozostaw nieznany.</p>
+
+              <section class="wizard-step" data-step="2" aria-labelledby="step-2-title" hidden>
+                <h2 id="step-2-title" tabindex="-1">Rozpoznania</h2>
+                <p class="group-help">Szukaj kodem lub opisem i wybierz podpowiedź. Poziom zgłoszenia pozostaw nieokreślony, jeśli dokumentacja go nie podaje.</p>
                 <div id="principal"></div>
+                <h3 class="wizard-subhead">Rozpoznania współistniejące</h3>
                 <div id="secondary"></div>
-                <button id="add-secondary" class="button button-quiet" type="button">Dodaj współistniejące</button>
+                <button id="add-secondary" class="button button-quiet" type="button">Dodaj rozpoznanie współistniejące</button>
               </section>
-              <section class="group-panel" aria-labelledby="procedures-title">
-                <h2 id="procedures-title">4. Procedury</h2>
-                <p class="group-help">Każde wykonanie osobno, także powtórzenia. Brak daty lub oddziału pozostaje nieznany.</p>
+
+              <section class="wizard-step" data-step="3" aria-labelledby="step-3-title" hidden>
+                <h2 id="step-3-title" tabindex="-1">Procedury</h2>
+                <p class="group-help">Każde wykonanie osobno, także powtórzenia. Brak daty lub pobytu pozostaje nieznany. Przypadek bez procedur jest dozwolony.</p>
                 <div id="procedures"></div>
                 <button id="add-procedure" class="button button-quiet" type="button">Dodaj procedurę</button>
               </section>
-              <section class="group-panel" aria-labelledby="report-title">
-                <h2 id="report-title">5. Zakres raportu</h2>
-                <label>Produkty rozliczeniowe<select id="product-report"><option value="unknown">Nieznany lub niepełny raport</option><option value="empty">Potwierdzony kompletny raport bez produktów</option><option value="present">Raport zawiera produkty</option></select></label>
-                <p class="group-help">Wyłączenia produktów nie są jeszcze obsługiwane. Raport niepełny lub zawierający produkty nie otrzyma oceny kwalifikacji.</p>
-                <label>Symbole potwierdzonych modyfikatorów (opcjonalnie)<input id="modifiers" type="text" maxlength="500" placeholder="np. M5, 17.1" spellcheck="false"></label>
-                <p class="group-help">Deklaruj wyłącznie modyfikatory, których wszystkie warunki potwierdza dokumentacja i umowa. Sam symbol jest deklaracją użytkownika.</p>
+
+              <section class="wizard-step" data-step="4" aria-labelledby="step-4-title" hidden>
+                <h2 id="step-4-title" tabindex="-1">Raport i modyfikatory</h2>
+                <fieldset class="choice choice-stacked">
+                  <legend>Produkty rozliczeniowe w raporcie</legend>
+                  <label><input type="radio" name="product-report" value="empty">Potwierdzony kompletny raport bez produktów</label>
+                  <label><input type="radio" name="product-report" value="unknown" checked>Raport niepełny lub nie wiem</label>
+                  <label><input type="radio" name="product-report" value="present">Raport zawiera produkty</label>
+                </fieldset>
+                <p class="group-help">Wyłączenia produktów nie są jeszcze obsługiwane. Ocenę kwalifikacji otrzyma tylko potwierdzony kompletny raport bez produktów.</p>
+                <label class="field-wide">Potwierdzone modyfikatory<span class="field-hint">opcjonalnie, symbole oddzielone przecinkami, np. 17.18</span><input id="modifiers" type="text" maxlength="500" spellcheck="false"></label>
+                <p class="group-help">Deklaruj wyłącznie modyfikatory, których wszystkie warunki potwierdza dokumentacja i umowa.</p>
               </section>
-              <div class="group-actions"><button class="button" type="submit">Przelicz teraz</button><button id="clear-case" class="button button-quiet" type="button">Wyczyść przypadek</button></div>
-              <p class="group-help">Po uzupełnieniu wymaganych pól wynik odświeża się automatycznie.</p>
+
+              <section class="wizard-step" data-step="5" aria-labelledby="step-5-title" hidden>
+                <h2 id="step-5-title" class="visually-hidden" tabindex="-1">Wynik</h2>
+                <p id="group-status" role="status" aria-live="polite"></p>
+                <div id="group-answer"></div>
+              </section>
+
+              <div class="wizard-nav">
+                <button id="step-back" class="button button-quiet" type="button">Wstecz</button>
+                <button id="step-next" class="button" type="submit">Dalej</button>
+              </div>
             </fieldset>
           </form>
-          <section class="group-results" aria-labelledby="answer-title">
-            <h2 id="answer-title">Wynik i uzasadnienie</h2>
-            <p id="group-status" role="status" aria-live="polite">Uzupełnij fakty przypadku, aby zobaczyć wynik.</p>
-            <div id="group-answer"></div>
-          </section>
+          <aside class="case-card" aria-labelledby="case-card-title">
+            <details id="case-card-details" open>
+              <summary><h2 id="case-card-title">Karta przypadku</h2></summary>
+              <dl id="case-summary"></dl>
+              <button id="clear-case" class="button button-quiet button-small" type="button">Wyczyść przypadek</button>
+            </details>
+          </aside>
         </div>
       </div>
