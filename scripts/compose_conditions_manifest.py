@@ -8,6 +8,7 @@ from typing import Annotated, ClassVar, Literal, final
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
+from minos.ingest.grouping_dictionaries_manifest import GroupingDictionaries
 from minos.ingest.jgp_conditions_manifest import ConditionsManifest
 from minos.ingest.jgp_modifier_binding_manifest import ModifierBinding
 from minos.ingest.jgp_modifiers_manifest import ModifierCandidate, ModifierManifest
@@ -48,6 +49,12 @@ def bounded_read(path: Path) -> bytes:
     return content
 
 
+class DictionarySelection(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+
+    grouping_dictionaries: GroupingDictionaries
+
+
 @final
 class Arguments(argparse.Namespace):
     base: Path = Path("manifests/sources/reference-catalog-public-validation.json")
@@ -56,6 +63,7 @@ class Arguments(argparse.Namespace):
     modifiers: Path | None = None
     search_profile: Literal["polish-folded-1"] | None = None
     synonyms: Path = Path("manifests/sources/search-synonyms-reviewed-v1.json")
+    dictionaries: Path | None = None
 
 
 def main() -> None:
@@ -73,6 +81,7 @@ def main() -> None:
     _ = parser.add_argument("--output", type=Path, required=True)
     _ = parser.add_argument("--modifiers", type=Path)
     _ = parser.add_argument("--search-profile", choices=("polish-folded-1",))
+    _ = parser.add_argument("--dictionaries", type=Path)
     _ = parser.add_argument(
         "--synonyms",
         type=Path,
@@ -98,6 +107,13 @@ def main() -> None:
         bounded_read(args.synonyms)
     )
     data["search_synonyms"] = [entry.model_dump(mode="json") for entry in entries]
+    if args.dictionaries is not None:
+        data.update(
+            DictionarySelection.model_validate_json(
+                bounded_read(args.dictionaries)
+            ).model_dump(mode="json")
+        )
+        data["transform_version"] = "jgp-reference-conditions-dictionaries-v5"
     manifest = DatasetManifest.model_validate_json(json.dumps(data))
     with args.output.open("x", encoding="utf-8") as target:
         _ = target.write(manifest.model_dump_json(indent=2) + "\n")

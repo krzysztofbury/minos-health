@@ -16,6 +16,72 @@ from tests.fixtures.komunikat import stage_komunikat
 from tests.integration.test_jgp_condition_consumers import consumer_bundle
 
 
+def stage_dictionaries(root: Path) -> dict[str, object]:
+    """Tiny synthetic legal tables; real transcriptions are checked separately."""
+    directory = root / "blobs" / "sha256"
+    directory.mkdir(parents=True, exist_ok=True)
+    pins: list[dict[str, object]] = []
+    for act in ("2019/173", "2025/1588"):
+        content = f"synthetic act {act}".encode()
+        digest = hashlib.sha256(content).hexdigest()
+        _ = (directory / digest).write_bytes(content)
+        pins.append(
+            {
+                "source_url": f"https://api.sejm.gov.pl/eli/acts/DU/{act}/text.pdf",
+                "sha256": digest,
+                "size_bytes": len(content),
+                "fetched_at": "2026-10-08T12:00:00Z",
+            }
+        )
+    common = {"publisher": "Minister Zdrowia", "license": "synthetic"}
+    return {
+        "specialties": {
+            **common,
+            "release_id": "specialty-synthetic",
+            "act": "synthetic annex 2",
+            "annex": "Załącznik nr 2",
+            "notices": ["synthetic"],
+            "source": pins[0],
+            "reviewed_on": "2026-10-08",
+            "children_rule": "§ 9 ust. 4",
+            "entries": [
+                {
+                    "code": "1000",
+                    "name": "Poradnia chorób wewnętrznych",
+                    "section": "Poradnie specjalistyczne",
+                },
+                {
+                    "code": "4000",
+                    "name": "Oddział chorób wewnętrznych",
+                    "section": "Oddziały szpitalne",
+                },
+                {
+                    "code": "4401",
+                    "name": "Oddział neonatologiczny",
+                    "section": "Oddziały szpitalne",
+                },
+            ],
+        },
+        "discharge_modes": {
+            **common,
+            "release_id": "discharge-synthetic",
+            "act": "synthetic annex 4",
+            "annex": "Załącznik nr 4",
+            "notices": ["synthetic"],
+            "source": pins[1],
+            "reviewed_on": "2026-10-08",
+            "modes": [
+                {
+                    "point": 1,
+                    "code": 1,
+                    "name": "zakończenie procesu terapeutycznego lub diagnostycznego",
+                },
+                {"point": 2, "code": 9, "name": "zgon pacjenta"},
+            ],
+        },
+    }
+
+
 def grouping_bundle(root: Path) -> Path:
     source = consumer_bundle(root)
     manifest = read_artifact_manifest(source).dataset
@@ -26,6 +92,7 @@ def grouping_bundle(root: Path) -> Path:
                 **manifest.model_dump(mode="json"),
                 "komunikaty": [notice.model_dump(mode="json")],
                 "search_profile": "polish-folded-1",
+                "grouping_dictionaries": stage_dictionaries(root),
             }
         )
     )

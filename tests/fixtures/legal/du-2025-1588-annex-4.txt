@@ -1,0 +1,24 @@
+# pdftotext 26.08.0 -layout extract of the pinned PDF 6cc1b4ef5d4e5dfa7ac9aaf5020569f9694f654bdd5e3f29024e5b8fcaf83879; public legal text (art. 4 pkt 1 ustawy o prawie autorskim).
+# Used only to check the reviewed table in the source manifest.
+KODY TRYBU WYPISU
+    1)   ,,1” – zakończenie procesu terapeutycznego lub diagnostycznego;
+    2)   ,,2” – skierowanie do dalszego leczenia w lecznictwie ambulatoryjnym;
+    3)   ,,3” – skierowanie do dalszego leczenia w innym szpitalu;
+    4)   ,,4” – skierowanie do dalszego leczenia w innym niż szpital zakładzie leczniczym
+         podmiotu leczniczego wykonującego działalność leczniczą w rodzaju stacjonarne
+         i całodobowe świadczenia zdrowotne;
+    5)   ,,6” – wypisanie na własne żądanie;
+    6)   ,,7” – osoba leczona samowolnie opuściła podmiot leczniczy wykonujący działalność
+         leczniczą w rodzaju stacjonarne i całodobowe świadczenia zdrowotne przed
+         zakończeniem procesu terapeutycznego lub diagnostycznego;
+    7)   ,,8” – wypisanie na podstawie art. 29 ust. 1 pkt 3 ustawy z dnia 15 kwietnia 2011 r.
+         o działalności leczniczej (Dz. U. z 2025 r. poz. 450, z późn. zm.);
+    8)   ,,9” – zgon pacjenta;
+    9)   ,,10” – osoba leczona, przyjęta w trybie oznaczonym kodem ,,9” lub ,,10”, która
+         samowolnie opuściła podmiot leczniczy;
+    10) ,,11” – wypisanie na podstawie art. 47 ustawy z dnia 22 listopada 2013 r. o postępowaniu
+         wobec osób z zaburzeniami psychicznymi stwarzających zagrożenie życia, zdrowia
+         lub wolności seksualnej innych osób.
+
+                                                        – 27 –
+Dziennik Ustaw                                           – 49 –                                            Poz. 1588

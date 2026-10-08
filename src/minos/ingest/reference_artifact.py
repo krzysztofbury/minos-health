@@ -176,6 +176,15 @@ def _build_database(
             from minos.store.search_synonyms import import_search_synonyms
 
             import_search_synonyms(connection, manifest.search_synonyms)
+        if manifest.grouping_dictionaries is not None:
+            from minos.store.grouping_dictionaries import import_grouping_dictionaries
+
+            import_grouping_dictionaries(
+                connection,
+                manifest.grouping_dictionaries,
+                archive_root,
+                database.parent,
+            )
         counts = finalize_reference(connection)
         _ = connection.execute("COMMIT")
         return counts, options

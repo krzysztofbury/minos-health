@@ -23,6 +23,7 @@ from minos.ingest.grouping_request import (
     MAX_GROUPING_REQUEST_BYTES,
     parse_grouping_request,
 )
+from minos.store.grouping_dictionaries import read_grouping_dictionaries
 
 MAX_GROUPING_RESPONSE_BYTES = 4 * 1024 * 1024
 
@@ -104,6 +105,45 @@ def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:
     )
 
 
+DICTIONARY_SCHEMA = "minos.grouping-dictionaries.v1"
+
+
+def dictionaries_json(pool: ReferencePool) -> bytes:
+    """Named codes for the builder; identical for every request of this app."""
+    manifest = pool.manifest.dataset.grouping_dictionaries
+    if manifest is None:
+        raise GrouperError("grouping dictionaries unavailable")
+    with pool.borrow() as lease:
+        specialties, modes = read_grouping_dictionaries(lease.connection, manifest)
+    answer = {
+        "schema": DICTIONARY_SCHEMA,
+        "specialties": {
+            "release_id": manifest.specialties.release_id,
+            "act": manifest.specialties.act,
+            "annex": manifest.specialties.annex,
+            "children_rule": manifest.specialties.children_rule,
+            "entries": [
+                {
+                    "code": item.code,
+                    "name": item.name,
+                    "section": item.section,
+                    "derived": item.derivation == "children_rule",
+                }
+                for item in specialties
+            ],
+        },
+        "discharge_modes": {
+            "release_id": manifest.discharge_modes.release_id,
+            "act": manifest.discharge_modes.act,
+            "annex": manifest.discharge_modes.annex,
+            "entries": [{"code": mode.code, "name": mode.name} for mode in modes],
+        },
+    }
+    return json.dumps(
+        answer, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
+
+
 def register_grouping_routes(
     app: FastAPI, *, failure: Callable[[int, str], JSONResponse]
 ) -> None:
@@ -163,3 +203,26 @@ def register_grouping_routes(
             admission.release()
 
     app.add_api_route("/api/v1/group", group, methods=["POST"])
+    cached: list[bytes] = []
+
+    async def dictionaries(_request: Request) -> Response:
+        try:
+            if not cached:
+                cached.append(
+                    await run_in_threadpool(
+                        dictionaries_json, cast(ReferencePool, app.state.pool)
+                    )
+                )
+        except GrouperError:
+            return failure(404, "dictionaries_unavailable")
+        except CapacityError:
+            return failure(429, "busy")
+        except ReferenceError, OSError, ValueError:
+            return failure(503, "unavailable")
+        return Response(
+            cached[0],
+            media_type="application/json",
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
+    app.add_api_route("/api/v1/grouping/dictionaries", dictionaries, methods=["GET"])

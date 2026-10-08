@@ -124,6 +124,32 @@ def test_first_request_after_start_uses_warmed_inputs(
     assert response.status_code == 200, response.text
 
 
+def test_dictionaries_offer_named_codes_with_derived_children(tmp_path: Path) -> None:
+    from tests.integration.test_jgp_condition_consumers import consumer_bundle
+
+    with TestClient(create_app(grouping_bundle(tmp_path / "with"))) as client:
+        response = client.get("/api/v1/grouping/dictionaries")
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "public, max-age=300"
+        answer = cast(dict[str, dict[str, object]], response.json())
+        assert client.get("/api/v1/grouping/dictionaries").json() == answer
+    entries = cast(list[dict[str, object]], answer["specialties"]["entries"])
+    named = {str(entry["code"]): entry for entry in entries}
+    assert named["4000"]["derived"] is False
+    # § 9 ust. 4: the children's unit of 4000 is 4001; 4401 is itself odd.
+    assert named["4001"] == {**named["4000"], "code": "4001", "derived": True}
+    assert "4402" not in named
+    modes = cast(list[dict[str, object]], answer["discharge_modes"]["entries"])
+    assert modes == [
+        {"code": 1, "name": "zakończenie procesu terapeutycznego lub diagnostycznego"},
+        {"code": 9, "name": "zgon pacjenta"},
+    ]
+    with TestClient(create_app(consumer_bundle(tmp_path / "without"))) as client:
+        missing = client.get("/api/v1/grouping/dictionaries")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "dictionaries_unavailable"
+
+
 def test_trace_preserves_attribution_and_canonical_stay_ordinals(
     tmp_path: Path,
 ) -> None:
