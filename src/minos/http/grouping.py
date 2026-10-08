@@ -16,6 +16,7 @@ from minos.domain.encounter import EncounterInputError
 from minos.domain.grouper import GrouperError
 from minos.domain.jgp_ruleset import NoRulesetForDate
 from minos.domain.reference import QueryLimitError, QueryTimeoutError, ReferenceError
+from minos.grouper.pipeline import PreparedSources
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.grouping_request import (
     MAX_GROUPING_REQUEST_BYTES,
@@ -62,10 +63,10 @@ class GroupingAdmission:
             self._active -= 1
 
 
-def evaluate(pool: ReferencePool, body: bytes) -> bytes:
+def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> bytes:
     request = parse_grouping_request(body)
     with pool.borrow() as lease:
-        answer = evaluate_json(lease.connection, pool.manifest, request)
+        answer = evaluate_json(lease.connection, pool.manifest, request, prepared)
     encoded = json.dumps(
         answer, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
@@ -78,6 +79,9 @@ def register_grouping_routes(
     app: FastAPI, *, failure: Callable[[int, str], JSONResponse]
 ) -> None:
     admission = GroupingAdmission()
+    # The app serves one verified bundle whose identity is checked on every
+    # lease, so release-static inputs can live as long as the app.
+    prepared = PreparedSources()
 
     async def group(request: Request) -> Response:
         if (
@@ -104,7 +108,7 @@ def register_grouping_routes(
             # AnyIO's default threadpool wait retains ownership until the worker
             # stops; a client abort must not start another unbounded CPU worker.
             encoded = await run_in_threadpool(
-                evaluate, cast(ReferencePool, app.state.pool), bytes(body)
+                evaluate, cast(ReferencePool, app.state.pool), bytes(body), prepared
             )
             return Response(
                 encoded,

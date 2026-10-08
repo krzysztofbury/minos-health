@@ -7,12 +7,17 @@ and provider-choice ranking. Explainability retains every consulted condition.
 """
 
 import sqlite3
+import threading
 from datetime import date
-from typing import cast
+from typing import cast, final
 
 from minos.domain.encounter import Encounter
-from minos.domain.grouper import ExecutionKey, GrouperError
-from minos.domain.grouper_candidates import CandidateResult, Catalog
+from minos.domain.grouper import AlgorithmData, ExecutionKey, GrouperError
+from minos.domain.grouper_candidates import (
+    CandidateResult,
+    Catalog,
+    DirectionalIndex,
+)
 from minos.domain.grouper_rules import (
     FinalPoints,
     GroupingResult,
@@ -46,12 +51,47 @@ from minos.store.jgp_ruleset import resolve_ruleset
 from minos.store.query_budget import query_budget
 
 
+@final
+class PreparedSources:
+    """Release-static grouping inputs, decoded and validated once (#149).
+
+    Own exactly one per opened, checksum-verified bundle and never share it
+    across bundles: entries are keyed by release, not by database bytes. The
+    first request builds an entry under the lock; later requests reuse it.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._algorithm: AlgorithmData | None = None
+        self._sheets: dict[
+            tuple[str, Catalog], tuple[CharacteristicsGraph, DirectionalIndex]
+        ] = {}
+
+    def algorithm(self, connection: sqlite3.Connection) -> AlgorithmData:
+        with self._lock:
+            if self._algorithm is None:
+                self._algorithm = load_bundle_algorithm(connection)
+            return self._algorithm
+
+    def sheet(
+        self, connection: sqlite3.Connection, release_id: str, catalog: Catalog
+    ) -> tuple[CharacteristicsGraph, DirectionalIndex]:
+        with self._lock:
+            found = self._sheets.get((release_id, catalog))
+            if found is None:
+                graph = load_graph(connection, release_id, catalog)
+                found = (graph, index_from_graph(graph))
+                self._sheets[(release_id, catalog)] = found
+            return found
+
+
 def _prepare(
     connection: sqlite3.Connection,
     dataset_id: str,
     encounter: Encounter,
     service_date: date,
     reporting_month: date,
+    prepared: PreparedSources | None,
 ) -> tuple[CandidateResult, tuple[CharacteristicsGraph, ...]]:
     if type(encounter) is not Encounter or type(service_date) is not date:
         raise GrouperError("invalid candidate derivation request")
@@ -59,7 +99,8 @@ def _prepare(
     # to the episode; a date outside it would select unrelated rules.
     if not encounter.admitted_on <= service_date <= encounter.discharged_on:
         raise GrouperError("service date is outside the episode")
-    algorithm = load_bundle_algorithm(connection)
+    prepared = prepared if prepared is not None else PreparedSources()
+    algorithm = prepared.algorithm(connection)
     sources = grouping_sources(connection, dataset_id, service_date, algorithm)
     key = ExecutionKey(
         dataset_id,
@@ -80,12 +121,12 @@ def _prepare(
                 (sources.characteristics_release_id,),
             ).fetchall(),
         )
-    graphs = tuple(
-        load_graph(connection, sources.characteristics_release_id, catalog)
+    sheets = tuple(
+        prepared.sheet(connection, sources.characteristics_release_id, catalog)
         for (catalog,) in catalogs
     )
-    indexes = tuple(index_from_graph(graph) for graph in graphs)
-    return derive(preparation, indexes, sources), graphs
+    graphs = tuple(graph for graph, _ in sheets)
+    return derive(preparation, tuple(index for _, index in sheets), sources), graphs
 
 
 def derive_candidates(
@@ -95,8 +136,11 @@ def derive_candidates(
     *,
     service_date: date,
     reporting_month: date,
+    prepared: PreparedSources | None = None,
 ) -> CandidateResult:
-    return _prepare(connection, dataset_id, encounter, service_date, reporting_month)[0]
+    return _prepare(
+        connection, dataset_id, encounter, service_date, reporting_month, prepared
+    )[0]
 
 
 def evaluate_candidates(
@@ -106,10 +150,11 @@ def evaluate_candidates(
     *,
     service_date: date,
     reporting_month: date,
+    prepared: PreparedSources | None = None,
 ) -> GroupingResult:
     """Candidates, approved-subset verdicts, base points and the valid ranking."""
     candidates, graphs = _prepare(
-        connection, dataset_id, encounter, service_date, reporting_month
+        connection, dataset_id, encounter, service_date, reporting_month, prepared
     )
     facts = facts_from(candidates.preparation, encounter.discharge_mode)
     rules: dict[tuple[str, str], GroupRules] = {}

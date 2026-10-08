@@ -24,7 +24,11 @@ from minos.domain.grouping_request import GroupingRequest
 from minos.domain.jgp_ruleset import NoRulesetForDate
 from minos.domain.reference import QueryLimitError, QueryTimeoutError, ReferenceError
 from minos.grouper.budget import evaluation_budget
-from minos.grouper.pipeline import evaluate_candidates, final_points
+from minos.grouper.pipeline import (
+    PreparedSources,
+    evaluate_candidates,
+    final_points,
+)
 from minos.ingest.grouping_request import (
     MAX_GROUPING_REQUEST_BYTES,
     parse_grouping_request,
@@ -72,7 +76,10 @@ def _not_evaluated(
 
 
 def evaluate_json(
-    connection: sqlite3.Connection, manifest: ArtifactManifest, request: GroupingRequest
+    connection: sqlite3.Connection,
+    manifest: ArtifactManifest,
+    request: GroupingRequest,
+    prepared: PreparedSources | None = None,
 ) -> dict[str, object]:
     """One caller-owned verified lease; no input/output storage or logging."""
     answer: dict[str, object] = {
@@ -113,6 +120,7 @@ def evaluate_json(
             facts,
             service_date=request.service_date,
             reporting_month=request.reporting_month,
+            prepared=prepared,
         )
         try:
             finals = final_points(
