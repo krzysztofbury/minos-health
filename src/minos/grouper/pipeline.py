@@ -1,8 +1,9 @@
-"""#34 entry point: one verified bundle, an explicit date and reporting month.
+"""Grouping entry point: one verified bundle, explicit date and reporting month.
 
 Preparation (qualification, exclusions, ranks, age, duration) runs through
 the exact registry; candidates come from attachment 9 directional lists.
-Conditions, selection and points remain #35.
+The approved condition subset determines eligibility, with source-bound points
+and provider-choice ranking. Explainability retains every consulted condition.
 """
 
 import sqlite3
@@ -20,8 +21,10 @@ from minos.domain.grouper_rules import (
     StayFacts,
 )
 from minos.domain.reference import SourceError
+from minos.grouper.budget import checkpoint
 from minos.grouper.candidates import derive
 from minos.grouper.conditions import evaluate_group, facts_from
+from minos.grouper.near_misses import near_misses
 from minos.grouper.points import base_points
 from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.grouper.szp_2026 import ENGINE_VERSION
@@ -111,6 +114,7 @@ def evaluate_candidates(
     facts = facts_from(candidates.preparation, encounter.discharge_mode)
     rules: dict[tuple[str, str], GroupRules] = {}
     for graph in graphs:
+        checkpoint()
         codes = [c.group for c in candidates.candidates if c.catalog == graph.catalog]
         for item in group_rules(
             connection,
@@ -147,6 +151,11 @@ def evaluate_candidates(
         evaluations,
         points,
         tuple((evaluation.catalog, evaluation.group) for evaluation, _ in valid),
+        near_misses=tuple(
+            miss
+            for item, evaluation in zip(chosen, evaluations, strict=True)
+            for miss in near_misses(item, facts, evaluation)
+        ),
     )
 
 
@@ -179,6 +188,7 @@ def final_points(
     }
     answers: list[FinalPoints] = []
     for catalog, group in result.ranking:
+        checkpoint()
         reviewed = reviewed_group_modifiers(connection, dataset, ruleset, group)
         mappings = [
             *cast(list[dict[str, object]], reviewed["dictionary_mappings"]),

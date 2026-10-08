@@ -113,3 +113,4 @@ class CandidateResult:
     # Groups no directional list can ever reach; reported, never dropped.
     underivable: tuple[tuple[Catalog, str, Underivable], ...]
     scope: Literal["directional_candidates_only"] = "directional_candidates_only"
+    not_matched: tuple[tuple[Catalog, str], ...] = ()

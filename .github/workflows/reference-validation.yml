@@ -50,6 +50,10 @@ jobs:
             --build-arg "VCS_REF=$GITHUB_SHA" --tag minos-reference-edge:validation-local .
           uv run python scripts/smoke_reference_web.py "$RUNNER_TEMP/reference-smoke" \
             --chromium "$(command -v google-chrome)"
+          uv run python scripts/smoke_grouping_web.py "$RUNNER_TEMP/grouping-smoke" \
+            --api-image minos-reference-api:validation-local \
+            --edge-image minos-reference-edge:validation-local \
+            --chromium "$(command -v google-chrome)"
 
       - name: Scan validation API for fixable high/critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

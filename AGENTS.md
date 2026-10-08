@@ -20,6 +20,8 @@ performance regression for developer convenience.
 
 ## Work Rhythm
 
+- Use the single checkout at `~/Work/minos-health` and switch branches there.
+  Do not create Git worktrees for this repository.
 - Work in small, coherent chunks with explicit acceptance criteria.
 - After each chunk, run checks relevant to its changed boundary and show the
   diff and evidence. Run the full repository checks before submitting code.

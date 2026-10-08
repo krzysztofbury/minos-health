@@ -182,7 +182,7 @@ def main(
         if code:
             parser.exit(code)
         return
-    if top_level_command in ("search", "data", "jgp"):
+    if top_level_command in ("search", "data", "jgp", "group"):
         from minos.cli.reference import execute_reference
 
         code = execute_reference(raw_arguments)

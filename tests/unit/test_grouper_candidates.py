@@ -71,6 +71,7 @@ def test_principal_role_lists_match_only_the_principal_diagnosis() -> None:
     ]
     assert result.candidates[0].conditions == "not_evaluated"
     assert result.scope == "directional_candidates_only"
+    assert result.not_matched == (("1a", "P01"),)
 
 
 def test_excluded_facts_never_count_and_unresolved_facts_only_flag() -> None:
@@ -131,6 +132,7 @@ def test_group_without_directional_list_is_reported_not_dropped() -> None:
     )
     assert result.candidates == ()
     assert result.underivable == (("1a", "N09", "no_directional_requirement"),)
+    assert result.not_matched == ()
 
 
 def test_indexes_must_belong_to_the_resolved_sources() -> None:
