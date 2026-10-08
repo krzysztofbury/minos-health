@@ -1,9 +1,9 @@
 """Owner-approved executable subset of attachment 9 (decision 2026-10-07).
 
-Executable: diagnosis and procedure list presence, `all`/`any`, age in
-completed years and stay-length bounds. Everything else, and every group
-with several reference roots, evaluates to `undetermined` with a reason.
-Three-valued (Kleene) logic: an unknown fact never becomes met or not met.
+Executable: diagnosis/procedure presence, supported procedure counts,
+`all`/`any`, completed-year age, duration and reported discharge-mode rules.
+Several roots are alternatives under the owner decision. Unsupported rules
+remain undetermined; unknown facts never become met or not met.
 """
 
 from dataclasses import dataclass
@@ -25,6 +25,8 @@ class SelectorCodes:
     codes: frozenset[str]
     # Never expanded: a fact inside a family keeps the verdict undetermined.
     families: tuple[str, ...]
+    list_ids: tuple[int, ...] = ()
+    source_rows: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,22 @@ class NodeVerdict:
     node: int
     verdict: Verdict
     reason: str
+    rule: c.Condition | None = None
+    matched_codes: tuple[str, ...] = ()
+    observed: tuple[tuple[str, int | None], ...] = ()
+    selector: SelectorCodes | None = None
+    # Indexes into preparation facts, never patient identities.
+    consulted: tuple[tuple[str, int], ...] = ()
+
+
+@dataclass(frozen=True, repr=False)
+class RoutingTrace:
+    outcome: Verdict
+    reason: str
+    procedural: bool | None
+    procedure_indexes: tuple[int, ...]
+    duration_days: int | None
+    algorithm_paragraphs: tuple[int, ...] = (105, 106, 107, 108, 109, 110, 111)
 
 
 @dataclass(frozen=True, repr=False)
@@ -71,6 +89,9 @@ class GroupEvaluation:
     routing: Verdict
     reasons: tuple[str, ...]
     nodes: tuple[NodeVerdict, ...]
+    roots: tuple[int, ...] = ()
+    catalog_row: int | None = None
+    routing_trace: RoutingTrace | None = None
 
 
 @dataclass(frozen=True)
@@ -112,6 +133,7 @@ class GroupingResult:
     # provider chooses; the first is the highest value, not "the" answer).
     ranking: tuple[tuple[Catalog, str], ...]
     scope: Literal["base_points_without_modifiers"] = "base_points_without_modifiers"
+    near_misses: tuple[NearMiss, ...] = ()
 
     def __post_init__(self) -> None:
         order = [(c.catalog, c.group) for c in self.candidates.candidates]
@@ -126,6 +148,20 @@ class GroupingResult:
 
 class ModifierBindingUnbound(GrouperError):
     """No reviewed MODTAR binding governs the date; final points are refused."""
+
+
+@dataclass(frozen=True, repr=False)
+class NearMiss:
+    """A single reported scalar fact could change invalid to valid.
+
+    Proven by reevaluating the whole group, including routing. This is a
+    documentation-check explanation, never a proposed encounter edit.
+    """
+
+    catalog: Catalog
+    group: str
+    node: int
+    fact: Literal["completed_years", "duration_days", "discharge_mode"]
 
 
 type ModifierOutcome = Literal["applied", "possible", "rejected", "undetermined"]

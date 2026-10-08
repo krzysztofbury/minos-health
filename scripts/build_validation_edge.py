@@ -14,11 +14,13 @@ sys.path.insert(0, str(ROOT))
 from scripts.build_site import FONTS, render_site  # noqa: E402
 
 PAGE_ROUTES = (
+    ("/gruper", "grouper.html"),
     ("/slowniki", "dictionaries.html"),
     ("/slowniki/icd-10", "dictionary-icd-10.html"),
     ("/slowniki/icd-9", "dictionary-icd-9.html"),
 )
 ASSET_ROUTES = (
+    "/grouper.js",
     "/request.js",
     "/search.js",
     "/dictionary.js",
@@ -106,6 +108,20 @@ def _routes() -> str:
             proxy_pass http://reference-api:8081;
             proxy_connect_timeout 1s;
             proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        location = /api/v1/group {
+            if ($request_uri != "/api/v1/group") { return 404; }
+            if ($request_method != POST) { return 405; }
+            client_max_body_size 256k;
+            client_body_buffer_size 256k;
+            client_body_timeout 2s;
+            proxy_request_buffering off;
+            proxy_buffering off;
+            proxy_max_temp_file_size 0;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 5s;
             error_log /dev/null;
         }
         # Code pages and sitemaps are server-rendered by the API for crawlers.

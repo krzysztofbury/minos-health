@@ -142,6 +142,19 @@ ICD9_NOTE = (
 
 PAGES = (
     Page(
+        "grouper.html",
+        "grouper.html",
+        "/gruper",
+        "Gruper JGP - Minos Health",
+        "Sprawdź kwalifikację i prześledź warunki grupowania zgłoszonego przypadku.",
+        "noindex, nofollow",
+        "/gruper",
+        ("validation",),
+        analytics=False,
+        script="/grouper.js",
+        body_class="page-grouper",
+    ),
+    Page(
         "maintenance-index.html",
         "home.html",
         "/",
@@ -297,6 +310,7 @@ def _nav(mode: Mode, current: str | None) -> str:
     if mode == "validation":
         items.append(("/slowniki", "Słowniki"))
         items.append(("/jgp", "Grupy JGP"))
+        items.append(("/gruper", "Gruper"))
     items.append(("/zrodla", "Źródła danych"))
     links: list[str] = []
     for path, label in items:
@@ -332,7 +346,7 @@ def render_page(page: Page, mode: Mode) -> str:
     )
     scripts = PLAUSIBLE if page.analytics else ""
     if page.script:
-        if page.script in ("/search.js", "/dictionary.js"):
+        if page.script in ("/search.js", "/dictionary.js", "/grouper.js"):
             scripts += '    <script defer src="/request.js"></script>\n'
         scripts += f'    <script defer src="{page.script}"></script>\n'
     rendered = _fill(
@@ -380,7 +394,13 @@ def render_site(mode: Mode) -> dict[str, bytes]:
         files["social-preview-v1.png"] = (
             WEB / "social" / "social-preview-v1.png"
         ).read_bytes()
-        for name in ("request.js", "search.js", "dictionary.js", "jgp.js"):
+        for name in (
+            "request.js",
+            "search.js",
+            "dictionary.js",
+            "jgp.js",
+            "grouper.js",
+        ):
             files[name] = (WEB / name).read_bytes()
         for name in FONTS:
             files[f"fonts/{name}"] = (WEB / "fonts" / name).read_bytes()

@@ -16,10 +16,12 @@ from minos.domain.grouper_rules import (
     GroupEvaluation,
     GroupRules,
     NodeVerdict,
+    RoutingTrace,
     SelectorCodes,
     Status,
     Verdict,
 )
+from minos.grouper.budget import checkpoint
 
 # Paragraph 134: E11 and N24 may count one code twice on different dates.
 DISTINCT_DATE_GROUPS = frozenset({"E11", "N24"})
@@ -97,6 +99,7 @@ def _procedure(selector: SelectorCodes, facts: Facts) -> _Leaf:
     matched: set[str] = set()
     reason = ""
     for code, outcome, rank in facts.procedures:
+        checkpoint()
         listed = code in selector.codes
         if not listed and not _in_family(code, selector.families):
             continue
@@ -177,11 +180,13 @@ def _matching(occurrences: list[_Occurrence], repeat: bool) -> int:
         edges.setdefault(code, set()).add(day)
     owner: dict[date | None, str] = {}
     for code in sorted(edges):
+        checkpoint()
         # Iterative augmenting path (Kuhn); bounded by codes x days.
         parent: dict[str, tuple[str, date | None] | None] = {code: None}
         stack = [code]
         found: tuple[str, date | None] | None = None
         while stack and found is None:
+            checkpoint()
             current = stack.pop()
             for day in sorted(edges[current], key=lambda d: (d is None, d or date.min)):
                 holder = owner.get(day)
@@ -314,6 +319,7 @@ def _nested_kinds(payload: c.Expression, nodes: dict[int, c.Condition]) -> set[s
     kinds: set[str] = set()
     seen: set[int] = set()
     for _ in range(4 * len(nodes) + 4):
+        checkpoint()
         if not pending:
             return kinds
         identity = pending.pop()
@@ -336,6 +342,7 @@ def _evaluate(
     done: dict[int, tuple[Verdict, str, frozenset[str]]] = {}
     stack = [root]
     for _ in range(4 * len(nodes) + 4):
+        checkpoint()
         if not stack:
             break
         identity = stack[-1]
@@ -359,10 +366,76 @@ def _evaluate(
     else:
         raise GrouperError("group condition graph exceeds evaluation bound")
     trace = tuple(
-        NodeVerdict(identity, verdict, reason)
-        for identity, (verdict, reason, _) in sorted(done.items())
+        NodeVerdict(
+            identity,
+            verdict,
+            reason,
+            nodes[identity],
+            tuple(sorted(matched)),
+            _observed(nodes[identity], selectors, facts),
+            selectors.get(p.selector_id)
+            if isinstance(p := nodes[identity].payload, (c.Presence, c.Count))
+            else None,
+            _consulted(nodes[identity], facts),
+        )
+        for identity, (verdict, reason, matched) in sorted(done.items())
     )
     return done[root][0], trace
+
+
+def _observed(
+    node: c.Condition, selectors: dict[int, SelectorCodes], facts: Facts
+) -> tuple[tuple[str, int | None], ...]:
+    if node.status != "proposed":
+        return ()
+    if node.kind == "patient_age":
+        return (("completed_years", facts.years),)
+    if node.kind == "episode_duration":
+        return (("duration_days", facts.days),)
+    if node.kind == "discharge_mode":
+        return (("discharge_mode", facts.discharge_mode),)
+    if node.kind == "procedure_count" and isinstance(node.payload, c.Count):
+        if node.payload.included_node_ids:
+            return ()
+        selector = selectors[node.payload.selector_id]
+        dates = facts.procedure_dates or (None,) * len(facts.procedures)
+        firm = [
+            (code, day)
+            for (code, outcome, rank), day in zip(facts.procedures, dates, strict=True)
+            if code in selector.codes
+            and outcome == "retained"
+            and (
+                rank in (3, 4)
+                or (rank == 2 and facts.days is not None and facts.days <= 1)
+            )
+        ]
+        return (
+            (
+                "count",
+                _matching(firm, node.payload.counting_policy == "repeat_occurrences"),
+            ),
+        )
+    return ()
+
+
+def _consulted(node: c.Condition, facts: Facts) -> tuple[tuple[str, int], ...]:
+    if node.status != "proposed":
+        return ()
+    if node.kind == "diagnosis_presence" and isinstance(node.payload, c.Presence):
+        principal = (
+            (("principal_diagnosis", 0),) if node.payload.role != "secondary" else ()
+        )
+        secondary = (
+            tuple(("secondary_diagnoses", i) for i in range(len(facts.secondary)))
+            if node.payload.role != "principal"
+            else ()
+        )
+        return (*principal, *secondary)
+    if node.kind in ("procedure_presence", "procedure_count"):
+        if isinstance(node.payload, c.Count) and node.payload.included_node_ids:
+            return ()
+        return tuple(("procedures", i) for i in range(len(facts.procedures)))
+    return ()
 
 
 def _routing(rules: GroupRules, facts: Facts) -> tuple[Verdict, str]:
@@ -440,5 +513,22 @@ def evaluate_group(rules: GroupRules, facts: Facts) -> GroupEvaluation:
     else:
         status = "undetermined"
     return GroupEvaluation(
-        rules.catalog, rules.code, status, conditions, routing, tuple(reasons), trace
+        rules.catalog,
+        rules.code,
+        status,
+        conditions,
+        routing,
+        tuple(reasons),
+        trace,
+        rules.roots,
+        rules.source_row,
+        RoutingTrace(
+            routing,
+            why,
+            rules.procedural if rules.catalog_rows == 1 else None,
+            tuple(range(len(facts.procedures)))
+            if why not in ("routing_not_restricted", "catalog_rows_ambiguous")
+            else (),
+            facts.days,
+        ),
     )

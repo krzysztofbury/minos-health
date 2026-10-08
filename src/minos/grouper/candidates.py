@@ -22,6 +22,7 @@ from minos.domain.grouper_candidates import (
     GroupingSources,
     Underivable,
 )
+from minos.grouper.budget import checkpoint
 
 type _Pools = dict[tuple[str, Outcome], frozenset[str]]
 
@@ -78,8 +79,10 @@ def derive(
     pools = _pools(preparation)
     candidates: list[Candidate] = []
     underivable: list[tuple[Catalog, str, Underivable]] = []
+    not_matched: list[tuple[Catalog, str]] = []
     for index in sorted(indexes, key=lambda item: item.catalog):
         for group in sorted(index.groups, key=lambda item: item.code):
+            checkpoint()
             if not group.requirements:
                 underivable.append(
                     (index.catalog, group.code, "no_directional_requirement")
@@ -91,6 +94,7 @@ def derive(
                 if (basis := _match(requirement, pools)) is not None
             ]
             if not matched:
+                not_matched.append((index.catalog, group.code))
                 continue
             retained = [r for r, basis in matched if basis == "retained_fact"]
             chosen = retained or [r for r, _ in matched]
@@ -105,4 +109,10 @@ def derive(
                     group.fully_interpreted,
                 )
             )
-    return CandidateResult(sources, preparation, tuple(candidates), tuple(underivable))
+    return CandidateResult(
+        sources,
+        preparation,
+        tuple(candidates),
+        tuple(underivable),
+        not_matched=tuple(not_matched),
+    )

@@ -80,6 +80,12 @@ class _CommandParsers(Protocol):
 def add_reference_commands(
     commands: _CommandParsers, *, allow_s3_archive: bool = False
 ) -> None:
+    grouping = commands.add_parser(
+        "group",
+        help="Evaluate a bounded JSON encounter from stdin; never write encounter data.",
+    )
+    _ = grouping.add_argument("--data", type=Path, required=True)
+    _ = grouping.add_argument("--json", action="store_true", dest="output_json")
     search = commands.add_parser(
         "search", help="Search a verified local reference bundle."
     )
@@ -159,6 +165,10 @@ def reference_main(argv: Sequence[str] | None = None) -> None:
 
 def execute_reference(arguments: dict[str, object]) -> int:
     output_json = arguments.get("output_json") is True
+    if arguments.get("command") == "group":
+        from minos.cli.grouping import execute_grouping
+
+        return execute_grouping(cast(Path, arguments["data"]), output_json=output_json)
     try:
         if (
             arguments.get("command") == "data"

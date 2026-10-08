@@ -29,7 +29,7 @@ from minos.domain.encounter import (
 MAX_ENCOUNTER_JSON_BYTES = 256 * 1_024
 
 
-class _Input(BaseModel):
+class RedactedInput(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(
         strict=True, frozen=True, extra="forbid", hide_input_in_errors=True
     )
@@ -43,7 +43,7 @@ class _Input(BaseModel):
         return repr(self)
 
 
-class _CodeFact(_Input):
+class _CodeFact(RedactedInput):
     code: Annotated[str, Field(min_length=1, max_length=16)]
     stay_id: Annotated[str, Field(min_length=1, max_length=32)] | None = None
 
@@ -62,7 +62,7 @@ class _Procedure(_CodeFact):
         return Procedure(self.code, self.performed_on, self.stay_id)
 
 
-class _SettlementProduct(_Input):
+class _SettlementProduct(RedactedInput):
     code: Annotated[str, Field(min_length=1, max_length=16)]
     started_on: date | None = None
     ended_on: date | None = None
@@ -71,7 +71,7 @@ class _SettlementProduct(_Input):
         return SettlementProduct(self.code, self.started_on, self.ended_on)
 
 
-class _WardStay(_Input):
+class _WardStay(RedactedInput):
     identifier: Annotated[str, Field(min_length=1, max_length=32)]
     department: Annotated[str, Field(min_length=4, max_length=4)]
     admitted_on: date
@@ -88,7 +88,7 @@ class _WardStay(_Input):
         )
 
 
-class _Encounter(_Input):
+class EncounterInput(RedactedInput):
     admitted_on: date
     discharged_on: date
     hospitalization_type: HospitalizationType
@@ -127,7 +127,7 @@ class _Encounter(_Input):
         )
 
 
-def _unique_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+def unique_object_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
         if key in result:
@@ -143,8 +143,8 @@ def parse_encounter(payload: bytes) -> Encounter:
     try:
         # Pydantic otherwise silently takes the last duplicate key, allowing
         # conflicting medical facts to pass as an unambiguous report.
-        _ = cast(object, json.loads(payload, object_pairs_hook=_unique_keys))
-        return _Encounter.model_validate_json(payload).to_domain()
+        _ = cast(object, json.loads(payload, object_pairs_hook=unique_object_keys))
+        return EncounterInput.model_validate_json(payload).to_domain()
     except (
         ValidationError,
         EncounterInputError,

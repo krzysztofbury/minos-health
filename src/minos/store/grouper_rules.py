@@ -53,9 +53,15 @@ def group_rules(
         )
         selectors: list[SelectorCodes] = []
         for identity in referenced:
-            found, families, _lists, _rows = selector_codes(graph, identity)
+            found, families, lists, source_rows = selector_codes(graph, identity)
             selectors.append(
-                SelectorCodes(identity, frozenset(found), tuple(sorted(families)))
+                SelectorCodes(
+                    identity,
+                    frozenset(found),
+                    tuple(sorted(families)),
+                    tuple(sorted(lists)),
+                    tuple(sorted(source_rows)),
+                )
             )
         result.append(
             GroupRules(

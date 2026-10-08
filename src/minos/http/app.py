@@ -31,6 +31,7 @@ from minos.domain.search import (
     SearchRequest,
     prepare_query,
 )
+from minos.http.grouping import register_grouping_routes
 from minos.http.jgp import (
     JGP_PAGE_ROUTE,
     JGP_ROUTE,
@@ -405,7 +406,13 @@ def create_app(
                     "request_id": request_id,
                     "route": request.url.path
                     if request.url.path
-                    in ("/healthz", "/readyz", "/api/v1/releases", "/api/v1/search")
+                    in (
+                        "/healthz",
+                        "/readyz",
+                        "/api/v1/releases",
+                        "/api/v1/search",
+                        "/api/v1/group",
+                    )
                     else "/api/v1/tree"
                     if TREE_ROUTE.fullmatch(request.url.path)
                     else "/slowniki/code"
@@ -470,6 +477,23 @@ def create_app(
             "disclaimer": DISCLAIMER,
             "dataset_id": dataset_identity(pool.manifest.dataset),
             "jgp_search": bool(pool.group_index),
+            "grouping": {
+                "available": bool(
+                    pool.manifest.dataset.characteristics
+                    and pool.manifest.dataset.komunikaty
+                ),
+                "schema": "minos.grouping.v1",
+                "characteristics_knowledge_as_of": str(
+                    pool.manifest.dataset.characteristics_knowledge_as_of
+                ),
+                "service_windows": [
+                    {
+                        "from": str(item.valid_from),
+                        "to": str(item.valid_to) if item.valid_to else None,
+                    }
+                    for item in pool.manifest.dataset.characteristics
+                ],
+            },
             "search_dictionary_notice": dictionary_notice(
                 pool.manifest.dataset.search_synonyms
             ),
@@ -713,6 +737,7 @@ def create_app(
         app, failure=failure, disclaimer=DISCLAIMER, cache_control=PAGE_CACHE
     )
     register_jgp_pages(app, cache_control=PAGE_CACHE)
+    register_grouping_routes(app, failure=failure)
     return app
 
 
