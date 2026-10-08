@@ -46,6 +46,12 @@ Declared modifier symbols are bounded, distinct, explicit assertions of all
 required provider/encounter conditions, following the 2026-10-07 decision.
 
 The builder supports repeated diagnoses, procedure occurrences and ward stays.
+It does not collect a stay's optional `service_code` (the API and CLI accept it).
+The pinned SZP dictionary has 94 specialty codes, all in the 1xxx range, whose
+exclusion depends on service token 4; from the builder those stays remain
+unresolved, as do unattributed facts. Whether coders report such codes on SZP
+stays is an open question for practitioner validation (#39). If they do, the
+owner-chosen design is an optional field shown only for those specialty codes.
 Dates and attribution are explicit. Missing procedure dates and attribution
 remain unknown. No products are inferred: an unknown/nonempty report receives
 `unsupported_product_report` with no eligibility or points. Product exclusions

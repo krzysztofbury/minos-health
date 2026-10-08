@@ -121,7 +121,9 @@ def _routes() -> str:
             proxy_max_temp_file_size 0;
             proxy_pass http://reference-api:8081;
             proxy_connect_timeout 1s;
-            proxy_read_timeout 5s;
+            # Outlasts the API worst case (2 s body, 0.5 s lease wait, 3 s
+            # evaluation) so callers receive its JSON error, never an edge 504.
+            proxy_read_timeout 7s;
             error_log /dev/null;
         }
         # Code pages and sitemaps are server-rendered by the API for crawlers.
