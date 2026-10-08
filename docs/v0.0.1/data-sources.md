@@ -23,6 +23,8 @@ domain and per reporting period.
 | ICD-10 PL | RSK HCD `00CD10` | JGP attachment 9 retains separately maintained NFZ membership; not every NFZ member has an exact RSK counterpart |
 | JGP tariff modifier mapping | NFZ CZS `MODTAR`, discovered by year/type and pinned by generation | Governing NFZ act text controls legal applicability |
 | Tariff signals | AOTMiT obwieszczenia | Issued NFZ catalog remains controlling |
+| Ward specialty codes (part VIII) | Annex 2 of the resortowe kody identyfikacyjne regulation, consolidated Dz. U. z 2019 r. poz. 173, authentic PDF from the Sejm ELI API | ELI act status and amendments; the ELI HTML merges rows at page breaks and is not a source |
+| Discharge-mode codes | Annex 4 of the regulation on niezbędne informacje, consolidated Dz. U. z 2025 r. poz. 1588, authentic PDF | ELI act status; 2026 amendments checked; CeZ HL7 value set 2015 wording is outdated |
 | Competitor output | Never authoritative | SGA, CGM/UHC, Asseco, Comarch, and KAMSOFT are review oracles only |
 
 For JGP list membership, NFZ attachment 9 code/title identities remain
@@ -409,6 +411,28 @@ control records, and downloadable Minos artifact URLs are not published.
 Service applicability stays unknown until reviewed from the governing act.
 The `/zrodla` directory can search across BAW and RSK without mixing their
 publisher roles or treating observation time as source validity.
+
+## Grouping Builder Dictionaries
+
+Issue #151. The builder searches ward specialties and lists discharge modes
+by official name instead of expecting coders to know codes. Both come from
+Polish legal acts, excluded from copyright by art. 4 pkt 1 of the copyright
+act, pinned as the authentic Dziennik Ustaw PDF and archived by SHA-256:
+
+| Dictionary | Act and annex | Rows |
+| --- | --- | ---: |
+| Specialty of an organizational unit | Dz. U. z 2019 r. poz. 173, annex 2 | 359 listed, 345 derived |
+| Discharge mode | Dz. U. z 2025 r. poz. 1588, annex 4 | 10 |
+
+`manifests/sources/grouping-dictionaries.json` holds reviewed transcriptions;
+`tests/fixtures/legal/` holds the `pdftotext -layout` extracts that a unit test
+compares row by row, including exact name boundaries. The ELI HTML rendering
+of the specialty act merges rows at page breaks (1220, 1554, 2202, 4450, 4754,
+7250 disappear into neighbouring cells), so it is not used. Children's codes
+follow paragraph 9 section 4 (the odd code one above an adult code) and are
+marked as derived. NFZ exclusion tables also use codes outside annex 2 (4920,
+9154, 9240, 9999); the builder accepts exact codes. Status was checked in the
+Sejm ELI API on 2026-10-08; a later amendment requires a new reviewed pin.
 
 ## NFZ Statistics API
 

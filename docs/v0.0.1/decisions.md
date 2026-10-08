@@ -523,6 +523,20 @@ and unit-of-work patterns:
   may import only those serializers from `minos.cli`, never commands or use
   cases. A separate schema package is deferred until a third adapter needs it.
 
+### Grouping Builder Dictionaries (2026-10-08)
+
+Owner decisions for #151: ward specialties and discharge modes are offered by
+official name from pinned legal acts, through the reviewed manifest path.
+
+- Discharge modes (annex 4, Dz. U. z 2025 r. poz. 1588) and specialty codes
+  (annex 2, Dz. U. z 2019 r. poz. 173) are reviewed transcriptions of the
+  authentic PDF, checked row by row against committed text extracts. No PDF
+  parsing dependency is added; the ELI HTML is not used because it merges rows.
+- Children's codes derived by paragraph 9 section 4 are offered and marked as
+  derived; exact codes outside the annex remain accepted.
+- Schema 9 stores the dictionaries; `GET /api/v1/grouping/dictionaries` serves
+  them read-only.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with

@@ -52,13 +52,17 @@ point to the field. A case card lists each step's facts as code chips with
 names and links back to the step. Grouping is requested only on the result step,
 not on every edit.
 
-Dates are typed as DD.MM.RRRR (months as MM.RRRR) whatever the browser language;
-digits are formatted as they are typed and sent as ISO dates. The service date
-and the reporting month are explicit choices between the discharge date (shown
-with its value) and another date; neither is preselected. Discharge mode is a
-select of the pinned rule label (9 - zgon pacjenta), "not given" or another
-code, with an explanation; ward specialty is a 4-digit code with guidance until
-the official dictionaries of #151 provide named search. The first ward stay
+Every field has one label row (label, an optional marker and a `?` tooltip)
+above its control, so controls in a row align; explanations live in tooltips
+that open on tap, click, hover or focus and close with Escape. Dates are typed
+as DD.MM.RRRR (months MM.RRRR) whatever the browser language and can be picked
+from a Polish calendar (keyboard: arrows, PageUp/PageDown, Enter, Escape). The
+service date and the reporting month are explicit choices between the
+discharge date (shown with its value) and another date; neither is
+preselected. Discharge mode is a select of the official annex 4 codes; ward
+specialty is a search over annex 2 names, hospital wards first, with derived
+children's codes marked (#151). Both come from `GET /api/v1/grouping/dictionaries`;
+a bundle without dictionaries keeps the interim choices. The first ward stay
 starts with the hospitalization dates, visibly and editably.
 
 Modifiers are not typed. For each qualifying group the result lists the
