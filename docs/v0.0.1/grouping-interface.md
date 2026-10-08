@@ -46,16 +46,27 @@ Declared modifier symbols are bounded, distinct, explicit assertions of all
 required provider/encounter conditions, following the 2026-10-07 decision.
 
 The builder is a sequence of steps (hospitalization, ward stays, diagnoses,
-procedures, report and modifiers, result) with Back/Next navigation. Each step is
+procedures and products, result) with Back/Next navigation. Each step is
 validated before the next one opens; problems are listed above the step and
-point to the field. A case card summarizes the entered facts with a link back to
-each step. Grouping is requested only on the result step, not on every edit.
-Quick-fill buttons set the service date or reporting month to the discharge date
-on an explicit click; nothing is inferred silently. The first ward stay starts
-with the hospitalization dates, visibly and editably. The result lists the
-qualifying groups first, then a plain-language condition checklist in catalog
-vernacular (list labels, `< 18 r.ż.`), documentation checks, other candidates
-with their first failing or unresolved condition, and technical details.
+point to the field. A case card lists each step's facts as code chips with
+names and links back to the step. Grouping is requested only on the result step,
+not on every edit.
+
+Dates are typed as DD.MM.RRRR (months as MM.RRRR) whatever the browser language;
+digits are formatted as they are typed and sent as ISO dates. The service date
+and the reporting month are explicit choices between the discharge date (shown
+with its value) and another date; neither is preselected. Discharge mode is a
+select of the pinned rule label (9 - zgon pacjenta), "not given" or another
+code, with an explanation; ward specialty is a 4-digit code with guidance until
+the official dictionaries of #151 provide named search. The first ward stay
+starts with the hospitalization dates, visibly and editably.
+
+Modifiers are not typed. For each qualifying group the result lists the
+possible and applied modifiers returned by the rules; confirming one adds it to
+`declared_modifiers` and re-evaluates. The result lists qualifying groups first,
+then a plain-language condition checklist in catalog vernacular (list labels,
+`< 18 r.ż.`), documentation checks, other candidates with their first failing or
+unresolved condition, and technical details.
 
 The builder supports repeated diagnoses, procedure occurrences and ward stays.
 It does not collect a stay's optional `service_code` (the API and CLI accept it).
