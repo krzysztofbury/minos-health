@@ -89,14 +89,39 @@ def test_http_reuses_release_static_inputs_without_changing_answers(
         return load_graph(connection, release_id, catalog)
 
     monkeypatch.setattr(pipeline, "load_graph", counted)
-    with TestClient(create_app(grouping_bundle(tmp_path))) as client:
-        first = client.post("/api/v1/group", json=grouping_body())
+    app = create_app(grouping_bundle(tmp_path))
+    with TestClient(app) as client:
+        # The background warm-up loads every sheet once; requests add none.
+        assert cast(pipeline.PreparedSources, app.state.grouping_prepared).warmed.wait(
+            10
+        )
         loaded = len(loads)
+        first = client.post("/api/v1/group", json=grouping_body())
         second = client.post("/api/v1/group", json=grouping_body())
     assert first.status_code == second.status_code == 200
     assert first.json() == second.json()
     # #149: decoding the characteristics graph dominated every request.
     assert loaded >= 1 and len(loads) == loaded
+
+
+def test_first_request_after_start_uses_warmed_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from minos.grouper import pipeline
+
+    def unexpected(*_args: object) -> object:
+        raise AssertionError("a request rebuilt release-static inputs")
+
+    app = create_app(grouping_bundle(tmp_path))
+    with TestClient(app) as client:
+        prepared = cast(pipeline.PreparedSources, app.state.grouping_prepared)
+        # #149: the first request after a restart must not pay the build.
+        assert prepared.warmed.wait(10)
+        monkeypatch.setattr(pipeline, "load_graph", unexpected)
+        monkeypatch.setattr(pipeline, "load_bundle_algorithm", unexpected)
+        response = client.post("/api/v1/group", json=grouping_body())
+        assert client.get("/readyz").status_code == 200
+    assert response.status_code == 200, response.text
 
 
 def test_trace_preserves_attribution_and_canonical_stay_ordinals(

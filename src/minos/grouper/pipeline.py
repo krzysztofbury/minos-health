@@ -75,6 +75,27 @@ class PreparedSources:
         self._sheets: dict[
             tuple[str, Catalog], tuple[CharacteristicsGraph, DirectionalIndex]
         ] = {}
+        # Set once every sheet of the bundle is built; requests never wait on it.
+        self.warmed = threading.Event()
+
+    def warm(self, connection: sqlite3.Connection) -> int:
+        """Build every release-static input after start, so the first request
+        after a restart does not pay the build inside its budget (#149)."""
+        _ = self.algorithm(connection)
+        with query_budget(connection):
+            sheets = cast(
+                list[tuple[str, Catalog]],
+                connection.execute(
+                    """SELECT release_id, catalog FROM characteristics_sheet
+                    ORDER BY release_id, catalog LIMIT 65"""
+                ).fetchall(),
+            )
+        if len(sheets) > 64:
+            raise GrouperError("characteristics sheets exceed warm-up bound")
+        for release_id, catalog in sheets:
+            _ = self.sheet(connection, release_id, catalog)
+        self.warmed.set()
+        return len(sheets)
 
     def algorithm(self, connection: sqlite3.Connection) -> AlgorithmData:
         with self._lock:

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -78,6 +79,31 @@ def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> byt
     return encoded
 
 
+WARMUP_LOGGER = logging.getLogger("minos.grouper.warmup")
+
+
+def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:
+    """Background warm-up; a failure only leaves the first request to build."""
+    started = time.monotonic()
+    sheets = 0
+    try:
+        with pool.borrow() as lease:
+            sheets = prepared.warm(lease.connection)
+        status = "completed"
+    except Exception as error:  # noqa: BLE001 - never crash the API for a warm-up
+        status = "failed:" + type(error).__name__
+    WARMUP_LOGGER.info(
+        json.dumps(
+            {
+                "event": "grouping_warmup",
+                "status": status,
+                "sheets": sheets,
+                "duration_ms": round((time.monotonic() - started) * 1000),
+            }
+        )
+    )
+
+
 def register_grouping_routes(
     app: FastAPI, *, failure: Callable[[int, str], JSONResponse]
 ) -> None:
@@ -85,6 +111,7 @@ def register_grouping_routes(
     # The app serves one verified bundle whose identity is checked on every
     # lease, so release-static inputs can live as long as the app.
     prepared = PreparedSources()
+    app.state.grouping_prepared = prepared
 
     async def group(request: Request) -> Response:
         if (
