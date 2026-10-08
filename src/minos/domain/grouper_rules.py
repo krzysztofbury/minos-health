@@ -27,6 +27,8 @@ class SelectorCodes:
     families: tuple[str, ...]
     list_ids: tuple[int, ...] = ()
     source_rows: tuple[int, ...] = ()
+    # Source labels aligned with `list_ids`; empty when a label is unknown.
+    list_labels: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
