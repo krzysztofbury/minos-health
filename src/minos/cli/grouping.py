@@ -3,6 +3,7 @@
 import json
 import sqlite3
 import sys
+from collections.abc import Container
 from pathlib import Path
 from typing import cast
 
@@ -37,6 +38,37 @@ LIMITATIONS = [
     "Grupy bez dopasowania listy kierunkowej nie są oceniane; brak kandydata nie dowodzi wykluczenia.",
     "Wycena stosuje założenia właściciela z 2026-10-07: MODTAR, mnożenie współczynników i zaokrąglenie raz do 0,01 punktu.",
 ]
+
+
+NOT_EVALUATED = {
+    "no_directional_requirement": "Brak interpretowalnego wymagania kierunkowego.",
+    "no_directional_match": "Brak dopasowania zachowanego lub nierozstrzygniętego faktu do list kierunkowych. Nie oceniano kwalifikacji.",
+    "no_characteristics_group": "Brak grupy w wybranych charakterystykach. Nie oceniano kwalifikacji.",
+}
+
+
+def _not_evaluated(
+    keys: list[tuple[str, str]],
+    underivable: Container[tuple[str, str]],
+    not_matched: Container[tuple[str, str]],
+) -> list[dict[str, object]]:
+    """One entry per reason: the catalog has hundreds of groups outside the
+    candidates, and per-group explanations dominated every response."""
+    by_reason: dict[str, dict[str, list[str]]] = {}
+    for key in keys:
+        reason = (
+            "no_directional_requirement"
+            if key in underivable
+            else "no_directional_match"
+            if key in not_matched
+            else "no_characteristics_group"
+        )
+        by_reason.setdefault(reason, {}).setdefault(key[0], []).append(key[1])
+    return [
+        {"reason": reason, "explanation": text, "groups": by_reason[reason]}
+        for reason, text in NOT_EVALUATED.items()
+        if reason in by_reason
+    ]
 
 
 def evaluate_json(
@@ -178,24 +210,9 @@ def evaluate_json(
                 {"catalog": catalog, "group": code} for catalog, code in result.ranking
             ],
             ranking_basis="final_points" if tariff_status == "bound" else "base_points",
-            not_evaluated=[
-                {
-                    "catalog": catalog,
-                    "group": group,
-                    "reason": "no_directional_requirement"
-                    if (catalog, group) in underivable_keys
-                    else "no_directional_match"
-                    if (catalog, group) in not_matched_keys
-                    else "no_characteristics_group",
-                    "explanation": "Brak interpretowalnego wymagania kierunkowego."
-                    if (catalog, group) in underivable_keys
-                    else "Brak dopasowania zachowanego lub nierozstrzygniętego faktu do list kierunkowych. Nie oceniano kwalifikacji."
-                    if (catalog, group) in not_matched_keys
-                    else "Brak grupy w wybranych charakterystykach. Nie oceniano kwalifikacji.",
-                }
-                for catalog, group in sorted(names)
-                if (catalog, group) not in evaluated_keys
-            ],
+            not_evaluated=_not_evaluated(
+                sorted(set(names) - evaluated_keys), underivable_keys, not_matched_keys
+            ),
             sources={
                 "catalog_release_id": source.catalog_release_id,
                 "characteristics_release_id": source.characteristics_release_id,

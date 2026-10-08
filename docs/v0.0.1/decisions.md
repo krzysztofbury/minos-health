@@ -485,6 +485,21 @@ These owner assumptions replace the answers and unblock #35:
   (stay over 7 days OR discharge mode 9). Labels that still do not parse under
   this rule stay undetermined.
 
+### Grouping Near Misses, Payload And Abuse Limits (2026-10-08)
+
+Owner decisions while reviewing the #39/#36 grouping interface:
+
+- Age and duration near misses are documentation checks for off-by-one errors
+  only: a group is reported when a value one year or one day from the reported
+  one makes it valid. A 51-year-old is not asked to check age against "< 18".
+- A discharge-mode near miss is never emitted for mode 9 (death); other
+  satisfying modes, such as J29's mode 3, remain checks.
+- `not_evaluated` lists groups once per reason, keyed by catalog, instead of
+  repeating an explanation for every catalog group on each recalculation.
+- Per-client abuse limits belong to a Cloudflare per-IP rate-limit rule for
+  `POST /api/v1/group`; the API keeps its process-wide bucket and no IP state.
+  The rule is a separate edge change and a release gate for #39.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with

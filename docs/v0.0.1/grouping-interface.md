@@ -80,10 +80,14 @@ hundredths; coefficients are millionths. Unknown values remain JSON `null`.
   tariff assumptions remain visible. Invalid groups are never ranked.
   `unapplied_declared_modifiers` exposes declarations not applied to each group.
 - `not_evaluated` and `underivable`: explain groups outside candidate evaluation.
-  Failure to hit a directional list is not a proof of clinical ineligibility.
+  `not_evaluated` has one entry per reason with its explanation and the
+  governing catalog's groups keyed by catalog. Failure to hit a directional
+  list is not a proof of clinical ineligibility.
 - `near_misses`: a bounded subset of documentation checks for reported age,
-  duration or discharge mode. Each is emitted only after whole-group reevaluation
-  (including routing) changes an invalid group to valid. It gives the affected
+  duration or discharge mode. Age and duration are checked only one year or day
+  from the reported value; discharge mode 9 (death) is never checked. Each is
+  emitted only after whole-group reevaluation (including routing) changes an
+  invalid group to valid. It gives the affected
   fact and rule, never a proposed replacement value or code. This is not an
   exhaustive enumeration of possible coding changes; `near_miss_coverage` says so.
 - `disclaimer` and `limitations`: assessment scope and completeness framing.
@@ -97,7 +101,11 @@ checks are never mixed into the trace of the actual reported encounter.
 - JSON body limit: 256 KiB at both edge and API, with a two-second stream read
   timeout. Compressed request bodies are unsupported.
 - Two simultaneous grouping workers, process-wide token bucket of eight with
-  two tokens per second. No per-user/IP state. The four-lease reference pool
+  two tokens per second. A token is spent before the upload; a worker is taken
+  only after the complete body arrives. No per-user/IP state in the API, so one
+  client above two requests per second can exhaust the shared bucket. Owner
+  decision 2026-10-08: per-client limits belong to a Cloudflare per-IP rate-limit
+  rule for `POST /api/v1/group`, a separate edge change required before release. The four-lease reference pool
   leaves capacity for search. Busy requests receive `429` and the shared browser
   request helper uses its existing bounded recovery.
 - Whole-evaluation budget: three seconds, 200,000 cooperative work checkpoints,
@@ -158,7 +166,8 @@ Local verification on 2026-10-08:
   log privacy and stopped-API recovery passed through the same edge images.
 
 Release acceptance still requires the user's review, practitioner entry-time
-and explanation checks, then the production-edge/Cloudflare Tunnel POST and
-log-privacy checks after authorized activation. Local containers cannot prove
+and explanation checks, the Cloudflare per-IP rate-limit rule, then the
+production-edge/Cloudflare Tunnel POST and log-privacy checks after authorized
+activation. Local containers cannot prove
 the tunnel path. Keep #39 open until that evidence exists; the implementation
 does not itself authorize deployment or change the production data selector.

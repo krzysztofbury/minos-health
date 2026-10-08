@@ -74,6 +74,12 @@ try {
     assert.ok(await evaluate(`document.querySelector('[data-group="${expected}"] details').textContent.includes('wiersze')`));
     await evaluate("document.querySelector('.group-results').scrollIntoView()");
     await shot("grouping-trace-" + name, false);
+    // Out-of-scope groups arrive once per reason and render as catalog code lists.
+    const skipped = "Array.from(document.querySelectorAll('#group-answer details')).find(d => d.querySelector('summary').textContent.startsWith('Grupy poza oceną'))";
+    await evaluate(`(${skipped}).open = true; (${skipped}).scrollIntoView()`);
+    assert.ok(await evaluate(`Number((${skipped}).querySelector('summary').textContent.match(/\\((\\d+)\\)/)[1]) > 0`));
+    assert.ok(await evaluate(`Array.from((${skipped}).querySelectorAll('p.group-help')).some(p => /^1ae?: \\S/.test(p.textContent))`));
+    await shot("grouping-skipped-" + name, false);
 
     // Hold a completed response, edit the input, and release the obsolete result.
     hold = true;

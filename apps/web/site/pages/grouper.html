@@ -19,7 +19,7 @@
                   <label>Wiek w dniu przyjęcia (ukończone lata)<input id="age" type="number" min="0" max="200" step="1" required></label>
                   <label>Tryb hospitalizacji<select id="hospitalization"><option value="hospitalization">Hospitalizacja</option><option value="planned">Hospitalizacja planowa</option><option value="one_day">Leczenie jednego dnia</option></select></label>
                   <label>Dzień świadczenia<input id="service-date" type="date" required></label>
-                  <label>Miesiąc sprawozdawczy<input id="reporting-month" type="month" required></label>
+                  <label>Miesiąc sprawozdawczy<input id="reporting-month" type="month" pattern="[0-9]{4}-[0-9]{2}" placeholder="RRRR-MM" required></label>
                   <label>Kod trybu wypisu (opcjonalnie)<input id="discharge-mode" type="number" min="1" max="99" step="1" placeholder="Nieznany"></label>
                 </div>
               </section>

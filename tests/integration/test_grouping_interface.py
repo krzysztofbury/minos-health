@@ -1,14 +1,17 @@
 """Actual HTTP and stdin CLI boundaries, including input privacy and recovery."""
 
+import asyncio
 import json
 import logging
 import subprocess
 import sys
+from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
 from typing import cast
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -36,6 +39,18 @@ def test_http_and_installed_cli_share_versioned_trace(tmp_path: Path) -> None:
         assert trace[0]["matched_codes"] == ["100.01"]
         assert trace[1]["matched_codes"] == ["G60.4"]
         assert all(event["source_rows"] for event in trace)
+        skipped = [
+            (catalog, code)
+            for entry in cast(list[dict[str, object]], answer["not_evaluated"])
+            for catalog, codes in cast(dict[str, list[str]], entry["groups"]).items()
+            for code in codes
+        ]
+        evaluated = [
+            (g["catalog"], g["group"])
+            for g in cast(list[dict[str, object]], answer["groups"])
+        ]
+        assert skipped and len(set(skipped)) == len(skipped)
+        assert not set(skipped) & set(evaluated)
         assert response.headers["cache-control"] == "no-store"
         assert client.post("/api/v1/group", json=body).json() == answer
     process = subprocess.run(
@@ -246,6 +261,38 @@ def test_grouping_admission_preserves_search_capacity_and_recovers(
             assert first.result().status_code == second.result().status_code == 200
         monkeypatch.setattr(grouping, "evaluate", original)
         assert client.post("/api/v1/group", json=grouping_body()).status_code == 200
+
+
+def test_slow_uploads_do_not_hold_evaluation_workers(tmp_path: Path) -> None:
+    app = create_app(grouping_bundle(tmp_path))
+    body = json.dumps(grouping_body()).encode()
+    headers = {"Content-Type": "application/json"}
+
+    async def scenario() -> list[int]:
+        resume = asyncio.Event()
+
+        async def trickle() -> AsyncIterator[bytes]:
+            yield body[:1]
+            _ = await resume.wait()
+            yield body[1:]
+
+        transport = httpx.ASGITransport(app=app)
+        async with (
+            app.router.lifespan_context(app),
+            httpx.AsyncClient(transport=transport, base_url="http://test") as client,
+        ):
+            slow = [
+                asyncio.create_task(
+                    client.post("/api/v1/group", content=trickle(), headers=headers)
+                )
+                for _ in range(2)
+            ]
+            await asyncio.sleep(0.2)
+            fast = await client.post("/api/v1/group", content=body, headers=headers)
+            resume.set()
+            return [fast.status_code, *[(await task).status_code for task in slow]]
+
+    assert asyncio.run(scenario()) == [200, 200, 200]
 
 
 def test_evaluation_and_response_limits_return_no_partial_answer(

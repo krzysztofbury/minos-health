@@ -128,8 +128,9 @@
     if (!groups.length) answer.append(el("p", "Nie wyznaczono kandydatów z list kierunkowych. To nie dowodzi braku możliwej grupy."));
     var prep = details(answer, "Przygotowanie faktów i reguły wyłączeń");
     data.preparation.trace.forEach(function (event) { prep.append(el("p", event.phase + " #" + event.ordinal + ": " + event.explanation)); });
-    var skipped = details(answer, "Grupy poza oceną (" + data.not_evaluated.length + ")");
-    data.not_evaluated.forEach(function (group) { skipped.append(el("p", group.catalog + "/" + group.group + ": " + group.explanation)); });
+    var skippedCount = data.not_evaluated.reduce(function (sum, entry) { return sum + Object.keys(entry.groups).reduce(function (n, catalog) { return n + entry.groups[catalog].length; }, 0); }, 0);
+    var skipped = details(answer, "Grupy poza oceną (" + skippedCount + ")");
+    data.not_evaluated.forEach(function (entry) { skipped.append(el("p", entry.explanation)); Object.keys(entry.groups).forEach(function (catalog) { skipped.append(el("p", catalog + ": " + entry.groups[catalog].join(", "), "group-help")); }); });
     var sources = details(answer, "Tożsamość zestawu reguł"); sources.append(el("pre", pretty({ dataset_id: data.dataset_id, database_sha256: data.database_sha256, sources: data.sources })));
     var raw = details(answer, "Pełny wynik JSON v1"); raw.append(el("pre", pretty(data)));
   }

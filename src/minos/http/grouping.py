@@ -27,7 +27,12 @@ MAX_GROUPING_RESPONSE_BYTES = 4 * 1024 * 1024
 
 @final
 class GroupingAdmission:
-    """Two workers and a process-wide token bucket; no IP or user state."""
+    """Two workers and a process-wide token bucket; no IP or user state.
+
+    A token is spent before the upload, bounding concurrent body readers to
+    about twelve (burst plus two seconds of refill). A worker is taken only
+    after the complete body arrives, so slow uploads cannot hold evaluation.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -35,15 +40,21 @@ class GroupingAdmission:
         self._at = time.monotonic()
         self._active = 0
 
-    def acquire(self) -> bool:
+    def admit(self) -> bool:
         with self._lock:
             now = time.monotonic()
             self._tokens = min(8.0, self._tokens + (now - self._at) * 2)
             self._at = now
-            if self._active >= 2 or self._tokens < 1:
+            if self._tokens < 1:
+                return False
+            self._tokens -= 1
+            return True
+
+    def acquire(self) -> bool:
+        with self._lock:
+            if self._active >= 2:
                 return False
             self._active += 1
-            self._tokens -= 1
             return True
 
     def release(self) -> None:
@@ -76,15 +87,20 @@ def register_grouping_routes(
             return failure(415, "json_required")
         if request.headers.get("content-encoding", "identity") != "identity":
             return failure(415, "content_encoding_unsupported")
-        if not admission.acquire():
+        if not admission.admit():
             return failure(429, "busy")
+        body = bytearray()
         try:
-            body = bytearray()
             async with asyncio.timeout(2):
                 async for chunk in request.stream():
                     if len(body) + len(chunk) > MAX_GROUPING_REQUEST_BYTES:
                         return failure(413, "body_too_large")
                     body.extend(chunk)
+        except TimeoutError:
+            return failure(408, "request_timeout")
+        if not admission.acquire():
+            return failure(429, "busy")
+        try:
             # AnyIO's default threadpool wait retains ownership until the worker
             # stops; a client abort must not start another unbounded CPU worker.
             encoded = await run_in_threadpool(
@@ -105,8 +121,6 @@ def register_grouping_routes(
             return failure(504, "evaluation_timeout")
         except QueryLimitError:
             return failure(422, "evaluation_limit")
-        except TimeoutError:
-            return failure(408, "request_timeout")
         except GrouperError:
             return failure(422, "grouping_unavailable")
         except ReferenceError, OSError, ValueError:

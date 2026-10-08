@@ -33,11 +33,14 @@ def test_near_miss_requires_complete_group_to_change_not_just_one_failed_leaf() 
     age = node(4, "patient_age", c.Age("lt", 18, "completed_years"))
     conjunction = node(10, "all", c.Expression((1, 4)))
     selected = rules(10, PROCEDURE_A, age, conjunction)
-    reported = facts(("10.1", "retained", 3), years=40)
+    reported = facts(("10.1", "retained", 3), years=18)
     result = evaluate_group(selected, reported)
     assert [(m.node, m.fact) for m in near_misses(selected, reported, result)] == [
         (4, "completed_years")
     ]
+    # Only an off-by-one documentation error is plausible, not 40 versus "< 18".
+    distant = replace(reported, years=40)
+    assert near_misses(selected, distant, evaluate_group(selected, distant)) == ()
     no_procedure = replace(reported, procedures=())
     assert (
         near_misses(selected, no_procedure, evaluate_group(selected, no_procedure))
@@ -49,20 +52,22 @@ def test_near_miss_requires_complete_group_to_change_not_just_one_failed_leaf() 
     )
 
 
-def test_near_miss_rechecks_routing_and_does_not_suggest_a_death_code() -> None:
+def test_near_miss_rechecks_routing_and_never_asks_about_death() -> None:
     duration = node(
         4, "episode_duration", c.EpisodeDuration((c.DurationBound("lt", 2),))
     )
     selected = rules(4, duration, procedural=False)
-    reported = facts(("10.1", "retained", 2), days=5)
+    # One day satisfies the duration, but a rank 2 procedure then fails routing.
+    reported = facts(("10.1", "retained", 2), days=2)
     assert near_misses(selected, reported, evaluate_group(selected, reported)) == ()
-    discharge = node(5, "discharge_mode", c.DischargeMode((9,)))
-    selected = rules(5, discharge)
+    transfer = rules(5, node(5, "discharge_mode", c.DischargeMode((3, 9))))
     reported = replace(facts(), discharge_mode=1)
-    misses = near_misses(selected, reported, evaluate_group(selected, reported))
+    misses = near_misses(transfer, reported, evaluate_group(transfer, reported))
     assert len(misses) == 1 and misses[0].fact == "discharge_mode"
     # The domain returns the fact/condition identity, never a suggested code/value.
     assert not hasattr(misses[0], "suggested_value")
+    death = rules(5, node(5, "discharge_mode", c.DischargeMode((9,))))
+    assert near_misses(death, reported, evaluate_group(death, reported)) == ()
 
 
 @pytest.mark.parametrize(
