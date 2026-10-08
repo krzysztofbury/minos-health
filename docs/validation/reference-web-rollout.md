@@ -201,6 +201,12 @@ was repeated successfully. The PR/manual-publication workflow now enforces
 those scans so an image regression blocks promotion. The unchanged old base
 is retained only as the exact maintenance rollback target, not the new release.
 
+On 2026-10-08 the same gate found fixable `CVE-2026-4775` in tiff 4.7.1-r0.
+The validation edge moved to the upstream rebuild
+`sha256:b9241c6e7b8e9a862f129d8d4199ab64b10390949a78bdd5603379b32c844083`
+(NGINX 1.31.6, Alpine 3.24.2), which ships pcre2 10.49-r0, so the earlier
+pcre2 pin was dropped; tiff 4.7.2-r0 is pinned until upstream rebuilds.
+
 Host pre-cutover canaries stopped promotion when ordinary cold searches returned
 HTTP 429. Profiling isolated 320 ms in the first native dictionary construction
 inside the 250 ms request budget; later searches in that same process took
