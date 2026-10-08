@@ -17,6 +17,7 @@ _ALLOWED_URL = re.compile(
     + r"|www\.nfz\.gov\.pl/download/gfx/nfz/pl/(?:defaultstronaopisowa|defaultaktualnosci)/[0-9/]+/[A-Za-z0-9_.-]+\.(?:xlsx|docx)"
     + r"|baw\.nfz\.gov\.pl/api/file/4/[1-9][0-9]*"
     + r"|rsk3\.ezdrowie\.gov\.pl/api/rsk/file/get/[a-f0-9-]{36}"
+    + r"|api\.sejm\.gov\.pl/eli/acts/DU/20[0-9]{2}/[1-9][0-9]{0,4}/text\.pdf"
     + r")"
 )
 
@@ -73,6 +74,9 @@ def fetch_manifest(manifest: DatasetManifest, archive: Path) -> None:
         pins.extend((notice.algorithm, notice.ranks, notice.specialties))
     pins.extend(catalog.workbook for catalog in manifest.catalogs)
     pins.extend(conditions.workbook for conditions in manifest.characteristics)
+    if manifest.grouping_dictionaries is not None:
+        pins.append(manifest.grouping_dictionaries.specialties.source)
+        pins.append(manifest.grouping_dictionaries.discharge_modes.source)
     if len(pins) > 64 or len({pin.sha256 for pin in pins}) != len(pins):
         raise ValueError("evaluation source inventory exceeds its unique bound")
     archive.mkdir(parents=True, exist_ok=False)

@@ -25,19 +25,14 @@
 
               <section class="wizard-step" data-step="0" aria-labelledby="step-0-title">
                 <h2 id="step-0-title" tabindex="-1">Hospitalizacja</h2>
-                <p class="group-help">Daty i tryb z karty informacyjnej. Daty wpisuj jako DD.MM.RRRR.</p>
+                <p class="group-help">Daty i tryb z karty informacyjnej.</p>
                 <div class="field-grid">
-                  <label>Przyjęcie<input id="admitted" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" required></label>
-                  <label>Wypis<input id="discharged" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" required></label>
-                  <label>Wiek w dniu przyjęcia<span class="field-hint">ukończone lata</span><input id="age" type="text" inputmode="numeric" maxlength="3" required></label>
-                  <div class="field">
-                    <div class="field-label"><label for="discharge-select">Tryb wypisu</label><button class="help-toggle" type="button" aria-expanded="false" aria-controls="discharge-help">Co to jest?</button></div>
-                    <span class="field-hint">opcjonalnie</span>
-                    <select id="discharge-select"><option value="">Nie podano</option><option value="9">9 - zgon pacjenta</option><option value="other">Inny kod</option></select>
-                  </div>
+                  <div class="field"><div class="field-label"><label for="admitted">Przyjęcie</label></div><div class="control control-picker"><input id="admitted" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" required><button class="picker-button" type="button" data-picker="date" aria-label="Przyjęcie: wybierz z kalendarza"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.5" y="4" width="15" height="13.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 8h15M6.5 2v4M13.5 2v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div></div>
+                  <div class="field"><div class="field-label"><label for="discharged">Wypis</label></div><div class="control control-picker"><input id="discharged" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" required><button class="picker-button" type="button" data-picker="date" aria-label="Wypis: wybierz z kalendarza"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.5" y="4" width="15" height="13.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 8h15M6.5 2v4M13.5 2v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div></div>
+                  <div class="field"><div class="field-label"><label for="age">Wiek w dniu przyjęcia</label><button class="tip" type="button" data-tip="Ukończone lata w dniu przyjęcia. Dziecko przed pierwszymi urodzinami ma 0 lat." aria-label="Wyjaśnienie: wiek w dniu przyjęcia">?</button></div><div class="control control-suffix"><input id="age" type="text" inputmode="numeric" maxlength="3" required><span class="suffix" aria-hidden="true">lat</span></div></div>
+                  <div class="field"><div class="field-label"><label for="discharge-select">Tryb wypisu <span class="optional">(opcjonalnie)</span></label><button class="tip" type="button" data-tip="Kod trybu wypisu ze szpitala według załącznika nr 4 do rozporządzenia w sprawie zakresu niezbędnych informacji (Dz. U. z 2025 r. poz. 1588). Obsługiwane reguły sprawdzają go w nielicznych grupach; bez kodu takie warunki pozostają nierozstrzygnięte." aria-label="Wyjaśnienie: tryb wypisu">?</button></div><div class="control"><select id="discharge-select"><option value="">Nie podano</option></select></div></div>
                 </div>
-                <p id="discharge-help" class="help-text" hidden>Kod trybu wypisu ze sprawozdania świadczenia. Obsługiwane reguły sprawdzają go tylko w nielicznych grupach, na przykład tryb 9 - zgon pacjenta. Jeśli nie masz kodu pod ręką, zostaw "Nie podano": takie warunki pozostaną nierozstrzygnięte, a nie spełnione.</p>
-                <label id="discharge-other" class="field-narrow" hidden>Kod trybu wypisu<span class="field-hint">1-99</span><input id="discharge-mode" type="text" inputmode="numeric" maxlength="2"></label>
+                <div id="discharge-other" class="field field-narrow" hidden><div class="field-label"><label for="discharge-mode">Kod trybu wypisu</label></div><div class="control"><input id="discharge-mode" type="text" inputmode="numeric" maxlength="2" placeholder="1-99"></div></div>
                 <fieldset class="choice">
                   <legend>Tryb hospitalizacji</legend>
                   <label><input type="radio" name="hospitalization" value="hospitalization" checked>Hospitalizacja</label>
@@ -46,16 +41,16 @@
                 </fieldset>
                 <div class="field-grid">
                   <fieldset class="choice choice-stacked">
-                    <legend>Dzień świadczenia<span class="field-hint">wyznacza obowiązujące reguły</span></legend>
+                    <legend><span class="field-label"><span>Dzień świadczenia</span><button class="tip" type="button" data-tip="Dzień, według którego wybierane są obowiązujące katalog i charakterystyki. Zwykle dzień wypisu." aria-label="Wyjaśnienie: dzień świadczenia">?</button></span></legend>
                     <label><input type="radio" name="service-mode" value="discharge"><span id="service-discharge-label">Dzień wypisu</span></label>
                     <label><input type="radio" name="service-mode" value="other">Inny dzień</label>
-                    <input id="service-date" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" aria-label="Inny dzień świadczenia" hidden>
+                    <div class="control control-picker" hidden><input id="service-date" class="date-pl" type="text" inputmode="numeric" maxlength="10" placeholder="DD.MM.RRRR" aria-label="Inny dzień świadczenia"><button class="picker-button" type="button" data-picker="date" aria-label="Dzień świadczenia: wybierz z kalendarza"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.5" y="4" width="15" height="13.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 8h15M6.5 2v4M13.5 2v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
                   </fieldset>
                   <fieldset class="choice choice-stacked">
-                    <legend>Miesiąc sprawozdawczy<span class="field-hint">miesiąc wysłania sprawozdania</span></legend>
+                    <legend><span class="field-label"><span>Miesiąc sprawozdawczy</span><button class="tip" type="button" data-tip="Miesiąc, za który wysyłasz sprawozdanie. Wybiera wersję algorytmu grupera." aria-label="Wyjaśnienie: miesiąc sprawozdawczy">?</button></span></legend>
                     <label><input type="radio" name="month-mode" value="discharge"><span id="month-discharge-label">Miesiąc wypisu</span></label>
                     <label><input type="radio" name="month-mode" value="other">Inny miesiąc</label>
-                    <input id="reporting-month" class="month-pl" type="text" inputmode="numeric" maxlength="7" placeholder="MM.RRRR" aria-label="Inny miesiąc sprawozdawczy" hidden>
+                    <div class="control control-picker" hidden><input id="reporting-month" class="month-pl" type="text" inputmode="numeric" maxlength="7" placeholder="MM.RRRR" aria-label="Inny miesiąc sprawozdawczy"><button class="picker-button" type="button" data-picker="month" aria-label="Miesiąc sprawozdawczy: wybierz z listy"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="2.5" y="4" width="15" height="13.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M2.5 8h15M6.5 2v4M13.5 2v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></div>
                   </fieldset>
                 </div>
               </section>
@@ -63,8 +58,6 @@
               <section class="wizard-step" data-step="1" aria-labelledby="step-1-title" hidden>
                 <h2 id="step-1-title" tabindex="-1">Pobyty na oddziałach</h2>
                 <p class="group-help">Każdy pobyt osobno. Pierwszy pobyt startuje z datami hospitalizacji; zmień je, jeśli pacjent przebywał na kilku oddziałach.</p>
-                <button class="help-toggle" type="button" aria-expanded="false" aria-controls="specialty-help">Skąd wziąć kod specjalności?</button>
-                <p id="specialty-help" class="help-text" hidden>To 4-cyfrowy kod specjalności komórki organizacyjnej (część VIII kodu resortowego oddziału), ten sam co w sprawozdaniu świadczenia, na przykład 4500. Wyszukiwanie po nazwie oddziału jest w przygotowaniu. Kod decyduje o wyłączeniu pobytu z grupowania.</p>
                 <div id="wards"></div>
                 <button id="add-ward" class="button button-quiet" type="button">Dodaj pobyt</button>
               </section>
@@ -112,4 +105,6 @@
             </details>
           </aside>
         </div>
+        <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+        <div id="picker" class="picker" role="dialog" aria-label="Kalendarz" hidden></div>
       </div>

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from minos.domain.reference import SourceError
+from minos.ingest.grouping_dictionaries_manifest import LegalActFile
 from minos.ingest.jgp_catalog_manifest import CatalogFile
 from minos.ingest.jgp_conditions_manifest import ConditionsFile
 from minos.ingest.jgp_modifier_binding_manifest import LegalOverlayFile
@@ -27,7 +28,8 @@ def verified_source(
     | ConditionsFile
     | ModifierFile
     | DisplayFile
-    | LegalOverlayFile,
+    | LegalOverlayFile
+    | LegalActFile,
     *,
     staging_directory: Path,
 ) -> Generator[BinaryIO]:

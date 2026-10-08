@@ -89,19 +89,45 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-block: 1.1rem; }
 .field-grid-3 { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
 .fact-details { margin-top: 0.75rem; }
-.field { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
-.field-label { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; }
+/* Field anatomy: a fixed-height label row, then the control, so a row of
+   fields always aligns whatever explanations a single field carries. */
+.field { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+.field-label { display: flex; align-items: center; gap: 0.4rem; min-height: 1.75rem; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; }
+.page-grouper .field-label label { display: inline; }
+.optional { color: var(--muted); font-weight: 400; }
 .field-narrow { max-width: 14rem; margin-block: 0 1rem; }
-.help-toggle { min-height: 32px; padding: 0; border: 0; color: var(--accent); background: none; font-size: var(--text-xs); font-weight: 600; text-decoration: underline; text-underline-offset: 0.18em; cursor: pointer; }
-.help-toggle[aria-expanded="true"] { color: var(--accent-strong); }
-.help-text { max-width: 44rem; margin-block: 0.25rem 1rem; padding: 0.7rem 0.9rem; border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink-soft); background: var(--accent-tint); font-size: var(--text-sm); }
+.control { position: relative; }
+.page-grouper .control-suffix input:not([type="radio"]):not([type="checkbox"]) { padding-right: 3rem; }
+.suffix { position: absolute; top: 50%; right: 0.8rem; color: var(--muted); font-size: var(--text-sm); transform: translateY(-50%); pointer-events: none; }
+.page-grouper .control-picker input:not([type="radio"]):not([type="checkbox"]) { padding-right: 2.9rem; }
+.picker-button { position: absolute; top: 50%; right: 0.25rem; display: grid; place-items: center; width: 2.4rem; height: 2.4rem; padding: 0; border: 0; border-radius: 6px; color: var(--accent); background: none; cursor: pointer; transform: translateY(-50%); }
+.picker-button:hover { background: var(--accent-tint); }
+.picker-button svg { width: 1.25rem; height: 1.25rem; }
+.tip { display: inline-grid; place-items: center; flex: none; width: 1.35rem; height: 1.35rem; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); background: var(--surface); font: 700 0.75rem/1 var(--font); cursor: help; }
+.tip:hover, .tip[aria-expanded="true"] { border-color: var(--accent); color: #fff; background: var(--accent); }
+.tooltip { position: absolute; z-index: 40; padding: 0.65rem 0.8rem; border-radius: var(--radius); color: #fff; background: var(--ink); box-shadow: var(--shadow); font-size: var(--text-sm); font-weight: 400; line-height: 1.45; }
+.picker { position: absolute; z-index: 45; width: 18.75rem; padding: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); }
+.picker-head { display: grid; grid-template-columns: 2.5rem 1fr 2.5rem; align-items: center; margin-bottom: 0.5rem; }
+.picker-title { text-align: center; font-weight: 700; }
+.picker-nav { width: 2.5rem; height: 2.5rem; padding: 0; border: 0; border-radius: 6px; color: var(--accent); background: none; font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.picker-nav:hover { background: var(--accent-tint); }
+.picker-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.picker-months { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.picker-weekday { padding-block: 0.25rem; color: var(--muted); font-size: var(--text-xs); text-align: center; }
+.picker-cell { min-height: 2.4rem; padding: 0; border: 1px solid transparent; border-radius: 6px; color: var(--ink); background: none; font-variant-numeric: tabular-nums; cursor: pointer; }
+.picker-months .picker-cell { min-height: 2.75rem; font-size: var(--text-sm); }
+.picker-cell:hover { background: var(--accent-tint); }
+.picker-cell.is-today { border-color: var(--line-strong); }
+.picker-cell.is-selected { border-color: var(--accent); color: #fff; background: var(--accent); }
+.suggestion-meta { display: block; color: var(--muted); font-size: var(--text-xs); }
 .page-grouper .suggestion { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
 .page-grouper .suggestion-label { overflow: visible; white-space: normal; text-overflow: clip; line-height: 1.35; }
-.page-grouper .search-box > .field-hint { display: block; margin-top: 0.3rem; }
+.page-grouper .field > .field-hint { margin: 0; }
 .page-grouper label { display: flex; flex-direction: column; gap: 0.3rem; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; }
 .field-hint { color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
 .page-grouper input:not([type="radio"]):not([type="checkbox"]), .page-grouper select { width: 100%; min-width: 0; min-height: 44px; padding: 0.5rem 0.6rem; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: var(--surface); font-weight: 400; }
-.page-grouper input[aria-invalid="true"] { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+.page-grouper input[aria-invalid="true"]:not([type="radio"]), .page-grouper select[aria-invalid="true"] { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad); }
+.page-grouper .choice.is-invalid label { border-color: var(--bad); }
 .choice { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.1rem 0; padding: 0; border: 0; }
 .choice legend { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.45rem; padding: 0; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; }
 .choice-stacked > input { max-width: 14rem; }

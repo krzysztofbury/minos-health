@@ -40,11 +40,142 @@
     groups.forEach(function (size) { if (digits.length > at) parts.push(digits.slice(at, at + size)); at += size; });
     input.value = parts.join(".");
   }
-  function dateField(parent, title, required, hint) {
-    var label = el("label", title), input = el("input"); input.type = "text"; input.className = "date-pl"; input.inputMode = "numeric"; input.maxLength = 10; input.placeholder = "DD.MM.RRRR"; input.required = !!required;
-    if (hint) label.append(el("span", hint, "field-hint"));
-    label.append(input); parent.append(label); return input;
+  /* One field anatomy everywhere: a label row (label, optional marker, ? tip) above
+     the control, so controls in a row always start at the same height. */
+  function field(parent, title, options) {
+    options = options || {};
+    var wrap = el("div", undefined, "field"), head = el("div", undefined, "field-label"), label = el("label", title), id = "field-" + (++nextId);
+    if (options.optional) { label.append(" "); label.append(el("span", "(opcjonalnie)", "optional")); }
+    head.append(label); if (options.tip) head.append(tipButton(options.tip, title));
+    var control = el("div", undefined, "control" + (options.control ? " " + options.control : ""));
+    label.htmlFor = id; wrap.append(head, control); parent.append(wrap);
+    return { wrap: wrap, label: label, control: control, id: id };
   }
+  function tipButton(text, about) { var b = el("button", "?", "tip"); b.type = "button"; b.dataset.tip = text; b.setAttribute("aria-label", "Wyjaśnienie: " + about); b.setAttribute("aria-expanded", "false"); return b; }
+  function calendarButton(kind, label) {
+    var NS = "http://www.w3.org/2000/svg", b = el("button", undefined, "picker-button"), svg = document.createElementNS(NS, "svg"), rect = document.createElementNS(NS, "rect"), path = document.createElementNS(NS, "path");
+    b.type = "button"; b.dataset.picker = kind; b.setAttribute("aria-label", label);
+    svg.setAttribute("viewBox", "0 0 20 20"); svg.setAttribute("aria-hidden", "true"); svg.setAttribute("focusable", "false");
+    [["x", "2.5"], ["y", "4"], ["width", "15"], ["height", "13.5"], ["rx", "2"]].forEach(function (a) { rect.setAttribute(a[0], a[1]); });
+    path.setAttribute("d", "M2.5 8h15M6.5 2v4M13.5 2v4");
+    [rect, path].forEach(function (shape) { shape.setAttribute("fill", "none"); shape.setAttribute("stroke", "currentColor"); shape.setAttribute("stroke-width", "1.6"); shape.setAttribute("stroke-linecap", "round"); });
+    svg.append(rect, path); b.append(svg); return b;
+  }
+  function dateField(parent, title, required, optional) {
+    var f = field(parent, title, { optional: optional, control: "control-picker" }), input = el("input");
+    input.type = "text"; input.className = "date-pl"; input.inputMode = "numeric"; input.maxLength = 10; input.placeholder = "DD.MM.RRRR"; input.required = !!required; input.id = f.id;
+    f.control.append(input, calendarButton("date", title + ": wybierz z kalendarza")); return input;
+  }
+
+  /* Tooltips: tap or click pins, hover and focus preview, Escape closes. */
+  var tooltip = byId("tooltip"), tipOwner = null, tipPinned = false;
+  function showTip(owner, pinned) {
+    if (tipOwner && tipOwner !== owner) hideTip(true);
+    tipOwner = owner; tipPinned = tipPinned || !!pinned; tooltip.textContent = owner.dataset.tip; tooltip.hidden = false;
+    owner.setAttribute("aria-describedby", "tooltip"); owner.setAttribute("aria-expanded", "true");
+    var r = owner.getBoundingClientRect(), width = Math.min(320, document.documentElement.clientWidth - 32);
+    tooltip.style.width = width + "px";
+    tooltip.style.left = Math.max(16, Math.min(r.left + r.width / 2 - width / 2, document.documentElement.clientWidth - width - 16)) + window.scrollX + "px";
+    tooltip.style.top = r.bottom + window.scrollY + 8 + "px";
+  }
+  function hideTip(force) {
+    if (!tipOwner || (tipPinned && !force)) return;
+    tipOwner.removeAttribute("aria-describedby"); tipOwner.setAttribute("aria-expanded", "false"); tipOwner = null; tipPinned = false; tooltip.hidden = true;
+  }
+  document.addEventListener("click", function (event) {
+    var tip = event.target.closest && event.target.closest(".tip");
+    if (tip) { if (tipOwner === tip && tipPinned) hideTip(true); else showTip(tip, true); return; }
+    if (!event.target.closest || !event.target.closest(".tooltip")) hideTip(true);
+  });
+  document.addEventListener("mouseover", function (event) { var tip = event.target.closest && event.target.closest(".tip"); if (tip && !tipPinned) showTip(tip, false); });
+  document.addEventListener("mouseout", function (event) { var tip = event.target.closest && event.target.closest(".tip"); if (tip) hideTip(false); });
+  document.addEventListener("focusin", function (event) { if (event.target.classList && event.target.classList.contains("tip") && !tipPinned) showTip(event.target, false); });
+  document.addEventListener("focusout", function (event) { if (event.target.classList && event.target.classList.contains("tip")) hideTip(true); });
+
+  /* Calendar in Polish whatever the browser language; typing stays the fast path. */
+  var picker = byId("picker"), pickerInput = null, pickerKind = "date", view = { year: 2026, month: 0 }, cursor = "";
+  var MONTHS = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień"];
+  var MONTHS_OF = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
+  var WEEKDAYS = ["pn", "wt", "śr", "cz", "pt", "so", "nd"];
+  function isoOf(y, m, d) { var date = new Date(Date.UTC(y, m, d)); return date.toISOString().slice(0, 10); }
+  function todayIso() { var now = new Date(); return isoOf(now.getFullYear(), now.getMonth(), now.getDate()); }
+  function openPicker(button) {
+    hideTip(true);
+    pickerInput = button.parentElement.querySelector("input"); pickerKind = button.dataset.picker;
+    var chosen = pickerKind === "date" ? iso(pickerInput.value) : (isoMonth(pickerInput.value) ? isoMonth(pickerInput.value) + "-01" : "");
+    cursor = chosen || iso(value("discharged")) || iso(value("admitted")) || todayIso();
+    view = { year: +cursor.slice(0, 4), month: +cursor.slice(5, 7) - 1 };
+    renderPicker(); picker.hidden = false;
+    var r = pickerInput.parentElement.getBoundingClientRect(), width = picker.offsetWidth;
+    picker.style.left = Math.max(16, Math.min(r.left, document.documentElement.clientWidth - width - 16)) + window.scrollX + "px";
+    picker.style.top = r.bottom + window.scrollY + 6 + "px";
+    var focus = picker.querySelector("[data-value='" + (pickerKind === "date" ? cursor : cursor.slice(0, 7)) + "']"); if (focus) focus.focus();
+  }
+  function closePicker(restore) { if (picker.hidden) return; picker.hidden = true; picker.replaceChildren(); if (restore && pickerInput) pickerInput.focus(); }
+  function choosePicked(valueIso) {
+    pickerInput.value = pickerKind === "date" ? pl(valueIso) : plMonth(valueIso);
+    pickerInput.dispatchEvent(new Event("input", { bubbles: true }));
+    closePicker(true);
+  }
+  function renderPicker() {
+    picker.replaceChildren();
+    var head = el("div", undefined, "picker-head"), title = el("p", pickerKind === "date" ? MONTHS[view.month] + " " + view.year : String(view.year), "picker-title");
+    title.setAttribute("aria-live", "polite");
+    var prev = el("button", "‹", "picker-nav"), nextButton = el("button", "›", "picker-nav");
+    prev.type = nextButton.type = "button";
+    prev.setAttribute("aria-label", pickerKind === "date" ? "Poprzedni miesiąc" : "Poprzedni rok"); nextButton.setAttribute("aria-label", pickerKind === "date" ? "Następny miesiąc" : "Następny rok");
+    prev.addEventListener("click", function () { shiftView(-1); }); nextButton.addEventListener("click", function () { shiftView(1); });
+    head.append(prev, title, nextButton); picker.append(head);
+    var grid = el("div", undefined, pickerKind === "date" ? "picker-days" : "picker-months"); grid.setAttribute("role", "grid");
+    var today = todayIso(), selected = pickerKind === "date" ? iso(pickerInput.value) : isoMonth(pickerInput.value);
+    if (pickerKind === "date") {
+      WEEKDAYS.forEach(function (name) { var cell = el("span", name, "picker-weekday"); cell.setAttribute("aria-hidden", "true"); grid.append(cell); });
+      var first = new Date(Date.UTC(view.year, view.month, 1)), offset = (first.getUTCDay() + 6) % 7, days = new Date(Date.UTC(view.year, view.month + 1, 0)).getUTCDate();
+      for (var blank = 0; blank < offset; blank++) grid.append(el("span", "", "picker-blank"));
+      for (var day = 1; day <= days; day++) {
+        var at = isoOf(view.year, view.month, day), cell = el("button", String(day), "picker-cell");
+        cell.type = "button"; cell.dataset.value = at; cell.tabIndex = at === cursor ? 0 : -1;
+        cell.setAttribute("aria-label", day + " " + MONTHS_OF[view.month] + " " + view.year);
+        if (at === today) cell.classList.add("is-today"); if (at === selected) { cell.classList.add("is-selected"); cell.setAttribute("aria-pressed", "true"); }
+        grid.append(cell);
+      }
+    } else {
+      MONTHS.forEach(function (name, index) {
+        var at = view.year + "-" + String(index + 1).padStart(2, "0"), cell = el("button", name, "picker-cell");
+        cell.type = "button"; cell.dataset.value = at; cell.tabIndex = at === cursor.slice(0, 7) ? 0 : -1;
+        cell.setAttribute("aria-label", name + " " + view.year);
+        if (at === today.slice(0, 7)) cell.classList.add("is-today"); if (at === selected) { cell.classList.add("is-selected"); cell.setAttribute("aria-pressed", "true"); }
+        grid.append(cell);
+      });
+    }
+    picker.append(grid);
+  }
+  function shiftView(step) {
+    if (pickerKind === "date") { var d = new Date(Date.UTC(view.year, view.month + step, 1)); view = { year: d.getUTCFullYear(), month: d.getUTCMonth() }; cursor = isoOf(view.year, view.month, Math.min(+cursor.slice(8, 10) || 1, new Date(Date.UTC(view.year, view.month + 1, 0)).getUTCDate())); }
+    else { view = { year: view.year + step, month: view.month }; cursor = view.year + cursor.slice(4); }
+    renderPicker();
+  }
+  function moveCursor(delta) {
+    if (pickerKind === "date") { var d = new Date(cursor + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + delta); cursor = d.toISOString().slice(0, 10); }
+    else { var month = +cursor.slice(5, 7) - 1 + delta, year = +cursor.slice(0, 4) + Math.floor(month / 12); month = ((month % 12) + 12) % 12; cursor = year + "-" + String(month + 1).padStart(2, "0") + "-01"; }
+    view = { year: +cursor.slice(0, 4), month: +cursor.slice(5, 7) - 1 };
+    renderPicker();
+    var focus = picker.querySelector("[data-value='" + (pickerKind === "date" ? cursor : cursor.slice(0, 7)) + "']"); if (focus) focus.focus();
+  }
+  picker.addEventListener("click", function (event) { var cell = event.target.closest && event.target.closest(".picker-cell"); if (cell) choosePicked(cell.dataset.value); });
+  picker.addEventListener("keydown", function (event) {
+    var cell = event.target.classList && event.target.classList.contains("picker-cell"), date = pickerKind === "date";
+    var moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: date ? -7 : -3, ArrowDown: date ? 7 : 3 };
+    if (event.key === "Escape") { event.preventDefault(); closePicker(true); }
+    else if (cell && moves[event.key] !== undefined) { event.preventDefault(); moveCursor(moves[event.key]); }
+    else if (cell && (event.key === "PageUp" || event.key === "PageDown")) { event.preventDefault(); if (date) { shiftView(event.key === "PageUp" ? -1 : 1); } else { shiftView(event.key === "PageUp" ? -1 : 1); } var focus = picker.querySelector("[data-value='" + (date ? cursor : cursor.slice(0, 7)) + "']"); if (focus) focus.focus(); }
+  });
+  document.addEventListener("click", function (event) {
+    var opener = event.target.closest && event.target.closest(".picker-button");
+    if (opener) { if (!picker.hidden && pickerInput === opener.parentElement.querySelector("input")) closePicker(true); else openPicker(opener); return; }
+    if (!picker.hidden && !(event.target.closest && event.target.closest(".picker"))) closePicker(false);
+  });
+
   function serviceDate() { return radio("service-mode") === "discharge" ? iso(value("discharged")) : radio("service-mode") === "other" ? iso(value("service-date")) : ""; }
   function reportingMonth() { var d = iso(value("discharged")); return radio("month-mode") === "discharge" ? (d ? d.slice(0, 7) : "") : radio("month-mode") === "other" ? isoMonth(value("reporting-month")) : ""; }
   function dischargeMode() { var s = byId("discharge-select").value; return s === "other" ? value("discharge-mode") : s; }
@@ -52,8 +183,8 @@
     var d = iso(value("discharged"));
     byId("service-discharge-label").textContent = d ? "Dzień wypisu (" + pl(d) + ")" : "Dzień wypisu";
     byId("month-discharge-label").textContent = d ? "Miesiąc wypisu (" + plMonth(d) + ")" : "Miesiąc wypisu";
-    byId("service-date").hidden = radio("service-mode") !== "other";
-    byId("reporting-month").hidden = radio("month-mode") !== "other";
+    byId("service-date").parentElement.hidden = radio("service-mode") !== "other";
+    byId("reporting-month").parentElement.hidden = radio("month-mode") !== "other";
     byId("discharge-other").hidden = byId("discharge-select").value !== "other";
   }
 
@@ -80,7 +211,9 @@
   }
 
   /* Validation: problems are listed above the step and point to the field to fix. */
-  function clearErrors() { errorsBox.hidden = true; errorsBox.replaceChildren(); form.querySelectorAll("[aria-invalid]").forEach(function (input) { input.removeAttribute("aria-invalid"); }); }
+  function clearErrors() { errorsBox.hidden = true; errorsBox.replaceChildren(); form.querySelectorAll("[aria-invalid]").forEach(function (input) { input.removeAttribute("aria-invalid"); }); form.querySelectorAll(".choice.is-invalid").forEach(function (group) { group.classList.remove("is-invalid"); }); }
+  // A corrected field drops its error mark at once; the list refreshes on the next step change.
+  function clearMark(target) { if (target.type === "radio") { var group = target.closest(".choice"); if (group) group.classList.remove("is-invalid"); } else if (target.removeAttribute) target.removeAttribute("aria-invalid"); }
   function problems(index) {
     var found = [];
     function add(input, message) { found.push({ input: input, message: message }); }
@@ -102,7 +235,7 @@
       if (!wards.length) add(byId("add-ward"), "Dodaj co najmniej jeden pobyt.");
       wards.forEach(function (ward, i) {
         var name = "Pobyt " + (i + 1) + ": ", start = iso(ward.start.value), end = iso(ward.end.value);
-        if (!/^[0-9]{4}$/.test(ward.department.value.trim())) add(ward.department, name + "podaj 4-cyfrowy kod specjalności.");
+        if (!/^[0-9]{4}$/.test(ward.department.value.trim())) add(ward.department, name + "wybierz specjalność z listy albo wpisz 4-cyfrowy kod.");
         if (!start || !end) add(start ? ward.end : ward.start, name + "podaj obie daty jako DD.MM.RRRR.");
         else if (end < start) add(ward.end, name + "wypis nie może być wcześniejszy niż przyjęcie.");
         else if (!inEpisode(start) || !inEpisode(end)) add(ward.start, name + "daty muszą mieścić się w hospitalizacji.");
@@ -128,7 +261,7 @@
     errorsBox.append(el("p", "Popraw przed przejściem dalej:"));
     var list = el("ul");
     found.forEach(function (item) {
-      item.input.setAttribute("aria-invalid", "true");
+      if (item.input.type === "radio") item.input.closest(".choice").classList.add("is-invalid"); else item.input.setAttribute("aria-invalid", "true");
       var entry = el("li"); button(entry, item.message, "link-button", function () { item.input.focus(); }); list.append(entry);
     });
     errorsBox.append(list); errorsBox.hidden = false; found[0].input.focus();
@@ -153,42 +286,42 @@
     if (wards.length >= 100) return;
     var row = el("div", undefined, "fact-row"), head = el("div", undefined, "fact-head"), title = el("h3", "Pobyt " + (wards.length + 1));
     head.append(title); row.append(head);
-    var grid = el("div", undefined, "field-grid field-grid-3"); row.append(grid);
-    var label = el("label", "Kod specjalności"), department = el("input"); department.type = "text"; department.required = true; department.maxLength = 4; department.inputMode = "numeric"; department.placeholder = "np. 4500";
-    label.append(el("span", "4 cyfry", "field-hint"), department); grid.append(label);
+    var search = combobox(row, "Specjalność oddziału", Object.assign(specialtySearch(), { after: refreshAttributions }));
+    var grid = el("div", undefined, "field-grid fact-details"); row.append(grid);
     var start = dateField(grid, "Przyjęcie na oddział", true), end = dateField(grid, "Wypis z oddziału", true);
-    var ward = { id: "ward" + (++nextId), row: row, title: title, department: department, start: start, end: end };
+    var ward = { id: "ward" + (++nextId), row: row, title: title, department: search.input, search: search, start: start, end: end };
     button(head, "Usuń", "link-button", function () {
       if (wards.length === 1) return;
-      wards.splice(wards.indexOf(ward), 1); row.remove(); wards.forEach(function (w, i) { w.title.textContent = "Pobyt " + (i + 1); }); refreshAttributions(); invalidate();
+      search.close(); wards.splice(wards.indexOf(ward), 1); row.remove(); wards.forEach(function (w, i) { w.title.textContent = "Pobyt " + (i + 1); }); refreshAttributions(); invalidate();
     });
-    department.addEventListener("input", function () { department.value = department.value.replace(/\D/g, ""); refreshAttributions(); });
+    search.input.addEventListener("input", refreshAttributions);
     wards.push(ward); byId("wards").append(row); refreshAttributions();
   }
-  function codeSearch(parent, system, title) {
-    var box = el("div", undefined, "search-box"), label = el("label", title), input = el("input"), list = el("ul", undefined, "suggestions");
-    var hint = el("p", "Wpisz kod lub opis.", "field-hint"); hint.setAttribute("aria-live", "polite");
-    var id = "code-" + (++nextId), active = -1, options = [], request = null, delay = 0, generation = 0, state = { label: "" };
-    input.type = "text"; input.required = true; input.maxLength = 120; input.spellcheck = false;
+  /* One combobox for ICD codes (server search) and specialties (local dictionary). */
+  function combobox(parent, title, settings) {
+    var f = field(parent, title, { tip: settings.tip, control: "search-box" }), input = el("input"), list = el("ul", undefined, "suggestions");
+    var hint = el("p", settings.idle, "field-hint"); hint.setAttribute("aria-live", "polite");
+    var id = "list-" + (++nextId), active = -1, options = [], request = null, delay = 0, generation = 0, state = { label: "" };
+    input.type = "text"; input.required = true; input.maxLength = 120; input.spellcheck = false; input.id = f.id; input.placeholder = settings.placeholder || "";
     input.setAttribute("role", "combobox"); input.setAttribute("aria-autocomplete", "list"); input.setAttribute("aria-expanded", "false"); input.setAttribute("aria-controls", id); list.id = id; list.setAttribute("role", "listbox"); list.hidden = true;
-    label.append(input); box.append(label, list, hint); parent.append(box);
-    function close() { generation++; clearTimeout(delay); if (request) request.abort(); list.hidden = true; list.replaceChildren(); options = []; active = -1; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); }
-    function choose(hit) { input.value = hit.code; state.label = hit.label; hint.textContent = hit.label; close(); invalidate(); }
+    f.control.append(input, list); f.wrap.append(hint);
+    function close() { generation++; clearTimeout(delay); if (request) request.abort(); request = null; list.hidden = true; list.replaceChildren(); options = []; active = -1; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); }
+    function choose(hit) { var picked = settings.pick(hit); input.value = picked.value; state.label = picked.label; hint.textContent = picked.hint || picked.label; close(); if (settings.after) settings.after(); invalidate(); }
+    function show(hits) {
+      options = hits; list.replaceChildren();
+      hits.forEach(function (hit, index) { var item = el("li", undefined, "suggestion"); item.id = id + "-" + index; item.setAttribute("role", "option"); item.setAttribute("aria-selected", "false"); settings.render(hit).forEach(function (node) { item.append(node); }); item.addEventListener("pointerdown", function (event) { event.preventDefault(); }); item.addEventListener("click", function () { choose(hit); }); list.append(item); });
+      list.hidden = !hits.length; input.setAttribute("aria-expanded", String(!!hits.length));
+      if (!state.label) hint.textContent = hits.length ? "Strzałki i Enter wybierają podpowiedź." : settings.empty;
+    }
     input.addEventListener("input", function () {
-      close(); state.label = ""; hint.textContent = "Wpisz kod lub opis.";
-      var query = input.value.trim(), release = releases[system], version = generation;
-      if (!release || !query) return;
+      close(); state.label = ""; hint.textContent = settings.idle;
+      var query = input.value.trim(), version = generation;
+      if (!query) return;
+      var exact = settings.exact ? settings.exact(query) : null;
+      if (exact) { state.label = exact.label; hint.textContent = exact.hint; }
       delay = setTimeout(function () {
-        request = new AbortController();
-        window.MinosRequest("/api/v1/search", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", credentials: "omit", signal: request.signal,
-          body: JSON.stringify({ system: system, release_id: release, query: query, limit: 6 }) }).then(function (data) {
-          if (generation !== version || !input.isConnected) return;
-          options = data.results || []; list.replaceChildren();
-          options.forEach(function (hit, index) { var item = el("li", undefined, "suggestion"); item.id = id + "-" + index; item.setAttribute("role", "option"); item.setAttribute("aria-selected", "false"); item.append(chip(hit.code), el("span", hit.label, "suggestion-label")); item.addEventListener("pointerdown", function (event) { event.preventDefault(); }); item.addEventListener("click", function () { choose(hit); }); list.append(item); });
-          list.hidden = !options.length; input.setAttribute("aria-expanded", String(!!options.length));
-          hint.textContent = options.length ? "Strzałki i Enter wybierają podpowiedź." : "Brak podpowiedzi. Możesz wpisać dokładny kod z dokumentacji.";
-        }).catch(function () { if (generation === version) hint.textContent = "Podpowiedzi są chwilowo niedostępne. Możesz wpisać dokładny kod."; });
-      }, 220);
+        request = settings.lookup(query, function (hits) { if (generation === version && input.isConnected) show(hits); }, function () { if (generation === version) hint.textContent = settings.failed; });
+      }, settings.delay);
     });
     input.addEventListener("keydown", function (event) {
       if (event.key === "Escape") { close(); return; }
@@ -197,7 +330,65 @@
       if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); active = (active + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length; Array.from(list.children).forEach(function (node, i) { node.setAttribute("aria-selected", String(i === active)); }); input.setAttribute("aria-activedescendant", list.children[active].id); list.children[active].scrollIntoView({ block: "nearest" }); }
     });
     input.addEventListener("blur", close);
-    return { input: input, close: close, state: state };
+    return { input: input, close: close, state: state, hint: hint };
+  }
+  function icdSearch(system) {
+    return {
+      idle: "Wpisz kod lub opis.", empty: "Brak podpowiedzi. Możesz wpisać dokładny kod z dokumentacji.", failed: "Podpowiedzi są chwilowo niedostępne. Możesz wpisać dokładny kod.", delay: 220,
+      lookup: function (query, done, fail) {
+        var release = releases[system], controller = new AbortController();
+        if (!release) return null;
+        window.MinosRequest("/api/v1/search", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", credentials: "omit", signal: controller.signal,
+          body: JSON.stringify({ system: system, release_id: release, query: query, limit: 6 }) }).then(function (data) { done(data.results || []); }).catch(fail);
+        return controller;
+      },
+      render: function (hit) { return [chip(hit.code), el("span", hit.label, "suggestion-label")]; },
+      pick: function (hit) { return { value: hit.code, label: hit.label }; }
+    };
+  }
+  /* Specialties: official names, hospital wards first, derived children's codes marked. */
+  var specialties = [], specialtyByCode = {};
+  function fold(text) { return text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ł/g, "l"); }
+  function specialtyName(entry) { return entry.name + (entry.derived ? ", dla dzieci" : ""); }
+  function specialtySearch() {
+    return {
+      tip: "Kod specjalności komórki organizacyjnej (część VIII kodu resortowego), ten sam co w sprawozdaniu świadczenia. Szukaj nazwą oddziału albo wpisz 4 cyfry. Kod decyduje o wyłączeniu pobytu z grupowania.",
+      placeholder: "np. chirurgiczny albo 4500", idle: "Szukaj nazwą oddziału albo wpisz kod.", empty: "Brak takiej specjalności w załączniku nr 2. Wpisz 4-cyfrowy kod z dokumentacji.", failed: "", delay: 60,
+      lookup: function (query, done) {
+        var q = fold(query), digits = /^\d+$/.test(q);
+        var hits = specialties.filter(function (entry) { return digits ? entry.code.indexOf(q) === 0 : entry.folded.indexOf(q) >= 0; });
+        hits.sort(function (a, b) { return a.rank - b.rank || (a.folded.indexOf(q) === 0 ? 0 : 1) - (b.folded.indexOf(q) === 0 ? 0 : 1) || a.position - b.position; });
+        done(hits.slice(0, 8)); return null;
+      },
+      render: function (entry) {
+        var text = el("span", undefined, "suggestion-label");
+        text.append(el("span", entry.name), el("span", entry.derived ? "dla dzieci, § 9 ust. 4" : entry.section, "suggestion-meta"));
+        return [chip(entry.code), text];
+      },
+      pick: function (entry) { return { value: entry.code, label: specialtyName(entry), hint: specialtyName(entry) + (entry.derived ? " (kod wyprowadzony z § 9 ust. 4)" : "") }; },
+      exact: function (query) {
+        if (!/^\d{4}$/.test(query)) return null;
+        var entry = specialtyByCode[query];
+        return entry ? { label: specialtyName(entry), hint: specialtyName(entry) } : { label: "", hint: specialties.length ? "Kod spoza załącznika nr 2; zostanie przekazany bez zmian." : "Kod zostanie przekazany bez zmian." };
+      }
+    };
+  }
+  /* Official names for specialties and discharge modes; older bundles keep the interim choices. */
+  function dischargeOptions(modes) {
+    var select = byId("discharge-select"), old = select.value;
+    select.replaceChildren(new Option("Nie podano", ""));
+    if (modes) modes.forEach(function (mode) { select.append(new Option(mode.code + ": " + mode.name, String(mode.code))); });
+    else { select.append(new Option("9: zgon pacjenta", "9")); select.append(new Option("Inny kod", "other")); }
+    select.value = old; if (select.selectedIndex < 0) select.value = "";
+  }
+  function loadDictionaries() {
+    window.MinosRequest("/api/v1/grouping/dictionaries", { cache: "default", credentials: "omit" }).then(function (data) {
+      specialties = data.specialties.entries.map(function (entry) {
+        return { code: entry.code, name: entry.name, section: entry.section, derived: entry.derived, position: specialties.length, folded: fold(entry.code + " " + entry.name), rank: (entry.section.indexOf("Oddziały szpitalne") === 0 ? 0 : 2) + (entry.derived ? 1 : 0) };
+      });
+      specialties.forEach(function (entry, index) { entry.position = index; specialtyByCode[entry.code] = entry; });
+      dischargeOptions(data.discharge_modes.entries);
+    }).catch(function () { dischargeOptions(null); });
   }
   function addCode(kind) {
     var diagnosis = kind !== "procedure", array = kind === "secondary" ? secondary : procedures;
@@ -207,10 +398,11 @@
     var title = kind === "principal" ? null : el("h3"); if (title) head.append(title);
     row.append(head);
     // The search owns a full row so suggestions never squeeze into a narrow column.
-    var search = codeSearch(row, diagnosis ? "icd10-pl" : "icd9-pl", label);
+    var search = combobox(row, label, icdSearch(diagnosis ? "icd10-pl" : "icd9-pl"));
     var grid = el("div", undefined, "field-grid fact-details"); row.append(grid);
-    var where = el("label", "Poziom zgłoszenia"), select = el("select"); select.dataset.diagnosis = diagnosis ? "yes" : "no"; where.append(select); grid.append(where);
-    var item = { row: row, search: search, attribution: select, title: title, date: diagnosis ? null : dateField(grid, "Data wykonania", false, "opcjonalnie") };
+    var where = field(grid, "Poziom zgłoszenia", { tip: diagnosis ? "Cała hospitalizacja: rozpoznanie zgłoszone na poziomie hospitalizacji. Pobyt: rozpoznanie przypisane do oddziału. Nie określono, gdy dokumentacja tego nie podaje." : "Pobyt, na którym wykonano procedurę. Nie określono, gdy dokumentacja tego nie podaje." });
+    var select = el("select"); select.id = where.id; select.dataset.diagnosis = diagnosis ? "yes" : "no"; where.control.append(select);
+    var item = { row: row, search: search, attribution: select, title: title, date: diagnosis ? null : dateField(grid, "Data wykonania", false, true) };
     if (kind === "principal") principal = item;
     else { array.push(item); button(head, "Usuń", "link-button", function () { search.close(); array.splice(array.indexOf(item), 1); row.remove(); renumber(array, diagnosis); invalidate(); }); renumber(array, diagnosis); }
     byId(kind === "procedure" ? "procedures" : kind).append(row); refreshAttributions();
@@ -249,7 +441,12 @@
     if (admitted || value("age")) hosp.push(el("p", facts.join(", ")));
     if (serviceDate() || reportingMonth()) hosp.push(el("p", [serviceDate() ? "świadczenie " + pl(serviceDate()) : "", reportingMonth() ? "sprawozdanie " + plMonth(reportingMonth()) : ""].filter(Boolean).join(", "), "case-muted"));
     sections.push(hosp);
-    sections.push(wards.filter(function (w) { return w.department.value; }).map(function (w) { var line = el("p", undefined, "case-code"); line.append(chip(w.department.value)); line.append(el("span", iso(w.start.value) && iso(w.end.value) ? pl(iso(w.start.value)) + " - " + pl(iso(w.end.value)) : "daty do uzupełnienia")); return line; }));
+    sections.push(wards.filter(function (w) { return /^[0-9]{4}$/.test(w.department.value.trim()); }).map(function (w) {
+      var line = el("p", undefined, "case-code"); line.append(chip(w.department.value.trim()));
+      if (w.search.state.label) line.append(el("span", w.search.state.label));
+      line.append(el("span", iso(w.start.value) && iso(w.end.value) ? pl(iso(w.start.value)) + " - " + pl(iso(w.end.value)) : "daty do uzupełnienia", "case-role"));
+      return line;
+    }));
     var dx = []; if (principal && (code(principal) || reached > 2)) dx.push(codeLine(principal, "zasadnicze"));
     secondary.forEach(function (item) { dx.push(codeLine(item)); });
     sections.push(dx);
@@ -465,21 +662,17 @@
     [principal].concat(secondary, procedures).filter(Boolean).forEach(function (r) { r.search.close(); });
     form.reset(); wards = []; secondary = []; procedures = []; principal = null; declared = []; reached = 0;
     ["wards", "principal", "secondary", "procedures"].forEach(function (id) { byId(id).replaceChildren(); });
-    form.querySelectorAll(".help-text").forEach(function (help) { help.hidden = true; });
-    form.querySelectorAll(".help-toggle").forEach(function (toggle) { toggle.setAttribute("aria-expanded", "false"); });
+    hideTip(true); closePicker(false);
     addWard(); addCode("principal"); syncChoices(); showStep(0, false);
   }
 
   form.addEventListener("input", function (event) {
     var target = event.target;
+    clearMark(target);
     if (target.classList && !(event.inputType || "").startsWith("delete")) { if (target.classList.contains("date-pl")) mask(target, [2, 2, 4]); else if (target.classList.contains("month-pl")) mask(target, [2, 4]); else if (target.id === "age" || target.id === "discharge-mode") target.value = target.value.replace(/\D/g, ""); }
     invalidate();
   });
-  form.addEventListener("change", invalidate);
-  form.addEventListener("click", function (event) {
-    var toggle = event.target.closest && event.target.closest(".help-toggle"); if (!toggle) return;
-    var help = byId(toggle.getAttribute("aria-controls")), open = help.hidden; help.hidden = !open; toggle.setAttribute("aria-expanded", String(open));
-  });
+  form.addEventListener("change", function (event) { clearMark(event.target); invalidate(); });
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     if (current >= RESULT) return;
@@ -499,6 +692,7 @@
     data.releases.forEach(function (release) { if (!releases[release.system] || release.origin === "czs") releases[release.system] = release.release_id; });
     var available = data.grouping && data.grouping.available;
     fields.disabled = !available;
+    if (available) loadDictionaries();
     byId("group-availability").className = available ? "group-help" : "group-notice";
     byId("group-availability").textContent = available ? "Ocena obejmuje zatwierdzony podzbiór reguł. Warunki spoza niego pozostają nierozstrzygnięte." : "Ten zestaw danych nie zawiera źródeł wymaganych do grupowania.";
   }).catch(function () { byId("group-availability").textContent = "Nie udało się pobrać zestawu reguł. Odśwież stronę, aby spróbować ponownie."; });

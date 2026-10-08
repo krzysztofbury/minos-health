@@ -98,6 +98,14 @@ def _routes() -> str:
             proxy_read_timeout 3s;
             error_log /dev/null;
         }
+        location = /api/v1/grouping/dictionaries {
+            if ($request_uri != "/api/v1/grouping/dictionaries") { return 404; }
+            if ($request_method != GET) { return 405; }
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 5s;
+            error_log /dev/null;
+        }
         location = /api/v1/search {
             if ($request_uri != "/api/v1/search") { return 404; }
             if ($request_method != POST) { return 405; }

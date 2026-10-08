@@ -5,6 +5,7 @@ from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from minos.ingest.grouping_dictionaries_manifest import GroupingDictionaries
 from minos.ingest.jgp_catalog_manifest import CatalogManifest
 from minos.ingest.jgp_conditions_manifest import (
     ConditionsManifest,
@@ -122,6 +123,10 @@ class DatasetManifest(BaseModel):
     catalog_knowledge_evidence: SourceText | None = Field(
         default=None, exclude_if=absent_context
     )
+    # Legal dictionaries for the grouping builder (#151); schema 9.
+    grouping_dictionaries: GroupingDictionaries | None = Field(
+        default=None, exclude_if=absent_context
+    )
 
     @model_validator(mode="after")
     def validate_releases(self) -> Self:
@@ -136,6 +141,13 @@ class DatasetManifest(BaseModel):
         all_ids = identities + evidence_ids + catalog_ids
         all_ids += [item.release_id for item in self.characteristics]
         all_ids += [item.release_id for item in self.modifiers]
+        if self.grouping_dictionaries is not None:
+            if self.search_profile is None or not self.characteristics:
+                raise ValueError("grouping dictionaries extend a grouping dataset")
+            all_ids += [
+                self.grouping_dictionaries.specialties.release_id,
+                self.grouping_dictionaries.discharge_modes.release_id,
+            ]
         if len(set(all_ids)) != len(all_ids):
             raise ValueError("duplicate catalog release identity")
         for characteristic in self.characteristics:

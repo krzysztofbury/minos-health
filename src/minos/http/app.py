@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+import threading
 import time
 import uuid
 from collections.abc import AsyncGenerator, Callable
@@ -31,7 +32,8 @@ from minos.domain.search import (
     SearchRequest,
     prepare_query,
 )
-from minos.http.grouping import register_grouping_routes
+from minos.grouper.pipeline import PreparedSources
+from minos.http.grouping import register_grouping_routes, warm_grouping
 from minos.http.jgp import (
     JGP_PAGE_ROUTE,
     JGP_ROUTE,
@@ -375,9 +377,28 @@ def create_app(
         except BaseException:
             pool.close()
             raise
+        # Readiness never waits for grouping inputs; they warm in the background.
+        warmup: threading.Thread | None = None
+        prepared = cast(
+            PreparedSources | None, getattr(_app.state, "grouping_prepared", None)
+        )
+        if (
+            prepared is not None
+            and pool.manifest.dataset.characteristics
+            and pool.manifest.dataset.komunikaty
+        ):
+            warmup = threading.Thread(
+                target=warm_grouping,
+                args=(pool, prepared),
+                name="grouping-warmup",
+                daemon=True,
+            )
+            warmup.start()
         try:
             yield
         finally:
+            if warmup is not None:
+                warmup.join(timeout=5)
             pool.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -412,6 +433,7 @@ def create_app(
                         "/api/v1/releases",
                         "/api/v1/search",
                         "/api/v1/group",
+                        "/api/v1/grouping/dictionaries",
                     )
                     else "/api/v1/tree"
                     if TREE_ROUTE.fullmatch(request.url.path)

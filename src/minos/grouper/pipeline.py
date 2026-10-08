@@ -4,6 +4,9 @@ Preparation (qualification, exclusions, ranks, age, duration) runs through
 the exact registry; candidates come from attachment 9 directional lists.
 The approved condition subset determines eligibility, with source-bound points
 and provider-choice ranking. Explainability retains every consulted condition.
+
+`group_request` is the application service for the CLI and HTTP adapters: it
+returns domain values and never a wire schema (decision 2026-10-08).
 """
 
 import sqlite3
@@ -25,8 +28,13 @@ from minos.domain.grouper_rules import (
     ModifierBindingUnbound,
     StayFacts,
 )
+from minos.domain.grouping_request import (
+    GroupingOutcome,
+    GroupingRequest,
+    UnsupportedProductReport,
+)
 from minos.domain.reference import SourceError
-from minos.grouper.budget import checkpoint
+from minos.grouper.budget import checkpoint, evaluation_budget
 from minos.grouper.candidates import derive
 from minos.grouper.conditions import evaluate_group, facts_from
 from minos.grouper.near_misses import near_misses
@@ -35,6 +43,7 @@ from minos.grouper.registry import EngineBinding, EngineRegistry
 from minos.grouper.szp_2026 import ENGINE_VERSION
 from minos.grouper.tariff import final_group_points
 from minos.ingest.reference_manifest import DatasetManifest
+from minos.store.artifact import dataset_identity
 from minos.store.grouper_bundle import (
     CharacteristicsGraph,
     grouping_sources,
@@ -42,7 +51,7 @@ from minos.store.grouper_bundle import (
     load_bundle_algorithm,
     load_graph,
 )
-from minos.store.grouper_rules import group_rules
+from minos.store.grouper_rules import group_rules, group_titles
 from minos.store.jgp_modifier_binding import (
     require_modifier_binding,
     reviewed_group_modifiers,
@@ -66,6 +75,27 @@ class PreparedSources:
         self._sheets: dict[
             tuple[str, Catalog], tuple[CharacteristicsGraph, DirectionalIndex]
         ] = {}
+        # Set once every sheet of the bundle is built; requests never wait on it.
+        self.warmed = threading.Event()
+
+    def warm(self, connection: sqlite3.Connection) -> int:
+        """Build every release-static input after start, so the first request
+        after a restart does not pay the build inside its budget (#149)."""
+        _ = self.algorithm(connection)
+        with query_budget(connection):
+            sheets = cast(
+                list[tuple[str, Catalog]],
+                connection.execute(
+                    """SELECT release_id, catalog FROM characteristics_sheet
+                    ORDER BY release_id, catalog LIMIT 65"""
+                ).fetchall(),
+            )
+        if len(sheets) > 64:
+            raise GrouperError("characteristics sheets exceed warm-up bound")
+        for release_id, catalog in sheets:
+            _ = self.sheet(connection, release_id, catalog)
+        self.warmed.set()
+        return len(sheets)
 
     def algorithm(self, connection: sqlite3.Connection) -> AlgorithmData:
         with self._lock:
@@ -259,3 +289,42 @@ def final_points(
         )
     )
     return tuple(answers)
+
+
+def group_request(
+    connection: sqlite3.Connection,
+    dataset: DatasetManifest,
+    request: GroupingRequest,
+    prepared: PreparedSources | None = None,
+) -> GroupingOutcome | UnsupportedProductReport:
+    """One caller-owned verified lease, bounded as a whole; nothing is stored."""
+    facts = request.encounter
+    if facts.product_reporting != "complete" or facts.settlement_products:
+        return UnsupportedProductReport()
+    if not dataset.characteristics or not dataset.komunikaty:
+        raise GrouperError("grouping sources unavailable")
+    with (
+        evaluation_budget(),
+        query_budget(connection, seconds=3, operations=20_000_000),
+    ):
+        result = evaluate_candidates(
+            connection,
+            dataset_identity(dataset),
+            facts,
+            service_date=request.service_date,
+            reporting_month=request.reporting_month,
+            prepared=prepared,
+        )
+        try:
+            finals = final_points(
+                connection, dataset, result, request.declared_modifiers
+            )
+            bound = True
+        except ModifierBindingUnbound:
+            finals, bound = (), False
+        titles = group_titles(
+            connection,
+            result.candidates.sources.catalog_release_id,
+            request.service_date,
+        )
+    return GroupingOutcome(result, finals, bound, titles)

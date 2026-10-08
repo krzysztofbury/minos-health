@@ -89,14 +89,65 @@ def test_http_reuses_release_static_inputs_without_changing_answers(
         return load_graph(connection, release_id, catalog)
 
     monkeypatch.setattr(pipeline, "load_graph", counted)
-    with TestClient(create_app(grouping_bundle(tmp_path))) as client:
-        first = client.post("/api/v1/group", json=grouping_body())
+    app = create_app(grouping_bundle(tmp_path))
+    with TestClient(app) as client:
+        # The background warm-up loads every sheet once; requests add none.
+        assert cast(pipeline.PreparedSources, app.state.grouping_prepared).warmed.wait(
+            10
+        )
         loaded = len(loads)
+        first = client.post("/api/v1/group", json=grouping_body())
         second = client.post("/api/v1/group", json=grouping_body())
     assert first.status_code == second.status_code == 200
     assert first.json() == second.json()
     # #149: decoding the characteristics graph dominated every request.
     assert loaded >= 1 and len(loads) == loaded
+
+
+def test_first_request_after_start_uses_warmed_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from minos.grouper import pipeline
+
+    def unexpected(*_args: object) -> object:
+        raise AssertionError("a request rebuilt release-static inputs")
+
+    app = create_app(grouping_bundle(tmp_path))
+    with TestClient(app) as client:
+        prepared = cast(pipeline.PreparedSources, app.state.grouping_prepared)
+        # #149: the first request after a restart must not pay the build.
+        assert prepared.warmed.wait(10)
+        monkeypatch.setattr(pipeline, "load_graph", unexpected)
+        monkeypatch.setattr(pipeline, "load_bundle_algorithm", unexpected)
+        response = client.post("/api/v1/group", json=grouping_body())
+        assert client.get("/readyz").status_code == 200
+    assert response.status_code == 200, response.text
+
+
+def test_dictionaries_offer_named_codes_with_derived_children(tmp_path: Path) -> None:
+    from tests.integration.test_jgp_condition_consumers import consumer_bundle
+
+    with TestClient(create_app(grouping_bundle(tmp_path / "with"))) as client:
+        response = client.get("/api/v1/grouping/dictionaries")
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "public, max-age=300"
+        answer = cast(dict[str, dict[str, object]], response.json())
+        assert client.get("/api/v1/grouping/dictionaries").json() == answer
+    entries = cast(list[dict[str, object]], answer["specialties"]["entries"])
+    named = {str(entry["code"]): entry for entry in entries}
+    assert named["4000"]["derived"] is False
+    # § 9 ust. 4: the children's unit of 4000 is 4001; 4401 is itself odd.
+    assert named["4001"] == {**named["4000"], "code": "4001", "derived": True}
+    assert "4402" not in named
+    modes = cast(list[dict[str, object]], answer["discharge_modes"]["entries"])
+    assert modes == [
+        {"code": 1, "name": "zakończenie procesu terapeutycznego lub diagnostycznego"},
+        {"code": 9, "name": "zgon pacjenta"},
+    ]
+    with TestClient(create_app(consumer_bundle(tmp_path / "without"))) as client:
+        missing = client.get("/api/v1/grouping/dictionaries")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "dictionaries_unavailable"
 
 
 def test_trace_preserves_attribution_and_canonical_stay_ordinals(
@@ -329,14 +380,14 @@ def test_evaluation_and_response_limits_return_no_partial_answer(
 ) -> None:
     from functools import partial
 
-    from minos.cli import grouping as adapter
+    from minos.grouper import pipeline as service
     from minos.grouper.budget import evaluation_budget
     from minos.http import grouping as transport
 
     with TestClient(create_app(grouping_bundle(tmp_path))) as client:
         with monkeypatch.context() as patch:
             patch.setattr(
-                adapter, "evaluation_budget", partial(evaluation_budget, steps=0)
+                service, "evaluation_budget", partial(evaluation_budget, steps=0)
             )
             response = client.post("/api/v1/group", json=grouping_body())
             assert response.status_code == 422
@@ -344,7 +395,7 @@ def test_evaluation_and_response_limits_return_no_partial_answer(
             assert "groups" not in response.json()
         with monkeypatch.context() as patch:
             patch.setattr(
-                adapter, "evaluation_budget", partial(evaluation_budget, seconds=0)
+                service, "evaluation_budget", partial(evaluation_budget, seconds=0)
             )
             assert client.post("/api/v1/group", json=grouping_body()).status_code == 504
         with monkeypatch.context() as patch:

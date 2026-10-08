@@ -500,6 +500,43 @@ Owner decisions while reviewing the #39/#36 grouping interface:
   `POST /api/v1/group`; the API keeps its process-wide bucket and no IP state.
   The rule is a separate edge change and a release gate for #39.
 
+### Serving-Layer Service Boundaries (2026-10-08)
+
+Reviewed after the #39 grouping interface, against repository, service-layer
+and unit-of-work patterns:
+
+- No repository classes. `minos.store` modules are read-only query functions
+  over one immutable, checksum-verified SQLite artifact, returning domain
+  types. A repository interface would add a persistence-swap seam with no
+  second implementation; tests use real SQLite fixture bundles, which prove
+  the SQL itself. Raw SQL belongs in `minos.store`, never in an adapter.
+- No unit of work on the serving path. Reads mutate nothing; a `ReferencePool`
+  lease over a `mode=ro&immutable=1` connection already delimits one
+  consistent read. Atomic writes exist only in the artifact builder and the
+  watcher control store, which owns its explicit `BEGIN IMMEDIATE` transaction.
+- One application-service function per use case, in its domain package. For
+  grouping, `minos.grouper.pipeline.group_request` owns the product-report
+  gate, the whole-evaluation budgets and the store reads, and returns domain
+  values (`GroupingOutcome` or `UnsupportedProductReport`).
+- A versioned wire schema shared by the CLI and HTTP lives in a
+  `minos.cli.*_output` module, as `search_envelope` already did. `minos.http`
+  may import only those serializers from `minos.cli`, never commands or use
+  cases. A separate schema package is deferred until a third adapter needs it.
+
+### Grouping Builder Dictionaries (2026-10-08)
+
+Owner decisions for #151: ward specialties and discharge modes are offered by
+official name from pinned legal acts, through the reviewed manifest path.
+
+- Discharge modes (annex 4, Dz. U. z 2025 r. poz. 1588) and specialty codes
+  (annex 2, Dz. U. z 2019 r. poz. 173) are reviewed transcriptions of the
+  authentic PDF, checked row by row against committed text extracts. No PDF
+  parsing dependency is added; the ELI HTML is not used because it merges rows.
+- Children's codes derived by paragraph 9 section 4 are offered and marked as
+  derived; exact codes outside the annex remain accepted.
+- Schema 9 stores the dictionaries; `GET /api/v1/grouping/dictionaries` serves
+  them read-only.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with

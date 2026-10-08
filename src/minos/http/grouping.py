@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -11,17 +12,18 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
-from minos.cli.grouping import evaluate_json
+from minos.cli.grouping_output import grouping_answer
 from minos.domain.encounter import EncounterInputError
 from minos.domain.grouper import GrouperError
 from minos.domain.jgp_ruleset import NoRulesetForDate
 from minos.domain.reference import QueryLimitError, QueryTimeoutError, ReferenceError
-from minos.grouper.pipeline import PreparedSources
+from minos.grouper.pipeline import PreparedSources, group_request
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.grouping_request import (
     MAX_GROUPING_REQUEST_BYTES,
     parse_grouping_request,
 )
+from minos.store.grouping_dictionaries import read_grouping_dictionaries
 
 MAX_GROUPING_RESPONSE_BYTES = 4 * 1024 * 1024
 
@@ -66,13 +68,80 @@ class GroupingAdmission:
 def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> bytes:
     request = parse_grouping_request(body)
     with pool.borrow() as lease:
-        answer = evaluate_json(lease.connection, pool.manifest, request, prepared)
+        outcome = group_request(
+            lease.connection, pool.manifest.dataset, request, prepared
+        )
+    answer = grouping_answer(pool.manifest, request, outcome)
     encoded = json.dumps(
         answer, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
     if len(encoded) > MAX_GROUPING_RESPONSE_BYTES:
         raise QueryLimitError("grouping response exceeds bound")
     return encoded
+
+
+WARMUP_LOGGER = logging.getLogger("minos.grouper.warmup")
+
+
+def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:
+    """Background warm-up; a failure only leaves the first request to build."""
+    started = time.monotonic()
+    sheets = 0
+    try:
+        with pool.borrow() as lease:
+            sheets = prepared.warm(lease.connection)
+        status = "completed"
+    except Exception as error:  # noqa: BLE001 - never crash the API for a warm-up
+        status = "failed:" + type(error).__name__
+    WARMUP_LOGGER.info(
+        json.dumps(
+            {
+                "event": "grouping_warmup",
+                "status": status,
+                "sheets": sheets,
+                "duration_ms": round((time.monotonic() - started) * 1000),
+            }
+        )
+    )
+
+
+DICTIONARY_SCHEMA = "minos.grouping-dictionaries.v1"
+
+
+def dictionaries_json(pool: ReferencePool) -> bytes:
+    """Named codes for the builder; identical for every request of this app."""
+    manifest = pool.manifest.dataset.grouping_dictionaries
+    if manifest is None:
+        raise GrouperError("grouping dictionaries unavailable")
+    with pool.borrow() as lease:
+        specialties, modes = read_grouping_dictionaries(lease.connection, manifest)
+    answer = {
+        "schema": DICTIONARY_SCHEMA,
+        "specialties": {
+            "release_id": manifest.specialties.release_id,
+            "act": manifest.specialties.act,
+            "annex": manifest.specialties.annex,
+            "children_rule": manifest.specialties.children_rule,
+            "entries": [
+                {
+                    "code": item.code,
+                    "name": item.name,
+                    "section": item.section,
+                    "derived": item.derivation == "children_rule",
+                }
+                for item in specialties
+            ],
+        },
+        "discharge_modes": {
+            "release_id": manifest.discharge_modes.release_id,
+            "act": manifest.discharge_modes.act,
+            "annex": manifest.discharge_modes.annex,
+            "entries": [{"code": mode.code, "name": mode.name} for mode in modes],
+        },
+    }
+    return json.dumps(
+        answer, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode()
 
 
 def register_grouping_routes(
@@ -82,6 +151,7 @@ def register_grouping_routes(
     # The app serves one verified bundle whose identity is checked on every
     # lease, so release-static inputs can live as long as the app.
     prepared = PreparedSources()
+    app.state.grouping_prepared = prepared
 
     async def group(request: Request) -> Response:
         if (
@@ -133,3 +203,26 @@ def register_grouping_routes(
             admission.release()
 
     app.add_api_route("/api/v1/group", group, methods=["POST"])
+    cached: list[bytes] = []
+
+    async def dictionaries(_request: Request) -> Response:
+        try:
+            if not cached:
+                cached.append(
+                    await run_in_threadpool(
+                        dictionaries_json, cast(ReferencePool, app.state.pool)
+                    )
+                )
+        except GrouperError:
+            return failure(404, "dictionaries_unavailable")
+        except CapacityError:
+            return failure(429, "busy")
+        except ReferenceError, OSError, ValueError:
+            return failure(503, "unavailable")
+        return Response(
+            cached[0],
+            media_type="application/json",
+            headers={"Cache-Control": "public, max-age=300"},
+        )
+
+    app.add_api_route("/api/v1/grouping/dictionaries", dictionaries, methods=["GET"])

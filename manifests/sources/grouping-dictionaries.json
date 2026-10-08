@@ -1,0 +1,1891 @@
+{
+  "grouping_dictionaries": {
+    "specialties": {
+      "release_id": "specialty-codes-du-2019-173-1e51f5cfdf67",
+      "act": "Rozporządzenie Ministra Zdrowia z dnia 17 maja 2012 r. w sprawie systemu resortowych kodów identyfikacyjnych oraz szczegółowego sposobu ich nadawania, tekst jednolity Dz. U. z 2019 r. poz. 173",
+      "annex": "Załącznik nr 2",
+      "publisher": "Minister Zdrowia",
+      "license": "Polish legal act published in Dziennik Ustaw; excluded from copyright by art. 4 pkt 1 ustawy o prawie autorskim i prawach pokrewnych. Not a legal clearance determination.",
+      "notices": [
+        "Kody charakteryzujące specjalność komórki organizacyjnej zakładu leczniczego (część VIII systemu, § 9). Status checked in the Sejm ELI API on 2026-10-08: in force, the only amendment (Dz. U. z 2017 r. poz. 999) is consolidated in this text.",
+        "Reviewed transcription of the authentic PDF. The ELI HTML rendering merges rows at page breaks (for example 1220, 1554, 2202, 4450, 4754, 7250), so it is not used.",
+        "Children's codes are derived by § 9 ust. 4 and marked as derived; they are not printed in the annex. NFZ exclusion tables also use codes outside this annex (4920, 9154, 9240, 9999); exact codes remain accepted."
+      ],
+      "source": {
+        "source_url": "https://api.sejm.gov.pl/eli/acts/DU/2019/173/text.pdf",
+        "sha256": "1e51f5cfdf67cd9c87f6e98976ac986e440fc9aead5be466fd19d5db5051908f",
+        "size_bytes": 520866,
+        "fetched_at": "2026-10-08T17:38:54Z"
+      },
+      "reviewed_on": "2026-10-08",
+      "children_rule": "§ 9 ust. 4: komórkom organizacyjnym danej specjalności udzielającym świadczeń zdrowotnych dzieciom nadaje się kod nieparzysty, o jeden wyższy niż właściwy kod komórki organizacyjnej udzielającej świadczeń zdrowotnych osobom dorosłym.",
+      "entries": [
+        {
+          "code": "0010",
+          "name": "Poradnia (gabinet) lekarza podstawowej opieki zdrowotnej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0012",
+          "name": "Poradnia (gabinet) podstawowej opieki zdrowotnej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0014",
+          "name": "Poradnia (gabinet) lekarza rodzinnego",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0016",
+          "name": "Poradnia (gabinet) nocnej i świątecznej opieki zdrowotnej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0020",
+          "name": "Punkt felczerski",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0032",
+          "name": "Poradnia (gabinet) pielęgniarki podstawowej opieki zdrowotnej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0034",
+          "name": "Poradnia (gabinet) położnej podstawowej opieki zdrowotnej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0036",
+          "name": "Poradnia (gabinet) pielęgniarki rodzinnej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0038",
+          "name": "Poradnia (gabinet) położnej rodzinnej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "0040",
+          "name": "Gabinet profilaktyki zdrowotnej i pomocy przedlekarskiej",
+          "section": "Podstawowa opieka zdrowotna"
+        },
+        {
+          "code": "1000",
+          "name": "Poradnia chorób wewnętrznych",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1008",
+          "name": "Poradnia chorób metabolicznych",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1010",
+          "name": "Poradnia alergologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1020",
+          "name": "Poradnia diabetologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1022",
+          "name": "Poradnia leczenia zespołu stopy cukrzycowej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1024",
+          "name": "Poradnia leczenia ran przewlekłych",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1027",
+          "name": "Poradnia endokrynologii i diabetologii dziecięcej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1030",
+          "name": "Poradnia endokrynologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1032",
+          "name": "Poradnia endokrynologiczno-ginekologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1034",
+          "name": "Poradnia andrologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1036",
+          "name": "Poradnia leczenia niepłodności",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1038",
+          "name": "Poradnia chorób tarczycy",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1040",
+          "name": "Poradnia endokrynologiczna osteoporozy",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1050",
+          "name": "Poradnia gastroenterologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1056",
+          "name": "Poradnia hepatologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1060",
+          "name": "Poradnia geriatryczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1070",
+          "name": "Poradnia hematologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1072",
+          "name": "Poradnia nowotworów krwi",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1080",
+          "name": "Poradnia immunologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1100",
+          "name": "Poradnia kardiologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1102",
+          "name": "Poradnia wad serca",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1104",
+          "name": "Poradnia nadciśnienia tętniczego",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1120",
+          "name": "Poradnia chorób naczyń",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1130",
+          "name": "Poradnia nefrologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1150",
+          "name": "Poradnia toksykologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1160",
+          "name": "Poradnia medycyny pracy",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1180",
+          "name": "Poradnia medycyny paliatywnej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1200",
+          "name": "Poradnia dermatologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1202",
+          "name": "Poradnia wenerologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1210",
+          "name": "Poradnia genetyczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1212",
+          "name": "Poradnia genetyczno-onkologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1220",
+          "name": "Poradnia neurologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1222",
+          "name": "Poradnia leczenia bólu",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1240",
+          "name": "Poradnia onkologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1242",
+          "name": "Poradnia chemioterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1244",
+          "name": "Poradnia radioterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1249",
+          "name": "Poradnia onkologii i hematologii dziecięcej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1250",
+          "name": "Poradnia medycyny nuklearnej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1270",
+          "name": "Poradnia gruźlicy i chorób płuc",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1272",
+          "name": "Poradnia chorób płuc",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1276",
+          "name": "Poradnia leczenia mukowiscydozy",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1280",
+          "name": "Poradnia reumatologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1300",
+          "name": "Poradnia rehabilitacyjna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1302",
+          "name": "Poradnia rehabilitacji narządu ruchu",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1304",
+          "name": "Poradnia zaopatrzenia ortopedycznego",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1306",
+          "name": "Poradnia rehabilitacji neurologicznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1308",
+          "name": "Poradnia rehabilitacji kardiologicznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1310",
+          "name": "Dział (pracownia) fizjoterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1312",
+          "name": "Dział (pracownia) fizykoterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1314",
+          "name": "Dział (pracownia) kinezyterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1316",
+          "name": "Dział (pracownia) hydroterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1318",
+          "name": "Dział (pracownia) krioterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1320",
+          "name": "Dział (pracownia) masażu leczniczego",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1330",
+          "name": "Dział (pracownia) balneoterapii",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1340",
+          "name": "Poradnia chorób zakaźnych",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1342",
+          "name": "Poradnia profilaktyczno-lecznicza (HIV/AIDS)",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1346",
+          "name": "Poradnia chorób tropikalnych",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1348",
+          "name": "Poradnia chorób odzwierzęcych i pasożytniczych",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1370",
+          "name": "Poradnia medycyny sportowej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1390",
+          "name": "Poradnia leczenia obrzęku limfatycznego",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1401",
+          "name": "Poradnia pediatryczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1405",
+          "name": "Poradnia zaburzeń i wad rozwojowych dzieci",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1409",
+          "name": "Poradnia pediatryczna szczepień dla dzieci z grup wysokiego ryzyka",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1421",
+          "name": "Poradnia neonatologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1450",
+          "name": "Poradnia położniczo-ginekologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1452",
+          "name": "Poradnia ginekologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1453",
+          "name": "Poradnia ginekologiczna dla dziewcząt",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1454",
+          "name": "Poradnia patologii ciąży",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1458",
+          "name": "Poradnia profilaktyki chorób piersi",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1460",
+          "name": "Poradnia ginekologii onkologicznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1470",
+          "name": "Poradnia planowania rodziny i rozrodczości",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1472",
+          "name": "Szkoła rodzenia",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1474",
+          "name": "Poradnia laktacyjna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1500",
+          "name": "Poradnia chirurgii ogólnej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1506",
+          "name": "Poradnia proktologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1520",
+          "name": "Poradnia chirurgii klatki piersiowej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1530",
+          "name": "Poradnia chirurgii naczyniowej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1540",
+          "name": "Poradnia chirurgii onkologicznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1550",
+          "name": "Poradnia chirurgii plastycznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1552",
+          "name": "Poradnia chirurgii ręki",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1554",
+          "name": "Poradnia leczenia oparzeń",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1560",
+          "name": "Poradnia kardiochirurgiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1562",
+          "name": "Poradnia kontroli rozruszników i kardiowerterów",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1570",
+          "name": "Poradnia neurochirurgiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1572",
+          "name": "Poradnia kontroli systemów neuromodulacji",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1580",
+          "name": "Poradnia chirurgii urazowo-ortopedycznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1583",
+          "name": "Poradnia wad postawy",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1584",
+          "name": "Poradnia osteoporozy",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1587",
+          "name": "Poradnia preluksacyjna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1600",
+          "name": "Poradnia okulistyczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1604",
+          "name": "Poradnia leczenia zeza",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1610",
+          "name": "Poradnia otorynolaryngologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1612",
+          "name": "Poradnia audiologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1614",
+          "name": "Poradnia foniatryczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1616",
+          "name": "Poradnia logopedyczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1630",
+          "name": "Poradnia chirurgii szczękowo-twarzowej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1640",
+          "name": "Poradnia urologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1642",
+          "name": "Ambulatoryjna stacja dializ",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1650",
+          "name": "Poradnia transplantologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1670",
+          "name": "Poradnia anestezjologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1700",
+          "name": "Poradnia zdrowia psychicznego",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1704",
+          "name": "Poradnia psychogeriatryczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1706",
+          "name": "Poradnia leczenia nerwic",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1708",
+          "name": "Poradnia dla osób z autyzmem dziecięcym",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1710",
+          "name": "Poradnia psychosomatyczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1740",
+          "name": "Poradnia leczenia uzależnień",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1742",
+          "name": "Poradnia antynikotynowa",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1744",
+          "name": "Poradnia terapii uzależnienia od alkoholu i współuzależnienia",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1746",
+          "name": "Poradnia terapii uzależnienia od substancji psychoaktywnych",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1750",
+          "name": "Poradnia promocji zdrowia psychicznego",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1780",
+          "name": "Poradnia seksuologiczna i patologii współżycia",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1790",
+          "name": "Poradnia psychologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1800",
+          "name": "Poradnia stomatologiczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1810",
+          "name": "Poradnia periodontologiczna oraz chorób błon śluzowych przyzębia",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1820",
+          "name": "Poradnia ortodontyczna",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1830",
+          "name": "Poradnia protetyki stomatologicznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1840",
+          "name": "Poradnia chirurgii stomatologicznej",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1850",
+          "name": "Poradnia uzdrowiskowa",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1860",
+          "name": "Poradnia domowego leczenia tlenem",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "1870",
+          "name": "Poradnia żywieniowa",
+          "section": "Poradnie specjalistyczne"
+        },
+        {
+          "code": "2130",
+          "name": "Zespół domowej dializoterapii otrzewnowej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2140",
+          "name": "Zespół długoterminowej opieki domowej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2142",
+          "name": "Pielęgniarska opieka długoterminowa domowa",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2146",
+          "name": "Zespół rehabilitacji domowej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2180",
+          "name": "Hospicjum domowe/ Zespół domowej opieki paliatywnej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2182",
+          "name": "Dzienny ośrodek opieki paliatywnej lub hospicyjnej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2184",
+          "name": "Hospicjum stacjonarne /Stacjonarny ośrodek opieki paliatywnej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2200",
+          "name": "Dzienny ośrodek opieki geriatrycznej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2202",
+          "name": "Geriatryczny zespół opieki domowej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2300",
+          "name": "Zakład/Ośrodek rehabilitacji leczniczej dziennej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2302",
+          "name": "Zakład/Ośrodek rehabilitacji kardiologicznej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2304",
+          "name": "Zakład/Ośrodek rehabilitacji pulmonologicznej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2306",
+          "name": "Zakład/Ośrodek rehabilitacji leczniczej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2308",
+          "name": "Zakład/Ośrodek rehabilitacji kardiologicznej dziennej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2310",
+          "name": "Zakład/Ośrodek rehabilitacji pulmonologicznej dziennej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2312",
+          "name": "Zakład/Ośrodek rehabilitacji neurologicznej dziennej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2314",
+          "name": "Zakład/Ośrodek rehabilitacji neurologicznej",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2400",
+          "name": "Izba chorych",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2700",
+          "name": "Oddział dzienny psychiatryczny (ogólny)",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2702",
+          "name": "Oddział dzienny psychiatryczny rehabilitacyjny",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2704",
+          "name": "Oddział dzienny psychogeriatryczny",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2706",
+          "name": "Oddział dzienny zaburzeń nerwicowych",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2708",
+          "name": "Oddział dzienny dla osób z autyzmem dziecięcym",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2710",
+          "name": "Oddział/Ośrodek alzheimerowski",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2712",
+          "name": "Oddział dzienny terapii uzależnienia od alkoholu",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2714",
+          "name": "Oddział dzienny terapii uzależnienia od substancji psychoaktywnych",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2720",
+          "name": "Hostel dla osób z zaburzeniami psychicznymi",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2724",
+          "name": "Hostel dla uzależnionych od alkoholu",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2726",
+          "name": "Hostel dla uzależnionych od substancji psychoaktywnych",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2730",
+          "name": "Zespół leczenia środowiskowego (domowego)",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2732",
+          "name": "Opieka domowa, rodzinna",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2734",
+          "name": "Zespół leczenia środowiskowego (domowego) dla osób z autyzmem",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2740",
+          "name": "Ośrodek leczenia uzależnień bliżej niescharakteryzowanych",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2742",
+          "name": "Ośrodek leczenia uzależnień stacjonarny",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2744",
+          "name": "Ośrodek terapii uzależnienia od alkoholu",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2746",
+          "name": "Ośrodek terapii uzależnienia od substancji psychoaktywnych",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2748",
+          "name": "Ośrodek leczenia alkoholowych zespołów abstynencyjnych (detoksykacji)",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2750",
+          "name": "Ośrodek leczenia zespołów abstynencyjnych po substancjach psychoaktywnych (detoksykacji)",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2752",
+          "name": "Ośrodek rehabilitacyjny dla uzależnionych od substancji psychoaktywnych",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2754",
+          "name": "Ośrodek terapii dla uzależnionych od alkoholu ze współistniejącymi zaburzeniami psychotycznymi",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2756",
+          "name": "Ośrodek terapii dla uzależnionych od substancji psychoaktywnych ze współistniejącymi zaburzeniami psychotycznymi",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2758",
+          "name": "Ośrodek rehabilitacji dla uzależnionych od substancji psychoaktywnych ze współistniejącymi zaburzeniami psychotycznymi",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "2800",
+          "name": "Ośrodek opieki medycznej dzienny",
+          "section": "Ośrodki (zespoły) opieki pozaszpitalnej"
+        },
+        {
+          "code": "3010",
+          "name": "Ambulatorium ogólne",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3012",
+          "name": "Ambulatorium chirurgiczne",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3016",
+          "name": "Ambulatorium okulistyczne",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3040",
+          "name": "Ambulatorium stomatologiczne",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3112",
+          "name": "Zespół ratownictwa medycznego podstawowy",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3114",
+          "name": "Zespół ratownictwa medycznego specjalistyczny",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3118",
+          "name": "Wyjazdowy zespół sanitarny typu N",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3152",
+          "name": "Wodny zespół ratownictwa medycznego podstawowy",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3154",
+          "name": "Wodny zespół ratownictwa medycznego specjalistyczny",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3200",
+          "name": "Lotniczy zespół transportu sanitarnego",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "3210",
+          "name": "Lotniczy zespół ratownictwa medycznego",
+          "section": "Pomoc doraźna i ratownictwo medyczne"
+        },
+        {
+          "code": "4000",
+          "name": "Oddział chorób wewnętrznych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4002",
+          "name": "Oddział wieloprofilowy zachowawczy",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4008",
+          "name": "Oddział chorób metabolicznych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4010",
+          "name": "Oddział alergologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4020",
+          "name": "Oddział diabetologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4030",
+          "name": "Oddział endokrynologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4050",
+          "name": "Oddział gastroenterologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4060",
+          "name": "Oddział geriatryczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4070",
+          "name": "Oddział hematologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4072",
+          "name": "Oddział nowotworów krwi",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4080",
+          "name": "Oddział immunologii klinicznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4100",
+          "name": "Oddział kardiologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4106",
+          "name": "Oddział intensywnego nadzoru kardiologicznego",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4120",
+          "name": "Oddział angiologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4122",
+          "name": "Oddział hipertensjologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4130",
+          "name": "Oddział nefrologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4132",
+          "name": "Stacja dializ",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4140",
+          "name": "Oddział medycyny nuklearnej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4150",
+          "name": "Oddział toksykologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4170",
+          "name": "Oddział dla przewlekle chorych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4180",
+          "name": "Oddział medycyny paliatywnej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4200",
+          "name": "Oddział dermatologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4220",
+          "name": "Oddział neurologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4222",
+          "name": "Oddział udarowy",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4240",
+          "name": "Oddział onkologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4242",
+          "name": "Oddział onkologii klinicznej/chemioterapii",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4244",
+          "name": "Oddział radioterapii",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4249",
+          "name": "Oddział onkologii i hematologii dziecięcej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4260",
+          "name": "Oddział anestezjologii i intensywnej terapii",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4270",
+          "name": "Oddział gruźlicy i chorób płuc",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4272",
+          "name": "Oddział chorób płuc",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4274",
+          "name": "Oddział leczenia gruźlicy",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4280",
+          "name": "Oddział reumatologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4300",
+          "name": "Oddział rehabilitacyjny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4302",
+          "name": "Oddział rehabilitacji narządu ruchu",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4304",
+          "name": "Oddział paraplegii i tetraplegii",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4306",
+          "name": "Oddział rehabilitacji neurologicznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4308",
+          "name": "Oddział rehabilitacji kardiologicznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4310",
+          "name": "Oddział rehabilitacji pulmonologicznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4340",
+          "name": "Oddział chorób zakaźnych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4342",
+          "name": "Oddział leczenia AIDS",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4346",
+          "name": "Oddział chorób tropikalnych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4348",
+          "name": "Oddział obserwacyjno-zakaźny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4350",
+          "name": "Oddział chorób zawodowych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4401",
+          "name": "Oddział pediatryczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4403",
+          "name": "Oddział niemowlęcy",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4421",
+          "name": "Oddział neonatologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4450",
+          "name": "Oddział położniczo-ginekologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4452",
+          "name": "Oddział ginekologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4454",
+          "name": "Oddział patologii ciąży",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4456",
+          "name": "Oddział położniczy",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4458",
+          "name": "Oddział położnictwa i neonatologii",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4460",
+          "name": "Oddział ginekologii onkologicznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4500",
+          "name": "Oddział chirurgiczny ogólny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4510",
+          "name": "Oddział wieloprofilowy zabiegowy",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4520",
+          "name": "Oddział chirurgii klatki piersiowej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4530",
+          "name": "Oddział chirurgii naczyniowej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4540",
+          "name": "Oddział chirurgii onkologicznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4550",
+          "name": "Oddział chirurgii plastycznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4554",
+          "name": "Oddział leczenia oparzeń",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4560",
+          "name": "Oddział kardiochirurgiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4570",
+          "name": "Oddział neurochirurgiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4580",
+          "name": "Oddział chirurgii urazowo-ortopedycznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4590",
+          "name": "Oddział obrażeń wielonarządowych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4600",
+          "name": "Oddział okulistyczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4610",
+          "name": "Oddział otorynolaryngologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4620",
+          "name": "Oddział audiologiczno-foniatryczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4630",
+          "name": "Oddział chirurgii szczękowo-twarzowej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4640",
+          "name": "Oddział urologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4650",
+          "name": "Oddział transplantologiczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4652",
+          "name": "Oddział transplantacji nerek",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4654",
+          "name": "Oddział transplantacji wątroby",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4656",
+          "name": "Oddział transplantacji serca",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4658",
+          "name": "Oddział transplantacji szpiku",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4660",
+          "name": "Oddział transplantacji trzustki",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4662",
+          "name": "Oddział transplantacji płuc",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4670",
+          "name": "Oddział leczenia jednego dnia",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4700",
+          "name": "Oddział psychiatryczny (ogólny)",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4702",
+          "name": "Oddział rehabilitacji psychiatrycznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4704",
+          "name": "Oddział leczenia zaburzeń nerwicowych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4710",
+          "name": "Oddział psychiatryczny dla chorych somatycznie",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4712",
+          "name": "Oddział psychogeriatryczny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4714",
+          "name": "Oddział psychiatryczny dla chorych na gruźlicę",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4716",
+          "name": "Oddział psychiatryczny dla przewlekle chorych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4730",
+          "name": "Oddział psychiatrii sądowej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4732",
+          "name": "Oddział psychiatrii sądowej o wzmocnionym zabezpieczeniu",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4734",
+          "name": "Oddział psychiatrii sądowej o maksymalnym zabezpieczeniu",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4736",
+          "name": "Oddział odwykowy o wzmocnionym zabezpieczeniu",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4740",
+          "name": "Oddział leczenia uzależnień",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4742",
+          "name": "Oddział leczenia alkoholowych zespołów abstynencyjnych (detoksykacji)",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4744",
+          "name": "Oddział terapii uzależnienia od alkoholu",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4746",
+          "name": "Oddział terapii uzależnienia od substancji psychoaktywnych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4748",
+          "name": "Oddział leczenia zespołów abstynencyjnych po substancjach psychoaktywnych (detoksykacji)",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4750",
+          "name": "Oddział rehabilitacyjny dla uzależnionych od substancji psychoaktywnych",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4752",
+          "name": "Oddział terapii dla uzależnionych od alkoholu ze współistniejącymi zaburzeniami psychotycznymi",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4754",
+          "name": "Oddział terapii dla uzależnionych od substancji psychoaktywnych ze współistniejącymi zaburzeniami psychotycznymi",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4756",
+          "name": "Oddział rehabilitacji dla uzależnionych od substancji psychoaktywnych ze współistniejącymi zaburzeniami psychotycznymi",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4840",
+          "name": "Oddział chirurgii stomatologicznej",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4900",
+          "name": "Izba przyjęć szpitala",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4902",
+          "name": "Szpitalny oddział ratunkowy",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4910",
+          "name": "Blok operacyjny",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4912",
+          "name": "Sala porodowa",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4922",
+          "name": "Apteka szpitalna albo zakładowa",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4924",
+          "name": "Dział farmacji",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "4950",
+          "name": "Oddział anestezjologii",
+          "section": "Oddziały szpitalne i inne komórki opieki szpitalnej"
+        },
+        {
+          "code": "5160",
+          "name": "Zakład/Oddział pielęgnacyjno-opiekuńczy",
+          "section": "Zakłady opiekuńczo-lecznicze i pielęgnacyjno-opiekuńcze"
+        },
+        {
+          "code": "5162",
+          "name": "Zakład/Oddział pielęgnacyjno-opiekuńczy psychiatryczny",
+          "section": "Zakłady opiekuńczo-lecznicze i pielęgnacyjno-opiekuńcze"
+        },
+        {
+          "code": "5170",
+          "name": "Zakład/Oddział opiekuńczo-leczniczy",
+          "section": "Zakłady opiekuńczo-lecznicze i pielęgnacyjno-opiekuńcze"
+        },
+        {
+          "code": "5172",
+          "name": "Zakład/Oddział opiekuńczo-leczniczy psychiatryczny",
+          "section": "Zakłady opiekuńczo-lecznicze i pielęgnacyjno-opiekuńcze"
+        },
+        {
+          "code": "5260",
+          "name": "Zakład/Oddział dzienny pielęgnacyjno-opiekuńczy psychiatryczny",
+          "section": "Zakłady opiekuńczo-lecznicze i pielęgnacyjno-opiekuńcze"
+        },
+        {
+          "code": "5272",
+          "name": "Zakład/Oddział dzienny opiekuńczo-leczniczy psychiatryczny",
+          "section": "Zakłady opiekuńczo-lecznicze i pielęgnacyjno-opiekuńcze"
+        },
+        {
+          "code": "5360",
+          "name": "Zespół opieki domowej przy zakładzie/oddziale pielęgnacyjno-opiekuńczym lub opiekuńczo-leczniczym psychiatrycznym",
+          "section": "Zakłady opiekuńczo-lecznicze i pielęgnacyjno-opiekuńcze"
+        },
+        {
+          "code": "6100",
+          "name": "Oddział uzdrowiskowy szpitalny",
+          "section": "Jednostki lecznictwa uzdrowiskowego"
+        },
+        {
+          "code": "6200",
+          "name": "Oddział uzdrowiskowy szpitalny w urządzonym podziemnym wyrobisku górniczym",
+          "section": "Jednostki lecznictwa uzdrowiskowego"
+        },
+        {
+          "code": "6300",
+          "name": "Oddział uzdrowiskowy rehabilitacji szpitalnej",
+          "section": "Jednostki lecznictwa uzdrowiskowego"
+        },
+        {
+          "code": "6500",
+          "name": "Oddział uzdrowiskowy sanatoryjny",
+          "section": "Jednostki lecznictwa uzdrowiskowego"
+        },
+        {
+          "code": "6600",
+          "name": "Oddział uzdrowiskowy sanatoryjny w urządzonym podziemnym wyrobisku górniczym",
+          "section": "Jednostki lecznictwa uzdrowiskowego"
+        },
+        {
+          "code": "6700",
+          "name": "Oddział uzdrowiskowy rehabilitacji sanatoryjnej",
+          "section": "Jednostki lecznictwa uzdrowiskowego"
+        },
+        {
+          "code": "7100",
+          "name": "Medyczne laboratorium diagnostyczne (laboratorium)",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7102",
+          "name": "Pracownia genetyczna",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7104",
+          "name": "Pracownia toksykologiczna",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7110",
+          "name": "Punkt pobrań materiałów do badań",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7120",
+          "name": "Pracownia diagnostyki mikrobiologicznej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7130",
+          "name": "Pracownia serologiczna",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7140",
+          "name": "Pracownia cytologiczna",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7150",
+          "name": "Pracownia histopatologii",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7210",
+          "name": "Pracownia USG",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7220",
+          "name": "Pracownia tomografii komputerowej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7222",
+          "name": "Pracownia pozytonowej tomografii emisyjnej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7230",
+          "name": "Pracownia radiologii zabiegowej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7232",
+          "name": "Pracownia hemodynamiki",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7234",
+          "name": "Pracownia elektrofizjologii",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7236",
+          "name": "Pracownia urządzeń wszczepialnych serca",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7240",
+          "name": "Pracownia rentgenodiagnostyki ogólnej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7242",
+          "name": "Pracownia mammografii",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7244",
+          "name": "Pracownia densytometryczna",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7250",
+          "name": "Pracownia rezonansu magnetycznego",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7290",
+          "name": "Mobilna pracownia badań diagnostycznych",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7300",
+          "name": "Zakład patomorfologii",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7400",
+          "name": "Zakład rehabilitacji leczniczej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7500",
+          "name": "Ośrodek terapii hiperbarycznej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7910",
+          "name": "Pracownia endoskopii",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7912",
+          "name": "Pracownia urodynamiczna",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7920",
+          "name": "Pracownia badań słuchu",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7930",
+          "name": "Pracownia dopasowania systemów implantów słuchowych",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7950",
+          "name": "Pracownia lub zakład medycyny nuklearnej",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7960",
+          "name": "Pracownia lub zakład teleradioterapii",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7962",
+          "name": "Pracownia lub zakład brachyterapii",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "7998",
+          "name": "Inne pracownie diagnostyczne lub zabiegowe",
+          "section": "Pracownie diagnostyczne lub zabiegowe"
+        },
+        {
+          "code": "8100",
+          "name": "Pracownia protetyki dentystycznej",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8200",
+          "name": "Pracownia lub punkt zaopatrzenia w środki pomocnicze",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8210",
+          "name": "Pracownia lub punkt zaopatrzenia w środki wspomagania słuchu",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8220",
+          "name": "Pracownia lub punkt zaopatrzenia w środki optyczne",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8230",
+          "name": "Pracownia lub punkt zaopatrzenia w wyroby medyczne będące przedmiotami ortopedycznymi",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8500",
+          "name": "Bank krwi",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8502",
+          "name": "Punkt pobrań krwi",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8510",
+          "name": "Bank tkanek i komórek",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8512",
+          "name": "Punkt pobrań tkanek i szpiku kostnego",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "8520",
+          "name": "Dział krwiodawstwa i krwiolecznictwa",
+          "section": "Pracownie protetyczne, przedmiotów ortopedycznych, środków pomocniczych, krwi i tkanek"
+        },
+        {
+          "code": "9000",
+          "name": "Inna i nieokreślona komórka działalności medycznej",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9010",
+          "name": "Pracownia akupresury i akupunktury",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9012",
+          "name": "Pracownia ziołolecznictwa",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9200",
+          "name": "Dział higieny i epidemiologii",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9202",
+          "name": "Dział nadzoru radiologicznego",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9204",
+          "name": "Dział nadzoru sanitarnego",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9206",
+          "name": "Dział nadzoru zapobiegawczego",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9210",
+          "name": "Dział oświaty i promocji zdrowia",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9220",
+          "name": "Dział żywności, żywienia i przedmiotów użytku",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9230",
+          "name": "Dział orzecznictwa o stanie zdrowia",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9250",
+          "name": "Zespół transportu medycznego – świadczenia zdrowotne udzielane w specjalistycznym środku transportu",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9400",
+          "name": "Szpitalny zespół wspierający opieki paliatywnej",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9450",
+          "name": "Gabinet diagnostyczno-zabiegowy",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9600",
+          "name": "Punkt szczepień",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9700",
+          "name": "Poradnia promocji zdrowia",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        },
+        {
+          "code": "9800",
+          "name": "Dyspozytornia medyczna",
+          "section": "Inne komórki organizacyjne działalności medycznej"
+        }
+      ]
+    },
+    "discharge_modes": {
+      "release_id": "discharge-modes-du-2025-1588-6cc1b4ef5d4e",
+      "act": "Rozporządzenie Ministra Zdrowia z dnia 26 czerwca 2019 r. w sprawie zakresu niezbędnych informacji przetwarzanych przez świadczeniodawców, szczegółowego sposobu rejestrowania tych informacji oraz ich przekazywania podmiotom zobowiązanym do finansowania świadczeń ze środków publicznych, tekst jednolity Dz. U. z 2025 r. poz. 1588",
+      "annex": "Załącznik nr 4",
+      "publisher": "Minister Zdrowia",
+      "license": "Polish legal act published in Dziennik Ustaw; excluded from copyright by art. 4 pkt 1 ustawy o prawie autorskim i prawach pokrewnych. Not a legal clearance determination.",
+      "notices": [
+        "Kody trybu wypisu ze szpitala, rejestrowane według § 3 rozporządzenia. Status checked in the Sejm ELI API on 2026-10-08: consolidated text in force; the 2026 amendments (Dz. U. z 2026 r. poz. 270, 822 i 1113) do not change annex 4.",
+        "Reviewed transcription of the authentic PDF; code 5 is not assigned in the annex."
+      ],
+      "source": {
+        "source_url": "https://api.sejm.gov.pl/eli/acts/DU/2025/1588/text.pdf",
+        "sha256": "6cc1b4ef5d4e5dfa7ac9aaf5020569f9694f654bdd5e3f29024e5b8fcaf83879",
+        "size_bytes": 1643150,
+        "fetched_at": "2026-10-08T17:38:18Z"
+      },
+      "reviewed_on": "2026-10-08",
+      "modes": [
+        {
+          "point": 1,
+          "code": 1,
+          "name": "zakończenie procesu terapeutycznego lub diagnostycznego"
+        },
+        {
+          "point": 2,
+          "code": 2,
+          "name": "skierowanie do dalszego leczenia w lecznictwie ambulatoryjnym"
+        },
+        {
+          "point": 3,
+          "code": 3,
+          "name": "skierowanie do dalszego leczenia w innym szpitalu"
+        },
+        {
+          "point": 4,
+          "code": 4,
+          "name": "skierowanie do dalszego leczenia w innym niż szpital zakładzie leczniczym podmiotu leczniczego wykonującego działalność leczniczą w rodzaju stacjonarne i całodobowe świadczenia zdrowotne"
+        },
+        {
+          "point": 5,
+          "code": 6,
+          "name": "wypisanie na własne żądanie"
+        },
+        {
+          "point": 6,
+          "code": 7,
+          "name": "osoba leczona samowolnie opuściła podmiot leczniczy wykonujący działalność leczniczą w rodzaju stacjonarne i całodobowe świadczenia zdrowotne przed zakończeniem procesu terapeutycznego lub diagnostycznego"
+        },
+        {
+          "point": 7,
+          "code": 8,
+          "name": "wypisanie na podstawie art. 29 ust. 1 pkt 3 ustawy z dnia 15 kwietnia 2011 r. o działalności leczniczej (Dz. U. z 2025 r. poz. 450, z późn. zm.)"
+        },
+        {
+          "point": 8,
+          "code": 9,
+          "name": "zgon pacjenta"
+        },
+        {
+          "point": 9,
+          "code": 10,
+          "name": "osoba leczona, przyjęta w trybie oznaczonym kodem „9” lub „10”, która samowolnie opuściła podmiot leczniczy"
+        },
+        {
+          "point": 10,
+          "code": 11,
+          "name": "wypisanie na podstawie art. 47 ustawy z dnia 22 listopada 2013 r. o postępowaniu wobec osób z zaburzeniami psychicznymi stwarzających zagrożenie życia, zdrowia lub wolności seksualnej innych osób"
+        }
+      ]
+    }
+  }
+}
