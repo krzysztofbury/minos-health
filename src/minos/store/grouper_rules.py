@@ -7,8 +7,32 @@ from typing import cast
 
 from minos.domain.grouper_rules import GroupRules, SelectorCodes
 from minos.domain.jgp_conditions_validation import selector_ids
+from minos.domain.reference import QueryLimitError
 from minos.store.grouper_bundle import CharacteristicsGraph, owned_nodes, selector_codes
 from minos.store.query_budget import query_budget
+
+MAX_GOVERNING_GROUPS = 4_000
+
+
+def group_titles(
+    connection: sqlite3.Connection, catalog_release_id: str, service_date: date
+) -> dict[tuple[str, str], tuple[str, str]]:
+    """Name and product code of every catalog group governing the service date."""
+    day = service_date.isoformat()
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[str, str, str, str]],
+            connection.execute(
+                """SELECT catalog, code, name, product_code FROM group_definition
+                WHERE release_id=? AND service_from<=?
+                  AND (service_to IS NULL OR service_to>=?)
+                ORDER BY catalog, code, source_row LIMIT ?""",
+                (catalog_release_id, day, day, MAX_GOVERNING_GROUPS + 1),
+            ).fetchall(),
+        )
+    if len(rows) > MAX_GOVERNING_GROUPS:
+        raise QueryLimitError("grouping catalog exceeds limit")
+    return {(catalog, code): (name, product) for catalog, code, name, product in rows}
 
 
 def group_rules(

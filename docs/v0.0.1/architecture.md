@@ -65,7 +65,7 @@ deterministic Polish search, FTS5 availability, standalone CLI packaging, and
 deterministic `linux/amd64` container operation before the physical schema is
 accepted.
 
-### minos.grouper (planned, v0.0.2)
+### minos.grouper (v0.0.2)
 
 Responsibilities:
 
@@ -79,6 +79,9 @@ Rules are data; the engine is versioned code, because the published algorithm
 changes structure between versions. The package is synchronous, deterministic,
 and side-effect free: same release plus same encounter equals same result and
 same trace. Encounter values never leave the evaluation; nothing is persisted.
+`minos.grouper.pipeline.group_request` is the single application service used
+by the CLI and HTTP adapters; it returns domain values, and the shared v1 wire
+schema lives in `minos.cli.grouping_output` (decision 2026-10-08).
 
 ### minos.cli
 

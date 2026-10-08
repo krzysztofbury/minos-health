@@ -11,12 +11,12 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
-from minos.cli.grouping import evaluate_json
+from minos.cli.grouping_output import grouping_answer
 from minos.domain.encounter import EncounterInputError
 from minos.domain.grouper import GrouperError
 from minos.domain.jgp_ruleset import NoRulesetForDate
 from minos.domain.reference import QueryLimitError, QueryTimeoutError, ReferenceError
-from minos.grouper.pipeline import PreparedSources
+from minos.grouper.pipeline import PreparedSources, group_request
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.grouping_request import (
     MAX_GROUPING_REQUEST_BYTES,
@@ -66,7 +66,10 @@ class GroupingAdmission:
 def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> bytes:
     request = parse_grouping_request(body)
     with pool.borrow() as lease:
-        answer = evaluate_json(lease.connection, pool.manifest, request, prepared)
+        outcome = group_request(
+            lease.connection, pool.manifest.dataset, request, prepared
+        )
+    answer = grouping_answer(pool.manifest, request, outcome)
     encoded = json.dumps(
         answer, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()

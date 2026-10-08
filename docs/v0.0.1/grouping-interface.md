@@ -123,7 +123,8 @@ hundredths; coefficients are millionths. Unknown values remain JSON `null`.
 - `disclaimer` and `limitations`: assessment scope and completeness framing.
 
 The domain events are frozen Python data classes, independent of transport and
-Pydantic. Explicit serializers control the wire schema. Scalar sensitivity
+Pydantic. `minos.grouper.pipeline.group_request` returns them to both adapters;
+the explicit serializer in `minos.cli.grouping_output` controls the wire schema. Scalar sensitivity
 checks are never mixed into the trace of the actual reported encounter.
 
 ## Resource And Privacy Boundary

@@ -329,14 +329,14 @@ def test_evaluation_and_response_limits_return_no_partial_answer(
 ) -> None:
     from functools import partial
 
-    from minos.cli import grouping as adapter
+    from minos.grouper import pipeline as service
     from minos.grouper.budget import evaluation_budget
     from minos.http import grouping as transport
 
     with TestClient(create_app(grouping_bundle(tmp_path))) as client:
         with monkeypatch.context() as patch:
             patch.setattr(
-                adapter, "evaluation_budget", partial(evaluation_budget, steps=0)
+                service, "evaluation_budget", partial(evaluation_budget, steps=0)
             )
             response = client.post("/api/v1/group", json=grouping_body())
             assert response.status_code == 422
@@ -344,7 +344,7 @@ def test_evaluation_and_response_limits_return_no_partial_answer(
             assert "groups" not in response.json()
         with monkeypatch.context() as patch:
             patch.setattr(
-                adapter, "evaluation_budget", partial(evaluation_budget, seconds=0)
+                service, "evaluation_budget", partial(evaluation_budget, seconds=0)
             )
             assert client.post("/api/v1/group", json=grouping_body()).status_code == 504
         with monkeypatch.context() as patch:
