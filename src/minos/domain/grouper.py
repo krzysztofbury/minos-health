@@ -34,6 +34,9 @@ type Stage = Literal[
     "duration_interval",
     "stay_coverage",
     "product_binding",
+    "product",
+    "procedure_product",
+    "product_duration",
     "scope",
 ]
 type Reason = Literal[
@@ -66,8 +69,22 @@ type Reason = Literal[
     "stay_coverage_complete",
     "stay_coverage_incomplete",
     "product_catalog_unbound",
+    "product_catalog_bound",
+    "product_w",
+    "product_w_incomplete",
+    "product_neutral",
+    "product_unknown",
+    "product_w_interval",
+    "product_interval_possible",
+    "product_outside_intervals",
+    "product_duration_subtracted",
+    "product_duration_unknown_product",
+    "product_duration_same_day",
+    "product_duration_overlap",
+    "duration_not_positive",
     "preparation_only",
 ]
+type ProductClass = Literal["W", "neutral", "unknown"]
 
 
 class GrouperError(ReferenceError):
@@ -76,6 +93,11 @@ class GrouperError(ReferenceError):
 
 class UnknownEngineBinding(GrouperError):
     """No exact, explicitly registered combination exists."""
+
+
+class ProductCatalogUnavailable(GrouperError):
+    """Products were reported, but the bundle holds no product catalogs of
+    the act governing the service date (#145)."""
 
 
 class UnsupportedAlgorithm(GrouperError):
@@ -249,6 +271,27 @@ class RankedProcedure:
 
 
 @dataclass(frozen=True, repr=False)
+class ProductClassification:
+    """Product catalogs of the governing act (#145). `excluded_w` codes exclude
+    procedures within their dates; `neutral` codes provably exclude nothing;
+    any other code is unknown and keeps affected facts unresolved."""
+
+    release_id: str
+    catalog_release_id: str
+    excluded_w: frozenset[str]
+    neutral: frozenset[str]
+
+    def __post_init__(self) -> None:
+        if self.excluded_w & self.neutral:
+            raise GrouperError("a product code cannot be both W and neutral")
+
+    def classify(self, code: str) -> ProductClass:
+        if code in self.excluded_w:
+            return "W"
+        return "neutral" if code in self.neutral else "unknown"
+
+
+@dataclass(frozen=True, repr=False)
 class PreparationResult:
     key: ExecutionKey
     sources: AlgorithmIdentity
@@ -260,7 +303,10 @@ class PreparationResult:
     trace: tuple[Decision, ...]
     settlement_products: tuple[SettlementProduct, ...]
     product_reporting: ProductReporting
-    product_binding: Literal["unbound"] = "unbound"
+    product_binding: Literal["unbound", "bound"] = "unbound"
+    # Set with a bound binding: the classifying act and one class per product.
+    product_release_id: str | None = None
+    product_classes: tuple[ProductClass, ...] = ()
     # Always explicit: omitted product/contract/condition bindings cannot turn
     # this into final grouping, even when every preprocessing fact is resolved.
     scope: Literal["algorithm_preparation_only"] = "algorithm_preparation_only"

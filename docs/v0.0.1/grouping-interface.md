@@ -80,20 +80,26 @@ unresolved, as do unattributed facts. Whether coders report such codes on SZP
 stays is an open question for practitioner validation (#39). If they do, the
 owner-chosen design is an optional field shown only for those specialty codes.
 Dates and attribution are explicit. Missing procedure dates and attribution
-remain unknown. No products are inferred: an unknown/nonempty report receives
-`unsupported_product_report` with no eligibility or points. Product exclusions
-remain #145. The API accepts such reports to explain this limitation; the form
-displays it before sending a grouping request.
+remain unknown. No products are inferred: an incomplete (`unknown`) report
+receives `unsupported_product_report` with no eligibility or points, because a
+missing product could exclude procedures. A complete report may list products
+with their codes and optional dates; the form shows one row per product. When the
+bundle holds no product catalogs of the act governing the service date, reported
+products receive `product_catalog_unavailable`, also without evaluation (#145).
 
 ## Response Contract
 
 Success has `schema="minos.grouping.v1"`, `schema_version=1`. Integer points are
 hundredths; coefficients are millionths. Unknown values remain JSON `null`.
 
-- `status`: `evaluated` or `unsupported_product_report`.
+- `status`: `evaluated`, `unsupported_product_report` or
+  `product_catalog_unavailable`.
 - `dataset_id`, `database_sha256`, `sources`: immutable composite and component
   identities, engine and algorithm versions, source knowledge dates and tariff
-  binding identities. A source/date mismatch fails without fallback.
+  binding identities. `sources.product_catalogs` names the release, BAW document
+  and file checksums (with `parsed=false` for a pinned legacy file whose codes
+  stay unknown) of the act whose catalogs bound the preparation, or is `null`
+  when the binding is unbound. A source/date mismatch fails without fallback.
 - `groups`: every derived candidate, with `valid`, `invalid` or `undetermined`
   status, separate conditions/routing verdicts, source rows, root identities,
   directional evidence, base points and optional final points.
@@ -106,6 +112,9 @@ hundredths; coefficients are millionths. Unknown values remain JSON `null`.
   duration, and source-linked preparation events with readable explanations.
   Ward stays are ordered by admission, discharge and identifier, matching the
   one-based ward trace ordinals. Condition fact indexes are zero-based.
+  `product_binding` and `products` report each product's code, dates, class
+  (`W`, `neutral`, `unknown`, or `unclassified` when unbound), catalog sheet and
+  official name; a JGP product code is named by its group.
 - `ranking`: every valid group in deterministic point order. `ranking_basis`
   distinguishes final from base points; `choice="provider"` implements paragraph
   113. The first result is not an automatically selected settlement group.

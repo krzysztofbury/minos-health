@@ -14,7 +14,8 @@ engine version, reporting month and exact `AlgorithmIdentity` to one immutable
 algorithm snapshot. Every request value must match. Missing registrations and
 unknown combinations
 fail; no latest selector or engine fallback exists. The registry starts empty.
-The first supported combination is `1.1.2026` / `szp-preparation-1`.
+The supported combination is `1.1.2026` / `szp-preparation-2`, which adds
+settlement product exclusions (#145) to `szp-preparation-1`.
 
 The reporting month is supplied explicitly, not inferred from the service or
 admission date. The algorithm's first reporting month is checked, but does not
@@ -82,18 +83,29 @@ are copied into execution fixtures or a commercial artifact.
   `one_day_dates_inconsistent`, never silently computed.
 - Ward-adjusted days use same-day duration 1, otherwise discharge minus
   admission, then subtract the union of wholly excluded stays. Overlapping and
-  adjacent-day intervals are merged as in paragraphs 169-186. This is **not**
-  final grouping duration: excluded products are not bound. Unknown stay
-  exclusions produce unknown ward duration rather than a partial numeric value.
+  adjacent-day intervals are merged as in paragraphs 169-186. With bound
+  product catalogs, each type W product then subtracts its end minus start
+  (owner interpretation, decision 2026-10-09). Unknown stay exclusions, unknown
+  products, touching W intervals, a W product in a same-day stay, and an adjusted
+  multi-day duration of 0 or less produce an unknown duration rather than a
+  partial numeric value.
 - Reported stays must cover the admission-to-discharge interval before ward
   duration or exclusion-free unattributed facts can be resolved. Missing coverage
   leaves those results unknown; coverage is not inferred from the episode dates.
 - Reported settlement products retain all occurrences and independently missing
   start/end dates. `product_reporting=unknown` (the default) distinguishes omitted
   or partial reporting from an explicitly complete report, including a confirmed
-  empty list. Neither status classifies products. Results preserve the canonical
-  product tuple and report `product_binding=unbound`; a typed unresolved event
-  cites the product rules. No W/V exclusions or product-adjusted duration run yet.
+  empty list. Results preserve the canonical product tuple. With a complete
+  report and the product catalogs of the act governing the service date, the
+  result reports `product_binding=bound`, the classifying release and one class
+  per product (`W`, `neutral` or `unknown`). A W product excludes every
+  procedure dated within its start and end dates, inclusive; an undated
+  procedure is bounded by its attributed stay, else by the episode. A procedure
+  the W union only partly covers, or one an unknown product could cover, stays
+  unresolved. A ward exclusion outranks a product "unresolved" and a W exclusion
+  outranks a ward "unresolved". Without that binding the result reports
+  `product_binding=unbound` and a typed unresolved event cites the product rules
+  (#145, decisions 2026-10-09).
 
 Every stay, reported fact, rank decision, interval merge, age/duration result
 and scope limitation has a typed, bounded trace event with source coordinates.
@@ -148,8 +160,7 @@ Composite binding, candidate derivation and real pinned-rule acceptance are
 now covered below. #35 retains condition evaluation (reviewed executable roots
 and policies), group selection, tariff calculation and unbound-modifier
 refusal; #36 retains full explanatory and near-miss presentation. Settlement
-product (W/V) exclusions moved to #145. Nothing is
-deployed.
+product exclusions are implemented under #145 (`szp-preparation-2`).
 
 ## Candidate Derivation From One Bundle
 

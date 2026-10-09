@@ -172,7 +172,13 @@ def test_warmup_status_reaches_the_configured_api_logger(
     ]
     # #155: only the `minos.http` hierarchy has a handler in production.
     assert len(events) == 1
-    assert set(events[0]) == {"event", "status", "sheets", "duration_ms"}
+    assert set(events[0]) == {
+        "event",
+        "status",
+        "sheets",
+        "product_catalogs",
+        "duration_ms",
+    }
     assert events[0]["status"] == "completed"
 
 
@@ -433,14 +439,6 @@ def test_payload_caps_duplicate_keys_and_product_unknowns(tmp_path: Path) -> Non
         answer = cast(dict[str, object], client.post("/api/v1/group", json=body).json())
         assert (
             answer["status"] == "unsupported_product_report" and answer["groups"] == []
-        )
-        cast(dict[str, object], body["encounter"])["product_reporting"] = "complete"
-        cast(dict[str, object], body["encounter"])["settlement_products"] = [
-            {"code": "5.52.01.0001363"}
-        ]
-        assert (
-            client.post("/api/v1/group", json=body).json()["status"]
-            == "unsupported_product_report"
         )
         assert client.get("/healthz").status_code == 200
 

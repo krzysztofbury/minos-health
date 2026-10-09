@@ -16,6 +16,7 @@ from minos.ingest.jgp_conditions_manifest import ConditionsFile
 from minos.ingest.jgp_modifier_binding_manifest import LegalOverlayFile
 from minos.ingest.jgp_modifiers_manifest import DisplayFile, ModifierFile
 from minos.ingest.komunikat_manifest import KomunikatFile
+from minos.ingest.product_catalogs_manifest import ProductCatalogFile
 from minos.ingest.reference_manifest import SourceManifest
 
 
@@ -29,7 +30,8 @@ def verified_source(
     | ModifierFile
     | DisplayFile
     | LegalOverlayFile
-    | LegalActFile,
+    | LegalActFile
+    | ProductCatalogFile,
     *,
     staging_directory: Path,
 ) -> Generator[BinaryIO]:

@@ -17,6 +17,7 @@ from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.manifest_types import Digest as Digest
 from minos.ingest.manifest_types import Identifier as Identifier
 from minos.ingest.manifest_types import SourceText as SourceText
+from minos.ingest.product_catalogs_manifest import ProductCatalogs
 from minos.ingest.search_synonyms import SearchSynonym
 
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
@@ -127,6 +128,10 @@ class DatasetManifest(BaseModel):
     grouping_dictionaries: GroupingDictionaries | None = Field(
         default=None, exclude_if=absent_context
     )
+    # Product catalogs of each pinned act (#145); schema 10.
+    product_catalogs: Annotated[tuple[ProductCatalogs, ...], Field(max_length=8)] = (
+        Field(default=(), exclude_if=empty_evidence)
+    )
 
     @model_validator(mode="after")
     def validate_releases(self) -> Self:
@@ -148,6 +153,19 @@ class DatasetManifest(BaseModel):
                 self.grouping_dictionaries.specialties.release_id,
                 self.grouping_dictionaries.discharge_modes.release_id,
             ]
+        if self.product_catalogs:
+            if self.grouping_dictionaries is None:
+                raise ValueError("product catalogs extend a dictionary dataset")
+            act_documents = {
+                item.release_id: item.baw_document_id for item in self.catalogs
+            }
+            bound = [item.catalog_release_id for item in self.product_catalogs]
+            if len(set(bound)) != len(bound) or any(
+                act_documents.get(item.catalog_release_id) != item.baw_document_id
+                for item in self.product_catalogs
+            ):
+                raise ValueError("product catalogs must bind one pinned act each")
+            all_ids += [item.release_id for item in self.product_catalogs]
         if len(set(all_ids)) != len(all_ids):
             raise ValueError("duplicate catalog release identity")
         for characteristic in self.characteristics:

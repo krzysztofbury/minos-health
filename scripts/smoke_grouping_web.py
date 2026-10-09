@@ -29,7 +29,9 @@ def smoke(
 
     with tempfile.TemporaryDirectory(prefix="minos-grouping-runtime-") as directory:
         root = Path(directory)
-        runtime = grouping_bundle(root) if bundle is None else root / "bundle"
+        runtime = (
+            grouping_bundle(root, products=True) if bundle is None else root / "bundle"
+        )
         if bundle is not None:
             _ = shutil.copytree(bundle, runtime)
         runtime.chmod(0o755)

@@ -537,6 +537,50 @@ official name from pinned legal acts, through the reviewed manifest path.
 - Schema 9 stores the dictionaries; `GET /api/v1/grouping/dictionaries` serves
   them read-only.
 
+### Settlement Product Exclusions (2026-10-09)
+
+Owner decisions for #145, after reading the pinned algorithm (paragraphs on
+products excluded from grouping, types W and V, and the duration formula with
+an excluded product) and the BAW packages of every pinned act:
+
+- The service date selects the governing act; that act's own product catalogs
+  classify reported products, older acts included. All five pinned acts
+  publish 1b, 1c, 1d, 1ts, 1ows and 1w and no 1v, so type V cannot occur; an
+  act whose attachment set differs from the reviewed one fails the build.
+- A product listed in the governing 1w catalog is type W. Every ICD-9
+  procedure whose date falls within its start and end dates, inclusive, is
+  excluded. Products in 1b, 1c, 1d, 1ts or 1ows but not 1w, and JGP product
+  codes of the governing catalog (1a and 1ae), do not exclude anything. A code
+  found in none of the act's parsed catalogs is unknown; codes of a pinned but
+  unparsed legacy `.xls` catalog (1ts of act 101/2025) are therefore unknown.
+- Owner interpretation: the formula th = (dw - dp) - (dzsw - dpsw), stated for
+  a "katalog wyłączony z sumowania" (a phrase the NFZ order never uses), is
+  the W duration rule; each W product subtracts end - start. Golden cases built
+  on it are labelled as derived from this interpretation.
+- A W product overlapping or adjacent to an excluded ward stay leaves the
+  duration undetermined; disjoint intervals are subtracted separately.
+
+Conservative rules adopted from the design review, each keeping an unknown
+undetermined instead of guessing:
+
+- Any unknown product, or a W product without both dates, leaves the duration
+  undetermined and the procedures it could cover unresolved; a missing date
+  extends that range to the episode boundary on its side.
+- Products reported without a binding leave every procedure unresolved in the
+  engine itself, not only behind the application refusal.
+- W products that overlap or are adjacent (sharing a day or on consecutive days)
+  exclude procedures over their union but leave the duration undetermined.
+- A W product in a same-day hospitalization leaves the duration undetermined:
+  the same-day formula and the subtraction disagree.
+- An adjusted duration of 0 or less for a multi-day hospitalization is
+  undetermined, also for ward exclusions alone.
+- A ward exclusion outranks a W "unresolved" and a W exclusion outranks a ward
+  "unresolved". An undated procedure is bounded by its attributed stay, else
+  by the episode.
+- Classification uses exactly the catalog release the answer cites; the
+  release and catalog checksums are part of the answer's sources. A bundle
+  without product catalogs answers `product_catalog_unavailable`.
+
 ### Search Storage
 
 The #11-#13 pipeline replaces #10's disposable engine spike. Plain SQLite with

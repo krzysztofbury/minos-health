@@ -77,6 +77,16 @@ def fetch_manifest(manifest: DatasetManifest, archive: Path) -> None:
     if manifest.grouping_dictionaries is not None:
         pins.append(manifest.grouping_dictionaries.specialties.source)
         pins.append(manifest.grouping_dictionaries.discharge_modes.source)
+    # Byte-identical product workbooks recur across acts under other BAW file
+    # IDs; fetch each content address once. Only those repeats are folded: any
+    # other repeated address still fails the uniqueness check below.
+    products: dict[str, SourcePin] = {}
+    for catalogs in manifest.product_catalogs:
+        for item in catalogs.files:
+            seen = products.setdefault(item.sha256, item)
+            if seen.size_bytes != item.size_bytes:
+                raise ValueError("product catalog pins conflict for one digest")
+    pins.extend(products.values())
     if len(pins) > 64 or len({pin.sha256 for pin in pins}) != len(pins):
         raise ValueError("evaluation source inventory exceeds its unique bound")
     archive.mkdir(parents=True, exist_ok=False)

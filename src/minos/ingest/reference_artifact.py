@@ -176,6 +176,12 @@ def _build_database(
             from minos.store.search_synonyms import import_search_synonyms
 
             import_search_synonyms(connection, manifest.search_synonyms)
+        if manifest.product_catalogs:
+            from minos.store.product_catalogs import import_product_catalogs
+
+            import_product_catalogs(
+                connection, manifest.product_catalogs, archive_root, database.parent
+            )
         if manifest.grouping_dictionaries is not None:
             from minos.store.grouping_dictionaries import import_grouping_dictionaries
 

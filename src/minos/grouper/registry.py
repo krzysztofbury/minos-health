@@ -9,6 +9,7 @@ from minos.domain.grouper import (
     ExecutionKey,
     GrouperError,
     PreparationResult,
+    ProductClassification,
     UnknownEngineBinding,
 )
 from minos.grouper.szp_2026 import prepare, validate_preparation_binding
@@ -42,12 +43,26 @@ class EngineRegistry:
         if len({b.key for b in self.bindings}) != len(self.bindings):
             raise GrouperError("duplicate engine registration")
 
-    def execute(self, key: ExecutionKey, encounter: Encounter) -> PreparationResult:
-        if type(key) is not ExecutionKey or type(encounter) is not Encounter:
+    def execute(
+        self,
+        key: ExecutionKey,
+        encounter: Encounter,
+        classification: ProductClassification | None = None,
+    ) -> PreparationResult:
+        if (
+            type(key) is not ExecutionKey
+            or type(encounter) is not Encounter
+            or (
+                classification is not None
+                and type(classification) is not ProductClassification
+            )
+        ):
             raise GrouperError("invalid execution request types")
         for binding in self.bindings:
             if binding.key == key:
-                result = prepare(encounter, binding.key, binding.algorithm)
+                result = prepare(
+                    encounter, binding.key, binding.algorithm, classification
+                )
                 # Only a resolved registration can truthfully attest dispatch.
                 return replace(
                     result,

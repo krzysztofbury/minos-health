@@ -216,6 +216,16 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .doc-checks { margin-block: 1.25rem; padding: 1rem 1.25rem; border-left: 4px solid var(--warn); border-radius: 0 var(--radius) var(--radius) 0; background: var(--warn-bg); }
 .doc-checks h3 { font-size: var(--text-md); }
 .doc-checks ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: var(--text-sm); }
+/* Reported products: what each one did to the case, before the groups it shaped. */
+.product-effects { margin-block: 0 1.25rem; padding: 0.9rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.product-effects h3 { font-size: var(--text-md); }
+.product-effects ul { margin: 0.4rem 0 0; padding: 0; list-style: none; }
+.product-effects li { padding-block: 0.5rem; border-top: 1px solid var(--line); }
+.product-effects li:first-child { border-top: 0; }
+.product-effects li > p:first-child { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.product-effects li .group-help { margin-block: 0.15rem 0; }
+.product-W .code-chip { color: var(--warn); background: var(--warn-bg); }
+.product-unknown .code-chip { color: var(--bad); background: var(--bad-bg); }
 .other-candidates, .about-result, .result-technical { margin-top: 0.75rem; border-top: 1px solid var(--line); }
 .other-candidates h4 { margin: 1rem 0 0.25rem; color: var(--ink-soft); font-size: var(--text-sm); }
 .candidate-list { margin: 0; padding: 0; list-style: none; }

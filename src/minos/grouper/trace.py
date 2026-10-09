@@ -1,9 +1,21 @@
 """Bounded per-call trace ownership; never logs encounter decisions."""
 
-from minos.domain.encounter import MAX_PROCEDURES, MAX_SECONDARY_DIAGNOSES, MAX_STAYS
+from minos.domain.encounter import (
+    MAX_PROCEDURES,
+    MAX_SECONDARY_DIAGNOSES,
+    MAX_SETTLEMENT_PRODUCTS,
+    MAX_STAYS,
+)
 from minos.domain.grouper import Decision, GrouperError
 
-MAX_TRACE_DECISIONS = 2 * MAX_STAYS + MAX_SECONDARY_DIAGNOSES + 2 * MAX_PROCEDURES + 8
+# Per procedure: qualification, product effect and rank; per product: its class.
+MAX_TRACE_DECISIONS = (
+    2 * MAX_STAYS
+    + MAX_SECONDARY_DIAGNOSES
+    + 3 * MAX_PROCEDURES
+    + MAX_SETTLEMENT_PRODUCTS
+    + 10
+)
 
 
 class TraceAccumulator:

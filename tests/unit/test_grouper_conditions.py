@@ -255,7 +255,8 @@ def test_stay_length_is_usable_only_with_a_complete_product_free_report(
             settlement_products=tuple(SettlementProduct(code) for code in products),
         ),
     )
-    assert prepared.ward_adjusted_days == 9
+    # Unclassified products leave even the preparation duration unknown.
+    assert prepared.ward_adjusted_days == (None if products else 9)
     assert facts_from(prepared).days == days
 
 

@@ -80,9 +80,14 @@
                   <legend>Produkty rozliczeniowe w raporcie</legend>
                   <label><input type="radio" name="product-report" value="empty">Potwierdzony kompletny raport bez produktów</label>
                   <label><input type="radio" name="product-report" value="unknown" checked>Raport niepełny lub nie wiem</label>
-                  <label><input type="radio" name="product-report" value="present">Raport zawiera produkty</label>
+                  <label><input type="radio" name="product-report" value="present">Raport zawiera produkty, podam wszystkie</label>
                 </fieldset>
-                <p class="group-help">Wyłączenia produktów nie są jeszcze obsługiwane. Ocenę kwalifikacji otrzyma tylko potwierdzony kompletny raport bez produktów. Modyfikatory potwierdzisz przy wyniku, dla konkretnej grupy.</p>
+                <div id="product-list" hidden>
+                  <p class="group-help">Każdy produkt z raportu osobno, z datami z raportu. Produkt z katalogu wyłączonego z grupowania (1w) pomija procedury wykonane w jego okresie i skraca czas pobytu. Katalogi produktów pochodzą z aktu obowiązującego w dniu świadczenia.</p>
+                  <div id="products"></div>
+                  <button id="add-product" class="button button-quiet" type="button">Dodaj produkt</button>
+                </div>
+                <p class="group-help">Raport niepełny nie otrzyma oceny kwalifikacji. Modyfikatory potwierdzisz przy wyniku, dla konkretnej grupy.</p>
               </section>
 
               <section class="wizard-step" data-step="4" aria-labelledby="step-4-title" hidden>

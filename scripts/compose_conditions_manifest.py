@@ -13,6 +13,7 @@ from minos.ingest.jgp_conditions_manifest import ConditionsManifest
 from minos.ingest.jgp_modifier_binding_manifest import ModifierBinding
 from minos.ingest.jgp_modifiers_manifest import ModifierCandidate, ModifierManifest
 from minos.ingest.manifest_types import SourceText
+from minos.ingest.product_catalogs_manifest import ProductCatalogs
 from minos.ingest.reference_manifest import DatasetManifest, empty_evidence
 from minos.ingest.search_synonyms import SearchSynonym
 
@@ -55,6 +56,12 @@ class DictionarySelection(BaseModel):
     grouping_dictionaries: GroupingDictionaries
 
 
+class ProductSelection(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+
+    product_catalogs: tuple[ProductCatalogs, ...]
+
+
 @final
 class Arguments(argparse.Namespace):
     base: Path = Path("manifests/sources/reference-catalog-public-validation.json")
@@ -64,6 +71,7 @@ class Arguments(argparse.Namespace):
     search_profile: Literal["polish-folded-1"] | None = None
     synonyms: Path = Path("manifests/sources/search-synonyms-reviewed-v1.json")
     dictionaries: Path | None = None
+    products: Path | None = None
 
 
 def main() -> None:
@@ -82,6 +90,7 @@ def main() -> None:
     _ = parser.add_argument("--modifiers", type=Path)
     _ = parser.add_argument("--search-profile", choices=("polish-folded-1",))
     _ = parser.add_argument("--dictionaries", type=Path)
+    _ = parser.add_argument("--products", type=Path)
     _ = parser.add_argument(
         "--synonyms",
         type=Path,
@@ -114,6 +123,13 @@ def main() -> None:
             ).model_dump(mode="json")
         )
         data["transform_version"] = "jgp-reference-conditions-dictionaries-v5"
+    if args.products is not None:
+        data.update(
+            ProductSelection.model_validate_json(
+                bounded_read(args.products)
+            ).model_dump(mode="json")
+        )
+        data["transform_version"] = "jgp-reference-conditions-products-v6"
     manifest = DatasetManifest.model_validate_json(json.dumps(data))
     with args.output.open("x", encoding="utf-8") as target:
         _ = target.write(manifest.model_dump_json(indent=2) + "\n")
