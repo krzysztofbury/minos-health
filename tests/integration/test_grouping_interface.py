@@ -6,8 +6,9 @@ import logging
 import subprocess
 import sys
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from pathlib import Path
 from threading import Event
 from typing import cast
@@ -173,6 +174,101 @@ def test_warmup_status_reaches_the_configured_api_logger(
     assert len(events) == 1
     assert set(events[0]) == {"event", "status", "sheets", "duration_ms"}
     assert events[0]["status"] == "completed"
+
+
+def _case_variants() -> dict[str, dict[str, object]]:
+    def changed(edit: Callable[[dict[str, object]], None]) -> dict[str, object]:
+        body = grouping_body()
+        edit(cast(dict[str, object], body["encounter"]))
+        return body
+
+    return {
+        "valid": grouping_body(),
+        # Specialty 0010 is excluded only for service code 4, which is unknown here.
+        "unresolved_stay": changed(
+            lambda e: cast(list[dict[str, object]], e["stays"])[0].__setitem__(
+                "department", "0010"
+            )
+        ),
+        "no_procedure": changed(lambda e: e.__setitem__("procedures", [])),
+        "unattributed": changed(
+            lambda e: e.__setitem__(
+                "procedures", [{"code": "100.01", "performed_on": "2026-10-02"}]
+            )
+        ),
+        "unrelated": changed(
+            lambda e: e.__setitem__(
+                "principal_diagnosis", {"code": "Z00.0", "hospitalization_level": True}
+            )
+        ),
+    }
+
+
+def test_every_group_outcome_is_explained_by_the_trace_alone(tmp_path: Path) -> None:
+    """#36: 'why this group and not X' needs no engine code, for every case."""
+    import sqlite3
+
+    from minos.store.grouper_rules import group_titles
+
+    bundle = grouping_bundle(tmp_path)
+    with TestClient(create_app(bundle)) as client:
+        answers = {
+            name: cast(
+                dict[str, object], client.post("/api/v1/group", json=body).json()
+            )
+            for name, body in _case_variants().items()
+        }
+    for name, answer in answers.items():
+        sources = cast(dict[str, object], answer["sources"])
+        with sqlite3.connect(f"file:{bundle / 'minos.db'}?mode=ro", uri=True) as db:
+            governing = set(
+                group_titles(
+                    db,
+                    str(sources["catalog_release_id"]),
+                    date.fromisoformat(str(answer["service_date"])),
+                )
+            )
+        groups = cast(list[dict[str, object]], answer["groups"])
+        evaluated = [(str(g["catalog"]), str(g["group"])) for g in groups]
+        skipped = [
+            (catalog, code)
+            for entry in cast(list[dict[str, object]], answer["not_evaluated"])
+            for catalog, codes in cast(dict[str, list[str]], entry["groups"]).items()
+            for code in codes
+        ]
+        # Every governing group is answered exactly once: evaluated or skipped.
+        assert sorted(evaluated + skipped) == sorted(governing | set(evaluated)), name
+        assert len(set(evaluated + skipped)) == len(evaluated + skipped), name
+        for group in groups:
+            trace = cast(list[dict[str, object]], group["trace"])
+            nodes = {cast(int, event["node"]): event for event in trace}
+            reachable: set[int] = set()
+            pending = list(cast(list[int], group["roots"]))
+            while pending:
+                node = pending.pop()
+                if node in reachable:
+                    continue
+                reachable.add(node)
+                parameters = cast(dict[str, object], nodes[node]["parameters"])
+                pending.extend(cast(list[int], parameters.get("children", [])))
+            # The trace is exactly the consulted conditions, nothing dangling.
+            assert set(nodes) == reachable, (name, group["group"])
+            verdicts = {str(event["verdict"]) for event in trace}
+            causes = set(cast(list[str], group["reasons"]))
+            if group["status"] == "invalid":
+                assert (
+                    "not_met" in verdicts
+                    or group["routing"] == "not_met"
+                    or ("not_in_governing_catalog" in causes)
+                ), (name, group["group"])
+            elif group["status"] == "undetermined":
+                assert (
+                    "undetermined" in verdicts or group["routing"] == "undetermined"
+                ), (
+                    name,
+                    group["group"],
+                )
+            assert len(cast(list[str], group["explanations"])) == len(causes)
 
 
 def test_trace_preserves_attribution_and_canonical_stay_ordinals(
