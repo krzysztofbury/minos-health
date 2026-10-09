@@ -350,8 +350,12 @@ def grouping_answer(
         if tariff_status == "bound"
         else [{"catalog": catalog, "group": code} for catalog, code in result.ranking],
         ranking_basis="final_points" if tariff_status == "bound" else "base_points",
+        # A characteristics group without a catalog title is still answered;
+        # otherwise a non-candidate could vanish from the response (#36).
         not_evaluated=_not_evaluated(
-            sorted(set(names) - evaluated_keys), underivable_keys, not_matched_keys
+            sorted((set(names) | not_matched_keys) - evaluated_keys),
+            underivable_keys,
+            not_matched_keys,
         ),
         sources={
             "catalog_release_id": source.catalog_release_id,

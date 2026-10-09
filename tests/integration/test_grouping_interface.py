@@ -211,6 +211,10 @@ def test_every_group_outcome_is_explained_by_the_trace_alone(tmp_path: Path) -> 
     from minos.store.grouper_rules import group_titles
 
     bundle = grouping_bundle(tmp_path)
+    unknown_report = grouping_body()
+    cast(dict[str, object], unknown_report["encounter"])["product_reporting"] = (
+        "unknown"
+    )
     with TestClient(create_app(bundle)) as client:
         answers = {
             name: cast(
@@ -218,41 +222,70 @@ def test_every_group_outcome_is_explained_by_the_trace_alone(tmp_path: Path) -> 
             )
             for name, body in _case_variants().items()
         }
+        unsupported = cast(
+            dict[str, object], client.post("/api/v1/group", json=unknown_report).json()
+        )
+    # Without an evaluable product report there is no trace; the answer says why.
+    assert unsupported["status"] == "unsupported_product_report"
+    assert any(
+        "produkt" in text for text in cast(list[str], unsupported["limitations"])
+    )
     for name, answer in answers.items():
         sources = cast(dict[str, object], answer["sources"])
         with sqlite3.connect(f"file:{bundle / 'minos.db'}?mode=ro", uri=True) as db:
-            governing = set(
+            titled = set(
                 group_titles(
                     db,
                     str(sources["catalog_release_id"]),
                     date.fromisoformat(str(answer["service_date"])),
                 )
             )
+            rows = cast(
+                list[tuple[str, str]],
+                db.execute(
+                    "SELECT catalog, code FROM characteristics_group WHERE release_id=?",
+                    (str(sources["characteristics_release_id"]),),
+                ).fetchall(),
+            )
+            characterised = set(rows)
         groups = cast(list[dict[str, object]], answer["groups"])
         evaluated = [(str(g["catalog"]), str(g["group"])) for g in groups]
-        skipped = [
-            (catalog, code)
-            for entry in cast(list[dict[str, object]], answer["not_evaluated"])
-            for catalog, codes in cast(dict[str, list[str]], entry["groups"]).items()
-            for code in codes
-        ]
-        # Every governing group is answered exactly once: evaluated or skipped.
-        assert sorted(evaluated + skipped) == sorted(governing | set(evaluated)), name
-        assert len(set(evaluated + skipped)) == len(evaluated + skipped), name
+        placed: dict[tuple[str, str], str] = {}
+        for entry in cast(list[dict[str, object]], answer["not_evaluated"]):
+            for catalog, codes in cast(dict[str, list[str]], entry["groups"]).items():
+                for code in codes:
+                    assert (catalog, code) not in placed, (name, code)
+                    placed[(catalog, code)] = str(entry["reason"])
+        underivable = {
+            (str(item["catalog"]), str(item["group"]))
+            for item in cast(list[dict[str, object]], answer["underivable"])
+        }
+        answered = set(evaluated) | set(placed) | underivable
+        # Every titled or characterised group is answered, none twice.
+        assert answered >= titled | characterised, name
+        assert len(set(evaluated)) == len(evaluated) and not set(evaluated) & set(
+            placed
+        )
+        # A placement reason is checked independently of the serializer.
+        for key, reason in placed.items():
+            assert (reason == "no_characteristics_group") == (key not in characterised)
         for group in groups:
             trace = cast(list[dict[str, object]], group["trace"])
             nodes = {cast(int, event["node"]): event for event in trace}
-            reachable: set[int] = set()
+            consulted: set[int] = set()
             pending = list(cast(list[int], group["roots"]))
             while pending:
                 node = pending.pop()
-                if node in reachable:
+                if node in consulted:
                     continue
-                reachable.add(node)
-                parameters = cast(dict[str, object], nodes[node]["parameters"])
-                pending.extend(cast(list[int], parameters.get("children", [])))
+                consulted.add(node)
+                event = nodes[node]
+                # Only executable expressions consult their children.
+                if event["kind"] in ("all", "any"):
+                    parameters = cast(dict[str, object], event["parameters"])
+                    pending.extend(cast(list[int], parameters.get("children", [])))
             # The trace is exactly the consulted conditions, nothing dangling.
-            assert set(nodes) == reachable, (name, group["group"])
+            assert set(nodes) == consulted, (name, group["group"])
             verdicts = {str(event["verdict"]) for event in trace}
             causes = set(cast(list[str], group["reasons"]))
             if group["status"] == "invalid":
