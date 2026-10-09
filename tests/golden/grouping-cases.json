@@ -1,0 +1,930 @@
+{
+  "schema": "minos.golden-grouping-cases.v1",
+  "notes": [
+    "Expected values are derived by hand from the cited rules, not recorded from engine output.",
+    "No complete public case bound to algorithm 1.1.2026 and the pinned acts was found on 2026-10-09; see docs/v0.0.1/golden-cases.md.",
+    "These cases verify the implementation against stated rules; they are not NFZ settlement or adjudication evidence."
+  ],
+  "cases": [
+    {
+      "id": "synthetic-a01-valid",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "algorithm_text",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "algorithm 1.1.2026, duration dw - dp (positions 145, 152)"
+      ],
+      "rule_paths": [
+        "procedure_presence",
+        "diagnosis_presence",
+        "all",
+        "duration_without_exclusions"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": []
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "valid"
+        },
+        "procedures": [
+          "retained"
+        ],
+        "ward_adjusted_days": 4,
+        "product_classes": []
+      }
+    },
+    {
+      "id": "synthetic-w-covers-procedure",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "synthetic product catalogs: 1w = {5.52.01.0001363}, 1b = {5.53.01.0000001}",
+        "algorithm 1.1.2026, products excluded from grouping and type W (repository positions 129, 140)",
+        "algorithm 1.1.2026, duration with an excluded product (positions 153-154), owner interpretation 2026-10-09: each W product subtracts end - start"
+      ],
+      "rule_paths": [
+        "product_w_exclusion",
+        "product_w_duration",
+        "procedure_presence"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.52.01.0001363",
+              "started_on": "2026-10-02",
+              "ended_on": "2026-10-03"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "invalid"
+        },
+        "procedures": [
+          "excluded"
+        ],
+        "ward_adjusted_days": 3,
+        "product_classes": [
+          "W"
+        ],
+        "product_release": "products-synthetic"
+      }
+    },
+    {
+      "id": "synthetic-w-inclusive-end",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "synthetic product catalogs: 1w = {5.52.01.0001363}, 1b = {5.53.01.0000001}",
+        "algorithm 1.1.2026, type W dates are inclusive (position 140)",
+        "algorithm 1.1.2026, duration with an excluded product (positions 153-154), owner interpretation 2026-10-09: each W product subtracts end - start"
+      ],
+      "rule_paths": [
+        "product_w_exclusion",
+        "product_w_inclusive_edge",
+        "product_w_duration"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.52.01.0001363",
+              "started_on": "2026-10-01",
+              "ended_on": "2026-10-02"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "invalid"
+        },
+        "procedures": [
+          "excluded"
+        ],
+        "ward_adjusted_days": 3,
+        "product_classes": [
+          "W"
+        ]
+      }
+    },
+    {
+      "id": "synthetic-w-outside-procedure",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "synthetic product catalogs: 1w = {5.52.01.0001363}, 1b = {5.53.01.0000001}",
+        "algorithm 1.1.2026, products excluded from grouping and type W (repository positions 129, 140)",
+        "algorithm 1.1.2026, duration with an excluded product (positions 153-154), owner interpretation 2026-10-09: each W product subtracts end - start"
+      ],
+      "rule_paths": [
+        "product_w_outside",
+        "product_w_duration"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.52.01.0001363",
+              "started_on": "2026-10-03",
+              "ended_on": "2026-10-04"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "valid"
+        },
+        "procedures": [
+          "retained"
+        ],
+        "ward_adjusted_days": 3,
+        "product_classes": [
+          "W"
+        ]
+      }
+    },
+    {
+      "id": "synthetic-neutral-product",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "synthetic product catalogs: 1w = {5.52.01.0001363}, 1b = {5.53.01.0000001}",
+        "owner decision 2026-10-09: products of other catalogs of the act do not exclude"
+      ],
+      "rule_paths": [
+        "product_neutral"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.53.01.0000001",
+              "started_on": "2026-10-01",
+              "ended_on": "2026-10-05"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "valid"
+        },
+        "procedures": [
+          "retained"
+        ],
+        "ward_adjusted_days": 4,
+        "product_classes": [
+          "neutral"
+        ]
+      }
+    },
+    {
+      "id": "synthetic-unknown-product",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "synthetic product catalogs: 1w = {5.52.01.0001363}, 1b = {5.53.01.0000001}",
+        "decision 2026-10-09: an unknown product leaves covered procedures and the duration undetermined"
+      ],
+      "rule_paths": [
+        "product_unknown",
+        "procedure_unresolved"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.99.99.9999999"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "undetermined"
+        },
+        "procedures": [
+          "unresolved"
+        ],
+        "ward_adjusted_days": null,
+        "product_classes": [
+          "unknown"
+        ]
+      }
+    },
+    {
+      "id": "synthetic-undated-procedure-partly-covered",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "synthetic product catalogs: 1w = {5.52.01.0001363}, 1b = {5.53.01.0000001}",
+        "decision 2026-10-09: an undated procedure is bounded by its attributed stay",
+        "algorithm 1.1.2026, duration with an excluded product (positions 153-154), owner interpretation 2026-10-09: each W product subtracts end - start"
+      ],
+      "rule_paths": [
+        "product_w_possible",
+        "procedure_unresolved",
+        "product_w_duration"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.52.01.0001363",
+              "started_on": "2026-10-02",
+              "ended_on": "2026-10-03"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "undetermined"
+        },
+        "procedures": [
+          "unresolved"
+        ],
+        "ward_adjusted_days": 3,
+        "product_classes": [
+          "W"
+        ]
+      }
+    },
+    {
+      "id": "synthetic-adjacent-w-products",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "synthetic",
+      "sources": [
+        "synthetic attachment 9: A01 needs a procedure from list A01 (100.01, 99.97910) and a principal diagnosis from list A01 (G60.4, E11.0)",
+        "synthetic product catalogs: 1w = {5.52.01.0001363}, 1b = {5.53.01.0000001}",
+        "decision 2026-10-09: adjacent W products exclude their union and leave the duration undetermined"
+      ],
+      "rule_paths": [
+        "product_w_exclusion",
+        "product_w_adjacent"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.52.01.0001363",
+              "started_on": "2026-10-02",
+              "ended_on": "2026-10-02"
+            },
+            {
+              "code": "5.52.01.0001363",
+              "started_on": "2026-10-03",
+              "ended_on": "2026-10-03"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "A01": "invalid"
+        },
+        "procedures": [
+          "excluded"
+        ],
+        "ward_adjusted_days": null,
+        "product_classes": [
+          "W",
+          "W"
+        ]
+      }
+    },
+    {
+      "id": "synthetic-incomplete-report",
+      "evidence": "synthetic_rule_fixture",
+      "interpretation": "algorithm_text",
+      "bundle": "synthetic",
+      "sources": [
+        "algorithm 1.1.2026, product exclusions need the complete product report (positions 129, 140)"
+      ],
+      "rule_paths": [
+        "product_report_incomplete"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-05",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-01",
+          "discharged_on": "2026-10-05",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 40,
+          "principal_diagnosis": {
+            "code": "G60.4",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "ward",
+              "department": "4000",
+              "admitted_on": "2026-10-01",
+              "discharged_on": "2026-10-05"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "100.01",
+              "performed_on": "2026-10-02",
+              "stay_id": "ward"
+            }
+          ],
+          "product_reporting": "unknown",
+          "settlement_products": []
+        }
+      },
+      "expected": {
+        "status": "unsupported_product_report",
+        "ward_adjusted_days": null
+      }
+    },
+    {
+      "id": "real-hernia-f72",
+      "evidence": "derived_from_pinned_source",
+      "interpretation": "algorithm_text",
+      "bundle": "real",
+      "sources": [
+        "attachment 9 of act 46/2026 after amendment 102: F72 needs a procedure from list F72, which holds 53.03",
+        "catalog 1a of the same act: F72 product 5.51.01.0006072"
+      ],
+      "rule_paths": [
+        "procedure_presence",
+        "duration_without_exclusions"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-02",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-09-28",
+          "discharged_on": "2026-10-02",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 51,
+          "principal_diagnosis": {
+            "code": "K40.9",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "surgery",
+              "department": "4500",
+              "admitted_on": "2026-09-28",
+              "discharged_on": "2026-10-02"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "53.03",
+              "performed_on": "2026-10-01",
+              "stay_id": "surgery"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": []
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "F72": "valid"
+        },
+        "procedures": [
+          "retained"
+        ],
+        "ward_adjusted_days": 4,
+        "product_classes": []
+      }
+    },
+    {
+      "id": "real-hernia-w-product",
+      "evidence": "derived_from_pinned_source",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "real",
+      "sources": [
+        "attachment 9 of act 46/2026 after amendment 102: F72 needs a procedure from list F72",
+        "catalog 1w of the same act (BAW document 44042): 5.54.01.0000001",
+        "algorithm 1.1.2026, products excluded from grouping and type W (repository positions 129, 140)",
+        "algorithm 1.1.2026, duration with an excluded product (positions 153-154), owner interpretation 2026-10-09: each W product subtracts end - start",
+        "grouping interface: candidates come only from retained or unresolved facts on directional lists; K40.9 is not on list F72"
+      ],
+      "rule_paths": [
+        "product_w_exclusion",
+        "product_w_duration",
+        "procedure_presence",
+        "candidate_requires_retained_fact"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-02",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-09-28",
+          "discharged_on": "2026-10-02",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 51,
+          "principal_diagnosis": {
+            "code": "K40.9",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "surgery",
+              "department": "4500",
+              "admitted_on": "2026-09-28",
+              "discharged_on": "2026-10-02"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "53.03",
+              "performed_on": "2026-10-01",
+              "stay_id": "surgery"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.54.01.0000001",
+              "started_on": "2026-09-30",
+              "ended_on": "2026-10-01"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "F72": "not_candidate"
+        },
+        "procedures": [
+          "excluded"
+        ],
+        "ward_adjusted_days": 3,
+        "product_classes": [
+          "W"
+        ]
+      }
+    },
+    {
+      "id": "real-hernia-own-jgp-product",
+      "evidence": "derived_from_pinned_source",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "real",
+      "sources": [
+        "catalog 1a of act 46/2026 after amendment 102: F72 product 5.51.01.0006072",
+        "owner decision 2026-10-09: JGP product codes do not exclude"
+      ],
+      "rule_paths": [
+        "product_neutral"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-02",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-09-28",
+          "discharged_on": "2026-10-02",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 51,
+          "principal_diagnosis": {
+            "code": "K40.9",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "surgery",
+              "department": "4500",
+              "admitted_on": "2026-09-28",
+              "discharged_on": "2026-10-02"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "53.03",
+              "performed_on": "2026-10-01",
+              "stay_id": "surgery"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.51.01.0006072",
+              "started_on": "2026-09-28",
+              "ended_on": "2026-10-02"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "F72": "valid"
+        },
+        "procedures": [
+          "retained"
+        ],
+        "ward_adjusted_days": 4,
+        "product_classes": [
+          "neutral"
+        ]
+      }
+    },
+    {
+      "id": "real-service-date-selects-amended-act",
+      "evidence": "derived_from_pinned_source",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "real",
+      "sources": [
+        "catalog 1b of act 46/2026 after amendment 102 (BAW document 44042) lists 5.52.01.0001597; catalog 1b of the original act (BAW document 43868) does not",
+        "owner decision 2026-10-09: the service date selects the act whose catalogs classify products",
+        "attachment 9 of act 46/2026 after amendment 102: F72 needs a procedure from list F72, which holds 53.03"
+      ],
+      "rule_paths": [
+        "product_act_selection",
+        "product_neutral"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-10-12",
+        "reporting_month": "2026-10-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-10-08",
+          "discharged_on": "2026-10-12",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 51,
+          "principal_diagnosis": {
+            "code": "K40.9",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "surgery",
+              "department": "4500",
+              "admitted_on": "2026-10-08",
+              "discharged_on": "2026-10-12"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "53.03",
+              "performed_on": "2026-10-11",
+              "stay_id": "surgery"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.52.01.0001597",
+              "started_on": "2026-10-08",
+              "ended_on": "2026-10-12"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "F72": "valid"
+        },
+        "procedures": [
+          "retained"
+        ],
+        "ward_adjusted_days": 4,
+        "product_classes": [
+          "neutral"
+        ],
+        "product_release": "products-46-2026-after-102-"
+      }
+    },
+    {
+      "id": "real-service-date-selects-original-act",
+      "evidence": "derived_from_pinned_source",
+      "interpretation": "owner_decision_2026_10_09",
+      "bundle": "real",
+      "sources": [
+        "catalog 1b of act 46/2026 after amendment 102 (BAW document 44042) lists 5.52.01.0001597; catalog 1b of the original act (BAW document 43868) does not",
+        "owner decision 2026-10-09: an older service date uses the older act's catalogs",
+        "decision 2026-10-09: an unknown product leaves covered procedures and the duration undetermined",
+        "attachment 9 of the original act 46/2026: F72 needs a procedure from list F72"
+      ],
+      "rule_paths": [
+        "product_act_selection",
+        "product_unknown",
+        "procedure_unresolved"
+      ],
+      "request": {
+        "schema_version": 1,
+        "service_date": "2026-05-12",
+        "reporting_month": "2026-05-01",
+        "declared_modifiers": [],
+        "encounter": {
+          "admitted_on": "2026-05-08",
+          "discharged_on": "2026-05-12",
+          "hospitalization_type": "hospitalization",
+          "age_completed_years": 51,
+          "principal_diagnosis": {
+            "code": "K40.9",
+            "hospitalization_level": true
+          },
+          "stays": [
+            {
+              "identifier": "surgery",
+              "department": "4500",
+              "admitted_on": "2026-05-08",
+              "discharged_on": "2026-05-12"
+            }
+          ],
+          "procedures": [
+            {
+              "code": "53.03",
+              "performed_on": "2026-05-11",
+              "stay_id": "surgery"
+            }
+          ],
+          "product_reporting": "complete",
+          "settlement_products": [
+            {
+              "code": "5.52.01.0001597",
+              "started_on": "2026-05-08",
+              "ended_on": "2026-05-12"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "status": "evaluated",
+        "groups": {
+          "F72": "undetermined"
+        },
+        "procedures": [
+          "unresolved"
+        ],
+        "ward_adjusted_days": null,
+        "product_classes": [
+          "unknown"
+        ],
+        "product_release": "products-46-2026-original-"
+      }
+    }
+  ]
+}
