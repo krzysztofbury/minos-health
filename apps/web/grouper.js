@@ -2,20 +2,21 @@
 (function () {
   "use strict";
   var NAMES = ["Hospitalizacja", "Pobyty na oddziałach", "Rozpoznania", "Procedury i produkty", "Wynik"];
-  var RESULT = 4, CODE = /^[A-Z0-9][A-Z0-9.\-]{0,15}$/;
+  var RESULT = 4, CODE = /^[A-Z0-9][A-Z0-9.\-]{0,15}$/, PRODUCT = /^\d\.\d{2}\.\d{2}\.\d{7}$/;
   var form = document.getElementById("group-form"), fields = document.getElementById("group-fields");
   var answer = document.getElementById("group-answer"), status = document.getElementById("group-status");
   var errorsBox = document.getElementById("step-errors"), summary = document.getElementById("case-summary");
   var back = document.getElementById("step-back"), next = document.getElementById("step-next");
   var current = 0, reached = 0, releases = {}, sequence = 0, controller = null, nextId = 0;
-  var wards = [], secondary = [], procedures = [], principal = null, declared = [];
+  var wards = [], secondary = [], procedures = [], products = [], principal = null, declared = [];
   var MARK = { met: "✓", not_met: "✗", undetermined: "?" };
   var SPOKEN = { met: "spełniony: ", not_met: "niespełniony: ", undetermined: "nierozstrzygnięty: " };
   var CMP = { lt: "<", le: "≤", gt: ">", ge: "≥" };
   var KINDS = { diagnosis_presence: 1, procedure_presence: 1, procedure_count: 1, patient_age: 1, episode_duration: 1, discharge_mode: 1, all: 1, any: 1 };
   var FACT = { completed_years: "wiek", duration_days: "czas pobytu", discharge_mode: "tryb wypisu" };
   var MODES = { hospitalization: "hospitalizacja", planned: "hospitalizacja planowa", one_day: "leczenie jednego dnia" };
-  var REPORTS = { empty: "Kompletny raport bez produktów", unknown: "Raport niepełny lub nieznany", present: "Raport z produktami" };
+  var REPORTS = { empty: "Kompletny raport bez produktów", unknown: "Raport niepełny lub nieznany", present: "Kompletny raport z produktami" };
+  var PRODUCT_CLASS = { W: "wyłączony z grupowania (katalog 1w): pominięto procedury z jego okresu", Wpartial: "wyłączony z grupowania (katalog 1w), bez obu dat: procedury z możliwego okresu są nierozstrzygnięte", neutral: "nie wpływa na grupowanie", unknown: "nie ustalono w odczytanych katalogach aktu: wpływ nierozstrzygnięty" };
 
   function el(tag, text, cls) { var node = document.createElement(tag); if (text !== undefined && text !== null) node.textContent = text; if (cls) node.className = cls; return node; }
   function byId(id) { return document.getElementById(id); }
@@ -186,6 +187,7 @@
     byId("service-date").parentElement.hidden = radio("service-mode") !== "other";
     byId("reporting-month").parentElement.hidden = radio("month-mode") !== "other";
     byId("discharge-other").hidden = byId("discharge-select").value !== "other";
+    byId("product-list").hidden = radio("product-report") !== "present";
   }
 
   /* Any edit makes an earlier answer obsolete; an in-flight response is refused by sequence. */
@@ -252,6 +254,18 @@
         if (when && !iso(when)) add(item.date, name + "podaj datę jako DD.MM.RRRR albo zostaw puste pole.");
         else if (when && !inEpisode(iso(when))) add(item.date, name + "data musi mieścić się w hospitalizacji.");
       });
+      if (radio("product-report") === "present") {
+        if (!products.length) add(byId("add-product"), "Dodaj produkty z raportu albo wybierz raport bez produktów.");
+        products.forEach(function (item, i) {
+          var name = "Produkt " + (i + 1) + ": ", start = item.start.value.trim(), end = item.end.value.trim();
+          if (!PRODUCT.test(item.code.value.trim())) add(item.code, name + "wpisz kod produktu rozliczeniowego, np. 5.52.01.0001363.");
+          [[item.start, start], [item.end, end]].forEach(function (pair) {
+            if (pair[1] && !iso(pair[1])) add(pair[0], name + "podaj datę jako DD.MM.RRRR albo zostaw puste pole.");
+            else if (pair[1] && !inEpisode(iso(pair[1]))) add(pair[0], name + "data musi mieścić się w hospitalizacji.");
+          });
+          if (iso(start) && iso(end) && iso(end) < iso(start)) add(item.end, name + "koniec nie może być wcześniejszy niż początek.");
+        });
+      }
     }
     return found;
   }
@@ -297,6 +311,21 @@
     search.input.addEventListener("input", refreshAttributions);
     wards.push(ward); byId("wards").append(row); refreshAttributions();
   }
+  /* Products keep every occurrence; a missing date stays unknown, never assumed. */
+  function addProduct() {
+    if (products.length >= 1000) return null;
+    var row = el("div", undefined, "fact-row"), head = el("div", undefined, "fact-head"), title = el("h3");
+    head.append(title); row.append(head);
+    var grid = el("div", undefined, "field-grid field-grid-3 fact-details"); row.append(grid);
+    var f = field(grid, "Kod produktu", { tip: "Kod produktu rozliczeniowego z raportu, np. 5.52.01.0001363. Rodzaj produktu ustalamy według katalogów aktu obowiązującego w dniu świadczenia." });
+    var input = el("input"); input.type = "text"; input.id = f.id; input.inputMode = "decimal"; input.maxLength = 15; input.placeholder = "5.00.00.0000000"; input.autocomplete = "off"; input.spellcheck = false; f.control.append(input);
+    var item = { row: row, title: title, code: input, start: dateField(grid, "Początek", false, true), end: dateField(grid, "Koniec", false, true) };
+    button(head, "Usuń", "link-button", function () { products.splice(products.indexOf(item), 1); row.remove(); renumberProducts(); invalidate(); });
+    products.push(item); renumberProducts(); byId("products").append(row);
+    return item;
+  }
+  function renumberProducts() { products.forEach(function (item, i) { item.title.textContent = "Produkt " + (i + 1); }); }
+
   /* One combobox for ICD codes (server search) and specialties (local dictionary). */
   function combobox(parent, title, settings) {
     var f = field(parent, title, { tip: settings.tip, control: "search-box" }), input = el("input"), list = el("ul", undefined, "suggestions");
@@ -421,7 +450,13 @@
     var data = { admitted_on: iso(value("admitted")), discharged_on: iso(value("discharged")), age_completed_years: Number(value("age")), hospitalization_type: radio("hospitalization"),
       principal_diagnosis: codeFact(principal, true), secondary_diagnoses: secondary.map(function (r) { return codeFact(r, true); }), procedures: procedures.map(function (r) { return codeFact(r, false); }),
       stays: wards.map(function (w) { return { identifier: w.id, department: w.department.value.trim(), admitted_on: iso(w.start.value), discharged_on: iso(w.end.value) }; }),
-      product_reporting: radio("product-report") === "empty" ? "complete" : "unknown", settlement_products: [] };
+      product_reporting: radio("product-report") === "unknown" ? "unknown" : "complete",
+      settlement_products: radio("product-report") === "present" ? products.map(function (item) {
+        var fact = { code: item.code.value.trim() };
+        if (iso(item.start.value)) fact.started_on = iso(item.start.value);
+        if (iso(item.end.value)) fact.ended_on = iso(item.end.value);
+        return fact;
+      }) : [] };
     if (dischargeMode()) data.discharge_mode = Number(dischargeMode());
     return { schema_version: 1, encounter: data, service_date: serviceDate(), reporting_month: reportingMonth() + "-01", declared_modifiers: declared.slice() };
   }
@@ -453,6 +488,11 @@
     var px = procedures.map(function (item) { var line = codeLine(item); if (item.date && iso(item.date.value)) line.append(el("span", pl(iso(item.date.value)), "case-role")); return line; });
     if (!px.length && reached > 3) px.push(el("p", "Bez procedur", "case-muted"));
     if (reached > 3) px.push(el("p", REPORTS[radio("product-report")], "case-muted"));
+    if (radio("product-report") === "present") products.forEach(function (item) {
+      var line = el("p", undefined, "case-code"), c = item.code.value.trim(), start = iso(item.start.value), end = iso(item.end.value);
+      if (!PRODUCT.test(c)) { line.append(el("span", "Nie podano kodu produktu", "is-empty")); px.push(line); return; }
+      line.append(chip(c), el("span", start || end ? (pl(start) || "?") + " - " + (pl(end) || "?") : "bez dat", "case-role")); px.push(line);
+    });
     sections.push(px);
     sections.push(declared.length ? [el("p", "Potwierdzone modyfikatory: " + declared.join(", "), "case-muted")] : []);
     summary.replaceChildren();
@@ -568,7 +608,10 @@
 
   function render(data, quiet) {
     answer.replaceChildren();
-    if (data.status !== "evaluated") { answer.append(el("p", "Ten raport produktów nie jest jeszcze obsługiwany, więc kwalifikacja nie została oceniona. Wybierz potwierdzony kompletny raport bez produktów, jeśli dokumentacja na to pozwala.", "group-notice")); status.className = "visually-hidden"; status.textContent = "Brak oceny dla tego raportu produktów."; return; }
+    if (data.status !== "evaluated") {
+      var why = data.status === "product_catalog_unavailable" ? "Zestaw reguł nie zawiera katalogów produktów aktu obowiązującego w dniu świadczenia, więc nie można ustalić, które procedury wyłączają podane produkty. Kwalifikacja nie została oceniona." : "Raport produktów jest niepełny, więc kwalifikacja nie została oceniona: brakujący produkt mógłby wyłączyć procedury. Podaj wszystkie produkty z raportu albo potwierdź raport bez produktów.";
+      answer.append(el("p", why, "group-notice")); status.className = "visually-hidden"; status.textContent = "Brak oceny dla tego raportu produktów."; return;
+    }
     var order = data.ranking.map(function (r) { return r.catalog + "/" + r.group; });
     var groups = data.groups.slice(), valid = order.map(function (key) { return groups.filter(function (g) { return g.catalog + "/" + g.group === key; })[0]; }).filter(Boolean);
     var n = valid.length;
@@ -578,6 +621,25 @@
     status.className = "visually-hidden";
     status.textContent = n ? "Gotowe: " + n + " " + plural(n, "grupa spełnia", "grupy spełniają", "grup spełnia") + " obsługiwane warunki." : "Gotowe: żadna grupa nie spełnia obsługiwanych warunków.";
     answer.append(verdict);
+    if (data.preparation.products.length) {
+      var reported = el("section", undefined, "product-effects"), plist = el("ul");
+      reported.append(el("h3", "Produkty w raporcie"));
+      data.preparation.products.forEach(function (product) {
+        var item = el("li", undefined, "product-" + product["class"]), line = el("p");
+        var kind = product["class"] === "W" && !(product.started_on && product.ended_on) ? "Wpartial" : product["class"];
+        line.append(chip(product.code), el("span", " " + (product.name || (product["class"] === "unknown" ? "Kod nieustalony w katalogach aktu" : "Bez nazwy w katalogu"))));
+        item.append(line, el("p", (product.started_on || product.ended_on ? (pl(product.started_on) || "?") + " - " + (pl(product.ended_on) || "?") + ": " : "") + (PRODUCT_CLASS[kind] || ""), "group-help"));
+        plist.append(item);
+      });
+      reported.append(plist);
+      // Trace ordinals follow the canonical procedure order of the preparation.
+      [["product_w_interval", "Pominięte procedury: "], ["product_interval_possible", "Procedury nierozstrzygnięte przez produkty: "]].forEach(function (pair) {
+        var codes = data.preparation.trace.filter(function (d) { return d.phase === "procedure_product" && d.reason === pair[0]; }).map(function (d) { return (data.preparation.procedures[d.ordinal - 1] || {}).code; }).filter(Boolean);
+        if (codes.length) reported.append(el("p", pair[1] + codes.join(", "), "group-help"));
+      });
+      if (data.preparation.ward_adjusted_days === null) reported.append(el("p", "Czas pobytu po wyłączeniach pozostaje nieustalony, więc warunki czasu pobytu są nierozstrzygnięte.", "group-help"));
+      answer.append(reported);
+    }
     valid.forEach(function (group, index) {
       var card = el("article", undefined, "verdict-group group-valid" + (index === 0 ? " is-top" : "") + (quiet ? " is-quiet" : "")); card.dataset.group = group.group;
       var head = el("div", undefined, "verdict-head"), name = el("div", undefined, "verdict-name"), worth = el("div", undefined, "verdict-points");
@@ -639,7 +701,7 @@
   async function evaluateCase(quiet) {
     var invalid = firstInvalid();
     if (invalid) { showStep(invalid.step, true); showProblems(invalid.found); return; }
-    if (radio("product-report") !== "empty") { render({ status: "unsupported_product_report" }); return; }
+    if (radio("product-report") === "unknown") { render({ status: "unsupported_product_report" }); return; }
     var version = ++sequence; if (controller) controller.abort();
     controller = new AbortController(); status.className = ""; status.textContent = "Sprawdzamy warunki grup...";
     try {
@@ -660,8 +722,8 @@
   function clearCase() {
     sequence++; if (controller) controller.abort(); answer.replaceChildren(); status.textContent = "";
     [principal].concat(secondary, procedures).filter(Boolean).forEach(function (r) { r.search.close(); });
-    form.reset(); wards = []; secondary = []; procedures = []; principal = null; declared = []; reached = 0;
-    ["wards", "principal", "secondary", "procedures"].forEach(function (id) { byId(id).replaceChildren(); });
+    form.reset(); wards = []; secondary = []; procedures = []; products = []; principal = null; declared = []; reached = 0;
+    ["wards", "principal", "secondary", "procedures", "products"].forEach(function (id) { byId(id).replaceChildren(); });
     hideTip(true); closePicker(false);
     addWard(); addCode("principal"); syncChoices(); showStep(0, false);
   }
@@ -684,6 +746,9 @@
   byId("add-ward").addEventListener("click", function () { addWard(); invalidate(); wards[wards.length - 1].department.focus(); });
   byId("add-secondary").addEventListener("click", function () { var item = addCode("secondary"); invalidate(); if (item) item.search.input.focus(); });
   byId("add-procedure").addEventListener("click", function () { var item = addCode("procedure"); invalidate(); if (item) item.search.input.focus(); });
+  byId("add-product").addEventListener("click", function () { var item = addProduct(); invalidate(); if (item) item.code.focus(); });
+  // Choosing a report with products opens its first row, ready to type.
+  form.querySelectorAll("input[name=product-report]").forEach(function (input) { input.addEventListener("change", function () { if (input.value === "present" && !products.length) { addProduct(); syncChoices(); products[0].code.focus(); } }); });
   byId("clear-case").addEventListener("click", clearCase);
   window.addEventListener("pagehide", clearCase);
   if (window.matchMedia("(max-width: 55rem)").matches) byId("case-card-details").open = false;

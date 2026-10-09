@@ -47,9 +47,10 @@ class Facts:
 def facts_from(
     preparation: PreparationResult, discharge_mode: int | None = None
 ) -> Facts:
-    product_free = (
-        preparation.product_reporting == "complete"
-        and not preparation.settlement_products
+    # Bound preparation already subtracted type W stays or left the duration
+    # undetermined; unbound products could still change it.
+    product_free = preparation.product_reporting == "complete" and (
+        not preparation.settlement_products or preparation.product_binding == "bound"
     )
     principal = preparation.principal_diagnosis
     return Facts(

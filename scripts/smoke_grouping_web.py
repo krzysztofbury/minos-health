@@ -7,8 +7,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from http.client import HTTPResponse
 from pathlib import Path
 from typing import cast, final
 
@@ -27,7 +29,9 @@ def smoke(
 
     with tempfile.TemporaryDirectory(prefix="minos-grouping-runtime-") as directory:
         root = Path(directory)
-        runtime = grouping_bundle(root) if bundle is None else root / "bundle"
+        runtime = (
+            grouping_bundle(root, products=True) if bundle is None else root / "bundle"
+        )
         if bundle is not None:
             _ = shutil.copytree(bundle, runtime)
         runtime.chmod(0o755)
@@ -190,6 +194,16 @@ def _smoke(
         assert all(s in (200, 429) for s, _, _ in burst), [(s, a) for s, a, _ in burst]
         assert any(s == 200 for s, _, _ in burst)
         assert get_json(base, "/readyz")[0] == 200
+        # One Cache-Control: the edge must not add no-store to the API's own (#155).
+        dictionaries = urllib.request.Request(
+            base + "/api/v1/grouping/dictionaries", headers={"Host": "minoshealth.pl"}
+        )
+        with cast(
+            HTTPResponse, urllib.request.urlopen(dictionaries, timeout=5)
+        ) as response:
+            assert response.headers.get_all("Cache-Control") == [
+                "public, max-age=300"
+            ], response.headers.get_all("Cache-Control")
         fixture = output / "artificial-case.json"
         _ = fixture.write_text(json.dumps(body))
         _ = subprocess.run(

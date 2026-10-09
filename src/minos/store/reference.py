@@ -183,6 +183,10 @@ def open_reference_bundle(
                     if len(_VALIDATED_SEARCH_SYNONYMS) >= 16:
                         _VALIDATED_SEARCH_SYNONYMS.clear()
                     _VALIDATED_SEARCH_SYNONYMS.add(key)
+            if manifest.schema_version >= 10:
+                from minos.store.product_catalogs import validate_product_bindings
+
+                validate_product_bindings(connection, manifest.dataset.product_catalogs)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources

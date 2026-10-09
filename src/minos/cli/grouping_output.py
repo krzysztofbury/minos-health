@@ -12,6 +12,7 @@ from minos.domain.grouper_rules import BasePoints, FinalPoints, NodeVerdict
 from minos.domain.grouping_request import (
     GroupingOutcome,
     GroupingRequest,
+    ProductCatalogMissing,
     UnsupportedProductReport,
 )
 from minos.store.artifact import ArtifactManifest, dataset_identity
@@ -55,7 +56,20 @@ REASONS = {
     "excluded_interval_merged": "Połączono pokrywające się wyłączone przedziały.",
     "stay_coverage_complete": "Zgłoszone pobyty pokrywają hospitalizację.",
     "stay_coverage_incomplete": "Zgłoszone pobyty nie pokrywają całej hospitalizacji.",
-    "product_catalog_unbound": "Brak obsługi wyłączeń produktów rozliczeniowych.",
+    "product_catalog_unbound": "Produkty rozliczeniowe nie zostały sklasyfikowane według katalogów aktu.",
+    "product_catalog_bound": "Produkty sklasyfikowano według katalogów aktu obowiązującego w dniu świadczenia.",
+    "product_w": "Produkt z katalogu 1w wyłącza procedury od daty rozpoczęcia do daty zakończenia włącznie.",
+    "product_w_incomplete": "Produkt z katalogu 1w bez obu dat: procedury z możliwego okresu pozostają nierozstrzygnięte.",
+    "product_neutral": "Produkt nie należy do katalogu 1w i nie wpływa na grupowanie.",
+    "product_unknown": "Kodu produktu nie ustalono w odczytanych katalogach aktu: jego wpływ jest nieznany.",
+    "product_w_interval": "Procedura wykonana w okresie produktu z katalogu 1w: wyłączona.",
+    "product_interval_possible": "Procedura mogła przypadać w okresie produktu wyłączającego lub nieznanego.",
+    "product_outside_intervals": "Procedura poza okresami produktów wyłączających.",
+    "product_duration_subtracted": "Od czasu pobytu odjęto czas produktów z katalogu 1w (data zakończenia minus data rozpoczęcia).",
+    "product_duration_unknown_product": "Nieznany lub niepełny produkt uniemożliwia ustalenie czasu pobytu.",
+    "product_duration_same_day": "Produkt z katalogu 1w w pobycie jednodniowym: czas pozostaje nieustalony.",
+    "product_duration_overlap": "Okresy produktów 1w lub wyłączonych oddziałów stykają się lub nakładają: czas pozostaje nieustalony.",
+    "duration_not_positive": "Czas pobytu po wyłączeniach nie jest dodatni.",
     "preparation_only": "Zakończono etap przygotowania faktów, poprzedzający ocenę grup.",
     "list_member": "Zgłoszony kod spełnia wymaganie listy.",
     "no_list_member": "Brak zachowanego kodu spełniającego wymaganie listy.",
@@ -248,10 +262,28 @@ def _not_evaluated(
     ]
 
 
+def _product_catalogs(
+    manifest: ArtifactManifest, release_id: str | None
+) -> dict[str, object] | None:
+    """Identity and checksums of the catalogs that classified the products."""
+    for item in manifest.dataset.product_catalogs:
+        if item.release_id == release_id:
+            return {
+                "release_id": item.release_id,
+                "baw_document_id": item.baw_document_id,
+                "files": [
+                    # An unparsed (legacy .xls) catalog leaves its codes unknown.
+                    {"sheet": f.sheet, "sha256": f.sha256, "parsed": f.parsed}
+                    for f in sorted(item.files, key=lambda f: f.sheet)
+                ],
+            }
+    return None
+
+
 def grouping_answer(
     manifest: ArtifactManifest,
     request: GroupingRequest,
-    outcome: GroupingOutcome | UnsupportedProductReport,
+    outcome: GroupingOutcome | UnsupportedProductReport | ProductCatalogMissing,
 ) -> dict[str, object]:
     """Wire schema v1 of one outcome. The answer echoes reported facts and is
     returned only to the caller; it is never stored or logged."""
@@ -277,7 +309,16 @@ def grouping_answer(
         )
         answer["limitations"] = [
             *LIMITATIONS,
-            "Wyłączenia produktów nie są obsługiwane (#145). Ocena wymaga potwierdzonego kompletnego raportu bez produktów rozliczeniowych.",
+            "Ocena wymaga potwierdzenia, że raport produktów rozliczeniowych jest kompletny (pusta lista oznacza brak produktów).",
+        ]
+        return answer
+    if isinstance(outcome, ProductCatalogMissing):
+        answer.update(
+            status="product_catalog_unavailable", tariff_status="not_evaluated"
+        )
+        answer["limitations"] = [
+            *LIMITATIONS,
+            "Zestaw danych nie zawiera katalogów produktów aktu obowiązującego w dniu świadczenia, więc zgłoszonych produktów nie można sklasyfikować.",
         ]
         return answer
     result = outcome.result
@@ -338,6 +379,12 @@ def grouping_answer(
             }
         )
     preparation = result.candidates.preparation
+    # A JGP product code is named by its group in the governing catalog.
+    product_names = {
+        code: (catalog, f"{group} {title}")
+        for (catalog, group), (title, code) in sorted(names.items())
+        if code
+    } | dict(outcome.product_names)
     evaluated_keys = {(g.catalog, g.group) for g in result.evaluations}
     underivable_keys = {
         (catalog, group) for catalog, group, _reason in result.candidates.underivable
@@ -350,8 +397,12 @@ def grouping_answer(
         if tariff_status == "bound"
         else [{"catalog": catalog, "group": code} for catalog, code in result.ranking],
         ranking_basis="final_points" if tariff_status == "bound" else "base_points",
+        # A characteristics group without a catalog title is still answered;
+        # otherwise a non-candidate could vanish from the response (#36).
         not_evaluated=_not_evaluated(
-            sorted(set(names) - evaluated_keys), underivable_keys, not_matched_keys
+            sorted((set(names) | not_matched_keys) - evaluated_keys),
+            underivable_keys,
+            not_matched_keys,
         ),
         sources={
             "catalog_release_id": source.catalog_release_id,
@@ -367,6 +418,9 @@ def grouping_answer(
             "catalog_knowledge_as_of": str(manifest.dataset.catalog_knowledge_as_of),
             "characteristics_knowledge_as_of": str(
                 manifest.dataset.characteristics_knowledge_as_of
+            ),
+            "product_catalogs": _product_catalogs(
+                manifest, preparation.product_release_id
             ),
             "tariff_bindings": [
                 {
@@ -400,6 +454,23 @@ def grouping_answer(
                 )
             ],
             "ward_adjusted_days": preparation.ward_adjusted_days,
+            "product_binding": preparation.product_binding,
+            "products": [
+                {
+                    "code": p.code,
+                    "started_on": p.started_on.isoformat() if p.started_on else None,
+                    "ended_on": p.ended_on.isoformat() if p.ended_on else None,
+                    "class": kind,
+                    "sheet": product_names.get(p.code, (None, None))[0],
+                    "name": product_names.get(p.code, (None, None))[1],
+                }
+                for p, kind in zip(
+                    preparation.settlement_products,
+                    preparation.product_classes
+                    or ("unclassified",) * len(preparation.settlement_products),
+                    strict=True,
+                )
+            ],
             "principal_diagnosis": {
                 "code": preparation.principal_diagnosis.fact.code,
                 "outcome": preparation.principal_diagnosis.outcome,

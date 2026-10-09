@@ -23,6 +23,7 @@ from minos.domain.encounter import (
 from minos.domain.grouper import (
     Decision,
     GrouperError,
+    ProductClassification,
     UnknownEngineBinding,
     UnsupportedAlgorithm,
 )
@@ -132,10 +133,10 @@ def test_product_occurrences_are_canonical_not_deduplicated_or_classified() -> N
         products[3],
     )
     assert result.product_binding == "unbound"
-    # This remains ward-only duration and qualification, not a product-adjusted
-    # value or a declaration that these products have no effect.
-    assert result.ward_adjusted_days == 9
-    assert result.procedures == engine.execute(key(), encounter()).procedures
+    # Unclassified products could exclude any procedure or shorten the stay, so
+    # nothing they might affect is reported as retained or as a duration.
+    assert result.ward_adjusted_days is None
+    assert {p.outcome for p in result.procedures} == {"unresolved"}
     assert result == engine.execute(
         key(), replace(facts, settlement_products=tuple(reversed(products)))
     )
@@ -224,7 +225,9 @@ def test_missing_rank_does_not_become_zero_or_borrow_another_scope() -> None:
 @pytest.mark.parametrize(
     ("service", "expected", "days"),
     [
-        ("4", "excluded", 0),
+        # A multi-day episode left with no grouping days is undetermined,
+        # not zero (decision 2026-10-09).
+        ("4", "excluded", None),
         ("1", "retained", 9),
         (None, "unresolved", None),
         ("01.0000.001.02", "unresolved", None),
@@ -477,13 +480,21 @@ def test_trace_has_capacity_for_maximum_encounter_and_fails_on_overflow() -> Non
             ),
         ),
     )
-    result = registry().execute(key(), facts)
-    assert len(result.procedures) == MAX_PROCEDURES
-    assert len(result.settlement_products) == MAX_SETTLEMENT_PRODUCTS
-    assert len(result.trace) <= MAX_TRACE_DECISIONS
-    assert (
-        len([d for d in result.trace if d.stage == "procedure_rank"]) == MAX_PROCEDURES
+    # The bound product path traces every product and procedure effect too.
+    classification = ProductClassification(
+        "products", "catalog", frozenset({"5.52.01.0001363"}), frozenset()
     )
+    for bound in (None, classification):
+        result = registry().execute(
+            key(), replace(facts, product_reporting="complete"), bound
+        )
+        assert len(result.procedures) == MAX_PROCEDURES
+        assert len(result.settlement_products) == MAX_SETTLEMENT_PRODUCTS
+        assert len(result.trace) <= MAX_TRACE_DECISIONS
+        assert (
+            len([d for d in result.trace if d.stage == "procedure_rank"])
+            == MAX_PROCEDURES
+        )
     accumulator = TraceAccumulator()
     for _ in range(MAX_TRACE_DECISIONS):
         accumulator.append(Decision("scope", 1, "unresolved", "preparation_only"))

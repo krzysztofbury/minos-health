@@ -24,9 +24,10 @@ are preserved. Known endpoints must be within the episode and ordered when both
 are known. `product_reporting` is `unknown` by default (omitted or partial report)
 or explicitly `complete`; a complete empty tuple reports no products, whereas
 an unknown empty tuple cannot establish absence. Complete reporting can still
-contain unknown dates. No product classification or W/V exclusion type is inferred
-or accepted from the caller. The preparation result reports classification as
-unbound until a reviewed product catalog and interpretation policy exist.
+contain unknown dates. No product classification or W/V exclusion type is
+accepted from the caller: the product catalogs of the act governing the service
+date classify each code (#145). Without them the result reports classification
+as unbound.
 
 Diagnoses carry one reporting level: an episode-local stay attribution, an
 explicit `hospitalization_level` report (the SWIAD `hospitalizacja` causes of

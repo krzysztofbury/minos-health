@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "transform_version": "jgp-reference-conditions-dictionaries-v5",
+  "transform_version": "jgp-reference-conditions-products-v6",
   "lockfile_sha256": "2343f00e7db876cc5c6920c2e87126b10ef9f7383c8295b6b559d3690133c203",
   "search_profile": "polish-folded-1",
   "search_synonyms": [
@@ -2979,5 +2979,499 @@
         }
       ]
     }
-  }
+  },
+  "product_catalogs": [
+    {
+      "release_id": "products-101-2025-original-1e6246e7b015",
+      "catalog_release_id": "jgp-catalog-101-2025-original-1e6246e7b015",
+      "baw_document_id": 43718,
+      "attachments": [
+        "Zalacznik1a.xlsx",
+        "Zalacznik1b.xlsx",
+        "Zalacznik1c.xlsx",
+        "Zalacznik1d.xlsx",
+        "Zalacznik1ows.xlsx",
+        "Zalacznik1ts.xls",
+        "Zalacznik1w.xlsx"
+      ],
+      "notices": [
+        "Product catalogs of the act, read from the reviewed product-code column only; other columns hold cross references to other catalogs.",
+        "1w is the excluded catalog of type W (algorithm 1.1.2026, owner decision 2026-10-09). The act has no 1v catalog.",
+        "1ts is legacy BIFF .xls; it is pinned but not parsed, so its product codes stay unknown."
+      ],
+      "files": [
+        {
+          "sheet": "1b",
+          "file_name": "Zalacznik1b.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27126",
+          "sha256": "90671abe9e9bdc55a59854560a3278c9c192be3bd1138f29865251b0bff3e955",
+          "size_bytes": 63073,
+          "fetched_at": "2026-10-09T07:07:08Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 131,
+          "expected_codes": 131
+        },
+        {
+          "sheet": "1c",
+          "file_name": "Zalacznik1c.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27127",
+          "sha256": "1d563b3a2567378d7546150515274a5803e622b40867d2e974b4e764a0ceeedd",
+          "size_bytes": 78132,
+          "fetched_at": "2026-10-09T07:07:09Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 169,
+          "expected_codes": 169
+        },
+        {
+          "sheet": "1d",
+          "file_name": "Zalacznik1d.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27128",
+          "sha256": "9d899b40cc1d3878cc4eb3669da268cda710936cef8ee127b04058b064a90b46",
+          "size_bytes": 19153,
+          "fetched_at": "2026-10-09T07:07:09Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 41,
+          "expected_codes": 41
+        },
+        {
+          "sheet": "1ows",
+          "file_name": "Zalacznik1ows.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27129",
+          "sha256": "20d5465d6a1a5107292440f92cd388865b38f23e0681ab790f95fc6655281fd9",
+          "size_bytes": 18001,
+          "fetched_at": "2026-10-09T07:07:09Z",
+          "parsed": true,
+          "worksheet": "OWS",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 74,
+          "expected_codes": 44
+        },
+        {
+          "sheet": "1ts",
+          "file_name": "Zalacznik1ts.xls",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27130",
+          "sha256": "6d746dd1f31205c5849c74f9074b41de661a424ae57b1d8da5c710154e757a33",
+          "size_bytes": 101376,
+          "fetched_at": "2026-10-09T07:07:09Z",
+          "parsed": false,
+          "worksheet": null,
+          "code_header": null,
+          "expected_rows": 0,
+          "expected_codes": 0
+        },
+        {
+          "sheet": "1w",
+          "file_name": "Zalacznik1w.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27131",
+          "sha256": "3313427cb280d987b4da1693b1729eef748222ecdcd9d19724984ee8ea011b3b",
+          "size_bytes": 21171,
+          "fetched_at": "2026-10-09T07:07:09Z",
+          "parsed": true,
+          "worksheet": "św. wysokospecjalistyczne",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 112,
+          "expected_codes": 75
+        }
+      ]
+    },
+    {
+      "release_id": "products-101-2025-after-14-c9a1cd619a78",
+      "catalog_release_id": "jgp-catalog-101-2025-after-14-c9a1cd619a78",
+      "baw_document_id": 43769,
+      "attachments": [
+        "Zalacznik1a.xlsx",
+        "Zalacznik1b.xlsx",
+        "Zalacznik1c.xlsx",
+        "Zalacznik1d.xlsx",
+        "Zalacznik1ows.xlsx",
+        "Zalacznik1ts.xls",
+        "Zalacznik1w.xlsx"
+      ],
+      "notices": [
+        "Product catalogs of the act, read from the reviewed product-code column only; other columns hold cross references to other catalogs.",
+        "1w is the excluded catalog of type W (algorithm 1.1.2026, owner decision 2026-10-09). The act has no 1v catalog.",
+        "1ts is legacy BIFF .xls; it is pinned but not parsed, so its product codes stay unknown."
+      ],
+      "files": [
+        {
+          "sheet": "1b",
+          "file_name": "Zalacznik1b.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27994",
+          "sha256": "3132b9d653e20a4319d49f90cc3acc3e056c9ae60edfe5674378dc7b83a96a7b",
+          "size_bytes": 62721,
+          "fetched_at": "2026-10-09T07:07:10Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 131,
+          "expected_codes": 131
+        },
+        {
+          "sheet": "1c",
+          "file_name": "Zalacznik1c.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27995",
+          "sha256": "6feff469b87dda18f82dc9d19cfa84f3285430bd6d98a97e58756d6246572faa",
+          "size_bytes": 77746,
+          "fetched_at": "2026-10-09T07:07:10Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 168,
+          "expected_codes": 168
+        },
+        {
+          "sheet": "1d",
+          "file_name": "Zalacznik1d.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27996",
+          "sha256": "9d899b40cc1d3878cc4eb3669da268cda710936cef8ee127b04058b064a90b46",
+          "size_bytes": 19153,
+          "fetched_at": "2026-10-09T07:07:10Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 41,
+          "expected_codes": 41
+        },
+        {
+          "sheet": "1ows",
+          "file_name": "Zalacznik1ows.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27997",
+          "sha256": "20d5465d6a1a5107292440f92cd388865b38f23e0681ab790f95fc6655281fd9",
+          "size_bytes": 18001,
+          "fetched_at": "2026-10-09T07:07:10Z",
+          "parsed": true,
+          "worksheet": "OWS",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 74,
+          "expected_codes": 44
+        },
+        {
+          "sheet": "1ts",
+          "file_name": "Zalacznik1ts.xls",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27998",
+          "sha256": "196b345448a12018e9b4b4e9f96e753dafaa58c84ef5cda0d339883801dc0c39",
+          "size_bytes": 101888,
+          "fetched_at": "2026-10-09T07:07:10Z",
+          "parsed": false,
+          "worksheet": null,
+          "code_header": null,
+          "expected_rows": 0,
+          "expected_codes": 0
+        },
+        {
+          "sheet": "1w",
+          "file_name": "Zalacznik1w.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/27999",
+          "sha256": "522d528b54f2dcb4f7c91771d83c2fe61bad5c3bab3835e01cbf4374927d6d46",
+          "size_bytes": 21321,
+          "fetched_at": "2026-10-09T07:07:10Z",
+          "parsed": true,
+          "worksheet": "św. wysokospecjalistyczne",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 112,
+          "expected_codes": 75
+        }
+      ]
+    },
+    {
+      "release_id": "products-46-2026-original-3d4197ceb459",
+      "catalog_release_id": "jgp-catalog-46-2026-original-3d4197ceb459",
+      "baw_document_id": 43868,
+      "attachments": [
+        "Zalacznik1a.xlsx",
+        "Zalacznik1b.xlsx",
+        "Zalacznik1c.xlsx",
+        "Zalacznik1d.xlsx",
+        "Zalacznik1ows.xlsx",
+        "Zalacznik1ts.xlsx",
+        "Zalacznik1w.xlsx"
+      ],
+      "notices": [
+        "Product catalogs of the act, read from the reviewed product-code column only; other columns hold cross references to other catalogs.",
+        "1w is the excluded catalog of type W (algorithm 1.1.2026, owner decision 2026-10-09). The act has no 1v catalog."
+      ],
+      "files": [
+        {
+          "sheet": "1b",
+          "file_name": "Zalacznik1b.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/29621",
+          "sha256": "f7a442abb912c4626f54aa268f1256fbb4bec75c5a0f6184eea674c6f5bbb7fb",
+          "size_bytes": 67149,
+          "fetched_at": "2026-10-09T07:07:33Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 134,
+          "expected_codes": 134
+        },
+        {
+          "sheet": "1c",
+          "file_name": "Zalacznik1c.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/29622",
+          "sha256": "c97cbaad8b14aee65c5b68a919766aa684a409dcda4dfbde276678b7f9986f40",
+          "size_bytes": 78230,
+          "fetched_at": "2026-10-09T07:07:33Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 168,
+          "expected_codes": 168
+        },
+        {
+          "sheet": "1d",
+          "file_name": "Zalacznik1d.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/29623",
+          "sha256": "b0023cb8191b5d8a28623c4b5402a13af4df14eb84e250ab10fe30813492fae4",
+          "size_bytes": 21789,
+          "fetched_at": "2026-10-09T07:07:34Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 41,
+          "expected_codes": 41
+        },
+        {
+          "sheet": "1ows",
+          "file_name": "Zalacznik1ows.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/29624",
+          "sha256": "2e023b2f20d4444b4951f2749a4251e7f0ae8e8df2867a4deac4acf4a8103dc2",
+          "size_bytes": 20642,
+          "fetched_at": "2026-10-09T07:07:34Z",
+          "parsed": true,
+          "worksheet": "OWS",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 74,
+          "expected_codes": 44
+        },
+        {
+          "sheet": "1ts",
+          "file_name": "Zalacznik1ts.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/29625",
+          "sha256": "00e4a8f5f2064dba878288c418e31bcb6aa8420df348a98e3778490a5c17f44b",
+          "size_bytes": 42663,
+          "fetched_at": "2026-10-09T07:07:34Z",
+          "parsed": true,
+          "worksheet": "1ts - katalog produktów TISS",
+          "code_header": "Kod produktu",
+          "expected_rows": 121,
+          "expected_codes": 121
+        },
+        {
+          "sheet": "1w",
+          "file_name": "Zalacznik1w.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/29626",
+          "sha256": "cf28f9077c7fa878e68bdfcb2b1510c2288ab2e7377729f83f555824ee3e6c75",
+          "size_bytes": 21225,
+          "fetched_at": "2026-10-09T07:07:34Z",
+          "parsed": true,
+          "worksheet": "św. wysokospecjalistyczne",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 112,
+          "expected_codes": 75
+        }
+      ]
+    },
+    {
+      "release_id": "products-46-2026-after-74-fbe73d5fb7a3",
+      "catalog_release_id": "jgp-catalog-46-2026-after-74-fbe73d5fb7a3",
+      "baw_document_id": 43943,
+      "attachments": [
+        "Zalacznik1a.xlsx",
+        "Zalacznik1b.xlsx",
+        "Zalacznik1c.xlsx",
+        "Zalacznik1d.xlsx",
+        "Zalacznik1ows.xlsx",
+        "Zalacznik1ts.xlsx",
+        "Zalacznik1w.xlsx"
+      ],
+      "notices": [
+        "Product catalogs of the act, read from the reviewed product-code column only; other columns hold cross references to other catalogs.",
+        "1w is the excluded catalog of type W (algorithm 1.1.2026, owner decision 2026-10-09). The act has no 1v catalog."
+      ],
+      "files": [
+        {
+          "sheet": "1b",
+          "file_name": "Zalacznik1b.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/30984",
+          "sha256": "f3afc9b72d5f5542610cb8ffa0b87e085ce0873a8c229f34092064b89011c900",
+          "size_bytes": 66027,
+          "fetched_at": "2026-10-09T07:07:35Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 136,
+          "expected_codes": 136
+        },
+        {
+          "sheet": "1c",
+          "file_name": "Zalacznik1c.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/30985",
+          "sha256": "b155a9ca4efc234b68333b590eabe2793a7340aa77050f7d6d962ac8bde5f1fe",
+          "size_bytes": 75905,
+          "fetched_at": "2026-10-09T07:07:35Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 168,
+          "expected_codes": 168
+        },
+        {
+          "sheet": "1d",
+          "file_name": "Zalacznik1d.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/30986",
+          "sha256": "b0023cb8191b5d8a28623c4b5402a13af4df14eb84e250ab10fe30813492fae4",
+          "size_bytes": 21789,
+          "fetched_at": "2026-10-09T07:07:35Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 41,
+          "expected_codes": 41
+        },
+        {
+          "sheet": "1ows",
+          "file_name": "Zalacznik1ows.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/30987",
+          "sha256": "2e023b2f20d4444b4951f2749a4251e7f0ae8e8df2867a4deac4acf4a8103dc2",
+          "size_bytes": 20642,
+          "fetched_at": "2026-10-09T07:07:35Z",
+          "parsed": true,
+          "worksheet": "OWS",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 74,
+          "expected_codes": 44
+        },
+        {
+          "sheet": "1ts",
+          "file_name": "Zalacznik1ts.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/30988",
+          "sha256": "00e4a8f5f2064dba878288c418e31bcb6aa8420df348a98e3778490a5c17f44b",
+          "size_bytes": 42663,
+          "fetched_at": "2026-10-09T07:07:35Z",
+          "parsed": true,
+          "worksheet": "1ts - katalog produktów TISS",
+          "code_header": "Kod produktu",
+          "expected_rows": 121,
+          "expected_codes": 121
+        },
+        {
+          "sheet": "1w",
+          "file_name": "Zalacznik1w.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/30989",
+          "sha256": "cf28f9077c7fa878e68bdfcb2b1510c2288ab2e7377729f83f555824ee3e6c75",
+          "size_bytes": 21225,
+          "fetched_at": "2026-10-09T07:07:35Z",
+          "parsed": true,
+          "worksheet": "św. wysokospecjalistyczne",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 112,
+          "expected_codes": 75
+        }
+      ]
+    },
+    {
+      "release_id": "products-46-2026-after-102-32dc947fc6ac",
+      "catalog_release_id": "jgp-catalog-46-2026-after-102-32dc947fc6ac",
+      "baw_document_id": 44042,
+      "attachments": [
+        "Zalacznik1a.xlsx",
+        "Zalacznik1b.xlsx",
+        "Zalacznik1c.xlsx",
+        "Zalacznik1d.xlsx",
+        "Zalacznik1ows.xlsx",
+        "Zalacznik1ts.xlsx",
+        "Zalacznik1w.xlsx"
+      ],
+      "notices": [
+        "Product catalogs of the act, read from the reviewed product-code column only; other columns hold cross references to other catalogs.",
+        "1w is the excluded catalog of type W (algorithm 1.1.2026, owner decision 2026-10-09). The act has no 1v catalog."
+      ],
+      "files": [
+        {
+          "sheet": "1b",
+          "file_name": "Zalacznik1b.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/32995",
+          "sha256": "f3afc9b72d5f5542610cb8ffa0b87e085ce0873a8c229f34092064b89011c900",
+          "size_bytes": 66027,
+          "fetched_at": "2026-10-09T07:07:37Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 136,
+          "expected_codes": 136
+        },
+        {
+          "sheet": "1c",
+          "file_name": "Zalacznik1c.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/32996",
+          "sha256": "50c1661fc824cadcd67be79d00dec2f69f5b3d5ec81e52afa0da8b1619acc4b4",
+          "size_bytes": 76602,
+          "fetched_at": "2026-10-09T07:07:37Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 168,
+          "expected_codes": 168
+        },
+        {
+          "sheet": "1d",
+          "file_name": "Zalacznik1d.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/32997",
+          "sha256": "b0023cb8191b5d8a28623c4b5402a13af4df14eb84e250ab10fe30813492fae4",
+          "size_bytes": 21789,
+          "fetched_at": "2026-10-09T07:07:37Z",
+          "parsed": true,
+          "worksheet": "Arkusz1",
+          "code_header": "Kod produktu",
+          "expected_rows": 41,
+          "expected_codes": 41
+        },
+        {
+          "sheet": "1ows",
+          "file_name": "Zalacznik1ows.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/32998",
+          "sha256": "2e023b2f20d4444b4951f2749a4251e7f0ae8e8df2867a4deac4acf4a8103dc2",
+          "size_bytes": 20642,
+          "fetched_at": "2026-10-09T07:07:37Z",
+          "parsed": true,
+          "worksheet": "OWS",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 74,
+          "expected_codes": 44
+        },
+        {
+          "sheet": "1ts",
+          "file_name": "Zalacznik1ts.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/32999",
+          "sha256": "00e4a8f5f2064dba878288c418e31bcb6aa8420df348a98e3778490a5c17f44b",
+          "size_bytes": 42663,
+          "fetched_at": "2026-10-09T07:07:37Z",
+          "parsed": true,
+          "worksheet": "1ts - katalog produktów TISS",
+          "code_header": "Kod produktu",
+          "expected_rows": 121,
+          "expected_codes": 121
+        },
+        {
+          "sheet": "1w",
+          "file_name": "Zalacznik1w.xlsx",
+          "source_url": "https://baw.nfz.gov.pl/api/file/4/33000",
+          "sha256": "cf28f9077c7fa878e68bdfcb2b1510c2288ab2e7377729f83f555824ee3e6c75",
+          "size_bytes": 21225,
+          "fetched_at": "2026-10-09T07:07:37Z",
+          "parsed": true,
+          "worksheet": "św. wysokospecjalistyczne",
+          "code_header": "Kod produktu rozliczeniowego",
+          "expected_rows": 112,
+          "expected_codes": 75
+        }
+      ]
+    }
+  ]
 }

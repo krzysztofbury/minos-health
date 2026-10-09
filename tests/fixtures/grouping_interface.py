@@ -3,6 +3,7 @@
 import hashlib
 import json
 import sqlite3
+from io import BytesIO
 from pathlib import Path
 from typing import cast
 
@@ -82,7 +83,69 @@ def stage_dictionaries(root: Path) -> dict[str, object]:
     }
 
 
-def grouping_bundle(root: Path) -> Path:
+# Synthetic codes; the real catalogs are checked by opt-in public-source tests.
+W_PRODUCT = "5.52.01.0001363"
+NEUTRAL_PRODUCT = "5.53.01.0000001"
+PRODUCT_SHEETS = {
+    "1w": ("Kod produktu rozliczeniowego", {W_PRODUCT: "Synthetic excluded product"}),
+    "1b": ("Kod produktu", {NEUTRAL_PRODUCT: "Synthetic separate product"}),
+}
+
+
+def _product_workbook(header: str, rows: dict[str, str]) -> bytes:
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    assert sheet is not None
+    sheet.title = "Arkusz1"
+    sheet.append(["Załącznik nr 1 (synthetic)"])
+    sheet.append(["Lp.", "Zakres", header, "Nazwa produktu rozliczeniowego"])
+    sheet.append([1, 2, 3, 4])
+    for ordinal, (code, name) in enumerate(rows.items(), 1):
+        sheet.append([ordinal, "synthetic", code, name])
+    output = BytesIO()
+    book.save(output)
+    return output.getvalue()
+
+
+def stage_product_catalogs(root: Path, document: int) -> list[dict[str, object]]:
+    """One act's catalogs, bound to the synthetic JGP catalog release."""
+    directory = root / "blobs" / "sha256"
+    directory.mkdir(parents=True, exist_ok=True)
+    files: list[dict[str, object]] = []
+    for number, (sheet, (header, rows)) in enumerate(PRODUCT_SHEETS.items(), 1):
+        content = _product_workbook(header, rows)
+        digest = hashlib.sha256(content).hexdigest()
+        _ = (directory / digest).write_bytes(content)
+        files.append(
+            {
+                "sheet": sheet,
+                "file_name": f"Zalacznik{sheet}.xlsx",
+                "source_url": f"https://baw.nfz.gov.pl/api/file/4/{number}",
+                "sha256": digest,
+                "size_bytes": len(content),
+                "fetched_at": "2026-10-09T07:00:00Z",
+                "parsed": True,
+                "worksheet": "Arkusz1",
+                "code_header": header,
+                "expected_rows": len(rows),
+                "expected_codes": len(rows),
+            }
+        )
+    return [
+        {
+            "release_id": "products-synthetic",
+            "catalog_release_id": "jgp-catalog-synthetic",
+            "baw_document_id": document,
+            "attachments": ["Zalacznik1a.xlsx", "Zalacznik1b.xlsx", "Zalacznik1w.xlsx"],
+            "notices": ["synthetic"],
+            "files": files,
+        }
+    ]
+
+
+def grouping_bundle(root: Path, *, products: bool = False) -> Path:
     source = consumer_bundle(root)
     manifest = read_artifact_manifest(source).dataset
     notice = stage_komunikat(root, "icd9-czs-synthetic-v1")
@@ -93,6 +156,11 @@ def grouping_bundle(root: Path) -> Path:
                 "komunikaty": [notice.model_dump(mode="json")],
                 "search_profile": "polish-folded-1",
                 "grouping_dictionaries": stage_dictionaries(root),
+                "product_catalogs": stage_product_catalogs(
+                    root, manifest.catalogs[0].baw_document_id
+                )
+                if products
+                else [],
             }
         )
     )

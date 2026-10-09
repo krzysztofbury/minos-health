@@ -5,8 +5,10 @@ import json
 import logging
 import subprocess
 import sys
-from collections.abc import AsyncIterator
+import time
+from collections.abc import AsyncIterator, Callable
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from pathlib import Path
 from threading import Event
 from typing import cast
@@ -150,6 +152,164 @@ def test_dictionaries_offer_named_codes_with_derived_children(tmp_path: Path) ->
     assert missing.json()["error"]["code"] == "dictionaries_unavailable"
 
 
+def test_warmup_status_reaches_the_configured_api_logger(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from minos.grouper import pipeline
+
+    app = create_app(grouping_bundle(tmp_path))
+    with caplog.at_level(logging.INFO, logger="minos.http"), TestClient(app):
+        prepared = cast(pipeline.PreparedSources, app.state.grouping_prepared)
+        assert prepared.warmed.wait(10)
+        for _ in range(100):
+            if any(r.name == "minos.http.warmup" for r in caplog.records):
+                break
+            time.sleep(0.02)
+    events = [
+        cast(dict[str, object], json.loads(record.getMessage()))
+        for record in caplog.records
+        if record.name == "minos.http.warmup"
+    ]
+    # #155: only the `minos.http` hierarchy has a handler in production.
+    assert len(events) == 1
+    assert set(events[0]) == {
+        "event",
+        "status",
+        "sheets",
+        "product_catalogs",
+        "duration_ms",
+    }
+    assert events[0]["status"] == "completed"
+
+
+def _case_variants() -> dict[str, dict[str, object]]:
+    def changed(edit: Callable[[dict[str, object]], None]) -> dict[str, object]:
+        body = grouping_body()
+        edit(cast(dict[str, object], body["encounter"]))
+        return body
+
+    return {
+        "valid": grouping_body(),
+        # Specialty 0010 is excluded only for service code 4, which is unknown here.
+        "unresolved_stay": changed(
+            lambda e: cast(list[dict[str, object]], e["stays"])[0].__setitem__(
+                "department", "0010"
+            )
+        ),
+        "no_procedure": changed(lambda e: e.__setitem__("procedures", [])),
+        "unattributed": changed(
+            lambda e: e.__setitem__(
+                "procedures", [{"code": "100.01", "performed_on": "2026-10-02"}]
+            )
+        ),
+        "unrelated": changed(
+            lambda e: e.__setitem__(
+                "principal_diagnosis", {"code": "Z00.0", "hospitalization_level": True}
+            )
+        ),
+    }
+
+
+def test_every_group_outcome_is_explained_by_the_trace_alone(tmp_path: Path) -> None:
+    """#36: 'why this group and not X' needs no engine code, for every case."""
+    import sqlite3
+
+    from minos.store.grouper_rules import group_titles
+
+    bundle = grouping_bundle(tmp_path)
+    unknown_report = grouping_body()
+    cast(dict[str, object], unknown_report["encounter"])["product_reporting"] = (
+        "unknown"
+    )
+    with TestClient(create_app(bundle)) as client:
+        answers = {
+            name: cast(
+                dict[str, object], client.post("/api/v1/group", json=body).json()
+            )
+            for name, body in _case_variants().items()
+        }
+        unsupported = cast(
+            dict[str, object], client.post("/api/v1/group", json=unknown_report).json()
+        )
+    # Without an evaluable product report there is no trace; the answer says why.
+    assert unsupported["status"] == "unsupported_product_report"
+    assert any(
+        "produkt" in text for text in cast(list[str], unsupported["limitations"])
+    )
+    for name, answer in answers.items():
+        sources = cast(dict[str, object], answer["sources"])
+        with sqlite3.connect(f"file:{bundle / 'minos.db'}?mode=ro", uri=True) as db:
+            titled = set(
+                group_titles(
+                    db,
+                    str(sources["catalog_release_id"]),
+                    date.fromisoformat(str(answer["service_date"])),
+                )
+            )
+            rows = cast(
+                list[tuple[str, str]],
+                db.execute(
+                    "SELECT catalog, code FROM characteristics_group WHERE release_id=?",
+                    (str(sources["characteristics_release_id"]),),
+                ).fetchall(),
+            )
+            characterised = set(rows)
+        groups = cast(list[dict[str, object]], answer["groups"])
+        evaluated = [(str(g["catalog"]), str(g["group"])) for g in groups]
+        placed: dict[tuple[str, str], str] = {}
+        for entry in cast(list[dict[str, object]], answer["not_evaluated"]):
+            for catalog, codes in cast(dict[str, list[str]], entry["groups"]).items():
+                for code in codes:
+                    assert (catalog, code) not in placed, (name, code)
+                    placed[(catalog, code)] = str(entry["reason"])
+        underivable = {
+            (str(item["catalog"]), str(item["group"]))
+            for item in cast(list[dict[str, object]], answer["underivable"])
+        }
+        answered = set(evaluated) | set(placed) | underivable
+        # Every titled or characterised group is answered, none twice.
+        assert answered >= titled | characterised, name
+        assert len(set(evaluated)) == len(evaluated) and not set(evaluated) & set(
+            placed
+        )
+        # A placement reason is checked independently of the serializer.
+        for key, reason in placed.items():
+            assert (reason == "no_characteristics_group") == (key not in characterised)
+        for group in groups:
+            trace = cast(list[dict[str, object]], group["trace"])
+            nodes = {cast(int, event["node"]): event for event in trace}
+            consulted: set[int] = set()
+            pending = list(cast(list[int], group["roots"]))
+            while pending:
+                node = pending.pop()
+                if node in consulted:
+                    continue
+                consulted.add(node)
+                event = nodes[node]
+                # Only executable expressions consult their children.
+                if event["kind"] in ("all", "any"):
+                    parameters = cast(dict[str, object], event["parameters"])
+                    pending.extend(cast(list[int], parameters.get("children", [])))
+            # The trace is exactly the consulted conditions, nothing dangling.
+            assert set(nodes) == consulted, (name, group["group"])
+            verdicts = {str(event["verdict"]) for event in trace}
+            causes = set(cast(list[str], group["reasons"]))
+            if group["status"] == "invalid":
+                assert (
+                    "not_met" in verdicts
+                    or group["routing"] == "not_met"
+                    or ("not_in_governing_catalog" in causes)
+                ), (name, group["group"])
+            elif group["status"] == "undetermined":
+                assert (
+                    "undetermined" in verdicts or group["routing"] == "undetermined"
+                ), (
+                    name,
+                    group["group"],
+                )
+            assert len(cast(list[str], group["explanations"])) == len(causes)
+
+
 def test_trace_preserves_attribution_and_canonical_stay_ordinals(
     tmp_path: Path,
 ) -> None:
@@ -279,14 +439,6 @@ def test_payload_caps_duplicate_keys_and_product_unknowns(tmp_path: Path) -> Non
         answer = cast(dict[str, object], client.post("/api/v1/group", json=body).json())
         assert (
             answer["status"] == "unsupported_product_report" and answer["groups"] == []
-        )
-        cast(dict[str, object], body["encounter"])["product_reporting"] = "complete"
-        cast(dict[str, object], body["encounter"])["settlement_products"] = [
-            {"code": "5.52.01.0001363"}
-        ]
-        assert (
-            client.post("/api/v1/group", json=body).json()["status"]
-            == "unsupported_product_report"
         )
         assert client.get("/healthz").status_code == 200
 

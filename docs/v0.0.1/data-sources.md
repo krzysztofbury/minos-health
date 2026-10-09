@@ -90,6 +90,26 @@ are notification-only unless product scope changes. Projects are monitored at
 <https://www.nfz.gov.pl/zarzadzenia-prezesa/projekty-zarzadzen/> and never
 treated as issued rules.
 
+## Settlement Product Catalogs (#145)
+
+Every pinned act publishes product catalogs 1b, 1c, 1d, 1ows, 1ts and 1w beside
+1a/1ae, and no 1v. `manifests/sources/product-catalogs.json` pins each file by
+BAW file ID, SHA-256 and byte count, and binds the set to the act's JGP catalog
+release. Only the reviewed product-code column is read (header `Kod produktu` or
+`Kod produktu rozliczeniowego`, name in the next column): other columns hold
+cross references to codes of other catalogs, which a whole-sheet scan misread as
+memberships. Row and unique-code counts are part of the review; any drift fails
+the build. Legacy BIFF `.xls` files (1ts of act 101/2025) are pinned but not
+parsed, so their codes stay unknown. 1w is the excluded catalog of type W.
+
+| Act | BAW document | File IDs 1b, 1c, 1d, 1ows, 1ts, 1w |
+| --- | ---: | --- |
+| `101/2025` original | `43718` | `27126`-`27131` |
+| `101/2025` after `14/2026` | `43769` | `27994`-`27999` |
+| `46/2026` original | `43868` | `29621`-`29626` |
+| `46/2026` after `74/2026` | `43943` | `30984`-`30989` |
+| `46/2026` after `102/2026` | `44042` | `32995`-`33000` |
+
 ## BAW Document And Attachment Retrieval
 
 The BAW page is an AngularJS shell, but browser automation is not required for

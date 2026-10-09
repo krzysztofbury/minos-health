@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { waitForDevToolsPort } from "./devtools-port.mjs";
 
-const [, , executable, url, output, bodyFile, expected] = process.argv;
+const [, , executable, url, output, bodyFile, expected, product = "5.52.01.0001363"] = process.argv;
 assert.ok(executable && url && output && bodyFile && expected);
 const body = JSON.parse(await readFile(bodyFile, "utf8"));
 const profile = await mkdtemp(path.join(os.tmpdir(), "minos-grouping-browser-"));
@@ -163,9 +163,24 @@ try {
     assert.equal(await evaluate("document.querySelectorAll('.verdict-group').length"), 0);
     await set("#age", String(e.age_completed_years));
     await click("[data-goto='3']"); await step(3);
+    // A complete report with products: the first row opens, an empty code blocks the step.
     await click("input[name=product-report][value=present]");
+    await wait("document.querySelectorAll('#products .fact-row').length === 1 && !document.getElementById('product-list').hidden");
+    await click("#step-next");
+    assert.equal(await evaluate("document.querySelector('[data-step=\"3\"]').hidden"), false);
+    assert.equal(await evaluate("document.querySelector('#products input').getAttribute('aria-invalid')"), "true");
+    await set("#products .fact-row input", product);
+    await set("#products .fact-row .date-pl", pl(e.admitted_on));
+    await evaluate(`(() => { const e=document.querySelectorAll('#products .fact-row .date-pl')[1]; e.value=${JSON.stringify(pl(e.admitted_on))}; e.dispatchEvent(new Event('input',{bubbles:true})); })()`);
     await next(4);
-    await wait("document.getElementById('group-answer').textContent.includes('nie jest jeszcze obsługiwany')");
+    await wait(`(document.querySelector('.product-effects') || {textContent: ''}).textContent.includes(${JSON.stringify(product)})`);
+    await shot("grouping-products-" + name);
+    // An incomplete report is refused before any request: a missing product could exclude procedures.
+    await click("[data-goto='3']"); await step(3);
+    await click("input[name=product-report][value=unknown]");
+    assert.equal(await evaluate("document.getElementById('product-list').hidden"), true);
+    await next(4);
+    await wait("document.getElementById('group-answer').textContent.includes('Raport produktów jest niepełny')");
     assert.equal(await evaluate("document.querySelectorAll('.verdict-group').length"), 0);
     await click("#clear-case");
     await step(0);
@@ -176,7 +191,7 @@ try {
   // Chromium records the date input's built-in data: calendar icon as a request.
   // It never leaves the browser. Every actual network request stays same-origin.
   assert.deepEqual(requests.filter(r => new URL(r).protocol !== "data:" && (new URL(r).origin !== new URL(url).origin || new URL(r).search)), []);
-  console.log("Grouping browser passed: desktop/mobile steps, Polish dates, validation, keyboard code search, modifier confirmation, trace, stale response refusal, product refusal, clear and storage privacy.");
+  console.log("Grouping browser passed: desktop/mobile steps, Polish dates, validation, keyboard code search, modifier confirmation, trace, stale response refusal, product rows and classification, incomplete report refusal, clear and storage privacy.");
 } finally {
   if (socket) socket.close();
   browser.kill("SIGTERM");

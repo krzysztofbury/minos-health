@@ -8,7 +8,13 @@ import calendar
 import re
 from datetime import date
 
-from minos.domain.encounter import Diagnosis, Encounter, Procedure, WardStay
+from minos.domain.encounter import (
+    Diagnosis,
+    Encounter,
+    Procedure,
+    SettlementProduct,
+    WardStay,
+)
 from minos.domain.grouper import (
     AlgorithmData,
     CountingPolicy,
@@ -18,15 +24,23 @@ from minos.domain.grouper import (
     GrouperError,
     Outcome,
     PreparationResult,
+    ProductClassification,
     QualifiedDiagnosis,
     RankedProcedure,
     Reason,
     UnsupportedAlgorithm,
 )
 from minos.domain.komunikat import DepartmentSpecialty, ProcedureRank
+from minos.grouper.products import (
+    ProductContext,
+    analyse,
+    procedure_effect,
+    touching,
+    unclassified,
+)
 from minos.grouper.trace import TraceAccumulator
 
-ENGINE_VERSION = "szp-preparation-1"
+ENGINE_VERSION = "szp-preparation-2"
 # All hardcoded w:p coordinates below belong to these reviewed DOCX bytes.
 # A matching version string cannot establish the same rules or coordinates.
 ALGORITHM_SHA256 = "a233b231e2d20448f14d28187590803bce743371b727d3c7d6c5dd4fba8de51c"
@@ -174,6 +188,7 @@ def _procedures(
     stays: dict[str, Outcome],
     covered: bool,
     trace: TraceAccumulator,
+    products: ProductContext | None,
 ) -> tuple[RankedProcedure, ...]:
     ranks = {row.code: row for row in data.ranks}
     result: list[RankedProcedure] = []
@@ -186,11 +201,16 @@ def _procedures(
             p.stay_id or "",
         ),
     )
+    episodes = {stay.identifier: stay for stay in encounter.stays}
     for ordinal, fact in enumerate(ordered, 1):
         outcome, reason = _qualify(fact.stay_id, stays, covered)
         trace.append(
             Decision("procedure", ordinal, outcome, reason, _algorithm(119, 129))
         )
+        if products is not None:
+            outcome = _product_outcome(
+                fact, outcome, episodes, encounter, products, ordinal, trace
+            )
         if outcome != "retained":
             trace.append(Decision("procedure_rank", ordinal, outcome, "not_ranked"))
             result.append(RankedProcedure(fact, outcome, None, "unknown"))
@@ -260,11 +280,114 @@ def _age(encounter: Encounter, trace: TraceAccumulator) -> int | None:
     return value
 
 
+def _product_outcome(
+    fact: Procedure,
+    ward: Outcome,
+    stays: dict[str, WardStay],
+    encounter: Encounter,
+    products: ProductContext,
+    ordinal: int,
+    trace: TraceAccumulator,
+) -> Outcome:
+    """Combine a ward outcome with type W products (owner decision 2026-10-09).
+
+    A ward exclusion outranks a product "unresolved" and a W exclusion
+    outranks a ward "unresolved". An undated procedure happened on some day of
+    its attributed stay, else of the episode.
+    """
+    stay = stays.get(fact.stay_id or "")
+    possible = (
+        (fact.performed_on, fact.performed_on)
+        if fact.performed_on is not None
+        else (stay.admitted_on, stay.discharged_on)
+        if stay is not None
+        else (encounter.admitted_on, encounter.discharged_on)
+    )
+    effect = procedure_effect(products, possible)
+    if ward == "excluded" or effect is None:
+        trace.append(
+            Decision(
+                "procedure_product",
+                ordinal,
+                ward,
+                "stay_excluded" if ward == "excluded" else "product_outside_intervals",
+                _algorithm(129, 140),
+            )
+        )
+        return ward
+    if effect == "excluded":
+        trace.append(
+            Decision(
+                "procedure_product",
+                ordinal,
+                "excluded",
+                "product_w_interval",
+                _algorithm(129, 140),
+            )
+        )
+        return "excluded"
+    trace.append(
+        Decision(
+            "procedure_product",
+            ordinal,
+            "unresolved",
+            "product_interval_possible",
+            _algorithm(129, 140),
+        )
+    )
+    return "unresolved"
+
+
+def _products(
+    products: tuple[SettlementProduct, ...],
+    classification: ProductClassification,
+    episode: tuple[date, date],
+    trace: TraceAccumulator,
+) -> ProductContext:
+    context = analyse(products, classification, episode)
+    for ordinal, (product, kind) in enumerate(
+        zip(products, context.classes, strict=True), 1
+    ):
+        start, end = product.started_on, product.ended_on
+        if kind == "neutral":
+            decision = Decision(
+                "product", ordinal, "retained", "product_neutral", _algorithm(129)
+            )
+        elif kind == "W" and start is not None and end is not None:
+            decision = Decision(
+                "product",
+                ordinal,
+                "excluded",
+                "product_w",
+                _algorithm(129, 140),
+                (end - start).days,
+            )
+        elif kind == "W":
+            decision = Decision(
+                "product",
+                ordinal,
+                "unresolved",
+                "product_w_incomplete",
+                _algorithm(129, 140),
+            )
+        else:
+            decision = Decision(
+                "product",
+                ordinal,
+                "unresolved",
+                "product_unknown",
+                _algorithm(129, 140, 141),
+            )
+        trace.append(decision)
+    return context
+
+
 def _ward_duration(
     encounter: Encounter,
     stays: dict[str, Outcome],
     covered: bool,
     trace: TraceAccumulator,
+    products: ProductContext | None,
 ) -> int | None:
     if (
         encounter.hospitalization_type == "one_day"
@@ -317,9 +440,47 @@ def _ward_duration(
             )
         )
     raw_days = (encounter.discharged_on - encounter.admitted_on).days
-    if raw_days == 0:
+    same_day = raw_days == 0
+    if same_day:
         raw_days = 1
-    days = raw_days - sum((end - start).days for start, end in merged)
+    subtracted = 0
+    if products is not None and (products.unknown or products.w_intervals):
+        blocker = _product_duration_blocker(products, merged, same_day)
+        if blocker is not None:
+            trace.append(
+                Decision(
+                    "product_duration",
+                    1,
+                    "unresolved",
+                    blocker,
+                    _algorithm(129, 153, 154),
+                )
+            )
+            return None
+        subtracted = sum((end - start).days for start, end in products.w_intervals)
+        trace.append(
+            Decision(
+                "product_duration",
+                1,
+                "recorded",
+                "product_duration_subtracted",
+                _algorithm(129, 153, 154),
+                subtracted,
+            )
+        )
+    days = raw_days - sum((end - start).days for start, end in merged) - subtracted
+    if days <= 0 and not same_day:
+        # A multi-day stay cannot last no time; points already refuse it.
+        trace.append(
+            Decision(
+                "ward_duration",
+                1,
+                "unresolved",
+                "duration_not_positive",
+                _algorithm(145, 152),
+            )
+        )
+        return None
     trace.append(
         Decision(
             "ward_duration",
@@ -333,8 +494,28 @@ def _ward_duration(
     return days
 
 
+def _product_duration_blocker(
+    products: ProductContext, wards: list[tuple[date, date]], same_day: bool
+) -> Reason | None:
+    """Why W products leave the duration undetermined, if they do."""
+    if products.unknown:
+        return "product_duration_unknown_product"
+    if same_day:
+        # The same-day formula and the subtraction disagree for dw = dp.
+        return "product_duration_same_day"
+    intervals = sorted(products.w_intervals)
+    if any(touching(a, b) for a, b in zip(intervals, intervals[1:], strict=False)):
+        return "product_duration_overlap"
+    if any(touching(w, ward) for w in intervals for ward in wards):
+        return "product_duration_overlap"
+    return None
+
+
 def prepare(
-    encounter: Encounter, key: ExecutionKey, data: AlgorithmData
+    encounter: Encounter,
+    key: ExecutionKey,
+    data: AlgorithmData,
+    classification: ProductClassification | None = None,
 ) -> PreparationResult:
     validate_preparation_binding(key, data)
     if type(encounter) is not Encounter:
@@ -343,9 +524,6 @@ def prepare(
     covered = _coverage(encounter, trace)
     stays = _stays(encounter, data, trace)
     principal, secondary = _diagnoses(encounter, stays, covered, trace)
-    procedures = _procedures(encounter, data, stays, covered, trace)
-    years = _age(encounter, trace)
-    days = _ward_duration(encounter, stays, covered, trace)
     products = tuple(
         sorted(
             encounter.settlement_products,
@@ -358,14 +536,26 @@ def prepare(
             ),
         )
     )
+    bound = classification is not None and encounter.product_reporting == "complete"
+    episode = (encounter.admitted_on, encounter.discharged_on)
+    context: ProductContext | None = None
+    if products and bound and classification is not None:
+        context = _products(products, classification, episode, trace)
+    elif products:
+        # Unclassified products could exclude any procedure; the engine itself
+        # never answers "retained" for them, whatever its caller checks.
+        context = unclassified(episode)
+    procedures = _procedures(encounter, data, stays, covered, trace, context)
+    years = _age(encounter, trace)
+    days = _ward_duration(encounter, stays, covered, trace, context)
     # Completeness reports facts only. Without the product catalog binding,
     # neither a code nor an empty list proves exclusion-free eligibility.
     trace.append(
         Decision(
             "product_binding",
             1,
-            "unresolved",
-            "product_catalog_unbound",
+            "recorded" if bound else "unresolved",
+            "product_catalog_bound" if bound else "product_catalog_unbound",
             _algorithm(129, 140, 141, 153, 154),
             len(products),
         )
@@ -386,4 +576,7 @@ def prepare(
         trace.freeze(),
         products,
         encounter.product_reporting,
+        "bound" if bound else "unbound",
+        classification.release_id if bound and classification is not None else None,
+        context.classes if context is not None else (),
     )

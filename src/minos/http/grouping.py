@@ -80,16 +80,17 @@ def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> byt
     return encoded
 
 
-WARMUP_LOGGER = logging.getLogger("minos.grouper.warmup")
+# A child of the configured `minos.http` logger, so production prints it (#155).
+WARMUP_LOGGER = logging.getLogger("minos.http.warmup")
 
 
 def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:
     """Background warm-up; a failure only leaves the first request to build."""
     started = time.monotonic()
-    sheets = 0
+    sheets = products = 0
     try:
         with pool.borrow() as lease:
-            sheets = prepared.warm(lease.connection)
+            sheets, products = prepared.warm(lease.connection)
         status = "completed"
     except Exception as error:  # noqa: BLE001 - never crash the API for a warm-up
         status = "failed:" + type(error).__name__
@@ -99,6 +100,7 @@ def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:
                 "event": "grouping_warmup",
                 "status": status,
                 "sheets": sheets,
+                "product_catalogs": products,
                 "duration_ms": round((time.monotonic() - started) * 1000),
             }
         )

@@ -15,7 +15,13 @@ from datetime import date
 from typing import cast, final
 
 from minos.domain.encounter import Encounter
-from minos.domain.grouper import AlgorithmData, ExecutionKey, GrouperError
+from minos.domain.grouper import (
+    AlgorithmData,
+    ExecutionKey,
+    GrouperError,
+    ProductCatalogUnavailable,
+    ProductClassification,
+)
 from minos.domain.grouper_candidates import (
     CandidateResult,
     Catalog,
@@ -31,6 +37,7 @@ from minos.domain.grouper_rules import (
 from minos.domain.grouping_request import (
     GroupingOutcome,
     GroupingRequest,
+    ProductCatalogMissing,
     UnsupportedProductReport,
 )
 from minos.domain.reference import SourceError
@@ -57,6 +64,11 @@ from minos.store.jgp_modifier_binding import (
     reviewed_group_modifiers,
 )
 from minos.store.jgp_ruleset import resolve_ruleset
+from minos.store.product_catalogs import (
+    product_catalog_releases,
+    product_names,
+    read_product_classification,
+)
 from minos.store.query_budget import query_budget
 
 
@@ -75,10 +87,12 @@ class PreparedSources:
         self._sheets: dict[
             tuple[str, Catalog], tuple[CharacteristicsGraph, DirectionalIndex]
         ] = {}
+        # Keyed by catalog release; None records that its act has no pins.
+        self._products: dict[str, ProductClassification | None] = {}
         # Set once every sheet of the bundle is built; requests never wait on it.
         self.warmed = threading.Event()
 
-    def warm(self, connection: sqlite3.Connection) -> int:
+    def warm(self, connection: sqlite3.Connection) -> tuple[int, int]:
         """Build every release-static input after start, so the first request
         after a restart does not pay the build inside its budget (#149)."""
         _ = self.algorithm(connection)
@@ -94,8 +108,11 @@ class PreparedSources:
             raise GrouperError("characteristics sheets exceed warm-up bound")
         for release_id, catalog in sheets:
             _ = self.sheet(connection, release_id, catalog)
+        releases = product_catalog_releases(connection)
+        for release_id in releases:
+            _ = self.products(connection, release_id)
         self.warmed.set()
-        return len(sheets)
+        return len(sheets), len(releases)
 
     def algorithm(self, connection: sqlite3.Connection) -> AlgorithmData:
         with self._lock:
@@ -113,6 +130,18 @@ class PreparedSources:
                 found = (graph, index_from_graph(graph))
                 self._sheets[(release_id, catalog)] = found
             return found
+
+    def products(
+        self, connection: sqlite3.Connection, catalog_release_id: str
+    ) -> ProductClassification | None:
+        with self._lock:
+            if catalog_release_id not in self._products:
+                if len(self._products) >= 64:
+                    raise GrouperError("product classifications exceed their bound")
+                self._products[catalog_release_id] = read_product_classification(
+                    connection, catalog_release_id
+                )
+            return self._products[catalog_release_id]
 
 
 def _prepare(
@@ -139,8 +168,13 @@ def _prepare(
         reporting_month,
         algorithm.identity,
     )
+    # Products are classified by exactly the catalogs of the act governing
+    # the service date, older acts included (owner decision 2026-10-09).
+    classification = prepared.products(connection, sources.catalog_release_id)
+    if classification is None and encounter.settlement_products:
+        raise ProductCatalogUnavailable("no product catalogs govern the service date")
     preparation = EngineRegistry((EngineBinding(key, algorithm),)).execute(
-        key, encounter
+        key, encounter, classification
     )
     with query_budget(connection):
         catalogs = cast(
@@ -296,10 +330,10 @@ def group_request(
     dataset: DatasetManifest,
     request: GroupingRequest,
     prepared: PreparedSources | None = None,
-) -> GroupingOutcome | UnsupportedProductReport:
+) -> GroupingOutcome | UnsupportedProductReport | ProductCatalogMissing:
     """One caller-owned verified lease, bounded as a whole; nothing is stored."""
     facts = request.encounter
-    if facts.product_reporting != "complete" or facts.settlement_products:
+    if facts.product_reporting != "complete":
         return UnsupportedProductReport()
     if not dataset.characteristics or not dataset.komunikaty:
         raise GrouperError("grouping sources unavailable")
@@ -307,14 +341,17 @@ def group_request(
         evaluation_budget(),
         query_budget(connection, seconds=3, operations=20_000_000),
     ):
-        result = evaluate_candidates(
-            connection,
-            dataset_identity(dataset),
-            facts,
-            service_date=request.service_date,
-            reporting_month=request.reporting_month,
-            prepared=prepared,
-        )
+        try:
+            result = evaluate_candidates(
+                connection,
+                dataset_identity(dataset),
+                facts,
+                service_date=request.service_date,
+                reporting_month=request.reporting_month,
+                prepared=prepared,
+            )
+        except ProductCatalogUnavailable:
+            return ProductCatalogMissing()
         try:
             finals = final_points(
                 connection, dataset, result, request.declared_modifiers
@@ -327,4 +364,14 @@ def group_request(
             result.candidates.sources.catalog_release_id,
             request.service_date,
         )
-    return GroupingOutcome(result, finals, bound, titles)
+        preparation = result.candidates.preparation
+        names = (
+            product_names(
+                connection,
+                preparation.product_release_id,
+                frozenset(p.code for p in preparation.settlement_products),
+            )
+            if preparation.product_release_id is not None
+            else {}
+        )
+    return GroupingOutcome(result, finals, bound, titles, names)
