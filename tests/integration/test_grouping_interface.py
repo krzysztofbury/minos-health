@@ -5,6 +5,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -148,6 +149,30 @@ def test_dictionaries_offer_named_codes_with_derived_children(tmp_path: Path) ->
         missing = client.get("/api/v1/grouping/dictionaries")
     assert missing.status_code == 404
     assert missing.json()["error"]["code"] == "dictionaries_unavailable"
+
+
+def test_warmup_status_reaches_the_configured_api_logger(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    from minos.grouper import pipeline
+
+    app = create_app(grouping_bundle(tmp_path))
+    with caplog.at_level(logging.INFO, logger="minos.http"), TestClient(app):
+        prepared = cast(pipeline.PreparedSources, app.state.grouping_prepared)
+        assert prepared.warmed.wait(10)
+        for _ in range(100):
+            if any(r.name == "minos.http.warmup" for r in caplog.records):
+                break
+            time.sleep(0.02)
+    events = [
+        cast(dict[str, object], json.loads(record.getMessage()))
+        for record in caplog.records
+        if record.name == "minos.http.warmup"
+    ]
+    # #155: only the `minos.http` hierarchy has a handler in production.
+    assert len(events) == 1
+    assert set(events[0]) == {"event", "status", "sheets", "duration_ms"}
+    assert events[0]["status"] == "completed"
 
 
 def test_trace_preserves_attribution_and_canonical_stay_ordinals(

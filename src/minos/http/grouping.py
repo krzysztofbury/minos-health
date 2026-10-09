@@ -80,7 +80,8 @@ def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> byt
     return encoded
 
 
-WARMUP_LOGGER = logging.getLogger("minos.grouper.warmup")
+# A child of the configured `minos.http` logger, so production prints it (#155).
+WARMUP_LOGGER = logging.getLogger("minos.http.warmup")
 
 
 def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:

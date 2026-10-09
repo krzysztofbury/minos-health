@@ -38,10 +38,14 @@ def test_nginx_exposes_only_the_exact_public_projection_endpoint() -> None:
     cache_map = cache_map.split("}", 1)[0]
     assert 'default "no-store";' in cache_map
     assert "provenance" not in cache_map
-    # The edge never makes an API response cacheable; JGP API entries only pass
-    # the application's own header through (an empty value adds nothing).
+    # The edge never makes an API response cacheable; JGP and grouping-dictionary
+    # API entries only pass the application's own header through (an empty
+    # value adds nothing).
     api_entries = [line.strip() for line in cache_map.splitlines() if "api" in line]
-    assert api_entries == ['~^/api/v1/jgp/ "upstream";']
+    assert api_entries == [
+        '~^/api/v1/jgp/ "upstream";',
+        '~^/api/v1/grouping/dictionaries$ "upstream";',
+    ]
     assert "img-src 'self' data:" in configuration
     assert (
         'add_header Cross-Origin-Opener-Policy "same-origin" always;' in configuration
