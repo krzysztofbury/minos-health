@@ -89,3 +89,9 @@ the corrected compatible release is successfully activated. These host records
 establish real bounded recovery, not the exact loader of the old 2026-10-09 event
 or a host-capacity claim. Evidence is retained under
 `test-output/validation-deploy/31ef247143180648803baa64b6acc3b7b544cfd0/`.
+
+The corrective #161 activation was also rolled back for repeated comparison
+timeouts. Five golden cases passed on that revision, but the warm-up fix is not
+currently deployed. The prior `5458ef2` API and edge are restored and healthy;
+the [comparison rollout record](jgp-comparison.md) records the failed acceptance
+and the rollback requiring a second guarded invocation to start the edge.
