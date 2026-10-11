@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast, final
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from minos.store.artifact import dataset_identity
 from minos.store.reference import open_reference_bundle, read_artifact_manifest
@@ -63,7 +63,22 @@ SSH_OPTIONS = (
 
 
 class DeployError(Exception):
-    pass
+    def __init__(self, message: str, details: dict[str, object] | None = None) -> None:
+        super().__init__(message)
+        self.details: dict[str, object] = details or {}
+
+
+class HostAnswer(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+    ok: bool
+    result: dict[str, object] | None = None
+    error: str | None = Field(default=None, max_length=2048)
+    details: dict[str, object] = Field(default_factory=dict)
+
+
+class IngressReady(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(strict=True)
+    status: Literal["ready"]
 
 
 type Revision = Annotated[str, Field(pattern=r"^[a-f0-9]{40}$")]
@@ -152,15 +167,33 @@ class Host:
 
     def call(self, command: str, params: dict[str, object]) -> dict[str, object]:
         encoded = base64.urlsafe_b64encode(json.dumps(params).encode()).decode()
-        output = run(
-            [
-                "ssh", *SSH_OPTIONS, "-p", self.port, f"root@{self.address}",
-                "python3", "-", command, encoded,
-            ],
-            timeout_s=SSH_TIMEOUT_S,
-            stdin=HOST_PROGRAM.read_bytes(),
-        )  # fmt: skip
-        return parse_host_answer(output, command)
+        try:
+            completed = subprocess.run(
+                [
+                    "ssh",
+                    *SSH_OPTIONS,
+                    "-p",
+                    self.port,
+                    f"root@{self.address}",
+                    "python3",
+                    "-",
+                    command,
+                    encoded,
+                ],
+                timeout=SSH_TIMEOUT_S,
+                input=HOST_PROGRAM.read_bytes(),
+                capture_output=True,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            raise DeployError(
+                "host command timed out; inspect state before retry"
+            ) from None
+        # Host refusals intentionally exit nonzero and put structured errors on
+        # stdout. SSH stderr is neither that protocol nor safe diagnostic text.
+        return parse_host_answer(
+            completed.stdout.decode(errors="replace"), command, completed.returncode
+        )
 
     def upload(self, local: Path, remote: str) -> None:
         _ = run(
@@ -170,14 +203,27 @@ class Host:
         )  # fmt: skip
 
 
-def parse_host_answer(output: str, command: str) -> dict[str, object]:
+def parse_host_answer(
+    output: str, command: str, returncode: int = 0
+) -> dict[str, object]:
+    if len(output.encode()) > 64 * 1024:
+        raise DeployError("host response exceeds bound")
     lines = [line for line in output.splitlines() if line.strip()]
     if not lines:
-        raise DeployError(f"host {command} returned nothing")
-    answer = cast(dict[str, object], json.loads(lines[-1]))
-    if answer.get("ok") is not True:
-        raise DeployError(f"host {command} refused: {answer.get('error')}")
-    return cast(dict[str, object], answer["result"])
+        raise DeployError(
+            f"host {command} returned nothing (exit {returncode}); inspect transport and host state"
+        )
+    try:
+        answer = HostAnswer.model_validate_json(lines[-1])
+    except ValidationError:
+        raise DeployError("host response is invalid") from None
+    if not answer.ok:
+        raise DeployError(f"host {command} refused: {answer.error}", answer.details)
+    if returncode != 0 or answer.result is None:
+        raise DeployError(
+            f"host {command} did not complete successfully (exit {returncode})"
+        )
+    return answer.result
 
 
 def bundle_archive(bundle: Path, output: Path) -> str:
@@ -394,6 +440,25 @@ def get(url: str) -> tuple[int, bytes]:
         return error.code, b""
 
 
+def verify_ingress(base: str) -> dict[str, object]:
+    """Paced public probes; local container health alone is not public ingress."""
+    try:
+        status, body = get(base + "/readyz")
+        ready = IngressReady.model_validate_json(body) if status == 200 else None
+        home, _ = get(base + "/")
+    except OSError, ValueError:
+        raise DeployError(
+            "restored services but public ingress verification failed",
+            {"public_ingress": "failed"},
+        ) from None
+    if ready is None or home != 200:
+        raise DeployError(
+            "restored services but public ingress verification failed",
+            {"public_ingress": "failed", "readyz_status": status, "home_status": home},
+        )
+    return {"public_ingress": "healthy", "readyz_status": status, "home_status": home}
+
+
 def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
     status, body = get(base + "/readyz")
     ready = cast(dict[str, object], json.loads(body)) if status == 200 else {}
@@ -572,9 +637,10 @@ def parser() -> argparse.ArgumentParser:
     for name in ("stage", "activate", "verify", "rollback"):
         command = commands.add_parser(name)
         _ = command.add_argument("--revision", required=True)
+        if name in ("verify", "rollback"):
+            _ = command.add_argument("--base", default=PUBLIC_BASE)
         if name == "verify":
             _ = command.add_argument("--chromium", type=Path)
-            _ = command.add_argument("--base", default=PUBLIC_BASE)
     command = commands.add_parser("prune")
     _ = command.add_argument("--keep", type=int, default=1)
     _ = command.add_argument("--apply", action="store_true")
@@ -597,9 +663,12 @@ def main(arguments: Arguments) -> None:
             value = load_plan(arguments.revision)
             write_receipt(value, verify(value, arguments.chromium, arguments.base))
         case "rollback":
-            report(
-                "rolled_back", host.call("rollback", {"revision": arguments.revision})
-            )
+            result = host.call("rollback", {"revision": arguments.revision})
+            try:
+                ingress = verify_ingress(arguments.base)
+            except DeployError as error:
+                raise DeployError(str(error), {**result, **error.details}) from None
+            report("rolled_back", {**result, **ingress, "status": "rolled_back"})
         case "prune":
             report(
                 "pruned",
@@ -622,5 +691,5 @@ if __name__ == "__main__":
     try:
         main(namespace)
     except DeployError as error:
-        report("failed", {"error": str(error)})
+        report("failed", {"error": str(error), "details": error.details})
         sys.exit(1)

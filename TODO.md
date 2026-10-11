@@ -12,6 +12,10 @@ Latest verified validation deployment: #164, revision `bc4e9ef`, activated
 records exact identities, public API/browser/privacy checks and startup results.
 This is a dated deployment record, not a new production inspection.
 
+Owner-approved next order: #162 recovery, then #92 metadata and #23 concept
+detail. #42 waits for actual traction; #158/#126/#25 practitioner-dependent
+acceptance waits for practitioner access. These gates remain open.
+
 - [x] Deliver the supported grouper subset, reviewed MODTAR binding, trace,
       CLI/HTTP grouping and encounter builder (#34-#37, #39, #46, #129).
 - [x] Deliver settlement-product classification/exclusions and official builder

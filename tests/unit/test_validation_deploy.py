@@ -15,6 +15,7 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 
+from scripts import deploy_validation, validation_host
 from scripts.deploy_validation import (
     DeployError,
     Plan,
@@ -282,8 +283,12 @@ def test_operational_restart_during_activation_fails(
     state = docker_state(site)
     state["restart_watcher_on_up"] = True
     _ = (base / "docker-state.json").write_text(json.dumps(state))
-    with pytest.raises(DeployError, match="operational services changed"):
+    with pytest.raises(DeployError, match="rollback incomplete") as failed:
         _ = host("activate", params)
+    assert (
+        cast(dict[str, object], failed.value.details["rollback"])["operational"]
+        == "changed"
+    )
 
 
 def test_changed_live_compose_and_wrong_image_build_are_refused(
@@ -365,7 +370,12 @@ def test_rollback_restores_retained_compose(site: tuple[Path, Path, Path]) -> No
     before = (root / "validation-rollback" / NEW_REVISION / "compose.yaml").read_bytes()
     _ = host("activate", params)
     result = host("rollback", {"revision": NEW_REVISION})
-    assert result["status"] == "rolled_back"
+    assert result["status"] == "restored"
+    assert result["validation_health"] == {
+        "reference-api": "healthy",
+        "edge": "healthy",
+    }
+    assert result["public_ingress"] == "not_checked"
     assert (root / "compose.yaml").read_bytes() == before
 
 
@@ -480,3 +490,217 @@ def test_host_refusal_and_empty_answers_surface_as_errors() -> None:
 def test_host_program_parses_as_host_python() -> None:
     # The production host runs Ubuntu 24.04's Python 3.12.
     _ = ast.parse(HOST_PROGRAM.read_text(), feature_version=(3, 12))
+
+
+@pytest.mark.parametrize("change_operational", [False, True])
+def test_partial_rollback_retains_diagnostics_and_original_recovery_baseline(
+    site: tuple[Path, Path, Path],
+    change_operational: bool,
+) -> None:
+    root, _, base = site
+    host = host_for(site)
+    params = staged(site, host)
+    _ = host("activate", params)
+    state = docker_state(site)
+    state["fail_after_api"] = True
+    _ = (base / "docker-state.json").write_text(json.dumps(state))
+    with pytest.raises(DeployError, match="rollback incomplete") as failed:
+        _ = host("rollback", {"revision": NEW_REVISION})
+    assert failed.value.details["validation_health"] == {
+        "reference-api": "healthy",
+        "edge": "created",
+    }
+    assert failed.value.details["operational"] == "unchanged"
+    assert failed.value.details["recovery"] == "rollback --revision " + NEW_REVISION
+    assert (root / "compose.yaml").read_bytes() == (
+        root / "validation-rollback" / NEW_REVISION / "compose.yaml"
+    ).read_bytes()
+    stage = root / "validation-stage" / NEW_REVISION
+    record = cast(
+        dict[str, object], json.loads((stage / "rollback-operations.log").read_bytes())
+    )
+    assert record["status"] == "command_failed" and record["exit_code"] == 1
+    assert record["failure_classes"] == ["unhealthy"]
+    assert cast(int, record["output_bytes"]) > 0
+    assert stat.S_IMODE((stage / "rollback-operations.log").stat().st_mode) == 0o600
+    assert (
+        "PRIVATE_TOKEN"
+        not in str(failed.value)
+        + json.dumps(failed.value.details)
+        + (stage / "rollback-operations.log").read_text()
+    )
+    baseline = (stage / "rollback-ob.json").read_bytes()
+    state = docker_state(site)
+    state["fail_after_api"] = False
+    if change_operational:
+        cast(dict[str, dict[str, object]], state["containers"])["watcher-0"][
+            "restarts"
+        ] = 3
+    _ = (base / "docker-state.json").write_text(json.dumps(state))
+    if change_operational:
+        with pytest.raises(DeployError, match="rollback incomplete") as retry:
+            _ = host("rollback", {"revision": NEW_REVISION})
+        assert retry.value.details["operational"] == "changed"
+    else:
+        result = host("rollback", {"revision": NEW_REVISION})
+        assert result["status"] == "restored" and result["identities_match"] is True
+        assert result["validation_health"] == {
+            "reference-api": "healthy",
+            "edge": "healthy",
+        }
+    assert (stage / "rollback-ob.json").read_bytes() == baseline
+    assert (
+        json.loads((stage / "rollback-operations.previous.log").read_bytes()) == record
+    )
+
+
+@pytest.mark.parametrize("failure", ["omit_edge", "unhealthy_edge", "wrong_edge_image"])
+def test_successful_compose_exit_does_not_override_runtime_state(
+    site: tuple[Path, Path, Path],
+    failure: str,
+) -> None:
+    root, _, base = site
+    host = host_for(site)
+    params = staged(site, host)
+    _ = host("activate", params)
+    state = docker_state(site)
+    state[failure] = True
+    _ = (base / "docker-state.json").write_text(json.dumps(state))
+    with pytest.raises(DeployError, match="rollback incomplete") as failed:
+        _ = host("rollback", {"revision": NEW_REVISION})
+    expected_health = {
+        "omit_edge": "missing",
+        "unhealthy_edge": "unhealthy",
+        "wrong_edge_image": "healthy",
+    }[failure]
+    assert failed.value.details["validation_health"] == {
+        "reference-api": "healthy",
+        "edge": expected_health,
+    }
+    assert failed.value.details["identities_match"] is (failure == "unhealthy_edge")
+    assert (
+        json.loads(
+            (
+                root / "validation-stage" / NEW_REVISION / "rollback-result.json"
+            ).read_bytes()
+        )["status"]
+        == "incomplete"
+    )
+
+
+def test_rollback_refuses_unrelated_live_compose(site: tuple[Path, Path, Path]) -> None:
+    root, _, _ = site
+    host = host_for(site)
+    _ = staged(site, host)
+    current = (root / "compose.yaml").read_bytes() + b" "
+    _ = (root / "compose.yaml").write_bytes(current)
+    with pytest.raises(DeployError, match="neither the selected candidate"):
+        _ = host("rollback", {"revision": NEW_REVISION})
+    assert (root / "compose.yaml").read_bytes() == current
+
+
+def test_remote_nonzero_exit_preserves_host_failure_envelope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    variables = tmp_path / "host.yml"
+    _ = variables.write_text(
+        "ansible_host: localhost\nansible_port: 22\nansible_user: root\n"
+    )
+    monkeypatch.setattr(deploy_validation, "HOST_VARS", variables)
+    details = {"validation_health": {"reference-api": "healthy", "edge": "created"}}
+
+    def refused(
+        *_args: object, **_kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.CompletedProcess(
+            [],
+            2,
+            json.dumps(
+                {"ok": False, "error": "rollback incomplete", "details": details}
+            ).encode(),
+            b"PRIVATE_SSH_PATH",
+        )
+
+    monkeypatch.setattr(subprocess, "run", refused)
+    with pytest.raises(DeployError, match="rollback incomplete") as failed:
+        _ = deploy_validation.Host().call("rollback", {"revision": NEW_REVISION})
+    assert failed.value.details == details
+    assert "PRIVATE_SSH_PATH" not in str(failed.value)
+
+
+@pytest.mark.parametrize(
+    ("body", "code"),
+    [
+        ('{"ok":true,"result":{}}', 2),
+        ('{"ok":true}', 0),
+        ('["PRIVATE_PAYLOAD"]', 2),
+        ("bad PRIVATE_PAYLOAD", 2),
+    ],
+)
+def test_invalid_or_conflicting_host_answers_never_report_success(
+    body: str, code: int
+) -> None:
+    with pytest.raises(DeployError) as failed:
+        _ = parse_host_answer(body, "rollback", code)
+    assert "PRIVATE_PAYLOAD" not in str(failed.value)
+
+
+@pytest.mark.parametrize("mode", ["timeout", "output_limit"])
+def test_compose_failure_capture_is_bounded_and_private(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
+) -> None:
+    docker = tmp_path / "docker"
+    code = (
+        'import time; print("PRIVATE_PAYLOAD", flush=True); time.sleep(60)'
+        if mode == "timeout"
+        else 'import sys; sys.stderr.write("PRIVATE_PAYLOAD" * 25000)'
+    )
+    _ = docker.write_text(f"#!{sys.executable}\n{code}\n")
+    docker.chmod(0o755)
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setattr(validation_host, "COMPOSE_TIMEOUT_S", 0.2)
+    log = tmp_path / "compose.log"
+    with pytest.raises(HostError):
+        validation_host.compose_up(validation_host.Layout(tmp_path, "minos-test"), log)
+    record = cast(dict[str, object], json.loads(log.read_bytes()))
+    assert record["status"] == mode
+    assert (
+        cast(int, record["output_bytes"]) <= validation_host.MAX_COMMAND_OUTPUT + 4096
+    )
+    assert log.stat().st_size < 1024 and "PRIVATE_PAYLOAD" not in log.read_text()
+
+
+@pytest.mark.parametrize("healthy", [False, True])
+def test_rollback_success_event_requires_public_ingress(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], healthy: bool
+) -> None:
+    def restored_call(
+        _self: deploy_validation.Host, _command: str, _params: dict[str, object]
+    ) -> dict[str, object]:
+        return {"status": "restored", "public_ingress": "not_checked"}
+
+    monkeypatch.setattr(deploy_validation.Host, "call", restored_call)
+
+    def initialize(_self: deploy_validation.Host) -> None:
+        pass
+
+    def get(_url: str) -> tuple[int, bytes]:
+        return (200, b'{"status":"ready"}') if healthy else (503, b"")
+
+    monkeypatch.setattr(deploy_validation.Host, "__init__", initialize)
+    monkeypatch.setattr(
+        deploy_validation,
+        "get",
+        get,
+    )
+    arguments = deploy_validation.Arguments()
+    arguments.command, arguments.revision = "rollback", NEW_REVISION
+    if healthy:
+        deploy_validation.main(arguments)
+        event = cast(dict[str, object], json.loads(capsys.readouterr().out))
+        assert event["event"] == "rolled_back" and event["public_ingress"] == "healthy"
+    else:
+        with pytest.raises(DeployError, match="public ingress"):
+            deploy_validation.main(arguments)
+        assert "rolled_back" not in capsys.readouterr().out
