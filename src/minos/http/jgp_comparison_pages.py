@@ -15,11 +15,10 @@ from minos.http.jgp_pages import (
     provenance,
 )
 from minos.http.pages import _e  # pyright: ignore[reportPrivateUsage]
+from minos.store.comparison_snapshot import Entry, GroupKey
 from minos.store.jgp_comparison import (
     CatalogComparison,
     CatalogVersion,
-    Entry,
-    GroupKey,
     scope_identity,
 )
 
@@ -56,7 +55,7 @@ def comparison_link(
 def _value(entry: Entry | None, measure: str) -> str:
     if entry is None:
         return "grupa nieobecna"
-    for code, unit, amount in entry["values"]:
+    for code, unit, amount in entry.values:
         if code == measure:
             if unit == "points_hundredths":
                 return points_pl(amount)
@@ -69,26 +68,26 @@ def _value(entry: Entry | None, measure: str) -> str:
 def _definition(entry: Entry | None) -> str:
     if entry is None:
         return "<p>Grupa nieobecna w tym katalogu na wybrany dzień.</p>"
-    definition = entry["definition"]
+    definition = entry.definition
     scopes = "; ".join(
-        f"{label}: {marker_meaning(marker)}" for label, marker in definition["scopes"]
+        f"{label}: {marker_meaning(marker)}" for label, marker in definition.scopes
     )
-    window = entry["window"]
+    window = entry.window
     return (
-        f"<p>{_e(definition['name'])}</p>"
-        f"<p>Produkt: <code>{_e(definition['product_code'])}</code></p>"
-        f"<p>Rozdział: {_e(definition['chapter'])}. Oznaczenie zabiegowe: {'tak' if definition['procedural'] else 'nie'}.</p>"
+        f"<p>{_e(definition.name)}</p>"
+        f"<p>Produkt: <code>{_e(definition.product_code)}</code></p>"
+        f"<p>Rozdział: {_e(definition.chapter)}. Oznaczenie zabiegowe: {'tak' if definition.procedural else 'nie'}.</p>"
         f"<p>Zakresy wg oznaczeń źródłowych: {_e(scopes) if scopes else 'brak oznaczeń'}</p>"
-        f"<p>Uwagi katalogu: {_e(definition['notes']) if definition['notes'] else 'brak'}</p>"
-        f"<p>Obowiązuje od {_e(window['service_from'])} do {_e(window['service_to'] or 'bez określonego końca')}."
-        f" Podstawa: {_e(window['evidence'])}</p>"
+        f"<p>Uwagi katalogu: {_e(definition.notes) if definition.notes else 'brak'}</p>"
+        f"<p>Obowiązuje od {_e(window.service_from)} do {_e(window.service_to or 'bez określonego końca')}."
+        f" Podstawa: {_e(window.evidence)}</p>"
     )
 
 
 def _values_table(catalog: str, old: Entry | None, new: Entry | None) -> str:
     labels = measure_labels(LAYOUTS[catalog])
     measures = sorted(
-        {measure for entry in (old, new) if entry for measure, _, _ in entry["values"]}
+        {measure for entry in (old, new) if entry for measure, _, _ in entry.values}
     )
     changed: list[str] = []
     unchanged: list[str] = []
@@ -145,17 +144,25 @@ def _group(
     )
     changed_fields: list[str] = []
     if old is not None and new is not None:
-        for field, label in (
-            ("name", "nazwa"),
-            ("product_code", "kod produktu"),
-            ("chapter", "rozdział"),
-            ("procedural", "oznaczenie zabiegowe"),
-            ("scopes", "oznaczenia zakresów świadczeń"),
-            ("notes", "uwagi katalogu"),
+        for before_value, after_value, label in (
+            (old.definition.name, new.definition.name, "nazwa"),
+            (old.definition.product_code, new.definition.product_code, "kod produktu"),
+            (old.definition.chapter, new.definition.chapter, "rozdział"),
+            (
+                old.definition.procedural,
+                new.definition.procedural,
+                "oznaczenie zabiegowe",
+            ),
+            (
+                old.definition.scopes,
+                new.definition.scopes,
+                "oznaczenia zakresów świadczeń",
+            ),
+            (old.definition.notes, new.definition.notes, "uwagi katalogu"),
         ):
-            if old["definition"].get(field) != new["definition"].get(field):
+            if before_value != after_value:
                 changed_fields.append(label)
-    same_values = old is not None and new is not None and old["values"] == new["values"]
+    same_values = old is not None and new is not None and old.values == new.values
     summary = (
         ("Zmieniono: " + ", ".join(changed_fields) + ". ") if changed_fields else ""
     )
@@ -175,7 +182,7 @@ def _group(
     return (
         f'<article class="compare-change" data-group="{_e(code)}" data-action="{status}">'
         + f'<h2>{_e(code)} <span class="badge">{status} · {_e(catalog)}</span></h2><p>{_e(summary)}</p>'
-        + f'<p class="compare-name">{_e(displayed["definition"]["name"])}</p>'
+        + f'<p class="compare-name">{_e(displayed.definition.name)}</p>'
         + _values_table(catalog, old, new)
         + f'<details><summary>Definicje, zakresy i podstawy źródłowe przed i po</summary><div class="compare-sides">{columns}</div></details>'
         + f'<p><a href="{_e(path)}">Link do porównania grupy {_e(code)}</a></p></article>'
@@ -209,7 +216,7 @@ def comparison_page(
                 selected_scope == label
                 for entry in (comparison.left.get(key), comparison.right.get(key))
                 if entry
-                for label, _ in entry["definition"]["scopes"]
+                for label, _ in entry.definition.scopes
             )
         )
     ]

@@ -4,7 +4,11 @@ import sqlite3
 from collections import defaultdict
 from typing import cast
 
-from minos.store.diff_records import Projection, canonical, rows
+from minos.store.diff_records import (
+    Projection,
+    canonical,
+    rows,
+)
 
 
 def project_catalog(
@@ -13,6 +17,8 @@ def project_catalog(
     output: Projection,
     *,
     schedule_only: bool = False,
+    max_rows: int | None = None,
+    max_bytes: int | None = None,
 ) -> None:
     measures: dict[tuple[str, int], list[tuple[str, str, int]]] = defaultdict(list)
     for catalog, row, measure, unit, amount in cast(
@@ -23,6 +29,8 @@ def project_catalog(
         SELECT catalog,source_row,measure,unit,amount FROM group_base_value
         WHERE release_id=? ORDER BY catalog,source_row,measure""",
             (release,),
+            max_rows=max_rows,
+            max_bytes=max_bytes,
         ),
     ):
         measures[catalog, row].append((measure, unit, amount))
@@ -36,6 +44,8 @@ def project_catalog(
         JOIN catalog_scope s ON s.release_id=g.release_id AND s.catalog=g.catalog AND s.position=g.position
         WHERE g.release_id=? ORDER BY g.catalog,g.source_row,s.label,g.marker""",
             (release,),
+            max_rows=max_rows,
+            max_bytes=max_bytes,
         ),
     ):
         scopes[catalog, row].append((label, marker))
@@ -57,6 +67,8 @@ def project_catalog(
         service_from,service_to,applicability_evidence FROM group_definition
         WHERE release_id=? ORDER BY catalog,source_row""",
             (release,),
+            max_rows=max_rows,
+            max_bytes=max_bytes,
         ),
     )
     for (

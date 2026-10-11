@@ -75,7 +75,8 @@ try {
     await evaluate("document.getElementById('compare-before').value = '2026-12-31'; document.getElementById('compare-after').value = '2027-01-01'; document.getElementById('compare-before-release').value = document.getElementById('compare-after-release').value; document.getElementById('compare-group').value = 'H21'; document.getElementById('compare-go').focus()");
     await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-    await wait("location.pathname.includes('/2026-12-31/') && location.pathname.includes('/2027-01-01/') && location.pathname.endsWith('/H21') && document.querySelector('.compare-change')");
+    // Server-rendered rows arrive before the deferred script binds the controls.
+    await wait("location.pathname.includes('/2026-12-31/') && location.pathname.includes('/2027-01-01/') && location.pathname.endsWith('/H21') && document.querySelector('.compare-change') && document.readyState === 'complete' && document.getElementById('compare-go')?.hidden === false");
     await evaluate("var select = document.getElementById('compare-scope'); select.value = [...select.options].find(o => o.textContent === 'chirurgia ogólna').value; select.dispatchEvent(new Event('change'))");
     await wait("document.getElementById('compare-scope')?.selectedOptions[0].textContent === 'chirurgia ogólna' && location.pathname.split('/').at(-2) === document.getElementById('compare-scope').value && document.readyState === 'complete' && document.fonts.status === 'loaded'");
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.compare-change')].map(e => e.dataset.group)"), ["H21"]);

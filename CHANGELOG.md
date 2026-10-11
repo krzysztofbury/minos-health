@@ -134,6 +134,10 @@ release.
 
 ### Changed
 
+- Preload bounded immutable JGP comparison schedules before API readiness.
+  Cache ownership follows the verified bundle; incomplete or over-budget
+  construction fails startup. Date/release validation and request budgets remain
+  in place, without per-request source projection or JSON decoding (#104).
 - Avoid serializing unused offline audit categories in dated JGP comparisons;
   keep the same source reads, schedule values and request budgets after #160's
   comparison timeout caused a guarded validation rollback.

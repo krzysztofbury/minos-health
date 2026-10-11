@@ -1,27 +1,40 @@
 """Dated, source-backed UI comparisons through the verified HTTP boundary."""
 
 import logging
+import os
 import re
-from collections.abc import Iterator
+import sqlite3
+from collections.abc import Generator, Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
 
+from minos.domain.reference import QueryLimitError, QueryTimeoutError
+from minos.http import reference as reference_http
 from minos.http.app import create_app
 from minos.http.jgp_comparison_pages import comparison_path
 from minos.ingest.reference_artifact import build_reference_artifact
-from minos.store.artifact import dataset_identity
+from minos.store import comparison_snapshot
+from minos.store.artifact import ArtifactManifest, dataset_identity
 from minos.store.jgp_comparison import scope_identity
-from minos.store.reference import read_artifact_manifest
+from minos.store.reference import open_reference_bundle, read_artifact_manifest
 from tests.fixtures.jgp_catalog import (
     Row,
     catalog_workbook,
     default_sheets,
     stage_catalog,
 )
-from tests.integration.test_jgp_api import ORIGINAL_ROWS, lineage_bundle
+from tests.integration.test_jgp_api import (
+    ORIGINAL_ROWS,
+    lineage_bundle,
+    original_release,
+)
 from tests.integration.test_jgp_api import dataset as fixture_dataset
 
 
@@ -228,3 +241,131 @@ def test_same_service_start_keeps_both_amendments_selectable(tmp_path: Path) -> 
         assert "Synthetic 102/2026/DSOZ (2026-09-23)" in response.text
         # A date outside the selected release is refused, never substituted.
         assert client.get(path.replace("2026-07-10", "2026-06-30")).status_code == 404
+
+
+@pytest.mark.parametrize(
+    "limit",
+    [
+        "MAX_SOURCE_ROWS",
+        "MAX_SOURCE_BYTES",
+        "MAX_GROUPS",
+        "MAX_SCHEDULE_ROWS",
+        "MAX_RETAINED_BYTES",
+        "MAX_PRELOAD_SECONDS",
+    ],
+)
+def test_preload_limits_fail_startup_and_close_verified_readers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    limit: str,
+) -> None:
+    bundle = lineage_bundle(tmp_path)
+    opened: list[sqlite3.Connection] = []
+
+    @contextmanager
+    def tracked_open(
+        path: Path, *, check_same_thread: bool
+    ) -> Generator[tuple[sqlite3.Connection, ArtifactManifest]]:
+        with open_reference_bundle(path, check_same_thread=check_same_thread) as result:
+            opened.append(result[0])
+            yield result
+
+    monkeypatch.setattr(reference_http, "open_reference_bundle", tracked_open)
+    monkeypatch.setattr(comparison_snapshot, limit, 0)
+    with pytest.raises(
+        QueryTimeoutError if limit == "MAX_PRELOAD_SECONDS" else QueryLimitError
+    ):
+        with TestClient(create_app(bundle)):
+            pytest.fail("failed preload must not reach readiness")
+    assert len(opened) == 4
+    for connection in opened:
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            _ = connection.execute("SELECT 1")
+
+
+def test_cached_comparisons_are_bundle_local_and_preserve_runtime_identity_checks(
+    tmp_path: Path,
+) -> None:
+    first = lineage_bundle(tmp_path / "first")
+    second_root = tmp_path / "second"
+    second_root.mkdir()
+    sheets = default_sheets()
+    for sheet, rows in sheets.items():
+        sheets[sheet] = tuple(
+            replace(row, values={**row.values, "F": 8888})
+            if row.code == "PZD02"
+            else row
+            for row in rows
+        )
+    changed = stage_catalog(
+        second_root,
+        catalog_workbook(sheets),
+        sheets=sheets,
+        release={"supersedes": "jgp-catalog-original"},
+    )
+    manifest = fixture_dataset(
+        second_root, [original_release(second_root), changed.model_dump(mode="json")]
+    )
+    second = second_root / "bundle"
+    _ = build_reference_artifact(manifest, second_root, second)
+
+    def deny_source_reads(
+        action: int,
+        table: str | None,
+        column: str | None,
+        database: str | None,
+        trigger: str | None,
+    ) -> int:
+        del column, database, trigger
+        return (
+            sqlite3.SQLITE_DENY
+            if action == sqlite3.SQLITE_READ
+            and table
+            in {
+                "group_definition",
+                "group_scope",
+                "group_base_value",
+            }
+            else sqlite3.SQLITE_OK
+        )
+
+    applications = [create_app(bundle) for bundle in (first, second)]
+    with ExitStack() as stack:
+        clients = [stack.enter_context(TestClient(app)) for app in applications]
+        for app in applications:
+            pool = cast(reference_http.ReferencePool, app.state.pool)
+            with ExitStack() as leases:
+                for _ in range(4):
+                    lease = leases.enter_context(pool.borrow())
+                    lease.connection.set_authorizer(deny_source_reads)
+                    with pytest.raises(sqlite3.DatabaseError):
+                        _ = lease.connection.execute(
+                            "SELECT name FROM group_definition"
+                        )
+        paths = [
+            comparison_path(
+                dataset_identity(read_artifact_manifest(bundle).dataset),
+                "2026-07-10",
+                "2026-07-10",
+                "jgp-catalog-original",
+                "jgp-catalog-synthetic",
+                group="PZD02",
+            )
+            for bundle in (first, second)
+        ]
+
+        def fetch(index: int) -> str:
+            response = clients[index].get(paths[index])
+            assert response.status_code == 200, response.text
+            return response.text
+
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            answers = list(workers.map(fetch, [0, 1, 0, 1]))
+        assert answers[0] == answers[2] and answers[1] == answers[3]
+        assert "<td>8 040,00</td><td>12 871,72</td>" in answers[0]
+        assert "<td>8 040,00</td><td>8 888,00</td>" in answers[1]
+        assert clients[1].get(paths[0]).status_code == 409
+        database = first / "minos.db"
+        metadata = database.stat()
+        os.utime(database, ns=(metadata.st_atime_ns, metadata.st_mtime_ns + 1))
+        assert clients[0].get(paths[0]).status_code == 503

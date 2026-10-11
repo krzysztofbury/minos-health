@@ -1,6 +1,9 @@
 """Fixed-size verified connection pool for concurrent, read-only HTTP lookup."""
 
+import json
+import logging
 import sqlite3
+import time
 from collections.abc import Generator
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
@@ -10,8 +13,12 @@ from typing import NamedTuple, final
 from minos.domain.morphology import PolishMorphology
 from minos.domain.reference import ArtifactError
 from minos.store.artifact import DATABASE_NAME, ArtifactManifest
+from minos.store.comparison_snapshot import build_comparison_cache
+from minos.store.jgp_comparison import catalog_versions
 from minos.store.jgp_search import GroupIndex, build_group_index
 from minos.store.reference import open_reference_bundle
+
+LOGGER = logging.getLogger("minos.http.comparison")
 
 
 class CapacityError(Exception):
@@ -50,6 +57,28 @@ class ReferencePool:
                 self.group_index = build_group_index(
                     self._leases[0].connection, self._leases[0].analyzer
                 )
+            # The cache is complete before readiness. It belongs to this verified
+            # pool, never a module-global release-key cache shared across bundles.
+            began = time.monotonic()
+            versions = (
+                catalog_versions(self._leases[0].connection)
+                if self.manifest.dataset.catalogs
+                else ()
+            )
+            self.comparisons = build_comparison_cache(
+                self._leases[0].connection, tuple(item.release for item in versions)
+            )
+            LOGGER.info(
+                json.dumps(
+                    {
+                        "event": "comparison_preload",
+                        "status": "completed",
+                        "releases": len(self.comparisons.releases),
+                        "charged_bytes": self.comparisons.charged_bytes,
+                        "duration_ms": round((time.monotonic() - began) * 1000),
+                    }
+                )
+            )
             self._identity = self._file_identity()
         except BaseException:
             self._stack.close()
