@@ -166,7 +166,7 @@ def compare_catalog_dates(
             release = cast(str, ruleset["release_id"])
             if release not in projections:
                 output = Projection(budget)
-                project_catalog(connection, release, output)
+                project_catalog(connection, release, output, schedule_only=True)
                 projections[release] = output
         left = _dated(projections[cast(str, old["release_id"])], before, budget)
         right = _dated(projections[cast(str, new["release_id"])], after, budget)

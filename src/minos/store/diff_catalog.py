@@ -8,7 +8,11 @@ from minos.store.diff_records import Projection, canonical, rows
 
 
 def project_catalog(
-    connection: sqlite3.Connection, release: str, output: Projection
+    connection: sqlite3.Connection,
+    release: str,
+    output: Projection,
+    *,
+    schedule_only: bool = False,
 ) -> None:
     measures: dict[tuple[str, int], list[tuple[str, str, int]]] = defaultdict(list)
     for catalog, row, measure, unit, amount in cast(
@@ -96,6 +100,12 @@ def project_catalog(
         )
         locations[key].append((row, ordinal))
     for key in sorted(groups):
+        # The dated web comparison consumes schedules only. Avoid serializing
+        # the independent offline audit categories it would immediately discard.
+        # Source reads, row/byte bounds and the schedule projection are shared.
+        if schedule_only:
+            output.add("catalog_schedule", key, schedules[key])
+            continue
         output.add("catalog_group", key, sorted(groups[key], key=canonical))
         output.add(
             "base_values", key, sorted(values[key], key=canonical), context=windows[key]
@@ -103,8 +113,9 @@ def project_catalog(
         output.add("catalog_applicability", key, sorted(windows[key], key=canonical))
         output.add("evidence_location", key, locations[key])
         output.add("catalog_schedule", key, schedules[key])
-    output.add(
-        "source_order",
-        ("catalog_rows",),
-        [(catalog, code) for catalog, _, _, code, *_ in source],
-    )
+    if not schedule_only:
+        output.add(
+            "source_order",
+            ("catalog_rows",),
+            [(catalog, code) for catalog, _, _, code, *_ in source],
+        )

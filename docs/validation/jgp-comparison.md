@@ -80,3 +80,29 @@ Private build, container and browser records are retained in
 returned all six comparisons in 120-238 ms and four comparisons from two clients
 in 400-573 ms. These are workstation-container observations, not host capacity
 or SLO evidence. Deployment and actual-host verification remain pending.
+
+## First Activation And Rollback
+
+PR #160's revision `31ef247143180648803baa64b6acc3b7b544cfd0` passed both main
+CI and private publication. Its standard public readiness/rank/JGP/conditions
+checks passed, but supplemental paced cardiology comparison requests returned
+504 twice with an intervening 200. One API event recorded 1,224 ms. The complete
+previous API/edge/bundle set at `5458ef2` was restored with the guarded rollback.
+This is failed comparison acceptance, not a completed deployment.
+
+A local profile identified unnecessary work in `project_catalog`: the web
+consumer built every offline audit category and discarded all but schedules.
+The follow-up adds a schedule-only projection mode for this consumer. It retains
+the same bounded source reads, exact schedule construction, byte/row limits and
+request deadline. The offline full diff retains all its categories by default.
+No source validation, comparison semantics or request budget is weakened.
+
+Matched disposable samples at 0.25 CPU completed all six requests in 258-590 ms,
+versus 589-898 ms before the change. At the deliberate 0.125-CPU constraint the
+baseline failed all six requests; the revised cardiology page passed all three
+in 800-810 ms, while the all-scope page passed once and timed out twice. This is
+reduced work under contention, not elimination of bounded overload failures.
+Every successful response had the same complete HTML SHA-256 as its baseline
+counterpart. The local profile reduced canonical JSON encodings from 24,015 to
+5,984 for the two-release request. Full pre-commit checks passed; corrected
+actual-host acceptance remains required before issue closure.
