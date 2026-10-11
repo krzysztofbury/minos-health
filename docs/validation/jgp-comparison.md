@@ -106,3 +106,29 @@ Every successful response had the same complete HTML SHA-256 as its baseline
 counterpart. The local profile reduced canonical JSON encodings from 24,015 to
 5,984 for the two-release request. Full pre-commit checks passed; corrected
 actual-host acceptance remains required before issue closure.
+
+## Corrective Activation Also Rolled Back
+
+PR #161's revision `e5194a664a8e50588c0f299dd557865cf04328e6` passed PR/main CI
+and private publication and was activated at 2026-10-11T15:45:05Z. All five
+pinned-source golden grouping cases passed at 1,110, 91, 358, 723 and 80 ms,
+including current and original-act requests. The first cardiology comparison
+returned 200, but shared-response verification failed and the subsequent paced
+diagnostic pair returned 504 then 200. The comparison acceptance remains failed;
+the local speed improvement is insufficient evidence of host reliability.
+
+The complete previous `5458ef2` release was restored. The first rollback command
+returned an uninformative remote-command failure after restoring Compose and
+the API but leaving the edge in `created` state. SSH access remained available;
+inspection found the old API healthy. A second guarded rollback started the
+edge successfully. Final inspection confirmed both services healthy, unchanged
+watcher/tunnel/Kuma identities and restart counts, and public 200 responses for
+`/readyz`, `/`, `/jgp/2026-10-01` and `/gruper`.
+Rollback diagnostic loss and partial edge restoration are tracked in #162.
+
+The current production revision is still `5458ef2230425de390751d9c07b5a77857cfd948`.
+#104 and #157 remain open; neither merged candidate is the active deployment.
+The next comparison change needs reviewed resource/performance evidence before
+another activation. Request budgets, source validation and privacy remain intact;
+no production load, stress or profiling was performed. Exact reports are under
+`test-output/validation-deploy/e5194a664a8e50588c0f299dd557865cf04328e6/`.

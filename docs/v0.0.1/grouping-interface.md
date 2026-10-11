@@ -232,4 +232,6 @@ do not replace these outstanding gates.
 
 The [#157 investigation and bounded recovery](../validation/grouping-warmup.md)
 records the local contention reproduction, unchanged reader/request budgets,
-per-stage diagnostics and remaining actual-host verification.
+per-stage diagnostics and actual-host recovery in #160. Both #160 and #161
+activations were rolled back for the separate comparison timeout, so successful
+compatible activation remains pending.
