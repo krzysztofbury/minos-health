@@ -135,6 +135,10 @@ release.
 
 ### Changed
 
+- Preserve structured host refusals and bounded, privacy-safe Compose failure
+  diagnostics. Rollback verifies both validation services, exact running images
+  and operational isolation; explicit retries retain their original baseline,
+  and complete rollback requires public readiness and homepage checks (#162).
 - Preload bounded immutable JGP comparison schedules before API readiness.
   Cache ownership follows the verified bundle; incomplete or over-budget
   construction fails startup. Date/release validation and request budgets remain

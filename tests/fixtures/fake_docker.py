@@ -33,6 +33,10 @@ def image_id(state: dict[str, object], reference: str) -> str:
 def compose_up(state: dict[str, object], arguments: list[str]) -> int:
     if cast(int, state["fail_up"]) > 0:
         state["fail_up"] = cast(int, state["fail_up"]) - 1
+        print(
+            "dependency failed to start: container is unhealthy PRIVATE_TOKEN=/private/path",
+            file=sys.stderr,
+        )
         return 1
     compose = cast(
         dict[str, dict[str, dict[str, str]]],
@@ -42,9 +46,11 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
     for service in ("reference-api", "edge"):
         image = compose["services"][service]["image"]
         old = next(
-            key for key, value in containers.items() if value["service"] == service
+            (key for key, value in containers.items() if value["service"] == service),
+            None,
         )
-        del containers[old]
+        if old is not None:
+            del containers[old]
         state["sequence"] = cast(int, state["sequence"]) + 1
         containers[f"{service}-{state['sequence']}"] = {
             "service": service,
@@ -52,6 +58,26 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             "restarts": 0,
             "health": "healthy",
         }
+        if service == "reference-api" and state.get("fail_after_api"):
+            edge = next(
+                value for value in containers.values() if value["service"] == "edge"
+            )
+            edge["health"] = "created"
+            print(
+                "dependency failed to start: container is unhealthy PRIVATE_TOKEN=/private/path",
+                file=sys.stderr,
+            )
+            return 1
+    if state.get("omit_edge"):
+        for identifier, container in tuple(containers.items()):
+            if container["service"] == "edge":
+                del containers[identifier]
+    for container in containers.values():
+        if container["service"] == "edge":
+            if state.get("unhealthy_edge"):
+                container["health"] = "unhealthy"
+            if state.get("wrong_edge_image"):
+                container["image"] = "stale-api"
     if state.get("restart_watcher_on_up"):
         watcher = next(
             value for value in containers.values() if value["service"] == "watcher"
@@ -68,12 +94,19 @@ def main(arguments: list[str]) -> int:
     output: list[str] = []
     status = 0
     match arguments:
-        case ["ps", "--no-trunc", "--filter", _, "--format", _]:
+        case ["ps", "--all", "--no-trunc", "--filter", _, "--format", _]:
             output = [f"{key} {value['service']}" for key, value in containers.items()]
         case ["ps", "-aq", "--no-trunc"]:
             output = list(containers)
         case ["inspect", "--format", "{{.Image}}", *identifiers]:
             output = [cast(str, containers[key]["image"]) for key in identifiers]
+        case ["inspect", "--format", "{{.Config.Image}}", identifier]:
+            output = [
+                cast(
+                    list[str],
+                    images[cast(str, containers[identifier]["image"])]["references"],
+                )[0]
+            ]
         case ["inspect", "--format", _, *identifiers]:
             output = [
                 f"{key} {containers[key]['restarts']} {containers[key]['health']}"

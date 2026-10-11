@@ -5,6 +5,14 @@ Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
 
 ## Product
 
+### Implementation Order After Comparison Delivery (2026-10-11)
+
+The owner deferred #42's capacity/SLO work until actual product traction and
+paused practitioner-dependent acceptance until a practitioner is available.
+Next: implement, verify and deploy #162's rollback diagnostics/recovery, then
+#92's NFZ publication metadata and #23's JSON concept detail. These priorities
+do not turn existing measurements into capacity or practitioner acceptance.
+
 ### Preloaded Catalog Comparisons (2026-10-11)
 
 After #160 and #161 public comparison timeouts and guarded rollbacks, the owner

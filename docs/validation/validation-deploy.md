@@ -199,10 +199,62 @@ event; every step can be rerun on its own with `--revision <sha>`.
 | `stage` | live Compose unchanged since `plan`; deterministic archive upload (skipped if the bundle is installed); checksum; atomic install as root `0755`/`0444`; `deployment.json`; rollback copy; identity swap that asserts all previous identities; pulls both digests and requires `linux/amd64` plus the source revision label | new files only |
 | `activate` | Compose unchanged since `plan`; at least 300 MiB available; operational snapshot; installs the staged file; `up --no-deps --wait reference-api edge`; on failure restores the rollback file and waits for health; requires unchanged watcher, tunnel and Kuma container IDs and restart counts and healthy validation services; rerunning on an active release reports `already_active` | live Compose |
 | `verify` | public `/readyz` serves the planned dataset identity; for rank bundles one exact page shows the expected rank and, with `--chromium`, the desktop and mobile rank acceptance runs; writes `activation-receipt.json` on the host (with the host's own activation time) and locally | receipt only |
-| `rollback --revision <sha>` | restores the Compose file captured before that revision and requires unchanged operational services | live Compose |
+| `rollback --revision <sha>` | accepts only that candidate or its exact retained prior Compose; restores both validation services; requires healthy API/edge, expected running images and unchanged operational services; checks public readiness and homepage before reporting complete rollback | live Compose |
 | `prune [--keep n] [--apply]` | lists, or with `--apply` removes, unreferenced images, bundles and staged archives | deletes only with `--apply` |
 
 Plans, receipts and screenshots stay in the ignored `test-output/` tree.
+
+### Failure Diagnostics And Explicit Recovery (#162)
+
+Host refusals use a bounded validated JSON envelope even when SSH exits nonzero.
+The caller preserves its error and structured recovery details; a failed process
+cannot turn a success-shaped response into success. Empty or invalid responses
+remain explicit transport/protocol failures, not inferred authentication errors.
+
+Compose stdout and stderr are drained together with a 256 KiB output ceiling
+and a 300-second command deadline (the existing 180-second Compose wait plus
+120 seconds). Timeout/output exhaustion kills the command process group. Raw
+output is discarded: retained records contain outcome, exit code, elapsed time,
+byte count and allowlisted failure classes only. This avoids retaining paths,
+environment values or credentials printed by dependencies. A generic command
+failure remains generic if no known class matched; it is never guessed to be
+a timeout. The actual causes of the earlier #161/#164 failures remain unknown.
+
+`compose-operations.log` and `rollback-operations.log` are private bounded JSON
+records, written on success or failure. Each keeps at most one predecessor as
+`*.previous.log`. `rollback-result.json` records both service states (including
+created/missing), running-image agreement, operational isolation and the explicit
+recovery command. `rollback-ob.json` preserves the original operational baseline
+across retries. Stopped containers are inspected too, so an unstarted edge cannot
+disappear from the result. A missing, unhealthy or wrong-image service prevents
+success, even if Compose exits zero. Failed activation retains its own failure
+details alongside the result of its single automatic restoration attempt.
+
+For an incomplete rollback, inspect the returned fixed-field diagnostics and
+resolve the identified failure, then explicitly repeat:
+
+```sh
+uv run python -m scripts.deploy_validation rollback --revision <failed revision>
+```
+
+The repeat is idempotent for the retained prior Compose, but refuses unrelated
+live Compose or a changed operational baseline. No automatic unbounded retry or
+watcher/tunnel/monitoring restart is used. The host reports `restored` only after
+both services are healthy with expected images and unchanged operational
+identities/restart counts. Its public-ingress field is `not_checked`; the local
+command probes public `/readyz` and `/` before emitting `rolled_back`. A public
+failure reports restored local state and failed ingress rather than complete
+recovery. Automatic activation restoration also leaves public ingress explicitly
+unchecked; it remains a failed activation requiring operator verification.
+
+Local regression evidence covers nonzero remote refusals, partial restoration,
+missing edge despite a successful Compose exit, unrelated Compose refusal,
+changed operational baseline on retry, bounded timeout/output capture and the
+public-ingress success gate. The real disposable API/edge smoke injects failure
+after API restoration while the dependent edge is `created`, then repeats
+rollback and verifies both healthchecks plus HTTP readiness/homepage. Three
+inert operational sentinels retain IDs/restart counts. This smoke runs in the
+validation-image CI workflow. It does not fault-inject production.
 
 ### Retention
 

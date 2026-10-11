@@ -15,7 +15,9 @@ import hashlib
 import json
 import os
 import re
+import selectors
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -43,10 +45,12 @@ MAX_COMPOSE_BYTES = 1024 * 1024
 MAX_BUNDLE_BYTES = 512 * 1024 * 1024
 MIN_AVAILABLE_MIB = 300
 MAX_KEEP = 5
-INSPECT_FORMAT = "{{.Id}} {{.RestartCount}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}"
+INSPECT_FORMAT = '{{.Id}} {{.RestartCount}} {{if .State.Running}}{{if index .State "Health"}}{{.State.Health.Status}}{{else}}none{{end}}{{else}}{{.State.Status}}{{end}}'
 PULL_TIMEOUT_S = 900
 UP_WAIT_TIMEOUT_S = 180
+COMPOSE_TIMEOUT_S = UP_WAIT_TIMEOUT_S + 120
 DOCKER_TIMEOUT_S = 60
+MAX_COMMAND_OUTPUT = 256 * 1024
 # Compose files owned by the watcher and maintenance procedures; their images
 # and bundles are never pruned by validation updates.
 FOREIGN_COMPOSE_GLOBS = (
@@ -58,7 +62,9 @@ FOREIGN_COMPOSE_GLOBS = (
 
 
 class HostError(Exception):
-    pass
+    def __init__(self, message: str, details: dict[str, object] | None = None) -> None:
+        super().__init__(message)
+        self.details: dict[str, object] = details or {}
 
 
 def require(condition: bool, message: str) -> None:
@@ -90,8 +96,10 @@ def run(arguments: list[str], timeout_s: int) -> str:
     except subprocess.TimeoutExpired:
         raise HostError(f"{' '.join(arguments[:3])} timed out") from None
     if completed.returncode != 0:
-        detail = " ".join(completed.stderr.split())[-300:]
-        raise HostError(f"{' '.join(arguments[:3])} failed: {detail}")
+        # Docker stderr may contain credentials, environment values or paths.
+        raise HostError(
+            f"{arguments[0]} {arguments[1]} failed (exit {completed.returncode})"
+        )
     return completed.stdout
 
 
@@ -265,6 +273,7 @@ def containers(layout: Layout) -> list[tuple[str, str, str, str]]:
         [
             "docker",
             "ps",
+            "--all",
             "--no-trunc",
             "--filter",
             f"label=com.docker.compose.project={layout.project}",
@@ -299,42 +308,220 @@ def containers(layout: Layout) -> list[tuple[str, str, str, str]]:
 
 
 def operational(layout: Layout) -> list[list[str]]:
+    records = containers(layout)
+    require(
+        all(
+            health in ("healthy", "starting", "unhealthy", "none")
+            for service, _, _, health in records
+            if service not in VALIDATION_SERVICES
+        ),
+        "operational services are not running",
+    )
     return [
         [service, identifier, restarts]
-        for service, identifier, restarts, _ in containers(layout)
+        for service, identifier, restarts, _ in records
         if service not in VALIDATION_SERVICES
     ]
 
 
 def validation_health(layout: Layout) -> dict[str, str]:
+    records = [
+        record for record in containers(layout) if record[0] in VALIDATION_SERVICES
+    ]
+    require(
+        len({record[0] for record in records}) == len(records),
+        "duplicate validation services",
+    )
     return {
         service: health
-        for service, _, _, health in containers(layout)
+        for service, _, _, health in records
         if service in VALIDATION_SERVICES
     }
 
 
+def compose_result(layout: Layout) -> dict[str, object]:
+    """Drain both streams within fixed byte/time bounds; persist only safe facts.
+
+    Compose lifecycle messages normally go to stderr, even on success. Raw
+    output is never retained: known failure classes plus exit/elapsed/byte
+    counts are sufficient to distinguish timeout, unhealthy and process failure.
+    Service state is captured independently by the calling transition.
+    """
+    arguments = [
+        "docker",
+        "compose",
+        "--project-name",
+        layout.project,
+        "--file",
+        str(layout.compose),
+        "up",
+        "--detach",
+        "--no-deps",
+        "--wait",
+        "--wait-timeout",
+        str(UP_WAIT_TIMEOUT_S),
+        *VALIDATION_SERVICES,
+    ]
+    began = time.monotonic()
+    outcome = "completed"
+    size = 0
+    classifications: set[str] = set()
+    tail = b""
+    with subprocess.Popen(
+        arguments,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    ) as process:
+        assert process.stdout is not None
+        try:
+            with selectors.DefaultSelector() as selector:
+                _ = selector.register(process.stdout, selectors.EVENT_READ)
+                while selector.get_map():
+                    if time.monotonic() - began >= COMPOSE_TIMEOUT_S:
+                        outcome = "timeout"
+                        break
+                    for key, _ in selector.select(timeout=0.1):
+                        chunk = os.read(key.fd, 4096)
+                        if not chunk:
+                            _ = selector.unregister(key.fd)
+                            continue
+                        size += len(chunk)
+                        tail = (tail + chunk)[-8192:]
+                        for marker, code in (
+                            (b"unhealthy", "unhealthy"),
+                            (b"timed out", "timeout"),
+                            (b"timeout", "timeout"),
+                            (b"permission denied", "permission_denied"),
+                            (b"no space left", "disk_full"),
+                        ):
+                            if marker in tail.lower():
+                                classifications.add(code)
+                        if size > MAX_COMMAND_OUTPUT:
+                            outcome = "output_limit"
+                            break
+                    if outcome != "completed":
+                        break
+            if outcome == "completed":
+                try:
+                    _ = process.wait(
+                        timeout=max(
+                            0.01, COMPOSE_TIMEOUT_S - (time.monotonic() - began)
+                        )
+                    )
+                except subprocess.TimeoutExpired:
+                    outcome = "timeout"
+        finally:
+            if outcome != "completed" or process.poll() is None:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            _ = process.wait()
+    if outcome == "completed" and process.returncode != 0:
+        outcome = "command_failed"
+    return {
+        "status": outcome,
+        "exit_code": process.returncode,
+        "duration_ms": round((time.monotonic() - began) * 1000),
+        "output_bytes": size,
+        "failure_classes": sorted(classifications),
+    }
+
+
 def compose_up(layout: Layout, log: Path) -> None:
-    output = run(
-        [
-            "docker",
-            "compose",
-            "--project-name",
-            layout.project,
-            "--file",
-            str(layout.compose),
-            "up",
-            "--detach",
-            "--no-deps",
-            "--wait",
-            "--wait-timeout",
-            str(UP_WAIT_TIMEOUT_S),
-            *VALIDATION_SERVICES,
-        ],
-        UP_WAIT_TIMEOUT_S + 120,
+    details: dict[str, object]
+    try:
+        details = compose_result(layout)
+    except OSError:
+        details = {"status": "os_error"}
+    # Keep the last attempt and its predecessor, bounded across explicit retries.
+    if log.exists():
+        os.replace(log, log.with_suffix(".previous.log"))
+    write_private(log, canonical(details))
+    if details["status"] != "completed":
+        raise HostError("compose up failed", details)
+
+
+def transition_state(layout: Layout, before: list[list[str]]) -> dict[str, object]:
+    """Best-effort fixed-field state; inspection failures must not mask recovery."""
+    state: dict[str, object] = {
+        "validation_health": {name: "unknown" for name in VALIDATION_SERVICES},
+        "operational": "unknown",
+        "identities_match": False,
+        "public_ingress": "not_checked",
+    }
+    try:
+        health = validation_health(layout)
+        state["validation_health"] = {
+            name: health.get(name, "missing") for name in VALIDATION_SERVICES
+        }
+    except (HostError, OSError, ValueError, KeyError):
+        pass
+    try:
+        state["operational"] = (
+            "unchanged" if before and operational(layout) == before else "changed"
+        )
+    except (HostError, OSError, ValueError, KeyError):
+        pass
+    try:
+        _, compose = load_compose(layout.compose)
+        expected = live_identities(compose)
+        records = [
+            record for record in containers(layout) if record[0] in VALIDATION_SERVICES
+        ]
+        matches: dict[str, bool] = {}
+        for service, identifier, _, _ in records:
+            image = run(
+                ["docker", "inspect", "--format", "{{.Config.Image}}", identifier],
+                DOCKER_TIMEOUT_S,
+            ).strip()
+            matches[service] = (
+                image
+                == expected["api_image" if service == "reference-api" else "edge_image"]
+            )
+        state["identities_match"] = matches == {
+            name: True for name in VALIDATION_SERVICES
+        }
+    except (HostError, OSError, ValueError, KeyError):
+        pass
+    return state
+
+
+def restored(state: dict[str, object]) -> bool:
+    return (
+        state["validation_health"] == {name: "healthy" for name in VALIDATION_SERVICES}
+        and state["operational"] == "unchanged"
+        and state["identities_match"] is True
     )
-    with log.open("a") as target:
-        _ = target.write(output)
+
+
+def restore(
+    layout: Layout, revision: str, before: list[list[str]]
+) -> dict[str, object]:
+    directory = layout.stage(revision)
+    write_once(directory / "rollback-ob.json", canonical(before))
+    write_private(layout.compose, layout.rollback(revision).read_bytes())
+    failure: dict[str, object] | None = None
+    try:
+        compose_up(layout, directory / "rollback-operations.log")
+    except (HostError, OSError) as error:
+        failure = (
+            error.details if isinstance(error, HostError) else {"status": "os_error"}
+        )
+    state = transition_state(layout, before)
+    state["status"] = (
+        "restored" if failure is None and restored(state) else "incomplete"
+    )
+    state["command_failure"] = failure
+    state["recovery"] = "rollback --revision " + revision
+    write_private(directory / "rollback-result.json", canonical(state))
+    if state["status"] != "restored":
+        raise HostError(
+            "rollback incomplete; inspect diagnostics and explicitly retry rollback",
+            state,
+        )
+    return state
 
 
 def live_revision(layout: Layout, identities: dict[str, str]) -> str | None:
@@ -483,9 +670,17 @@ def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     staged = (directory / "compose.json").read_bytes()
     live, _ = load_compose(layout.compose)
     if live == staged:
-        health = validation_health(layout)
-        require(set(health.values()) == {"healthy"}, "active release is not healthy")
-        return {"status": "already_active", "validation_health": health}
+        before = cast(list[list[str]], json.loads((directory / "ob").read_bytes()))
+        state = transition_state(layout, before)
+        require(
+            restored(state),
+            "active release is not healthy or operational services changed",
+        )
+        require(
+            (directory / "activated-at.txt").is_file(),
+            "activation has no completed record; rollback required",
+        )
+        return {"status": "already_active", **state}
     require(
         sha256_bytes(live) == params["compose_sha256"],
         "live compose changed since plan",
@@ -499,11 +694,32 @@ def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     log = directory / "compose-operations.log"
     try:
         compose_up(layout, log)
-    except HostError as error:
-        write_private(layout.compose, layout.rollback(revision).read_bytes())
-        compose_up(layout, log)
+        state = transition_state(layout, before)
+        if not restored(state):
+            raise HostError(
+                "new release is not healthy or operational services changed", state
+            )
+    except (HostError, OSError) as error:
+        original: dict[str, object] = (
+            error.details if isinstance(error, HostError) else {"status": "os_error"}
+        )
+        original["state"] = transition_state(layout, before)
+        # Preserve the original failure even if recovery also fails.
+        try:
+            recovery = restore(layout, revision, before)
+        except (HostError, OSError) as recovery_error:
+            raise HostError(
+                "activation failed; rollback incomplete",
+                {
+                    "activation_failure": original,
+                    "rollback": recovery_error.details
+                    if isinstance(recovery_error, HostError)
+                    else {"status": "os_error"},
+                },
+            ) from None
         raise HostError(
-            f"activation failed and the previous release was restored: {error}"
+            "activation failed and the previous release was restored",
+            {"activation_failure": original, "rollback": recovery},
         ) from None
     after = operational(layout)
     write_private(directory / "oa", canonical(after))
@@ -529,18 +745,26 @@ def rollback(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     source = layout.rollback(revision)
     require(source.is_file(), "no retained rollback for that revision")
     content, compose = load_compose(source)
+    current, _ = load_compose(layout.compose)
+    directory = layout.stage(revision)
+    require(
+        current in (content, (directory / "compose.json").read_bytes()),
+        "live compose is neither the selected candidate nor its rollback",
+    )
     identities = live_identities(compose)
     require(
         layout.bundle(identities["database_sha256"]).is_dir(),
         "rollback bundle is missing",
     )
-    before = operational(layout)
-    write_private(layout.compose, content)
-    compose_up(layout, layout.stage(revision) / "rollback-operations.log")
-    require(
-        operational(layout) == before, "operational services changed during rollback"
-    )
-    return {"status": "rolled_back", "live": identities}
+    baseline = directory / "rollback-ob.json"
+    if baseline.exists():
+        before = cast(list[list[str]], json.loads(baseline.read_bytes()))
+    else:
+        before = operational(layout)
+        require(bool(before), "operational services are not running")
+        write_private(baseline, canonical(before))
+    state = restore(layout, revision, before)
+    return {**state, "live": identities}
 
 
 def _rollback_chain(layout: Layout, keep: int) -> list[Path]:
@@ -700,7 +924,16 @@ def main(arguments: list[str]) -> int:
                 # the lock so it never races a stage or activation.
                 result = MUTATING[command](layout, params)
     except (HostError, OSError, KeyError, TypeError, ValueError) as error:
-        print(json.dumps({"ok": False, "error": f"{type(error).__name__}: {error}"}))
+        message = str(error) if isinstance(error, HostError) else type(error).__name__
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": message,
+                    "details": error.details if isinstance(error, HostError) else {},
+                }
+            )
+        )
         return 2
     print(json.dumps({"ok": True, "result": result}))
     return 0

@@ -54,6 +54,7 @@ jobs:
             --api-image minos-reference-api:validation-local \
             --edge-image minos-reference-edge:validation-local \
             --chromium "$(command -v google-chrome)"
+          uv run python scripts/smoke_validation_rollback.py "$RUNNER_TEMP/rollback-smoke"
 
       - name: Scan validation API for fixable high/critical vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
