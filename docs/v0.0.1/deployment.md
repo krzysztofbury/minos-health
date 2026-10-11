@@ -1,12 +1,19 @@
 # Deployment
 
-Status: target application architecture with the source-neutral watcher runtime
-implemented. The host currently runs the exact-digest maintenance edge,
-Cloudflare Tunnel, and a separate private Uptime Kuma bootstrap container.
-The repository now contains the watcher image, scheduler,
-local Compose stack, RSK collector and public provenance projection,
-S3/recovery composition, and candidate preflight, but no application API image,
-applied watcher AWS stack, or release workflow.
+Status reconciled 2026-10-11: the public-validation API, web edge, RSK/BAW/NFZ
+watchers, Cloudflare Tunnel and Uptime Kuma are deployed on Mikr.us. Private
+GHCR publication and guarded exact-digest API/edge/bundle updates are implemented.
+The latest verified activation is #156 (`5458ef2`, 2026-10-09, schema 10);
+[its receipt](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204)
+records isolation, public checks and rollback.
+
+This document describes the target full-product release contract. The current
+[validation update path](../validation/validation-deploy.md) mounts a separate
+verified read-only data bundle. Independent signatures and complete compatible
+release receipts (#41), hosted archive-reader acceptance (#19), recovery/AWS
+drills (#49), representative capacity (#42) and full deployment acceptance (#27)
+remain open. Startup warm-up timeout is tracked in #157. Unattended activation
+is deferred in #141, not a prerequisite for reviewed validation updates.
 
 ## Goals
 

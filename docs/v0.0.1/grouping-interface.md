@@ -214,9 +214,18 @@ Local verification on 2026-10-08:
 - Existing search/filter/dictionary/JGP/rank browser checks, bounded search load,
   log privacy and stopped-API recovery passed through the same edge images.
 
-Release acceptance still requires the user's review, practitioner entry-time
-and explanation checks, the Cloudflare per-IP rate-limit rule, then the
-production-edge/Cloudflare Tunnel POST and log-privacy checks after authorized
-activation. Local containers cannot prove
-the tunnel path. Keep #39 open until that evidence exists; the implementation
-does not itself authorize deployment or change the production data selector.
+### Deployed Evidence And Remaining Acceptance (reconciled 2026-10-11)
+
+#39's implementation is deployed and closed. The 2026-10-08 production check
+verified the Cloudflare per-IP rule (429 from the 11th request within 10 seconds),
+public Tunnel POST and encounter log privacy. The
+[#156 activation receipt](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204)
+records the 2026-10-09 schema-10 release, five passing pinned-source golden cases
+through the Tunnel and desktop/mobile product/trace checks with paced clicks.
+
+Practitioner entry-time and explanation acceptance was not demonstrated by those
+checks. It is explicitly carried from #39 into #158, including the question about
+service-code entry for 1xxx specialties. Real ward outcome agreement remains #38.
+The startup warm-up timeout and isolated JGP-page timeout are recorded in #157;
+representative host capacity remains #42. Historical local measurements above
+do not replace these outstanding gates.

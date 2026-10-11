@@ -3,9 +3,12 @@
 Issue #34, following the reviewed encounter boundary. Entry points:
 `minos.grouper.registry.EngineRegistry.execute` runs algorithm preparation, and
 `minos.grouper.pipeline.derive_candidates` runs it from one verified bundle and
-derives directional candidate groups. Neither returns final eligibility,
-settlement points or a legally complete ruleset. No HTTP/CLI grouping endpoint,
-web change or deployment is included.
+derives directional candidate groups. These preparation entry points do not
+return final eligibility or settlement points. The full `group_request` use
+case subsequently delivered supported eligibility, tariff and trace evaluation
+(#35/#36), exposed by the [grouping interface](grouping-interface.md) (#39).
+The latest verified deployment is #156 (`5458ef2`, 2026-10-09), including #145
+product exclusions. The preparation evidence below retains its original scope.
 
 ## Exact Dispatch And Source Ownership
 
@@ -157,9 +160,9 @@ wheel smoke exercised the actual registry/engine from an isolated environment
 without development dependencies.
 
 Composite binding, candidate derivation and real pinned-rule acceptance are
-now covered below. #35 retains condition evaluation (reviewed executable roots
-and policies), group selection, tariff calculation and unbound-modifier
-refusal; #36 retains full explanatory and near-miss presentation. Settlement
+covered below. #35 delivered supported condition evaluation, group selection,
+tariff calculation and unbound-modifier refusal; #36 delivered explanatory
+and near-miss presentation. Settlement
 product exclusions are implemented under #145 (`szp-preparation-2`).
 
 ## Candidate Derivation From One Bundle
@@ -203,9 +206,10 @@ Candidates carry the matched nodes, lists and attachment 9 evidence rows, and
 `conditions="not_evaluated"`. Absence from the list is not proof that a group
 fails; presence is not eligibility. Ordering is canonical (catalog, group).
 
-On the real bundle a call takes about 200 ms, most of it building the
-directional index; caching that per bundle belongs with the first runtime
-caller. This is a local measurement, not a capacity claim.
+The original uncached local measurement was about 200 ms, most of it building
+the directional index. #149 subsequently delivered release-static caching;
+#157 tracks the observed production warm-up timeout. Neither measurement nor
+cache delivery establishes representative host capacity.
 
 ### #34 Acceptance Evidence
 
@@ -231,10 +235,10 @@ locally on 2026-10-07. Hand-checked against attachment 9 46/2026 after 102:
   9 together; an April date has no attachment 9 release and is refused.
 - Reordered stays produce identical candidates and preparation traces.
 
-## Next Review Gate: Eligibility (#35)
+## Eligibility Contract (#35, delivered supported subset)
 
-Directional candidates are not eligibility. Before #35 can report a group as
-valid, all of the following must hold together:
+Directional candidates are not eligibility. Reporting a group as valid requires
+all of the following to hold together:
 
 1. Exact catalog, attachment 9, terminology, algorithm, ranks and specialty source
    identities, plus product and contract/routing evidence needed by the pathway.
@@ -249,11 +253,12 @@ valid, all of the following must hold together:
    produce a typed unsupported/unresolved result, not a skipped requirement or
    a fallback to another catalog/rank scope.
 
-Product interpretation must distinguish inclusive W procedure intervals from
-strict-interior V intervals (paragraphs 129, 140-141), and the different duration
-adjustments (153-154). Missing endpoints, overlaps and short V intervals need
-source-backed policies before subtraction; reported completeness does not resolve
-them. No exclusion type can be supplied by the encounter caller.
+The #145 decision of 2026-10-09 binds the governing act's product catalogs:
+W intervals exclude procedures inclusively and subtract end minus start under
+the recorded owner interpretation. All five pinned acts lack a 1v catalog, so
+V is not applicable to the supported source set; no V implementation is claimed.
+Missing endpoints and ambiguous overlaps remain unresolved under the documented
+policies. No exclusion type can be supplied by the encounter caller.
 
 The selection-policy conflict is resolved (owner decision 2026-10-07, see
 `decisions.md`): paragraph 113 leaves the choice among valid JGPs to the

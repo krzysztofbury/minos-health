@@ -442,6 +442,10 @@ Owner decisions while reviewing #144 against the pinned algorithm `1.1.2026`:
 
 ### Executable Attachment 9 Subset (2026-10-07)
 
+This initial decision is retained chronologically. The tariff-assumptions
+decision below extends supported predicates and root shapes; the 2026-10-09
+settlement-product decision supersedes its temporary product-free restriction.
+
 All attachment 9 conditions are machine-extracted and stored as `proposed`.
 For #35 the owner approved a minimal executable subset: diagnosis list
 presence by role, procedure list presence, `all`/`any`, age in completed years

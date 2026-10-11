@@ -5,6 +5,35 @@ Execution backlog lives in [GitHub issues](https://github.com/krzysztofbury/mino
 estimates). This file remains the spec-level checklist; issues carry the
 day-to-day order.
 
+## Reconciled Delivery Status (2026-10-11)
+
+Latest verified validation deployment: #156, revision `5458ef2`, activated
+2026-10-09 with a schema-10 bundle. [Release evidence](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204)
+records exact identities, public API/browser/privacy checks and rollback.
+This is a dated deployment record, not a new production inspection.
+
+- [x] Deliver the supported grouper subset, reviewed MODTAR binding, trace,
+      CLI/HTTP grouping and encounter builder (#34-#37, #39, #46, #129).
+- [x] Deliver settlement-product classification/exclusions and official builder
+      dictionaries (#145, #151), plus warm-up logging and dictionary caching (#155).
+- [ ] Fix the observed startup warm-up timeout (#157); reproduce under bounded
+      production-like container limits before changing budgets or runtime policy.
+- [ ] Obtain practitioner entry-time and explanation acceptance (#158, carried
+      from closed #39). Real ward outcome agreement remains separate in #38.
+- [ ] Complete search relevance/workflow and capacity evidence (#126, #25, #42).
+- [ ] Deliver the remaining reference features: JSON concept detail (#23),
+      JGP comparison UI (#104), NFZ publication metadata (#92), and source-page
+      discovery/citation improvements (#80). Historical downloads remain
+      rights-gated (#84).
+- [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/AWS
+      acceptance (#49), Cloudflare privacy audit (#28), signed releases (#41),
+      full deployment acceptance (#27), and external brand/commercial gates (#2/#3).
+
+Deferred work remains #141 (unattended activation), #95 (assisted case entry),
+#53 (ICD-11) and #54 (private watcher portal). Completed prerequisites do not
+automatically authorize those features. Unsupported grouping rules remain
+undetermined; the deployed subset and golden cases do not establish ward accuracy.
+
 ## Accepted Decisions
 
 - [x] Pivot from an ICD-10 reference (Apollo Codebook) to an explainable JGP
@@ -43,21 +72,22 @@ day-to-day order.
       mutation or fault injection, integration, and pair-programmer review gates
       for implementation chunks.
 
-## Owner-Ordered Validation Work (2026-10-06)
+## Owner-Ordered Validation Work (2026-10-06, reconciled 2026-10-11)
 
 #20/#31 merged in #139 and deployed at `1d1e8b4` on 2026-10-05. The owner
 accepted the real ICD-9 Markdown diff. On 2026-10-06 the owner reprioritized
 client validation over unattended-release infrastructure and requested merging
 only the useful completed subset of #140.
 
-Completed in #142 at `902496d` without deployment: retain #19's exact-version S3 build adapter, its focused
-real-S3 evidence and scoped acceptance repairs, plus Chromium startup reliability.
+Completed in #142 at `902496d` without a separate deployment: retain #19's
+exact-version S3 build adapter, focused real-S3 evidence and scoped acceptance
+repairs, plus Chromium startup reliability.
 The merged smaller branch was `feat/validation-archive-build`. The existing artifact
 manifest is unchanged; transport pins stay separate. #19 remains open for
 hosted complete real-source determinism and workflow-role acceptance, not more
 parser work. See [archive processing](docs/v0.0.1/archive-processing.md).
 
-Then execute these client-facing phases in order:
+Delivery and remaining acceptance of the owner-ordered phases:
 
 1. [ ] #126 and #25/#42: strengthen relevance safety and measure actual
        user-visible performance before further search expansion. Preserve the
@@ -69,20 +99,21 @@ Then execute these client-facing phases in order:
        packaged browser workflows. All 40 scripted discoveries complete in both
        220/120/150 ms single-user runs. The rejected 150 ms experiment improves
        suggestion medians by about 70 ms but still increases slower-typing
-       suggestion requests 18.4x. Conditional deployment requires a passing
-       four-browser capacity comparison and final CI/preflight. The repeated
-       150 ms capacity run fails: 9/160 searches have failed sources and 4/160
+       suggestion requests 18.4x. The repeated 150 ms capacity run fails:
+       9/160 searches have failed sources and 4/160
        target discoveries fail, versus complete 220 ms final results. The owner
-       then authorized restoring 220 ms, pushing, merging and validation deployment
-       after final runtime/CI/preflight checks. Do not deploy 150 ms or treat
-       passing CI as capacity acceptance. Clinical,
+       then authorized restoring 220 ms; #143 merged and deployed at `aedb781`
+       on 2026-10-06 after final runtime/CI/preflight checks. Do not deploy 150 ms
+       or treat passing CI as capacity acceptance. Clinical,
        independently held-out, incumbent and multi-user/actual-host capacity
-       acceptance remain open; record the actual activation receipt separately. See
+       acceptance remain open. See
        [search workflow evidence](docs/validation/search-workflow.md).
-2. [ ] #34-#36: build the explainable grouper with deterministic encounter
-       validation and source-backed traces. #37 practitioner gold encounters and
-       #46/#129 modifier/legal reconciliation remain gates; unbound modifiers
-       must never be interpreted as no modifiers or base points as final tariffs.
+2. [x] #34-#36: deliver the supported explainable grouper with deterministic
+       encounter validation and source-backed traces. #37 supplies reviewed
+       synthetic and pinned-source golden cases, not practitioner outcome proof.
+       #46/#129 were resolved under recorded owner assumptions in #146; #156
+       completes trace/product/golden-case delivery. Unbound modifiers still
+       cannot be interpreted as no modifiers or base points as final tariffs.
 
 Each numbered phase gets its own branch, coherent commits and PR. Complete and
 review/merge its PR before starting the next phase; run its relevant runtime,
@@ -106,11 +137,11 @@ archive-reader IAM subject was not repaired; future live changes require an
 exact reviewed plan. No new IAM/KMS/host changes or activation are approved.
 Dictionary and embedding experiments remain separate and use unchanged gold sets.
 
-## Reference Delivery Sequence (2026-10-02, reconciled 2026-10-05)
+## Reference Delivery Sequence (2026-10-02, reconciled 2026-10-11)
 
-Free ICD-10 PL and ICD-9 PL search is live. The next work makes it JGP-aware
-before any calculation, because a grouper without traceable conditions would
-put unverified points in front of users.
+Free ICD-10 PL, ICD-9 PL and JGP search, dated reference pages and the supported
+explainable grouper are live under the public-validation exception. The sequence
+below records their delivery; remaining practitioner and release gates stay explicit.
 
 1. [x] #33: procedure ranks per ruleset release, shown on ICD-9 code pages
        (#106, deployed to the validation host 2026-10-02).
@@ -119,8 +150,9 @@ put unverified points in front of users.
        points without modifiers, labelled as such in API and UI. #18 retains
        bitemporal provenance, explicit uncovered-date errors and per-provision
        base-point applicability, including 102/2026 section 4(5)'s deferred
-       2027-01-01 catalog rows. It records modifiers as explicitly unbound;
-       #46 owns MODTAR binding and section 17 coefficient applicability.
+       2027-01-01 catalog rows. Its initial modifier state was explicitly unbound;
+       #46 subsequently delivered reviewed MODTAR binding and the supported
+       section 17 applicability under the 2026-10-07 owner assumptions.
        #26 first delivers shareable date-specific group pages with the governing
        act/catalog identity, not diffs or condition-based ICD cross-links.
        Delivered as /jgp (#118, deployed to the validation host 2026-10-03).
@@ -130,18 +162,15 @@ put unverified points in front of users.
        2026-10-03 (#121). #30 done: [source-traced condition import](docs/v0.0.1/jgp-conditions-ingest.md)
        (#122, deployed to the validation host 2026-10-03; the public bundle
         stayed schema 4 until #32). #32/#131 delivered dated conditions and reverse
-        links; the public reference bundle now uses schema 8. Unsupported
+        links; the latest verified public bundle uses schema 10. Unsupported
         fragments remain explicit reference evidence, not executable defaults.
-        The #46 MODTAR import/binding/legal reconciliation is still incomplete.
-4. [ ] #34-#36 grouper engine and trace with the #37 golden cases; #46 MODTAR
-       before final points. #35 must reject unbound modifiers, never interpret
-        that state as no modifiers applying or return base points as final.
-        #46 source import now preserves pinned generations 100/102 and pending
-        reconciliation. [Legal-overlay and compatible-binding review](docs/v0.0.1/jgp-modifiers-ingest.md)
-        remains required; neither research candidates nor synthetic transition
-        tests close that gate.
-5. [ ] External: show steps 1-2 to the practitioner from #4 and request the
-       complete anonymized encounters needed by #37 and #38.
+4. [x] #34-#36 grouper engine and trace with #37 golden cases, #46 reviewed
+       MODTAR binding and #145 product exclusions. #35 rejects unbound modifiers.
+       The [binding record](docs/v0.0.1/jgp-modifiers-ingest.md) identifies the
+       accepted assumptions; #129 closure does not represent an NFZ answer.
+5. [ ] External: obtain practitioner builder feedback (#158) and independently
+       reviewed de-identified outcome cases when available (#38). Closed #4 did
+       not supply verified encounters; #37's derived cases are a separate result.
 
 ICD-11 (#53) stays deferred: it is not an NFZ settlement input, adds a
 licensing review, and does not advance JGP validation.
@@ -225,11 +254,11 @@ UI remain the baseline.
       Mikr.us Compose topology, service-restricted secrets and volumes,
       scheduler-paused preflight, read-only watcher status, bounded local logs,
       ordinary-loss restore, and suspected-compromise restore tooling.
-- [ ] Execute #49 external acceptance: same-account disposable real-AWS tests in
-      account `218375352108` with the production-acceptance phrase and exact
-      watcher Terraform plan approval and apply, watcher secret installation,
-      scheduler-paused Mikr.us preflight, both empty-host restore drills, and
-      representative host load evidence.
+- [ ] Execute the remaining #49 external acceptance: broad disposable real-AWS
+      watcher/refusal tests, both empty-host restore drills, confirmed budget
+      alert delivery and representative host overlap/load evidence. Production
+      provisioning, secrets, preflight and the RSK/BAW/NFZ watchers are delivered;
+      #142's focused S3 build cases do not complete the broader acceptance.
 - [x] Add the issue #6 private capture gate: fixed anonymous endpoints, bounded
       exact-byte staging, semantic `00CD10` XML selection, rotation quarantine,
       schema-shaped synthetic fixtures, and an opt-in live compatibility check.
@@ -319,7 +348,8 @@ UI remain the baseline.
       non-expiring chained inventory off-host, with ordinary-loss and
       suspected-compromise restore commands.
 - [ ] Execute ordinary-loss and suspected-compromise empty-host restore drills.
-- [ ] Complete #21 automatic verified change selection through scoped OIDC,
+- [ ] Deferred in #141 (#21 closed as superseded): automatic verified change
+      selection through scoped OIDC,
       pinned proposals/logical diffs and policy-qualified routine data activation.
       Failed or significant candidates retain/restore the last good release and
       send detailed privacy-safe Telegram alerts. Never give the watcher a GitHub
@@ -405,7 +435,7 @@ UI remain the baseline.
 
 - [x] Download and fixture the RSK ICD-10 XML (HCD `00CD10`) and the NFZ ICD-9
       PL XML/XLSX.
-- [ ] Fixture CZS MODTAR XML (#46). Załącznik 9 fixtures landed with #30
+- [x] Fixture CZS MODTAR XML (#46). Załącznik 9 fixtures landed with #30
       (synthetic in-repo, pinned private captures opt-in). The watchers already archive the source bytes. Komunikat algorithm
       and rank fixtures landed with #33; załącznik 1a catalog fixtures with #17.
 - [x] Record source identity for every archived file: URL or UUID, byte size,
@@ -415,23 +445,26 @@ UI remain the baseline.
       concepts and multilingual descriptions, preserving uncoded containers,
       annotations and modifiers without inventing diagnosis codes.
 - [x] Define terminology, concept, description, and source-release tables.
-- [ ] Define group, base-tariff and ruleset-release tables with bitemporal
+- [x] Define group, base-tariff and ruleset-release tables with bitemporal
       fields and per-provision applicability (#18, including the 102/2026
-      deferred catalog rows); conditions landed in #30 (schema 5, now 6);
-      modifiers/binding remain in #46. Base-only rulesets explicitly record modifiers as unbound.
+      deferred catalog rows); conditions landed in #30 and modifiers/binding in
+      #46. Schema 10 additionally stores product catalogs. A bundle without a
+      compatible reviewed modifier binding explicitly remains unbound.
 - [x] Implement streaming XML parsing with explicit validation errors; reject
       DTDs and external entities; bound depth, value size, record count,
       source bytes, and parser resource use.
 - [x] Implement hardened XLSX parsing with zip entry-count, expansion-ratio,
       and size limits for the ICD-9 workbook.
-- [ ] Extend it to the merged-cell multi-row headers of the JGP catalog with
+- [x] Extend it to the merged-cell multi-row headers of the JGP catalog with
       explicit layout-version markers (#17).
-- [ ] Implement komunikat DOCX extraction for algorithm metadata; the
+- [x] Implement komunikat DOCX extraction for algorithm metadata (#33); the
       algorithm steps themselves are implemented as versioned engine code with
       fixture-backed tests.
-- [ ] Curated overlay dataset for rules living in legal prose (correction
+- [x] Curated overlay dataset for the reviewed rules living in legal prose (correction
       coefficients, coefficient-combination formula) with `manual` provenance
-      and mandatory review; reconcile it against CZS MODTAR mappings.
+      and mandatory review; reconcile it against CZS MODTAR mappings (#46/#129).
+      The owner-approved scope excludes the food-standard ratio and discloses
+      dictionary disagreements; this is not comprehensive legal clearance.
 - [x] Reject duplicate codes, broken parents, missing descriptions, and unknown
       structural elements that affect meaning in terminology sources.
 - [x] Reject unresolved JGP list references (#30): persisted selectors always
@@ -455,32 +488,42 @@ UI remain the baseline.
 ## Domain And Search
 
 - [x] Define namespaced terminology and release identifiers.
-- [ ] Define grouping-scheme identifiers (`jgp-szp`) with the first JGP data.
+- [x] Define grouping-scheme identifiers (`jgp-szp`) with the first JGP data.
 - [x] Implement Unicode-aware Polish normalization and morphology without
       changing source text.
 - [x] Implement exact code and exact normalized-description matches.
 - [x] Implement indexed prefix/token search and bounded substring fallback.
 - [x] Define deterministic rank and tie-break rules in tests.
-- [ ] Service-date resolution: given a date, select the governing ruleset
+- [x] Service-date resolution: given a date, select the governing ruleset
       release; error explicitly when no release covers the date.
 
 ## Grouper (v0.0.2)
 
-- [ ] Implement `minos.grouper`: encounter facts against a pinned ruleset
-      release; rules as data, engine as versioned code.
-- [ ] Full rule trace: every consulted condition with outcome; near-miss
-      report for conditions that almost changed the group.
-- [ ] Golden-case regression suite; cross-check against the CGM grouper and
-      WikiJGP case builder; review divergences.
-- [ ] Validate with real anonymized ward cases before public release.
-- [ ] `POST /api/v1/group`: stateless, bounded, never logged, never stored.
+- [x] Implement the supported `minos.grouper` subset: encounter facts against a
+      pinned ruleset; rules as data, engine as versioned code (#34/#35).
+- [x] Trace every consulted condition and outcome; report bounded near misses
+      only when whole-group reevaluation changes the result (#36).
+- [x] Deliver 14 reviewed golden cases: 9 synthetic and 5 derived from pinned
+      sources, with evidence levels and divergence dispositions (#37).
+- [ ] Cross-check complete, source-matched cases against independently available
+      grouper outputs where access permits; record tool/version, missing evidence
+      and divergences. The initial suite does not establish this comparison.
+- [x] Bind governing-act product catalogs and apply reviewed W exclusions and
+      duration rules (#145). No pinned act has type V; unknowns remain unresolved.
+- [ ] Obtain independent real ward outcome validation (#38). Public/synthetic
+      examples and third-party comparisons do not establish NFZ agreement.
+- [x] `POST /api/v1/group` and `minos group`: stateless bounded evaluation;
+      encounter contents excluded from logs and persistent storage (#39).
+- [ ] Verify practitioner entry-time and explanation acceptance (#158).
+- [ ] Resolve startup warm-up timeout under representative limits (#157).
 
 ## CLI
 
 - [x] Add `minos data build`.
 - [ ] Add dataset inspection commands.
 - [x] Add `minos search` with explicit system and dataset selection.
-- [ ] Add `minos jgp show <group>` with service-date selection.
+- [x] Add dated JGP lookup as `minos jgp group --code <group>` and
+      `minos jgp modifiers`, both with `--service-date` and `--known-on`.
 - [x] Add human-readable output, stable exit codes, and versioned JSON output.
 - [x] Include dataset provenance and the reference-only disclaimer in output.
 - [x] Verify lookup requires no network access after a dataset is built.
@@ -491,8 +534,9 @@ UI remain the baseline.
 ## HTTP And Web
 
 - [x] Add `/healthz`, `/readyz`, and bounded `POST /api/v1/search` (#22).
-- [ ] Add JSON concept detail and JGP group endpoints with explicit
-      service-date parameters (#23, #24).
+- [ ] Add the remaining JSON concept-detail contract (#23); explicitly decide
+      terminology release/date semantics and keep query values out of URLs.
+- [x] Add dated JGP group endpoints (#24), extended with conditions in #32.
 - [x] Add versioned response schemas and consistent error mapping.
 - [x] Build the responsive terminology search, dictionary trees, and code pages
       under `apps/web`; embed its immutable output in the edge image and route
@@ -502,9 +546,10 @@ UI remain the baseline.
 - [ ] Add JGP version diff views in #104 after #20 and the first #26 delivery.
 - [x] Display code hierarchy, source release, and the safety/compliance
       disclaimer.
-- [ ] Display grouping conditions and point values (#26, #32).
+- [x] Display grouping conditions and point values (#26, #32).
 - [x] Exclude raw query text from logs and analytics.
-- [ ] Extend the log-privacy test to encounter payloads (#39).
+- [x] Extend the log-privacy test to encounter payloads (#39); public Tunnel
+      and running-container log checks are recorded in #156's release evidence.
 - [x] Add input, result-count, concurrency, and timeout limits.
 
 ## Container And Local Runtime
@@ -522,19 +567,20 @@ UI remain the baseline.
 
 ## CI And Release
 
-- [ ] Add PR checks for Ruff formatting/linting, BasedPyright, mypy, pytest,
-      fixture ingestion, documented mutation/fault-injection evidence,
-      dependency policy, and a Compose browser-to-API search; automate mutation
-      checks after tool selection.
+- [x] Add PR checks for Ruff formatting/linting, BasedPyright, mypy, pytest,
+      fixture ingestion, dependency policy, and Compose browser-to-API checks.
+      Targeted manual mutation/fault-injection evidence accompanies relevant changes.
+- [ ] Automate mutation checks after Python 3.14 runner selection and validation.
 - [ ] Build the pinned full dataset and private GHCR image on `main`.
-- [ ] Tag images by commit and address releases by digest; never deploy
-      `latest`.
+- [x] Bind validation images to source commits and publish run-specific tags;
+      deploy only exact digests with verified revision labels. Signed product
+      promotion remains #41; never deploy `latest`.
 - [ ] Sign release digests and publish build provenance using GitHub OIDC.
 - [ ] Bind image digest, source commit, and build workflow in a verifiable
       attestation; reject a moved `sha-<commit>` tag.
 - [ ] Require a signed `v*` tag workflow that promotes the attested digest.
-- [ ] Verify deployable GHCR references resolve to the intended runnable
-      `linux/amd64` manifests rather than indexes or attestations.
+- [x] Verify validation GHCR references resolve to intended runnable
+      `linux/amd64` images; retain this verification in #41's signed product path.
 - [ ] Enable and verify GitHub immutable releases. Publish OIDC provenance, then
       independently sign and conditionally copy each release manifest to its
       operator-only S3 key. Write signed, sequenced, append-only deployment
@@ -560,15 +606,17 @@ UI remain the baseline.
       restricted secret files with the first deployable Compose stack.
 - [x] Create the `watcher` Terraform root for the snapshot bucket, conditional
       write policy, watcher IAM identity, GitHub OIDC read role, and budget.
-- [ ] Create the watcher access key manually outside Terraform; store the
+- [x] Create the watcher access key manually outside Terraform; store the
       recovery copy in the password manager and install it as a service-
       restricted host file for the pinned watcher UID/GID.
 - [x] Complete #55: review scoped AWS production and disposable-test operators,
       provision the fixed acceptance boundary, and regenerate the production
       plan under the approved role before any AWS apply. Disposable denial
       tests carry over to #49.
-- [ ] Authenticate to GHCR with a GitHub token scoped to `read:packages`; use
-      AWS OIDC only for GitHub archive reads.
+- [x] Install host GHCR authentication for private exact-digest pulls, using
+      the required package-read-only credential boundary.
+- [ ] Verify actual hosted archive-reader OIDC/IAM acceptance (#19); the custom
+      subject rehearsal does not prove the current AWS trust accepts it.
 - [x] Create the Cloudflare Tunnel, back up its scoped credential in 1Password,
       install it as a service-restricted host secret for the pinned
       `cloudflared` GID, and publish no application port directly from Mikr.us.
@@ -604,7 +652,9 @@ UI remain the baseline.
       latency on the actual Mikr.us `3.0` host.
 - [ ] Load-test warm API paths, process restart, concurrent watcher work, and a
       documented launch burst through Cloudflare Tunnel.
-- [ ] Verify production through the public domain with a real search request.
+- [x] Verify validation releases through the public domain with real source
+      searches and artificial grouping cases; retain these checks in #27's
+      full signed deployment path.
 - [ ] Verify bounded Docker logs, read-only watcher status, and operator-run
       readiness and known-search checks. Accept that these local signals do not
       detect a complete Mikr.us host, network, or power outage from outside its

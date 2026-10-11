@@ -11,6 +11,13 @@ release.
 
 ### Added
 
+- Supported deterministic grouping with reviewed MODTAR binding, explicit
+  modifier declarations, source-linked trace and bounded near misses; stdin CLI,
+  stateless HTTP endpoint and stepped desktop/mobile encounter builder
+  (#146/#147/#150/#154).
+- Governing-act product classification and W exclusions in schema 10, product
+  explanations in the builder, and 14 reviewed synthetic/pinned-source golden
+  cases (#156, deployed for validation 2026-10-09).
 - Explicit pinned-release `minos data diff` for verified bundle directories,
   covering terminology, catalog base values/applicability and conditions graph,
   list, correspondence and evidence changes with bounded Markdown/JSON output.
@@ -122,6 +129,10 @@ release.
 
 ### Changed
 
+- Reconciled README, TODO, specification status and delivery documents with
+  the verified #156 release and GitHub backlog (2026-10-11). Practitioner builder
+  acceptance from closed #39 is explicitly tracked in #158; #157 retains the
+  observed startup timeout. Full release, capacity and ward-evidence gates remain open.
 - Replaced the planned Lambda, ECR, CloudFront, frontend-S3, and QNAP topology
   with one dedicated Mikr.us `3.0` Docker Compose host behind Cloudflare Tunnel;
   AWS now provides only versioned source storage, narrow IAM, budgets, and

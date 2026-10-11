@@ -36,9 +36,9 @@ cannot claim both levels.
 
 Age is either an exact birth date or reported completed years **at admission**,
 never both. Completed years cannot supply week/month precision by inventing a
-birth date. No age or duration computation is performed in this chunk. Discharge
+birth date. The input model performs no age or duration computation. Discharge
 mode is an optional reported numeric token, not a claim that a code is supported.
-Hospitalization types are `hospitalization`, `planned`, and `one_day`; future
+Hospitalization types are `hospitalization`, `planned`, and `one_day`; downstream
 evaluation must use the selected source's duration rules, not a universal
 inclusive-day formula.
 
@@ -58,7 +58,7 @@ The adapter performs no logging, persistence or network access. Explicit
 serialization and debugger inspection still expose facts; callers must obey
 the stateless, no-encounter-logging contract.
 
-## Source Review And Next Gate
+## Source Review And Downstream Evaluation
 
 Reviewed the pinned NFZ algorithm `1.1.2026`, SHA-256
 `a233b231e2d20448f14d28187590803bce743371b727d3c7d6c5dd4fba8de51c`,
@@ -79,18 +79,19 @@ Paragraph numbers below are capture-local `w:p` positions, including table cells
 Before dispatch/evaluation, review the executable ruleset binding and supported
 input subset. Existing attachment 9 condition roots are **reference roots**, not
 an implicit conjunction; their policies remain `proposed`/`review_required`.
-Neither this chunk nor a future empty registry may promote them automatically
+Neither the input model nor an empty registry may promote them automatically
 to eligibility. Unknown ruleset/engine combinations must fail explicitly.
 
-Outstanding #34 acceptance includes the registry, qualification, exclusions,
-ranking, candidate derivation, typed intermediate trace, real pinned-rule
-fixture encounters and property-based determinism tests. #35 owns tariff
-calculation and must reject unbound modifiers; #36 owns the complete explanatory
-and near-miss presentation. No #34 completion or settlement-accuracy claim is made.
+As reconciled on 2026-10-11, #34 delivered the registry, qualification,
+exclusions, ranking, candidates, typed intermediate trace, real pinned-rule
+fixtures and property-based determinism tests. #35/#36 delivered supported
+eligibility, tariff calculation with unbound-modifier refusal, explanations and
+near misses. #145 adds reviewed product exclusions. These are downstream
+behaviors, not responsibilities of the input model.
 
-The next chunk now executes a strictly labelled algorithm preparation slice;
-see [grouper execution](grouper-execution.md) for exact registry/source ownership,
-implemented exclusions/ranks, real-source evidence and the remaining #34 gates.
+See [grouper execution](grouper-execution.md) and the deployed
+[grouping interface](grouping-interface.md). Practitioner entry/explanation
+acceptance (#158), ward agreement (#38) and warm-up reliability (#157) remain open.
 
 ## First-Chunk Verification
 

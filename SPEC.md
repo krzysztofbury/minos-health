@@ -43,7 +43,8 @@ Two interfaces share the same domain behaviour:
   diffs and validation evidence. Policy-qualified data-only changes activate
   without per-update approval; failed or significant changes retain the last
   good release and notify the owner through Telegram. Parser, schema, policy
-  and application changes still require review. Implementation belongs to #21.
+  and application changes still require review. Original scope was #21, now
+  closed as superseded by deferred #141 rather than delivered.
   Owner scope revision, 2026-10-06: unattended activation is deferred in #141,
   not a prerequisite for current client validation. Continue reviewed updates;
   preserve the automatic-update safety contract for any later resumption.
@@ -280,8 +281,8 @@ The build process must:
 
 CI must never silently replace a pinned source with the latest upstream file.
 The source collectors in issues #6-#8 detect changes, archive raw files, and
-emit change records. Issue #21 selects verified change records, builds pinned
-manifest proposals and logical diffs, and automatically activates routine
+emit change records. The deferred #21/#141 design selects verified change
+records, builds pinned manifest proposals and logical diffs, and activates routine
 data-only changes only after every reviewed policy gate passes. Failed parsing,
 verification, applicability, compatibility or runtime checks stop promotion and
 produce a durable incident plus an actionable Telegram notification. This
@@ -430,8 +431,14 @@ S3, narrow IAM, budgets, and Terraform state. See
 
 ## Remaining Gates
 
-- Continue phase 0 beyond the deployed RSK watcher: verify remaining source
-  collectors and their scoped archives before depending on upstream history.
+Delivery status reconciled 2026-10-11 against the #156 activation record and
+GitHub issues: reference search, dated JGP data, the reviewed supported grouper,
+MODTAR binding, product exclusions, CLI/HTTP/builder and initial golden cases
+are delivered under the public-validation exception. This does not complete
+the target full-product release or the external evidence below.
+
+- Complete #49's remaining watcher AWS/refusal, recovery, weekly-verification
+  and budget-alert evidence; RSK, BAW and NFZ collectors are already deployed.
 - Validate complete Compose memory, disk, recovery, and representative load
   budgets on the dedicated Mikr.us `3.0` host; the RSK production observation
   alone does not satisfy these gates.
@@ -439,8 +446,8 @@ S3, narrow IAM, budgets, and Terraform state. See
   synthetic rule fixtures where cases are unavailable. Neither practitioner
   recollections nor generated cases establish real-world workflow validation;
   do not claim that validation without evidence from actual users.
-- Inspect and fixture the actual RSK XML, NFZ XLSX, and komunikat DOCX
-  structures.
+- Complete hosted real-source repeated-build and archive-reader-role acceptance
+  (#19); source inspection, parsers and fixtures are already implemented.
 - Formal legal opinion: Art. 4 status of zarządzenie appendices for a
   commercial product, and the scope of `CC BY-NC-SA 3.0 IGO` on the RSK
   ICD-10 translation.
@@ -450,7 +457,11 @@ S3, narrow IAM, budgets, and Terraform state. See
 - Decide on premium `minos.health` after counsel review.
 - Define launch service-level objectives and budget thresholds before load
   tests.
-- Pin the embedded database engine with evidence from the real reference
-  pipeline; retain standalone and container acceptance gates.
+- Resolve the observed startup warm-up timeout (#157), retaining bounded
+  request behavior and representative runtime evidence.
+- Complete practitioner entry-time and explanation acceptance (#158), carried
+  from the delivered #39 grouping interface.
+- Complete the signed compatible-release contract (#41), active Cloudflare
+  privacy-settings audit (#28) and full deployment acceptance (#27).
 - Validate grouper correctness strategy with real ward cases before `v0.0.2`
   release.
