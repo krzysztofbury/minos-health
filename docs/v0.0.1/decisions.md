@@ -5,6 +5,19 @@ Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
 
 ## Product
 
+### Preloaded Catalog Comparisons (2026-10-11)
+
+After #160 and #161 public comparison timeouts and guarded rollbacks, the owner
+approved a per-verified-bundle cache of immutable decoded catalog schedules and
+canonical comparison facts. Build it completely before API readiness; startup
+fails closed on invalid data, deadline or memory/population limits. Do not fall
+back to expensive request-time projection or share release-key entries across
+bundles. Existing date/release selection, artifact identity checks and request
+budgets continue to apply. The accepted cost is additional bounded startup work
+and retained memory; verify both under the 512 MiB runtime limit and verify the
+first public comparison after activation. This does not establish host capacity
+or waive #42. See [comparison evidence](../validation/jgp-comparison.md).
+
 ### From Reference Tool To Settlement Platform
 
 The project began as a Polish drug-substitution CLI, was reframed once into an

@@ -1,43 +1,21 @@
 """Date-selected catalog comparisons using the logical release-diff projection."""
 
 import hashlib
-import json
 import sqlite3
 from dataclasses import dataclass
 from datetime import date
-from typing import TypedDict, cast
+from typing import cast
 
 from minos.domain.reference import QueryLimitError
-from minos.domain.release_diff import DiffInputError, Fact, compare_facts
-from minos.store.diff_catalog import project_catalog
-from minos.store.diff_records import Projection, canonical
+from minos.domain.release_diff import DiffInputError, compare_facts
+from minos.store.comparison_snapshot import (
+    ComparisonCache,
+    Entry,
+    GroupKey,
+    select_snapshot,
+)
 from minos.store.jgp_ruleset import resolve_ruleset
-from minos.store.query_budget import QueryBudget, query_budget
-
-
-class Definition(TypedDict):
-    product_code: str
-    name: str
-    procedural: bool
-    chapter: str
-    notes: str | None
-    scopes: list[tuple[str, int]]
-
-
-class Window(TypedDict):
-    source_occurrence: int
-    service_from: str
-    service_to: str | None
-    evidence: str
-
-
-class Entry(TypedDict):
-    definition: Definition
-    values: list[tuple[str, str, int]]
-    window: Window
-
-
-type GroupKey = tuple[str, str]
+from minos.store.query_budget import query_budget
 
 
 @dataclass(frozen=True)
@@ -107,53 +85,13 @@ def scope_identity(label: str) -> str:
     return hashlib.sha256(label.encode()).hexdigest()
 
 
-def _dated(
-    projection: Projection, day: date, budget: QueryBudget
-) -> dict[GroupKey, Entry]:
-    selected: dict[GroupKey, Entry] = {}
-    for fact in projection.facts():
-        budget.check()
-        if fact.category != "catalog_schedule":
-            continue
-        population = cast(list[Entry], json.loads(fact.value))
-        active = [
-            entry
-            for entry in population
-            if entry["window"]["service_from"] <= day.isoformat()
-            and (
-                entry["window"]["service_to"] is None
-                or day.isoformat() <= entry["window"]["service_to"]
-            )
-        ]
-        if len(active) > 1:
-            raise DiffInputError("several catalog rows apply to one group and date")
-        if active:
-            selected[cast(GroupKey, fact.identity)] = active[0]
-    if len(selected) > 2000:
-        raise QueryLimitError("dated comparison exceeds group bound")
-    return selected
-
-
-def _facts(entries: dict[GroupKey, Entry]) -> tuple[Fact, ...]:
-    # Applicability determines selection and remains evidence. A shifted window
-    # alone is not a changed base value or definition on the two selected days.
-    return tuple(
-        Fact(
-            "dated_catalog_group",
-            key,
-            canonical({"definition": entry["definition"], "values": entry["values"]}),
-            canonical(entry["window"]),
-        )
-        for key, entry in sorted(entries.items())
-    )
-
-
 def compare_catalog_dates(
     connection: sqlite3.Connection,
     before: date,
     after: date,
     before_release: str,
     after_release: str,
+    cache: ComparisonCache,
 ) -> CatalogComparison:
     # Unlike the offline full-diff command, a web read retains the ordinary
     # one-second / two-million-operation budget across both selected sides.
@@ -161,25 +99,22 @@ def compare_catalog_dates(
         versions = catalog_versions(connection)
         old = _selected(connection, before, before_release, versions)
         new = _selected(connection, after, after_release, versions)
-        projections: dict[str, Projection] = {}
-        for ruleset in (old, new):
-            release = cast(str, ruleset["release_id"])
-            if release not in projections:
-                output = Projection(budget)
-                project_catalog(connection, release, output, schedule_only=True)
-                projections[release] = output
-        left = _dated(projections[cast(str, old["release_id"])], before, budget)
-        right = _dated(projections[cast(str, new["release_id"])], after, budget)
+        left, left_facts = select_snapshot(
+            cache.releases[before_release], before.isoformat(), budget
+        )
+        right, right_facts = select_snapshot(
+            cache.releases[after_release], after.isoformat(), budget
+        )
         changes = compare_facts(
             f"catalog:{old['release_id']}:{new['release_id']}",
-            _facts(left),
-            _facts(right),
+            left_facts,
+            right_facts,
         )
         labels = {
             label
             for entries in (left, right)
             for entry in entries.values()
-            for label, _ in entry["definition"]["scopes"]
+            for label, _ in entry.definition.scopes
         }
         budget.check()
         return CatalogComparison(

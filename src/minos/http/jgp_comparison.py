@@ -99,6 +99,7 @@ def register_comparison_pages(app: FastAPI, *, cache_control: str) -> None:
                     selected.after,
                     selected.before_release,
                     selected.after_release,
+                    pool.comparisons,
                 )
                 if scope != ALL and scope not in comparison.scopes:
                     return error(

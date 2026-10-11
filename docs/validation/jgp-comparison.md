@@ -132,3 +132,52 @@ The next comparison change needs reviewed resource/performance evidence before
 another activation. Request budgets, source validation and privacy remain intact;
 no production load, stress or profiling was performed. Exact reports are under
 `test-output/validation-deploy/e5194a664a8e50588c0f299dd557865cf04328e6/`.
+
+## Approved Pre-readiness Cache
+
+The owner approved complete preloading before readiness on 2026-10-11. Each
+`ReferencePool` builds its own immutable catalog schedules and canonical facts
+after checksum verification. Rows, definitions, scope markers and values are
+nested tuples; the release map is read-only. Only the completed map is published.
+The request still borrows the verified pool, checks artifact identity, resolves
+both exact releases at their publication dates, selects date-applicable rows,
+compares facts and renders under the existing one-second/two-million-operation
+budget and two-MiB output bound. No per-URL cache grows with user selections.
+
+Additional cache bounds are 64 releases, 2,000 groups and 4,000 dated rows per
+release; each of the three source reads is capped at 20,000 rows and two MiB of
+source values, and its schedule projection at two MiB. One release is built at
+a time, limiting temporary populations independently of retained data. Retained
+objects are conservatively charged by Python object size, including tuple and
+Fact overhead and repeated references, against a 64 MiB ceiling. The total
+preload deadline is five seconds; each release retains its one-second reader
+budget. Defaults for the offline full diff remain unchanged. Limit failures
+close all readers and prevent readiness, without lazy fallback or retries.
+
+Fixed startup diagnostics report completion, release count, charged bytes and
+duration. They contain no source labels, paths or request data. Existing grouper
+warm-up starts after this cache is complete, avoiding two concurrent builders.
+
+Regression checks cover startup-limit failures and reader cleanup, concurrent
+different bundles with the same release IDs but different values, artifact
+identity refusal after readiness, and correct HTTP comparisons with SQLite
+authorization explicitly denying subsequent source-population reads. Existing
+date-twin, retroactive release, unavailable-pin and offline-diff tests retain
+their independent contracts. Actual-host activation acceptance remains pending.
+
+Local installed API/edge acceptance with the real schema-10 bundle at 1 CPU and
+512 MiB returned six comparisons in 14-43 ms. Two-client comparisons completed
+in 16-24 ms; four-client mixed search/grouping/comparison work completed all eight
+requests, with comparisons at 21-76 ms, search at 271-332 ms and grouping at
+336-398 ms. The container cgroup memory peak was 279,293,952 bytes (266.4 MiB).
+The first local preload completed in 263 ms. At a deliberate 0.125-CPU constraint,
+all six comparison requests passed in 11-16 ms with byte-identical baseline HTML.
+These bounded local samples do not establish public-host capacity.
+
+Full pre-commit checks passed, including 1,950 tests and 39 environment/opt-in
+skips; final focused cache checks and warning-clean type checks also passed.
+Installed browser checks covered desktop/laptop/mobile, keyboard, shared URLs,
+no-JS rendering and privacy; desktop/mobile screenshots were visually reviewed.
+Pair-programmer review covered immutable ownership, retained/temporary bounds,
+startup cleanup, unchanged offline defaults and all request-side guards. No
+remaining findings were identified at those boundaries.
