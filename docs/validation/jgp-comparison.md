@@ -79,7 +79,7 @@ Private build, container and browser records are retained in
 `test-output/issue-104/`. Local installed API/edge checks at 1 CPU/512 MiB
 returned all six comparisons in 120-238 ms and four comparisons from two clients
 in 400-573 ms. These are workstation-container observations, not host capacity
-or SLO evidence. Deployment and actual-host verification remain pending.
+or SLO evidence. Deployment was still pending for this initial local evidence.
 
 ## First Activation And Rollback
 
@@ -126,10 +126,10 @@ watcher/tunnel/Kuma identities and restart counts, and public 200 responses for
 `/readyz`, `/`, `/jgp/2026-10-01` and `/gruper`.
 Rollback diagnostic loss and partial edge restoration are tracked in #162.
 
-The current production revision is still `5458ef2230425de390751d9c07b5a77857cfd948`.
-#104 and #157 remain open; neither merged candidate is the active deployment.
-The next comparison change needs reviewed resource/performance evidence before
-another activation. Request budgets, source validation and privacy remain intact;
+After these rollbacks, production remained at `5458ef2230425de390751d9c07b5a77857cfd948`.
+Acceptance for #104 and #157 was still pending. The next comparison change
+required reviewed resource/performance evidence before another activation.
+Request budgets, source validation and privacy remained intact;
 no production load, stress or profiling was performed. Exact reports are under
 `test-output/validation-deploy/e5194a664a8e50588c0f299dd557865cf04328e6/`.
 
@@ -163,7 +163,7 @@ different bundles with the same release IDs but different values, artifact
 identity refusal after readiness, and correct HTTP comparisons with SQLite
 authorization explicitly denying subsequent source-population reads. Existing
 date-twin, retroactive release, unavailable-pin and offline-diff tests retain
-their independent contracts. Actual-host activation acceptance remains pending.
+their independent contracts. Actual-host results follow below.
 
 Local installed API/edge acceptance with the real schema-10 bundle at 1 CPU and
 512 MiB returned six comparisons in 14-43 ms. Two-client comparisons completed
@@ -181,3 +181,47 @@ no-JS rendering and privacy; desktop/mobile screenshots were visually reviewed.
 Pair-programmer review covered immutable ownership, retained/temporary bounds,
 startup cleanup, unchanged offline defaults and all request-side guards. No
 remaining findings were identified at those boundaries.
+
+## Successful #164 Activation
+
+Revision `bc4e9ef4d272d915f27c1260bf50f1aca16c243e` passed PR/main CI and private
+image publication (run `38160761078`). It activated at 2026-10-11T18:06:56Z:
+
+- API: `sha256:14a8ac1418a41ff44e9b96466d58fb5dbdb278b6fb04765e2d580d52e4a5b89f`.
+- Edge: `sha256:5dae92fcca715537bfde09ccb8e0baf81f555f3b2b9ff639859d04a8b63a742d`.
+- Database and dataset: the same exact schema-10 identities recorded above.
+- Both GHCR packages and the repository remain private.
+
+The first activation attempt failed and automatically restored healthy prior
+API/edge services. The wrapper again lost its underlying error, tracked in #162;
+the cause is unconfirmed. A single isolated, network-disabled startup probe on
+the host completed in 134.8 seconds, including a 2.36-second comparison preload.
+The guarded retry preserved the host error envelope and succeeded without
+changing runtime limits, request budgets or activation guards.
+
+On the successful fresh API, all five comparison releases preloaded in 3,463 ms,
+charging 22,864,211 bytes against the 64 MiB ceiling. Grouping warm-up completed
+five sheets and five product releases on attempt one in 8,278 ms. Restart count
+was zero. All five first golden grouping requests passed (716, 115, 516, 256,
+212 ms), including current and original acts.
+
+The first public cardiology comparison and its repeat returned 200 in 178 and
+110 ms; a follow-up pair returned 200 in 346 and 217 ms. Shared HTML matched
+after decoding only Cloudflare's randomized footer email fields, verifying the
+decoded address. Dataset mismatch returned 409 and query-string input 404.
+Public Chromium comparison checks passed desktop/laptop/mobile, the two-action
+kardiologia flow, keyboard, shared URL and no-JS rendering. Desktop/mobile
+screenshots were visually reviewed. Standard readiness, rank, JGP, conditions
+and search browser acceptance also passed.
+
+Host diagnostics contained no server errors at the captured acceptance point
+and no privacy sentinel; startup records contained only the allowed fixed fields.
+Final remote inspection confirmed this exact revision, healthy API/edge, and
+unchanged watcher/tunnel/Kuma identities and restart counts. These paced public
+checks and bounded local concurrency results complete #104/#157 acceptance, not
+host capacity or practitioner/ward validation. #42, #158 and #38 remain separate.
+No production load or stress test was performed.
+
+Exact receipts, public response evidence, startup diagnostics and screenshots
+are retained under
+`test-output/validation-deploy/bc4e9ef4d272d915f27c1260bf50f1aca16c243e/`.

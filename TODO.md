@@ -7,32 +7,30 @@ day-to-day order.
 
 ## Reconciled Delivery Status (2026-10-11)
 
-Latest verified validation deployment: #156, revision `5458ef2`, activated
-2026-10-09 with a schema-10 bundle. [Release evidence](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204)
-records exact identities, public API/browser/privacy checks and rollback.
+Latest verified validation deployment: #164, revision `bc4e9ef`, activated
+2026-10-11T18:06:56Z with the schema-10 bundle. [Release evidence](docs/validation/jgp-comparison.md#successful-164-activation)
+records exact identities, public API/browser/privacy checks and startup results.
 This is a dated deployment record, not a new production inspection.
 
 - [x] Deliver the supported grouper subset, reviewed MODTAR binding, trace,
       CLI/HTTP grouping and encounter builder (#34-#37, #39, #46, #129).
 - [x] Deliver settlement-product classification/exclusions and official builder
       dictionaries (#145, #151), plus warm-up logging and dictionary caching (#155).
-- [ ] Fix the observed startup warm-up timeout (#157); reproduce under bounded
-      production-like container limits before changing budgets or runtime policy.
-      Bounded retry and stage diagnostics are implemented; actual-host recovery
-      passed in #160, but both #160/#161 activations were rolled back for #104
-      comparison timeouts. Successful compatible activation remains pending. See
+- [x] Fix the observed startup warm-up timeout (#157). Bounded local recovery
+      and actual-host retry passed; #164 is now successfully activated, with
+      complete warm-up and first current/older-act golden requests passing. See
       [warm-up evidence](docs/validation/grouping-warmup.md).
+- [x] Deliver pinned JGP catalog comparisons (#104), verified through the public
+      UI with source-backed values, shared URLs and desktop/mobile acceptance.
 - [ ] Obtain practitioner entry-time and explanation acceptance (#158, carried
       from closed #39). Real ward outcome agreement remains separate in #38.
 - [ ] Complete search relevance/workflow and capacity evidence (#126, #25, #42).
 - [ ] Deliver the remaining reference features: JSON concept detail (#23),
-      JGP comparison UI (#104), NFZ publication metadata (#92), and source-page
+      NFZ publication metadata (#92), and source-page
       discovery/citation improvements (#80). Historical downloads remain
       rights-gated (#84).
-      #104's pinned-release comparison is implemented; public acceptance failed
-      despite #161's measured cost reduction. The verified prior release remains
-      active; subsequent work and release acceptance are
-      tracked in [comparison evidence](docs/validation/jgp-comparison.md).
+- [ ] Preserve deployment/rollback diagnostics and reliable edge restoration
+      (#162); the first #164 activation also lost its failure diagnostics.
 - [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/AWS
       acceptance (#49), Cloudflare privacy audit (#28), signed releases (#41),
       full deployment acceptance (#27), and external brand/commercial gates (#2/#3).
@@ -523,7 +521,7 @@ UI remain the baseline.
 - [x] `POST /api/v1/group` and `minos group`: stateless bounded evaluation;
       encounter contents excluded from logs and persistent storage (#39).
 - [ ] Verify practitioner entry-time and explanation acceptance (#158).
-- [ ] Resolve startup warm-up timeout under representative limits (#157).
+- [x] Resolve startup warm-up timeout under representative limits (#157).
 
 ## CLI
 
@@ -551,7 +549,7 @@ UI remain the baseline.
       API paths to `minos.http` under the same origin (#102).
 - [x] Add the shareable service-date JGP group browser with labelled catalog
       base points and governing act/catalog provenance (#26).
-- [ ] Add JGP version diff views in #104 after #20 and the first #26 delivery.
+- [x] Add JGP version diff views in #104 after #20 and the first #26 delivery.
 - [x] Display code hierarchy, source release, and the safety/compliance
       disclaimer.
 - [x] Display grouping conditions and point values (#26, #32).
