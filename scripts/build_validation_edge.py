@@ -152,6 +152,16 @@ def _routes() -> str:
             proxy_read_timeout 3s;
             error_log /dev/null;
         }
+        # Comparisons pin public dataset/date/filter identities, never queries.
+        location ~ "^/jgp/porownaj/[0-9a-f]{64}/20[0-9]{2}-[0-9]{2}-[0-9]{2}/[a-z0-9-]{1,80}/20[0-9]{2}-[0-9]{2}-[0-9]{2}/[a-z0-9-]{1,80}/(wszystkie|[0-9a-f]{64})/(wszystkie|[A-Z]{1,4}[0-9]{2,3}[A-Z]{0,3})$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method != GET) { return 405; }
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+
         # JGP pages: today-redirects, dated catalog, group and scope pages.
         # Lowercase codes pass so the API can redirect them to uppercase.
         location ~ "^/jgp(/(20[0-9]{2}-[0-9]{2}-[0-9]{2}(/([A-Za-z]{1,4}[0-9]{2,3}[A-Za-z]{0,3}|zakres/[1-9][0-9]{0,2}|listy/1ae?/[1-9][0-9]{0,3}/[1-9][0-9]{0,2}))?|[A-Za-z]{1,4}[0-9]{2,3}[A-Za-z]{0,3}))?$" {

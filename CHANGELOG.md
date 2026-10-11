@@ -11,6 +11,9 @@ release.
 
 ### Added
 
+- Source-backed JGP catalog comparisons with explicit service-date/release
+  selectors, scope/group filters, old/new base values and dataset-pinned shared
+  URLs, including retroactive 74/2026 versus 102/2026 amendments (#104).
 - Supported deterministic grouping with reviewed MODTAR binding, explicit
   modifier declarations, source-linked trace and bounded near misses; stdin CLI,
   stateless HTTP endpoint and stepped desktop/mobile encounter builder

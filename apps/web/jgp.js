@@ -6,6 +6,28 @@
 
   var DATE = /^20\d{2}-\d{2}-\d{2}$/;
 
+  var comparison = document.querySelector(".compare-controls");
+  if (comparison) {
+    var before = document.getElementById("compare-before");
+    var after = document.getElementById("compare-after");
+    var beforeRelease = document.getElementById("compare-before-release");
+    var afterRelease = document.getElementById("compare-after-release");
+    var scope = document.getElementById("compare-scope");
+    var group = document.getElementById("compare-group");
+    var button = document.getElementById("compare-go");
+    var compare = function () {
+      if (!before.checkValidity() || !after.checkValidity() || !DATE.test(before.value) || !DATE.test(after.value)) return;
+      window.location.assign("/jgp/porownaj/" + comparison.dataset.dataset + "/" + before.value + "/" + beforeRelease.value + "/" + after.value + "/" + afterRelease.value + "/" + scope.value + "/" + group.value);
+    };
+    button.hidden = false;
+    button.addEventListener("click", compare);
+    scope.addEventListener("change", compare);
+    group.addEventListener("change", compare);
+    comparison.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") { event.preventDefault(); compare(); }
+    });
+  }
+
   var dateInput = document.getElementById("jgp-date");
   if (dateInput instanceof HTMLInputElement) {
     var current = dateInput.value;

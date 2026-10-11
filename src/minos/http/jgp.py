@@ -25,9 +25,12 @@ from minos.domain.jgp_ruleset import (
 )
 from minos.domain.reference import ArtifactError, QueryLimitError, QueryTimeoutError
 from minos.domain.search import SearchInputError
+from minos.http.jgp_comparison_pages import comparison_link
 from minos.http.jgp_pages import error_page, group_page, index_page
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.jgp_catalog import GROUP_CODE_REGEX
+from minos.store.artifact import dataset_identity
+from minos.store.jgp_comparison import catalog_versions
 from minos.store.jgp_condition_reference import list_members, reference_group
 from minos.store.jgp_ruleset import (
     catalog_calendar,
@@ -315,6 +318,15 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
                 scopes,
                 scope,
                 calendar,
+                comparison_link(
+                    service_date,
+                    cast(str, ruleset["release_id"]),
+                    catalog_versions(connection),
+                    dataset_identity(
+                        cast(ReferencePool, app.state.pool).manifest.dataset
+                    ),
+                    cast(str, scope["label"]) if scope else None,
+                ),
             )
 
         return render(service_date, None, page)

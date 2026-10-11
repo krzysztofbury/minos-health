@@ -40,6 +40,7 @@ from minos.http.jgp import (
     register_jgp_pages,
     register_jgp_routes,
 )
+from minos.http.jgp_comparison import COMPARISON_ROUTE, register_comparison_pages
 from minos.http.jgp_condition_pages import membership_section
 from minos.http.jgp_pages import date_bar, error_page
 from minos.http.pages import (
@@ -451,6 +452,7 @@ def create_app(
                     if JGP_ROUTE.fullmatch(request.url.path)
                     else "/jgp"
                     if JGP_PAGE_ROUTE.fullmatch(request.url.path)
+                    or COMPARISON_ROUTE.fullmatch(request.url.path)
                     else "unmatched",
                     "method": request.method
                     if request.method in ("GET", "POST", "HEAD", "OPTIONS")
@@ -763,6 +765,7 @@ def create_app(
         app, failure=failure, disclaimer=DISCLAIMER, cache_control=PAGE_CACHE
     )
     register_jgp_pages(app, cache_control=PAGE_CACHE)
+    register_comparison_pages(app, cache_control=PAGE_CACHE)
     register_grouping_routes(app, failure=failure)
     return app
 
