@@ -82,7 +82,17 @@ def main(output: Path, api_image: str, edge_image: str) -> None:
                 "-c",
                 "import time; time.sleep(600)",
             ],
-            "healthcheck": {"disable": True},
+            "healthcheck": {
+                "test": [
+                    "CMD",
+                    "/build/.venv/bin/python",
+                    "-c",
+                    "import os; os.kill(1, 0)",
+                ],
+                "interval": "2s",
+                "timeout": "3s",
+                "retries": 3,
+            },
             "network_mode": "none",
             "read_only": True,
             "cap_drop": ["ALL"],
