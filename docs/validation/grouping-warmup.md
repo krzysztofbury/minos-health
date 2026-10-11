@@ -70,6 +70,22 @@ and operation-limit contract. The full local suite passed 1,925 tests, with 39
 environment/opt-in skips; Ruff, BasedPyright and mypy passed.
 
 Private diagnostic scripts and per-run records are retained under
-`test-output/issue-157/`. Production was not load-tested or changed. Actual-host
-fresh-start observation with the new stage records remains necessary before
-closing the original production investigation.
+`test-output/issue-157/`. Production was not load-tested.
+
+## Actual-Host Recovery During The Rolled-Back #160 Activation
+
+Revision `31ef247` reproduced a real sheet timeout at fresh startup. Its 1a
+sheet with release hash `420933eb7e50d05ad87544e746324786d1239fadeed62b24bafe1ddbef39af15`
+timed out after 1,013 ms on attempt one. Independent sheets and product releases
+completed; attempt two recovered the failed sheet in 1,362 ms. The final summary
+reported five sheets, five product releases, two attempts and 12,940 ms, with
+no container restart. The stage time includes the existing sequence of bounded
+readers and preparation; it is not a newly extended reader budget.
+
+All five pinned-source golden requests reached their expected outcomes before
+the comparison check. The release was nevertheless rolled back because #104's
+comparison returned 504 during paced public acceptance. #157 remains open until
+the corrected compatible release is successfully activated. These host records
+establish real bounded recovery, not the exact loader of the old 2026-10-09 event
+or a host-capacity claim. Evidence is retained under
+`test-output/validation-deploy/31ef247143180648803baa64b6acc3b7b544cfd0/`.

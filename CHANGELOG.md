@@ -132,6 +132,9 @@ release.
 
 ### Changed
 
+- Avoid serializing unused offline audit categories in dated JGP comparisons;
+  keep the same source reads, schedule values and request budgets after #160's
+  comparison timeout caused a guarded validation rollback.
 - Continue independent grouping warm-up entries after a timeout and retry
   unfinished entries once, with privacy-safe stage diagnostics and accurate
   partial counts. Cancel between steps and finish active readers before closing
