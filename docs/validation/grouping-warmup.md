@@ -84,14 +84,29 @@ readers and preparation; it is not a newly extended reader budget.
 
 All five pinned-source golden requests reached their expected outcomes before
 the comparison check. The release was nevertheless rolled back because #104's
-comparison returned 504 during paced public acceptance. #157 remains open until
-the corrected compatible release is successfully activated. These host records
+comparison returned 504 during paced public acceptance. Successful compatible
+activation was still pending at that point. These host records
 establish real bounded recovery, not the exact loader of the old 2026-10-09 event
 or a host-capacity claim. Evidence is retained under
 `test-output/validation-deploy/31ef247143180648803baa64b6acc3b7b544cfd0/`.
 
 The corrective #161 activation was also rolled back for repeated comparison
-timeouts. Five golden cases passed on that revision, but the warm-up fix is not
-currently deployed. The prior `5458ef2` API and edge are restored and healthy;
+timeouts. Five golden cases passed on that revision, but the warm-up fix was not
+left deployed. The prior `5458ef2` API and edge were restored and healthy;
 the [comparison rollout record](jgp-comparison.md) records the failed acceptance
 and the rollback requiring a second guarded invocation to start the edge.
+
+## Successful #164 Activation
+
+Revision `bc4e9ef4d272d915f27c1260bf50f1aca16c243e` activated successfully at
+2026-10-11T18:06:56Z after green PR/main CI and private image publication. The
+fresh API completed all five sheets and five product catalogs in 8,278 ms on
+attempt one, without a restart. First pinned current/older-act golden requests
+all passed, at 716, 115, 516, 256 and 212 ms. The comparison and public browser
+checks also passed, so this compatible release remains active.
+
+Together with the bounded timeout recovery demonstrated above, this completes
+#157's acceptance. It does not identify the old event's exact loader or establish
+production capacity. No production load or stress test was performed. See the
+[exact release record](jgp-comparison.md#successful-164-activation) and retained
+`test-output/validation-deploy/bc4e9ef4d272d915f27c1260bf50f1aca16c243e/` evidence.
