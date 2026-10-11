@@ -1,9 +1,11 @@
 # MODTAR Reference Import And Review Gate
 
-Status: #32 / #46 / #125 branch, 2026-10-04. Source ingestion, reviewed-overlay
-import and offline compatible binding are implemented. Real-source overlay
-curation is still incomplete, so the production manifests remain explicitly
-unbound. No public bundle activation, merge or deployment is implied.
+Status reconciled 2026-10-11: source ingestion, reviewed-overlay import and
+compatible binding are delivered. #46/#129 closed under the owner assumptions
+of 2026-10-07 recorded below, not an NFZ clarification. The latest verified
+deployment (#156, `5458ef2`, 2026-10-09) includes that reviewed binding in its
+schema-10 bundle. Earlier investigation sections retain their dated evidence;
+their then-unbound state is not the current deployment state.
 
 ## Reviewed Binding Interface
 
@@ -339,7 +341,9 @@ May-June and 46/2026 after 102 July-December.
 removed. The reviewed conditions selector composes it with transform
 `jgp-reference-conditions-modifiers-v4` and builds a schema 8 bundle (422 MiB)
 whose ruleset reports a reviewed generation 102 binding on every 2026 date.
-Production is unchanged.
+That 2026-10-07 build did not itself change production. Subsequent grouping
+releases activated the binding; see the
+[#156 receipt](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204).
 
 ```sh
 uv run python -m scripts.build_modtar_overlay \

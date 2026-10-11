@@ -9,11 +9,15 @@ mutable and therefore receives consistent, tested S3 recovery images. Kuma also
 has mutable `/app/data` and requires a separate stopped encrypted off-host
 backup.
 
-The complete system of record is Git, reviewed manifests, pinned image digests,
-versioned S3 source snapshots, revision-numbered control-database recovery
+The target full-product system of record is Git, reviewed manifests, pinned
+image digests, versioned S3 source snapshots, revision-numbered control-database recovery
 images, signed release and deployment records, and Terraform state. A run is
 not acknowledged as successful while the Mikr.us disk is the only copy of its
-control metadata.
+control metadata. As reconciled on 2026-10-11, the validation deployment records
+exact API/edge/bundle identities and local/host activation receipts, but the
+independently signed full-release manifest and off-host receipt chain remain
+#41/#27 acceptance work. Recovery drills and representative host overlap evidence
+remain #49/#42; the deployed validation stack is not proof of those gates.
 
 ### RSK Acquisition Modes
 

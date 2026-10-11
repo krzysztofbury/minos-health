@@ -20,9 +20,23 @@ pre-screen was performed on 2026-08-06 (see
 2. **JGP knowledge base**: groups, grouping conditions, directional ICD lists,
    age and length-of-stay rules, point values, and version-to-version diffs,
    ingested from NFZ normative acts.
-3. **Grouper engine** (planned): a deterministic encounter-to-group evaluation
-   with a complete rule trace explaining why a case grouped where it did and
-   which conditions failed.
+3. **Grouper engine**: deterministic evaluation of the reviewed supported rules,
+   with points, source-linked traces and bounded near misses. Unsupported rules
+   remain undetermined rather than being guessed into an answer.
+
+## Delivery Status (2026-10-11)
+
+The public validation site serves terminology/JGP search, dated group and code
+pages, and the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper).
+The latest verified deployment is #156 (`5458ef2`, 2026-10-09), with a schema-10
+bundle, reviewed MODTAR binding and governing-act settlement-product exclusions.
+[Release evidence](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204)
+records the API, browser, privacy and exact-digest checks.
+
+The initial golden suite has 9 synthetic and 5 pinned-source derived cases.
+Practitioner builder acceptance (#158), real ward agreement (#38), startup
+warm-up reliability (#157), and full signed-release/capacity acceptance remain
+open. The [TODO](TODO.md) distinguishes delivered functionality from these gates.
 
 ## Roadmap
 
@@ -47,25 +61,26 @@ Minos is one Python 3.14 distribution with strict internal package boundaries:
 - `minos.domain`: synchronous domain types, normalization, ranking, and errors;
 - `minos.store`: read-only persistence and indexed search through SQLite/FTS5;
 - `minos.ingest`: hardened source parsing and reproducible artifact builds;
-- `minos.cli`: data build, inspection, and offline lookup commands;
+- `minos.cli`: data build/diff, offline lookup and grouping commands;
 - `minos.http`: bounded FastAPI endpoints and privacy-safe telemetry;
-- `minos.grouper` (planned, `v0.0.2`): versioned grouping engine evaluating
+- `minos.grouper`: versioned grouping engine evaluating
   encounter facts against rules-as-data.
 
-The target deployment uses immutable `linux/amd64` API, edge, and watcher
+The validation deployment uses immutable `linux/amd64` API, edge, and watcher
 images. Docker Compose runs the complete stack locally and on a dedicated
-Mikr.us `3.0` host; Cloudflare Tunnel is its only public ingress. The API image
-contains the generated read-only SQLite database, while the edge image contains
-the static web artifact. Offline CLI distributions bundle the Python runtime
-and use the same generated database.
+Mikr.us `3.0` host; Cloudflare Tunnel is its only public ingress. Validation mounts
+a separately checksum-verified read-only SQLite bundle into the API; the edge
+image contains the static web artifact. The full signed product-release contract
+remains #41/#27. Offline CLI distributions bundle the Python runtime and use the
+same generated database.
 
 The watcher container runs APScheduler and a separate mutable control SQLite
 database. It stores exact raw bytes and revisioned control-database recovery
 images in private versioned S3. GitHub-hosted Actions build and test the images
 but do not run production schedules. Collectors in issues #6-#8 emit change
-records. Issue #21 will build pinned proposals and automatically activate
-policy-qualified routine data updates, retaining the last good release and
-sending detailed Telegram failure alerts. That pipeline is not enabled yet.
+records. Reviewed updates use the guarded validation-deploy tool. Unattended
+selection, activation and detailed incident delivery are deferred in #141;
+#21 is closed as superseded, not delivered.
 
 Offline `minos data diff` compares explicitly pinned terminology, catalog and
 conditions releases in verified bundle directories, with bounded Markdown/JSON
@@ -110,13 +125,13 @@ paths receive targeted mutation and integration testing.
 Offline reference commands and their bounded JSON/exit-code contract are in
 [offline-search.md](docs/v0.0.1/offline-search.md). Local full-source and
 standalone evidence is in [the search validation](docs/validation/offline-reference-search.md).
-The website does not expose this search yet; source redistribution and signed
-product promotion retain their separate review gates.
+The website exposes reference search and grouping under the public-validation
+exception; source redistribution and signed product promotion retain their
+separate review gates.
 
-A production-only maintenance Compose stack currently serves an explicit holding
-page through Cloudflare Tunnel. A separate digest-pinned Uptime Kuma bootstrap
-container runs privately on the same host; its public status hostname is not
-routed yet. The watcher foundation now includes an executable
+The deployed validation Compose stack serves the API and web edge through
+Cloudflare Tunnel alongside the watchers and Uptime Kuma. The watcher foundation
+includes an executable
 UTC scheduler, fenced SQLite control transactions, local and S3 archives,
 revisioned recovery images, signed trusted-recovery inventories, a read-only
 watcher status command, preflight commands, a hardened watcher image, bounded

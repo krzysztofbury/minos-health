@@ -1,6 +1,9 @@
 # Minos v0.0.1
 
-Status: accepted planning baseline, implementation in progress
+Status reconciled 2026-10-11: reference search, dated JGP pages and the supported
+grouper are deployed under the public-validation exception. Full product-release
+and practitioner acceptance remain open; see [TODO](../../TODO.md) and the
+[#156 delivery record](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204).
 
 This directory records the decisions and constraints for the first Minos
 release. Root-level [SPEC.md](../../SPEC.md) defines observable product
@@ -30,15 +33,21 @@ model.
   recovery, and verification.
 - [release-diff.md](release-diff.md): selected-scope logical release comparisons,
   explicit pinning, Markdown/JSON output and limits for #20/#31.
+- [grouping-interface.md](grouping-interface.md): deployed CLI/HTTP/builder,
+  trace, privacy and remaining practitioner acceptance (#158).
+- [golden-cases.md](golden-cases.md): reviewed synthetic and pinned-source
+  derived encounters, rule coverage and divergence dispositions (#37).
 
 ## Release Definition
 
 `v0.0.1` is complete only when:
 
-1. Phase 0 watchers run on schedule, archive every exact metadata observation
-    and selected in-scope source file; issue #21 builds pinned proposals/diffs,
-    automatically activates validated routine data-only changes and retains the
-    last good release with detailed Telegram alerts on failure.
+1. Phase 0 watchers run on schedule and archive every exact metadata observation
+   and selected in-scope source file. Reviewed updates preserve verified source
+   identities and last-good rollback. The earlier #21 unattended-activation work
+   is parked in #141 under the owner decision of 2026-10-06; it is not a current
+   prerequisite for validation. Re-entry requires explicit owner prioritization.
+   Its original automatic-update safety contract remains in the decisions log.
 2. The pinned multi-source ruleset (ICD-10 PL, ICD-9 PL, JGP katalog and
    charakterystyka, algorithm metadata) transforms reproducibly into a
    validated bitemporal database with provenance and checksums.
@@ -60,8 +69,10 @@ model.
 9. Minos naming has passed trademark counsel review and the intended domains
    are registered and locked.
 
-The grouper engine and stateless grouping endpoint are `v0.0.2`; the what-if
-optimizer is `v0.0.3`.
+The grouper engine and stateless grouping endpoint belong to the `v0.0.2` scope
+and their supported subset is already available for public validation. That
+delivery does not establish full `v0.0.2` acceptance. The what-if optimizer
+remains future `v0.0.3` work.
 
 ## Change Policy
 
