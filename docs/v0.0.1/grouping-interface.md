@@ -229,3 +229,7 @@ service-code entry for 1xxx specialties. Real ward outcome agreement remains #38
 The startup warm-up timeout and isolated JGP-page timeout are recorded in #157;
 representative host capacity remains #42. Historical local measurements above
 do not replace these outstanding gates.
+
+The [#157 investigation and bounded recovery](../validation/grouping-warmup.md)
+records the local contention reproduction, unchanged reader/request budgets,
+per-stage diagnostics and remaining actual-host verification.

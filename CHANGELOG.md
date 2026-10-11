@@ -129,6 +129,10 @@ release.
 
 ### Changed
 
+- Continue independent grouping warm-up entries after a timeout and retry
+  unfinished entries once, with privacy-safe stage diagnostics and accurate
+  partial counts. Cancel between steps and finish active readers before closing
+  the SQLite pool; request and source-validation budgets are unchanged (#157).
 - Reconciled README, TODO, specification status and delivery documents with
   the verified #156 release and GitHub backlog (2026-10-11). Practitioner builder
   acceptance from closed #39 is explicitly tracked in #158; #157 retains the

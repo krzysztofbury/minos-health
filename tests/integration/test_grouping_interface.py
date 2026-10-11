@@ -171,15 +171,18 @@ def test_warmup_status_reaches_the_configured_api_logger(
         if record.name == "minos.http.warmup"
     ]
     # #155: only the `minos.http` hierarchy has a handler in production.
-    assert len(events) == 1
-    assert set(events[0]) == {
+    summaries = [event for event in events if event["event"] == "grouping_warmup"]
+    assert len(summaries) == 1
+    assert set(summaries[0]) == {
         "event",
         "status",
         "sheets",
         "product_catalogs",
         "duration_ms",
+        "attempts",
     }
-    assert events[0]["status"] == "completed"
+    assert summaries[0]["status"] == "completed"
+    assert summaries[0]["attempts"] == 1
 
 
 def _case_variants() -> dict[str, dict[str, object]]:

@@ -379,6 +379,7 @@ def create_app(
             raise
         # Readiness never waits for grouping inputs; they warm in the background.
         warmup: threading.Thread | None = None
+        warmup_stop = threading.Event()
         prepared = cast(
             PreparedSources | None, getattr(_app.state, "grouping_prepared", None)
         )
@@ -389,7 +390,7 @@ def create_app(
         ):
             warmup = threading.Thread(
                 target=warm_grouping,
-                args=(pool, prepared),
+                args=(pool, prepared, warmup_stop),
                 name="grouping-warmup",
                 daemon=True,
             )
@@ -398,7 +399,10 @@ def create_app(
             yield
         finally:
             if warmup is not None:
-                warmup.join(timeout=5)
+                warmup_stop.set()
+                # Do not close SQLite underneath a still-running warm-up lease.
+                # Readers are bounded; cancellation prevents the next step/retry.
+                warmup.join()
             pool.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
