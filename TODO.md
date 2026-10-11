@@ -18,6 +18,9 @@ This is a dated deployment record, not a new production inspection.
       dictionaries (#145, #151), plus warm-up logging and dictionary caching (#155).
 - [ ] Fix the observed startup warm-up timeout (#157); reproduce under bounded
       production-like container limits before changing budgets or runtime policy.
+      Bounded retry and stage diagnostics are implemented and locally verified;
+      actual-host fresh-start observation remains pending. See
+      [warm-up evidence](docs/validation/grouping-warmup.md).
 - [ ] Obtain practitioner entry-time and explanation acceptance (#158, carried
       from closed #39). Real ward outcome agreement remains separate in #38.
 - [ ] Complete search relevance/workflow and capacity evidence (#126, #25, #42).
@@ -25,6 +28,8 @@ This is a dated deployment record, not a new production inspection.
       JGP comparison UI (#104), NFZ publication metadata (#92), and source-page
       discovery/citation improvements (#80). Historical downloads remain
       rights-gated (#84).
+      #104's pinned-release comparison is implemented; release acceptance is
+      tracked in [comparison evidence](docs/validation/jgp-comparison.md).
 - [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/AWS
       acceptance (#49), Cloudflare privacy audit (#28), signed releases (#41),
       full deployment acceptance (#27), and external brand/commercial gates (#2/#3).

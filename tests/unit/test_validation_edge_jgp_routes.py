@@ -4,6 +4,7 @@ from typing import cast
 import pytest
 
 from minos.http.jgp import JGP_PAGE_ROUTE, JGP_ROUTE
+from minos.http.jgp_comparison import COMPARISON_ROUTE
 from scripts.build_validation_edge import _routes  # pyright: ignore[reportPrivateUsage]
 
 CORPUS = (
@@ -86,3 +87,25 @@ def test_edge_and_app_accept_exactly_the_same_jgp_pages(path: str) -> None:
 def test_page_corpus_covers_both_accepted_and_refused_paths() -> None:
     accepted = [path for path in PAGE_CORPUS if JGP_PAGE_ROUTE.fullmatch(path)]
     assert 0 < len(accepted) < len(PAGE_CORPUS)
+
+
+@pytest.mark.parametrize(
+    "suffix,accepted",
+    [
+        ("wszystkie/wszystkie", True),
+        ("a" * 64 + "/H21", True),
+        ("wszystkie/PZD02", True),
+        ("wszystkie/H21/", False),
+        ("kardiologia/H21", False),
+        ("wszystkie/h21", False),
+        ("wszystkie/H21?private=secret", False),
+    ],
+)
+def test_comparison_edge_and_log_allowlists(suffix: str, accepted: bool) -> None:
+    patterns = cast(
+        list[str], re.findall(r'location ~ "(\^/jgp/porownaj/[^\"]+)"', _routes())
+    )
+    assert len(patterns) == 1
+    path = f"/jgp/porownaj/{'b' * 64}/2026-09-30/catalog-before/2026-10-01/catalog-after/{suffix}"
+    assert bool(re.fullmatch(patterns[0], path)) is accepted
+    assert bool(COMPARISON_ROUTE.fullmatch(path)) is accepted

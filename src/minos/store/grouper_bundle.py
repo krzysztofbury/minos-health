@@ -35,6 +35,20 @@ MAX_SELECTORS = 20_000
 MAX_MEMBERS = 200_000
 
 
+def sheet_releases(connection: sqlite3.Connection) -> list[tuple[str, Catalog]]:
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[str, Catalog]],
+            connection.execute(
+                """SELECT release_id, catalog FROM characteristics_sheet
+                ORDER BY release_id, catalog LIMIT 65"""
+            ).fetchall(),
+        )
+    if len(rows) > 64:
+        raise GrouperError("characteristics sheets exceed warm-up bound")
+    return rows
+
+
 def load_bundle_algorithm(connection: sqlite3.Connection) -> AlgorithmData:
     """The bundle's single algorithm notice with its SZP tables only."""
     with query_budget(connection):

@@ -76,11 +76,17 @@ identify the governing act and catalog version, and share the same answer by
 URL. Group detail requires one API call under #24. An uncovered date yields
 an explicit error.
 
-The deferred version-diff issue #104 depends on #20, #24 and #26. It owns the two
+The version-diff issue #104 builds on delivered #20, #24 and #26. It owns the two
 date/act selectors, changes to group membership and base points, shareable
 comparison URLs and the original acceptance:
 
 > What changed for kardiologia in 102/2026 is answerable in two clicks.
+
+The implementation now pins both source releases as well as both service dates,
+so retroactive amendments sharing a service start remain comparable. It reuses
+the logical catalog projection and diff contract, shows exact base values, and
+keeps retired datasets explicitly unavailable. Local acceptance and the pending
+deployment gate are recorded in [comparison evidence](../validation/jgp-comparison.md).
 
 Condition-based group-to-ICD links and the ICD-page reverse lookup belong to
 #32 after #30. They must use the same selected date/release and distinguish

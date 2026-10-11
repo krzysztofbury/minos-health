@@ -190,6 +190,7 @@ def index_page(
     scopes: list[dict[str, object]],
     scope: dict[str, object] | None,
     calendar: list[str],
+    comparison: str = "",
 ) -> str:
     """The dictionary-tree layout of /slowniki: catalog, chapter, group."""
     service_date = cast(str, ruleset["service_date"])
@@ -225,6 +226,7 @@ def index_page(
         '        <div class="jgp-controls">\n',
         date_bar(service_date, suffix, calendar),
         _scope_picker(service_date, scopes, scope),
+        comparison,
         "        </div>\n",
         "      </div>\n",
         '      <div class="shell jgp-catalog">\n',

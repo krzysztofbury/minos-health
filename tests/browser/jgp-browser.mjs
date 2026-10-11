@@ -68,6 +68,49 @@ try {
   for (const [name, width, height] of [["desktop", 1440, 1000], ["laptop", 1024, 768], ["mobile", 390, 844]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
 
+    // A shared comparison pins the dataset, both dates and source-backed filters.
+    await visit("/jgp/2026-12-31", "document.querySelector('a[href^=\"/jgp/porownaj/\"]')");
+    await evaluate("document.querySelector('a[href^=\"/jgp/porownaj/\"]').click()");
+    await wait("document.readyState === 'complete' && document.getElementById('compare-go')?.hidden === false");
+    await evaluate("document.getElementById('compare-before').value = '2026-12-31'; document.getElementById('compare-after').value = '2027-01-01'; document.getElementById('compare-before-release').value = document.getElementById('compare-after-release').value; document.getElementById('compare-group').value = 'H21'; document.getElementById('compare-go').focus()");
+    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await wait("location.pathname.includes('/2026-12-31/') && location.pathname.includes('/2027-01-01/') && location.pathname.endsWith('/H21') && document.querySelector('.compare-change')");
+    await evaluate("var select = document.getElementById('compare-scope'); select.value = [...select.options].find(o => o.textContent === 'chirurgia ogólna').value; select.dispatchEvent(new Event('change'))");
+    await wait("document.getElementById('compare-scope')?.selectedOptions[0].textContent === 'chirurgia ogólna' && location.pathname.split('/').at(-2) === document.getElementById('compare-scope').value && document.readyState === 'complete' && document.fonts.status === 'loaded'");
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('.compare-change')].map(e => e.dataset.group)"), ["H21"]);
+    assert.ok(await evaluate("document.querySelector('.page-lead').textContent.includes('bez modyfikatorów')"));
+    const shared = await evaluate("location.pathname");
+    const values = await evaluate("document.querySelector('.compare-change table').textContent");
+    await noOverflow();
+    await shot(`jgp-comparison-${name}`);
+    await visit(shared, "document.querySelector('.compare-change')");
+    assert.equal(await evaluate("document.querySelector('.compare-change table').textContent"), values);
+    await send("Emulation.setScriptExecutionDisabled", { value: true });
+    await visit(shared, "document.querySelector('.compare-change')");
+    assert.equal(await evaluate("document.getElementById('compare-go').hidden"), true);
+    assert.equal(await evaluate("document.querySelector('.compare-change table').textContent"), values);
+    await send("Emulation.setScriptExecutionDisabled", { value: false });
+    if (process.argv[5] === "comparison-only") {
+      await visit("/jgp/2026-10-01", "document.querySelector('a[href^=\"/jgp/porownaj/\"]')");
+      await evaluate("document.querySelector('a[href^=\"/jgp/porownaj/\"]').click()");
+      await wait("document.readyState === 'complete' && document.getElementById('compare-go')?.hidden === false");
+      assert.ok(await evaluate("document.getElementById('compare-before-release').selectedOptions[0].textContent.includes('74/2026/DSOZ')"));
+      assert.ok(await evaluate("document.getElementById('compare-after-release').selectedOptions[0].textContent.includes('102/2026/DSOZ')"));
+      await evaluate("var select = document.getElementById('compare-scope'); select.value = [...select.options].find(o => o.textContent === 'kardiologia').value; select.dispatchEvent(new Event('change'))");
+      await wait("document.getElementById('compare-scope')?.selectedOptions[0].textContent === 'kardiologia' && location.pathname.split('/').at(-2) === document.getElementById('compare-scope').value && document.readyState === 'complete' && document.fonts.status === 'loaded'");
+      assert.deepEqual(await evaluate("[...document.querySelectorAll('.compare-change')].map(e => e.dataset.group)"), ["D52A"]);
+      assert.ok(await evaluate("document.querySelector('.compare-change table').textContent.includes('4 077,00brak wartości w katalogu')"));
+      await noOverflow();
+      await shot(`jgp-cardiology-${name}`);
+      const pinned = await evaluate("location.pathname");
+      await send("Emulation.setScriptExecutionDisabled", { value: true });
+      await visit(pinned, "document.querySelector('.compare-change')");
+      assert.ok(await evaluate("document.querySelector('.compare-change table').textContent.includes('4 077,00brak wartości w katalogu')"));
+      await send("Emulation.setScriptExecutionDisabled", { value: false });
+      continue;
+    }
+
     // Catalog: chapters closed, filter revealed only by jgp.js, base-points label.
     await visit("/jgp/2026-07-10", "!document.querySelector('.jgp-filter').hidden");
     assert.deepEqual(await evaluate(listed), ["A01", "PZD02", "H21", "J01AJ", "AU35C", "SU52"]);
@@ -149,7 +192,7 @@ try {
   }
   assert.deepEqual(errors, []);
   assert.ok(requests.every(request => !request.includes("?")));
-  console.log("JGP browser acceptance passed: desktop/mobile catalog, local filter without requests, keyboard date navigation, scope filter, group page values, explicit gap.");
+  console.log(process.argv[5] === "comparison-only" ? "JGP comparison browser passed: desktop/laptop/mobile, keyboard dates, source scope, shared URL and no-JS rendering." : "JGP browser acceptance passed: comparisons, catalog, local filter, keyboard dates, scope filter, group values and explicit gap.");
 } finally {
   if (socket) socket.close();
   browser.kill("SIGTERM");

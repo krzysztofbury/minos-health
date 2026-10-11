@@ -624,3 +624,30 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
   .site-header, .site-footer, .search-form, .filters, .tree-search { display: none; }
   body { background: #fff; }
 }
+/* Source-backed JGP comparisons share the catalog shell and remain readable
+   without scripting. Wide source tables scroll within their own container. */
+.compare-controls, .compare-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.compare-controls { margin: 1.5rem 0; }
+.compare-controls label { display: grid; gap: .5rem; min-width: 0; }
+.compare-controls input, .compare-controls select, .compare-controls button { font: inherit; color: inherit; background: var(--surface, #fff); border: 1px solid var(--line, #ccc); border-radius: .4rem; padding: .65rem; max-width: 100%; min-width: 0; }
+.compare-change { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--line, #ccc); border-radius: .5rem; }
+.compare-change h2 { margin-top: 0; }
+.compare-change details { margin-top: 1rem; }
+.compare-change summary { cursor: pointer; }
+.compare-name { font-weight: 600; }
+.compare-change .table-scroll { overflow-x: auto; }
+.compare-change table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+.compare-change th, .compare-change td { text-align: left; padding: .6rem; border-bottom: 1px solid var(--line, #ccc); }
+.compare-change caption { text-align: left; font-weight: 600; }
+.compare-change td { font-variant-numeric: tabular-nums; }
+.compare-sides section, .compare-provenance code { overflow-wrap: anywhere; min-width: 0; }
+.compare-provenance { margin: 2rem 0; }
+@media (max-width: 640px) {
+  .compare-controls, .compare-sides { grid-template-columns: 1fr; }
+  .compare-change { padding: .75rem; }
+  .compare-change table { table-layout: fixed; }
+  .compare-change th, .compare-change td { padding: .4rem; font-size: .875rem; }
+  .compare-change th { overflow-wrap: anywhere; }
+  .compare-change td { overflow-wrap: normal; }
+  .compare-change th:first-child { width: 42%; }
+}

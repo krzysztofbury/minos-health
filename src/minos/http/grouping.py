@@ -6,6 +6,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import asdict
 from typing import cast, final
 
 from fastapi import FastAPI, Request
@@ -18,6 +19,7 @@ from minos.domain.grouper import GrouperError
 from minos.domain.jgp_ruleset import NoRulesetForDate
 from minos.domain.reference import QueryLimitError, QueryTimeoutError, ReferenceError
 from minos.grouper.pipeline import PreparedSources, group_request
+from minos.grouper.warmup import Warmup, WarmupCancelled, WarmupStep
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.grouping_request import (
     MAX_GROUPING_REQUEST_BYTES,
@@ -84,14 +86,22 @@ def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> byt
 WARMUP_LOGGER = logging.getLogger("minos.http.warmup")
 
 
-def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:
-    """Background warm-up; a failure only leaves the first request to build."""
+def _warmup_step(step: WarmupStep) -> None:
+    WARMUP_LOGGER.info(json.dumps({"event": "grouping_warmup_step", **asdict(step)}))
+
+
+def warm_grouping(
+    pool: ReferencePool, prepared: PreparedSources, stop: threading.Event
+) -> None:
+    """Background warm-up; incomplete entries retain on-demand preparation."""
     started = time.monotonic()
-    sheets = products = 0
+    warmup = Warmup(stop, _warmup_step)
     try:
         with pool.borrow() as lease:
-            sheets, products = prepared.warm(lease.connection)
+            warmup.run(lease.connection, prepared)
         status = "completed"
+    except WarmupCancelled:
+        status = "cancelled"
     except Exception as error:  # noqa: BLE001 - never crash the API for a warm-up
         status = "failed:" + type(error).__name__
     WARMUP_LOGGER.info(
@@ -99,8 +109,9 @@ def warm_grouping(pool: ReferencePool, prepared: PreparedSources) -> None:
             {
                 "event": "grouping_warmup",
                 "status": status,
-                "sheets": sheets,
-                "product_catalogs": products,
+                "sheets": warmup.sheets,
+                "product_catalogs": warmup.products,
+                "attempts": warmup.attempt,
                 "duration_ms": round((time.monotonic() - started) * 1000),
             }
         )
