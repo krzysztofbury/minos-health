@@ -122,3 +122,9 @@ Rollback restores configuration/image, not the control database. This release
 does not migrate its schema. A transport timeout requires inspection before
 retry. Future API/edge rollback plans should be created after this transition,
 so their preserved operational baseline includes the new watcher.
+
+Host helpers target Ubuntu's Python 3.12 independently of the application's
+Python 3.14 runtime; both wire modules have a 3.12 syntax gate. Validation-image
+pruning retains images and bundles referenced by watcher stage originals and
+candidates, including a previous watcher image no longer referenced by live
+containers. Both guards have regression evidence from failures before the fix.

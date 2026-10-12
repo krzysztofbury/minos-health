@@ -322,13 +322,23 @@ def test_changed_live_compose_and_wrong_image_build_are_refused(
                                                       "api_image": API[:-8] + ":latest"}})  # fmt: skip
 
 
+@pytest.mark.parametrize("watcher_record", [None, "previous.json", "candidate.json"])
 def test_prune_keeps_live_rollback_chain_and_foreign_images(
     site: tuple[Path, Path, Path],
+    watcher_record: str | None,
 ) -> None:
     root, _, _ = site
+    if watcher_record is not None:
+        record = root / "watcher-stage" / NEW_REVISION / watcher_record
+        record.parent.mkdir(parents=True)
+        _ = record.write_text(
+            json.dumps({"services": {"watcher": {"image": STALE_WATCHER}}})
+        )
     host = host_for(site)
     dry = host("prune", {"keep": 1})
-    assert dry["images"] == [API + "0" * 64, STALE_WATCHER]
+    assert dry["images"] == [API + "0" * 64] + (
+        [] if watcher_record else [STALE_WATCHER]
+    )
     assert dry["bundles"] == []  # live and its rollback target only
     assert dry["archives"] == [f"validation-stage/{OLD_REVISION}/bundle.tar.gz"]
     assert dry["applied"] is False
@@ -337,7 +347,7 @@ def test_prune_keeps_live_rollback_chain_and_foreign_images(
     assert applied["applied"] is True
     remaining = set(cast(dict[str, object], docker_state(site)["images"]))
     assert remaining == {"live-api", "live-edge", "older-api", "older-edge", "watcher",
-                         "maintenance", "local-build"}  # fmt: skip
+                         "maintenance", "local-build"} | ({"stale-watcher"} if watcher_record else set())  # fmt: skip
     assert host("prune", {"keep": 1})["images"] == []
     assert (root / "reference" / OLDER_DB).is_dir()
     with pytest.raises(DeployError, match="keep must be"):
@@ -487,9 +497,10 @@ def test_host_refusal_and_empty_answers_surface_as_errors() -> None:
         _ = parse_host_answer("\n", "stage")
 
 
-def test_host_program_parses_as_host_python() -> None:
+@pytest.mark.parametrize("program", [HOST_PROGRAM, ROOT / "scripts/watcher_host.py"])
+def test_host_program_parses_as_host_python(program: Path) -> None:
     # The production host runs Ubuntu 24.04's Python 3.12.
-    _ = ast.parse(HOST_PROGRAM.read_text(), feature_version=(3, 12))
+    _ = ast.parse(program.read_text(), feature_version=(3, 12))
 
 
 @pytest.mark.parametrize("change_operational", [False, True])
