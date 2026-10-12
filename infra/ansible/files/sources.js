@@ -2044,7 +2044,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   var EXTENSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,31}$/;
   var TIMESTAMP_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,6}))?Z$/;
   var CONTROL_PATTERN = /\p{C}/u;
-  var state = { rsk: null, baw: null, nfz: null, source: "all", query: "", errors: [], cards: [], catalog: null, visible: 50 };
+  var state = { rsk: null, baw: null, nfz: null, source: "all", query: "", errors: [], cards: [], catalog: null, visible: 50, sourcePages: false };
   var NFZ_CHANNELS = { order: "Publikacja zarządzenia NFZ", news: "Aktualności NFZ", project: "Projekt zarządzenia", jgp: "Komunikaty JGP", czs: "Słowniki CZS NFZ", icd9_companion: "Plik ICD-9 PL NFZ", aotmit: "AOTMiT - sygnał taryfikacji" };
   var BAW_ROLES = { 1: "Akt pierwotny", 3: "Tekst po zmianach", 4: "Porównanie zmian", 5: "Skrócone porównanie zmian", 6: "Akt zmieniający" };
 
@@ -2566,9 +2566,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     var entry = card.entry;
     var article = element("article", "source-card");
     article.append(element("span", "source-tag", card.subtitle), element("h3", "", card.title));
-    var sourceLink = element("a", "card-link", "Wszystkie publikacje tego źródła");
-    sourceLink.href = "/zrodla/nfz";
-    article.append(sourceLink);
+    if (state.sourcePages) {
+      var sourceLink = element("a", "card-link", "Wszystkie publikacje tego źródła");
+      sourceLink.href = "/zrodla/nfz";
+      article.append(sourceLink);
+    }
     var facts = element("dl", "card-facts");
     fact(facts, "Ostatnio sprawdzono", formatDate(entry.observed_at));
     if (Object.hasOwn(entry, "version")) fact(facts, "Wersja wg wydawcy", card.version);
@@ -2690,9 +2692,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     var overline = element("div", "card-overline");
     overline.append(element("span", "source-tag", card.source === "rsk" ? "RSK" : "NFZ"));
     article.append(overline, element("h3", "", card.title), element("p", "card-lead", card.subtitle));
-    var datasetLink = element("a", "card-link", "Zestaw i obserwacje w Minos");
-    datasetLink.href = "/zrodla/" + card.source + "/" + card.id;
-    article.append(datasetLink);
+    if (state.sourcePages) {
+      var datasetLink = element("a", "card-link", "Zestaw i obserwacje w Minos");
+      datasetLink.href = "/zrodla/" + card.source + "/" + card.id;
+      article.append(datasetLink);
+    }
     if (evidence && evidence.length) {
       var matches = element("ul", "match-evidence");
       evidence.forEach(function (label) { matches.append(element("li", "", label)); });
@@ -2842,6 +2846,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     render();
   }
   function bind() {
+    state.sourcePages = document.querySelector("[data-fallback-source]") !== null;
     document.getElementById("catalog-controls").hidden = false;
     var tabs = Array.from(document.querySelectorAll("[data-source]"));
     tabs.forEach(function (button) {

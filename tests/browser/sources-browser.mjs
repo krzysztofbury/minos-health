@@ -155,6 +155,7 @@ try {
   assert.equal(rsk.source, "RSK");
   assert.equal(baw.source, "BAW");
   await navigate(client, 1440, 900, "is-ready");
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card a[href^="/zrodla/"]').length`), 0, "API-free maintenance must not advertise unavailable detail routes");
   await evaluate(client, `document.getElementById('tab-rsk').focus()`);
   await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
   assert.equal(await evaluate(client, `document.getElementById('tab-baw').getAttribute('aria-selected')`), "true");

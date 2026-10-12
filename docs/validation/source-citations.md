@@ -49,6 +49,8 @@ algorithm is not covered by a successful small fixture replay.
 - `/zrodla` renders six initial items per provider, including independent
   failures. Existing JavaScript search enhances this HTML; a failed provider
   fetch preserves its server-rendered section until a validated retry succeeds.
+  API-free maintenance retains its static catalog and official links; it does
+  not advertise the API-backed source-detail routes.
 - `/zrodla/rsk`, `/zrodla/baw` and `/zrodla/nfz` render provider catalogs.
   RSK datasets use `/zrodla/rsk/{hcd}`, BAW documents use
   `/zrodla/baw/{document_id}`. BAW lineage links keep original acts, amendments
