@@ -11,6 +11,9 @@ release.
 
 ### Added
 
+- Release-pinned concept JSON with source-local hierarchy, separately attributed
+  supporting evidence, bounded dated JGP membership and explicit release-scoped
+  rank applicability (#23).
 - Source-backed JGP catalog comparisons with explicit service-date/release
   selectors, scope/group filters, old/new base values and dataset-pinned shared
   URLs, including retroactive 74/2026 versus 102/2026 amendments (#104).

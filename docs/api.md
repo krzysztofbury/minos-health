@@ -1,5 +1,61 @@
 # Validation Reference API
 
+## Pinned concept detail
+
+```sh
+curl --fail https://minoshealth.pl/api/v1/concepts/icd9-pl/icd9-czs-5-90-gen-93-e3c744634e68/00.121
+curl --fail https://minoshealth.pl/api/v1/concepts/icd9-pl/icd9-czs-5-90-gen-93-e3c744634e68/00.121/jgp/2026-10-02
+curl --fail https://minoshealth.pl/api/v1/concepts/icd9-pl/icd9-czs-5-90-gen-93-e3c744634e68/00.121/jgp/2026-10-02/1a/pages/1
+```
+
+Select a release from `/api/v1/releases`. The contract is
+`GET /api/v1/concepts/{system}/{release_id}/{code}`, optionally followed by
+`/jgp/{YYYY-MM-DD}` or `/jgp/{YYYY-MM-DD}/{1a|1ae}/pages/{1..20}`.
+Systems are `icd10-pl` and `icd9-pl`; codes are exact uppercase identifiers,
+at most 16 ASCII letters/digits/dots/hyphens, starting with a letter or digit.
+The 1-80 character release ID is lowercase letters/digits/hyphens.
+
+The `api: 1` answer identifies `dataset_id`, `database_sha256`,
+`transform_version` and `release` (version, checksum, URL, publisher, licence,
+notices and separately named source dates). `concept` retains exact source code,
+lookup code, kind, all descriptions and source attributes. `parents` and
+`children` are direct source-local relations, including uncoded containers,
+with source text, ordinal and explicit `contains`/`is_a` type. They are not
+flattened or inferred from code prefixes. `supporting_contexts` independently
+attributes exact-code workbook evidence without overriding CZS titles/status.
+Supporting-only releases and codes cannot become canonical concepts.
+
+An undated answer has `jgp: null`. A dated answer keeps the same dictionary
+release and selects attachment 9 at the bundle's reviewed knowledge horizon.
+It reports that horizon, whether the service date exceeds it, and membership
+provenance separately for each catalog. Membership is an explicit source-list
+reference, not encounter eligibility, treatment advice or settlement applicability.
+Absent catalog coverage is labelled; absent coverage for every selected catalog
+returns `404 no_ruleset_for_date`. A different terminology binding returns
+`409 context_release_mismatch`; equal codes never authorize a cross-release join.
+Each covered catalog supplies `page`, `page_size: 100`, `total`, and `groups`.
+Use the explicit catalog/page route to continue; absent pages return 404.
+
+`rank_evidence` remains release-scoped, with the existing provenance and
+`ruleset_binding: not_bound`. `applicable_to_service_date` is null even for a
+dated answer. Zero is an explicit source rank; a missing/unselected rank stays
+null. Dictionary source status and dates do not establish legal applicability.
+
+One connection lease and the existing 1 second / 2,000,000 SQLite-operation
+budget cover the complete lookup and JSON encoding. Limits: 128 descriptions,
+64 attributes and 400 direct neighbours per direction per source, at most 16
+manifest sources, and 1 MiB UTF-8 output. Overflow fails closed with
+`422 limit_exceeded`; no partial concept is returned. Deadline returns
+`504 query_timeout`, pool exhaustion `429 busy`, unavailable/altered bundle
+`503 unavailable`, and ambiguous JGP selection `409 ambiguous_ruleset`.
+Unknown/mismatched release, system, code or malformed date returns 404.
+Errors use `{"api":1,"status":"error","error":{"code":"..."}}` at the API.
+All responses are `no-store`. The edge rejects query strings with 404; the
+direct API returns `400 queries_must_not_be_in_urls`. Request logs contain the
+fixed route category, never the supplied release, code or full URL.
+
+## Search and existing reference routes
+
 This is bounded public ICD-9 PL validation, not the complete product API.
 Queries are POST JSON bodies so they do not enter request URLs. Do not submit
 patient data. No account, API key or external search service is required.

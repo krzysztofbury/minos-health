@@ -349,6 +349,22 @@ def main(arguments: Arguments) -> None:
         assert get_json(base, rank_route)[0] == 200
         assert get_json(base, rank_route + "?q=PRIVATE_QUERY_SENTINEL")[0] == 404
         assert get_json(base, rank_route, {})[0] == 405
+        concept_route = f"/api/v1/concepts/icd9-pl/{canonical['release_id']}/A01"
+        status, concept, _ = get_json(base, concept_route)
+        assert status == 200 and concept["api"] == 1
+        assert (
+            cast(dict[str, object], concept["release"])["release_id"]
+            == canonical["release_id"]
+        )
+        assert cast(dict[str, object], concept["concept"])["parents"] == []
+        assert concept["jgp"] is None
+        dated_status, dated, _ = get_json(base, concept_route + "/jgp/2026-07-10")
+        assert dated_status == 200 and dated["concept"] == concept["concept"]
+        assert get_json(base, concept_route + "/jgp/2026-07-10/1a/pages/1")[0] == 200
+        assert get_json(base, concept_route + "/jgp/2026-07-10/1a/pages/21")[0] == 404
+        assert get_json(base, concept_route + "?date=2026-07-10")[0] == 404
+        assert get_json(base, concept_route, {})[0] == 405
+        assert get_page(base, concept_route)[1] == ["no-store"]
         # JGP routes: one call per group page, path-only dates, explicit gaps.
         group_route = "/api/v1/jgp/2026-07-10/groups/PZD02"
         status, group, _ = get_json(base, group_route)

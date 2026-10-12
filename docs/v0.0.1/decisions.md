@@ -5,6 +5,16 @@ Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
 
 ## Product
 
+### Release-Pinned Concept JSON (2026-10-12)
+
+The owner approved #23's explicit dictionary release and code path, with an
+optional dated JGP-context path. The service date selects reviewed attachment 9
+evidence, never a different ICD release or inferred dictionary validity. Reject
+cross-release context rather than joining equal codes across releases. Rank
+evidence keeps its existing release pairing and unbound applicability, with no
+rank-to-service-date claim. Keep global query-string rejection and bounded
+shared store/domain behavior. No implicit latest-release or today fallback.
+
 ### Watcher-Only Feature Activation (2026-10-12)
 
 For #92, the owner approved a guarded watcher-only release path rather than

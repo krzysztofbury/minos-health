@@ -207,17 +207,20 @@ The initial endpoint set is:
 
 - `GET /healthz`: process liveness, with no data access.
 - `GET /readyz`: confirms the configured dataset can be opened and queried.
-- `GET /api/v1/search?system=icd10-pl&q=...`: bounded search.
-- `GET /api/v1/concepts/{system}/{code}`: one concept and its hierarchy.
+- `POST /api/v1/search`: bounded search with medical text only in JSON bodies.
+- `GET /api/v1/concepts/{system}/{release_id}/{code}`: a pinned concept and its
+  source-local hierarchy. An optional `/jgp/{service_date}` suffix selects JGP
+  context without changing the terminology release (#23, accepted 2026-10-12).
 - `GET /api/v1/jgp/groups/{code}`: one group with conditions and point values
   for a given service date.
 - `POST /api/v1/group` (`v0.0.2`): stateless encounter grouping. POST because
   encounter payloads must never appear in URLs or logs.
 
-Read endpoints remain GET-based for standard read semantics and cacheability.
+Exact-identifier read endpoints remain GET-based; free-text search uses POST.
 Input length, result count, and execution time must be bounded.
-Queries answering "as of which service date" take an explicit date parameter
-and default to the current date.
+Queries answering "as of which service date" use date path segments. Existing
+JGP pages default to today where documented; release-pinned concept JSON has no
+implicit date and rejects query strings.
 
 ## Data Model
 

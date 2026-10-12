@@ -75,8 +75,21 @@ in 23.41 seconds: copied-state paused preflight and projection restoration,
 failed process activation followed by automatic recovery, successful activation,
 and explicit rollback. Four healthy API/edge/tunnel/monitoring sentinels retained
 their container IDs and restart counts. The fixture uses future-only scheduling
-and no network or production credentials. Production S3 preflight and activation
-are still required. CI runs the same smoke against its built watcher image.
+and no network or production credentials. CI runs the same smoke against its
+built watcher image. Production S3 preflight and activation subsequently passed.
+
+### Deployed acceptance (2026-10-12)
+
+PRs #167/#168 deployed revision `0bf9b31d5b5b9f489d0a1249b950c70325626e45`.
+Watcher preflight and activation passed with unchanged API/edge/tunnel/monitoring
+identities; API/edge then activated at `2026-10-12T08:18:22Z`. Public NFZ JSON
+exactly matched independently mapped committed evidence: revision 298, 10 entries,
+6,296 bytes, SHA-256
+`ac4ca62f52139bbf6f6fcffff09760a6c379f9a2f925e86ff6c26dc27ad058aa`.
+Actual desktop/390px/320px Chromium checks and screenshot review passed; expanded
+provenance, local search and route refusals passed. Repository/packages remain
+private, the reference bundle is unchanged, and no preflight scratch remains.
+See [issue acceptance](https://github.com/krzysztofbury/minos-health/issues/92#issuecomment-6120799364).
 
 ## Deployment boundary
 

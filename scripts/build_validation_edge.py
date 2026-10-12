@@ -190,6 +190,16 @@ def _routes() -> str:
             proxy_read_timeout 3s;
             error_log /dev/null;
         }
+        # Concept details pin dictionary releases; optional dates select JGP only.
+        location ~ "^/api/v1/concepts/icd(10|9)-pl/[a-z0-9-]{1,80}/[A-Z0-9][A-Z0-9.-]{0,15}(/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(/1ae?/pages/([1-9]|1[0-9]|20))?)?$" {
+            if ($request_uri ~ "\\?") { return 404; }
+            if ($request_method != GET) { return 405; }
+            proxy_hide_header Cache-Control;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
         # Tree paths carry only a release id and a source node number.
         location ~ "^/api/v1/tree/[a-z0-9-]{1,80}/(0|[1-9][0-9]{0,6})$" {
             if ($request_uri ~ "\\?") { return 404; }

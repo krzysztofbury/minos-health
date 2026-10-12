@@ -33,6 +33,7 @@ from minos.domain.search import (
     prepare_query,
 )
 from minos.grouper.pipeline import PreparedSources
+from minos.http.concepts import CONCEPT_ROUTE, register_concept_routes
 from minos.http.grouping import register_grouping_routes, warm_grouping
 from minos.http.jgp import (
     JGP_PAGE_ROUTE,
@@ -442,6 +443,8 @@ def create_app(
                     )
                     else "/api/v1/tree"
                     if TREE_ROUTE.fullmatch(request.url.path)
+                    else "/api/v1/concepts"
+                    if CONCEPT_ROUTE.fullmatch(request.url.path)
                     else "/slowniki/code"
                     if PAGE_ROUTE.fullmatch(request.url.path)
                     else "/sitemap"
@@ -589,6 +592,7 @@ def create_app(
             return failure(503, "unavailable")
 
     _ = app.middleware("http")(guard)
+    register_concept_routes(app, failure=failure)
 
     async def tree(release_id: str, node: str) -> JSONResponse:
         # Paths carry only a release identity and a source node number, never text.
