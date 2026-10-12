@@ -1216,6 +1216,95 @@ def test_committed_history_is_revision_fenced_and_truncates_complete_runs(
         )
 
 
+def test_exact_public_snapshot_requires_recovery_and_never_falls_back(
+    store: ControlStore,
+) -> None:
+    _configure_source(store)
+    claim = store.acquire_claim(_manual_claim_request(_NOW_MS))
+    first = store.commit_observations(claim.identity, _observation_commit())
+    with pytest.raises(ControlStorageError, match="not recovery reconciled"):
+        _ = store.load_reconciled_observations(first)
+    _ = store.mark_heartbeat_pending(
+        first.run_id,
+        committed_state_revision=first.committed_state_revision,
+        recovery_receipt=_recovery_receipt(first),
+    )
+    _ = store.mark_successful(
+        first.run_id, committed_state_revision=first.committed_state_revision
+    )
+    snapshot = store.load_reconciled_observations(first)
+    assert len(snapshot.observations) == 1
+    assert snapshot.observations[0].observation_id == _OBSERVATION_ID
+    with pytest.raises(ControlStorageError, match="fence differs"):
+        _ = store.load_reconciled_observations(
+            replace(first, committed_at_ms=first.committed_at_ms + 1)
+        )
+    second_claim = store.acquire_claim(_manual_claim_request(_NOW_MS))
+    original = _observation_commit()
+    second = store.commit_observations(
+        second_claim.identity,
+        replace(
+            original,
+            observations=(
+                replace(
+                    original.observations[0],
+                    observation_id="second-observation",
+                    observation_kind="different_kind",
+                ),
+            ),
+            changes=(),
+            incidents=(),
+        ),
+    )
+    with pytest.raises(ControlStorageError, match="not recovery reconciled"):
+        _ = store.load_reconciled_observations(second)
+    _ = store.mark_heartbeat_pending(
+        second.run_id,
+        committed_state_revision=second.committed_state_revision,
+        recovery_receipt=_recovery_receipt(second),
+    )
+    selected = store.load_reconciled_observations(second)
+    assert [
+        (item.observation_id, item.observation_kind) for item in selected.observations
+    ] == [("second-observation", "different_kind")]
+    assert store.load_reconciled_observations(first) == snapshot
+
+
+def test_public_snapshot_checks_bytes_before_decoding(
+    store: ControlStore, database_path: Path
+) -> None:
+    _configure_source(store)
+    claim = store.acquire_claim(_manual_claim_request(_NOW_MS))
+    original = _observation_commit()
+    run = store.commit_observations(
+        claim.identity,
+        replace(
+            original,
+            observations=tuple(
+                replace(
+                    original.observations[0],
+                    observation_id=f"large-observation-{index}",
+                )
+                for index in range(9)
+            ),
+            changes=(),
+            incidents=(),
+        ),
+    )
+    _ = store.mark_heartbeat_pending(
+        run.run_id,
+        committed_state_revision=run.committed_state_revision,
+        recovery_receipt=_recovery_receipt(run),
+    )
+    with sqlite3.connect(database_path) as connection:
+        _ = connection.execute(
+            "UPDATE observations SET metadata_json = ?",
+            (json.dumps({"large": "x" * (256 * 1024 - 64)}),),
+        )
+    with pytest.raises(ControlStorageError, match="input bounds"):
+        _ = store.load_reconciled_observations(run)
+
+
 def test_duplicate_write_failure_rolls_back_entire_observation_commit(
     store: ControlStore,
     database_path: Path,

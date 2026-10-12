@@ -165,7 +165,9 @@ class Host:
         if values.get("ansible_user") != "root" or not self.port.isdigit():
             raise DeployError("materialized host variables are invalid")
 
-    def call(self, command: str, params: dict[str, object]) -> dict[str, object]:
+    def call(
+        self, command: str, params: dict[str, object], *, program: bytes | None = None
+    ) -> dict[str, object]:
         encoded = base64.urlsafe_b64encode(json.dumps(params).encode()).decode()
         try:
             completed = subprocess.run(
@@ -181,7 +183,7 @@ class Host:
                     encoded,
                 ],
                 timeout=SSH_TIMEOUT_S,
-                input=HOST_PROGRAM.read_bytes(),
+                input=HOST_PROGRAM.read_bytes() if program is None else program,
                 capture_output=True,
                 check=False,
             )

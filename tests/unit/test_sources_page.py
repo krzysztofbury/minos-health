@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 import pytest
@@ -247,6 +248,15 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
     baw_fixture = baw_path / "baw.json"
     _ = baw_fixture.write_text(json.dumps(_baw_projection(), ensure_ascii=False))
     (public_root / "baw" / "current").symlink_to("generations/fixture")
+    nfz_path = public_root / "nfz/generations/fixture/api/v1/provenance"
+    nfz_path.mkdir(parents=True)
+    nfz_fixture = nfz_path / "nfz.json"
+    nfz = cast(
+        dict[str, object],
+        json.loads((ROOT / "tests/fixtures/nfz_projection.json").read_bytes()),
+    )
+    _ = nfz_fixture.write_text(json.dumps({**nfz, "entries": []}))
+    (public_root / "nfz/current").symlink_to("generations/fixture")
     OUTPUT_ROOT.mkdir(exist_ok=True)
 
     container = f"minos-sources-browser-{uuid4().hex}"
@@ -301,6 +311,7 @@ def test_pinned_nginx_and_installed_browser_render_sources_page(
                 str(fixture_file),
                 str(baw_fixture),
                 str(OUTPUT_ROOT),
+                str(nfz_fixture),
             ],
             cwd=ROOT,
             check=False,
@@ -380,6 +391,9 @@ def _assert_exact_routes(port: int) -> None:
     assert _curl(port, "/api/v1/provenance/baw", "minoshealth.pl").endswith(
         "STATUS:200"
     )
+    assert _curl(port, "/api/v1/provenance/nfz", "minoshealth.pl").endswith(
+        "STATUS:200"
+    )
     # The maintenance runtime serves the shared stylesheet from legal.css.
     stylesheet = _curl(port, "/site.css", "minoshealth.pl")
     javascript = _curl(port, "/sources.js", "minoshealth.pl")
@@ -403,6 +417,14 @@ def _assert_exact_routes(port: int) -> None:
         "/sources.js/",
         "/api/v1/provenance/baw?alias=1",
         "/api/v1/provenance/baw.json",
+        "/api/v1/provenance/nfz?alias=1",
+        "/api/v1/provenance/nfz.json",
+        "/api/v1/provenance/nfz/",
+        "/api/v1/%70rovenance/nfz",
+        "/api/v1/./provenance/nfz",
+        "/api/v1/artifacts/../provenance/nfz",
+        "/nfz/current/api/v1/provenance/nfz.json",
+        "/nfz/generations/fixture/manifest.json",
     ):
         assert _curl(port, path, "minoshealth.pl").endswith("STATUS:404")
     assert _curl(port, "/zrodla?alias=1", "minoshealth.com").endswith("STATUS:404")

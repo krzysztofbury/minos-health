@@ -135,6 +135,9 @@ release.
 
 ### Changed
 
+- Add a bounded NFZ/CZS/AOTMiT publication metadata projection and a separate
+  source-catalog filter, preserving observation, publication and declared-validity
+  dates without inferring settlement applicability (#92; activation pending).
 - Preserve structured host refusals and bounded, privacy-safe Compose failure
   diagnostics. Rollback verifies both validation services, exact running images
   and operational isolation; explicit retries retain their original baseline,

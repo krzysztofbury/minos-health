@@ -4,6 +4,7 @@
 
   var RSK_PATH = "/api/v1/provenance/rsk";
   var BAW_PATH = "/api/v1/provenance/baw";
+  var NFZ_PATH = "/api/v1/provenance/nfz";
   var MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
   var MAX_RESPONSE_CHUNKS = 65536;
   var MAX_ENTRIES = 8192;
@@ -19,7 +20,8 @@
   var EXTENSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,31}$/;
   var TIMESTAMP_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,6}))?Z$/;
   var CONTROL_PATTERN = /\p{C}/u;
-  var state = { rsk: null, baw: null, source: "all", query: "", errors: [], cards: [], catalog: null, visible: 50 };
+  var state = { rsk: null, baw: null, nfz: null, source: "all", query: "", errors: [], cards: [], catalog: null, visible: 50 };
+  var NFZ_CHANNELS = { order: "Publikacja zarządzenia NFZ", news: "Aktualności NFZ", project: "Projekt zarządzenia", jgp: "Komunikaty JGP", czs: "Słowniki CZS NFZ", icd9_companion: "Plik ICD-9 PL NFZ", aotmit: "AOTMiT - sygnał taryfikacji" };
   var BAW_ROLES = { 1: "Akt pierwotny", 3: "Tekst po zmianach", 4: "Porównanie zmian", 5: "Skrócone porównanie zmian", 6: "Akt zmieniający" };
 
   function fail(label) { throw new Error("Nieprawidłowe dane: " + label + "."); }
@@ -217,11 +219,113 @@
     });
   }
 
-  async function readBoundedJson(response) {
+  function expectNfzUrl(value, channel) {
+    expectString(value, "adres NFZ", 1024);
+    var paths = {
+      order: "zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/",
+      news: "aktualnosci/aktualnosci-centrali/",
+      project: "zarzadzenia-prezesa/projekty-zarzadzen/",
+      jgp: "dla-swiadczeniodawcy/jednorodne-grupy-pacjentow/komunikaty-jgp/",
+    };
+    var pattern = paths[channel] ? new RegExp("^https://www\\.nfz\\.gov\\.pl/" + paths[channel] + "[a-z0-9-]+,[1-9][0-9]{0,9}\\.html$") : {
+      jgp_file: /^https:\/\/www\.nfz\.gov\.pl\/download\/gfx\/nfz\/pl\/defaultaktualnosci\/354\/[1-9][0-9]{0,9}\/[1-9][0-9]{0,2}\/[a-zA-Z0-9_.-]{3,160}\.(docx|xlsx)$/,
+      icd9_companion: /^https:\/\/www\.nfz\.gov\.pl\/download\/gfx\/nfz\/pl\/defaultstronaopisowa\/782\/1\/2\/[a-zA-Z0-9_.-]{3,140}\.xlsx$/,
+      czs: /^https:\/\/slowniki\.nfz\.gov\.pl\/WersjeSlownikow\/PobierzXml\?kodSlownika=(ICD9|MODTAR)&nrGen=[1-9][0-9]{0,5}$/,
+      display: /^https:\/\/slowniki\.nfz\.gov\.pl\/WersjeSlownikow\/Index\/[1-9][0-9]{0,9}\?kod=MODTAR$/,
+      aotmit: /^https:\/\/bip\.aotm\.gov\.pl\/assets\/files\/taryfikacja\/taryfy\/obwieszczenia\/20[0-9]{2}\/[\p{L}\p{N}_ .%-]{3,180}\.pdf$/u,
+    }[channel];
+    if (!pattern || !pattern.test(value)) fail("adres NFZ");
+    var filename;
+    try { filename = decodeURIComponent(value.split("?")[0].split("/").pop()); } catch (_error) { fail("adres NFZ"); }
+    if (/\.\.|[\\/%?#]/.test(filename) || CONTROL_PATTERN.test(filename)) fail("ścieżka NFZ");
+  }
+  function expectNfzEvidence(value, channel, fence) {
+    expectNfzUrl(value.source_url, channel);
+    expectPattern(value.sha256, DIGEST_PATTERN, "SHA-256 NFZ", 64);
+    expectPattern(value.observed_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, "odczyt NFZ", 24);
+    expectTimestamp(value.observed_at, "odczyt NFZ");
+    if (Date.parse(value.observed_at) > Date.parse(fence)) fail("ogrodzenie NFZ");
+  }
+  function validateNfzProjection(value) {
+    expectKeys(value, ["schema_version", "source", "through_state_revision", "observed_at", "coverage", "entries", "redistribution"], "NFZ");
+    if (value.schema_version !== 1 || value.source !== "NFZ" || value.coverage !== "latest_reconciled_observation_only") fail("wersja NFZ");
+    expectInteger(value.through_state_revision, "rewizja NFZ", 1, Number.MAX_SAFE_INTEGER);
+    expectTimestamp(value.observed_at, "odczyt NFZ");
+    expectKeys(value.redistribution, ["schema_version", "artifacts"], "redystrybucja NFZ");
+    if (value.redistribution.schema_version !== 1) fail("redystrybucja NFZ");
+    expectArray(value.redistribution.artifacts, "artefakty NFZ", 0, 0);
+    expectArray(value.entries, "publikacje NFZ", 0, 256);
+    var fields = { order: ["act_number", "baw_document_id", "published_date"], news: ["item_id", "published_date", "files"], project: ["item_id", "published_date", "files"], jgp: ["item_id", "published_date", "files"], czs: ["code", "generation", "generated_at", "year", "grouper_type", "version", "published_date", "publisher_valid_from", "display_evidence"], icd9_companion: ["version", "czs_xml_sha256"], aotmit: ["meaning", "published_date"] };
+    var counts = {}, ids = new Set(), codes = new Set();
+    value.entries.forEach(function (entry) {
+      if (!Object.hasOwn(fields, entry.channel)) fail("kanał NFZ");
+      expectKeys(entry, ["channel", "title", "source_url", "sha256", "observed_at", "service_applicability"].concat(fields[entry.channel]), "publikacja NFZ");
+      expectNfzEvidence(entry, entry.channel, value.observed_at);
+      expectString(entry.title, "tytuł NFZ", MAX_TEXT_LENGTH);
+      if (entry.service_applicability !== "not_reviewed") fail("stosowanie NFZ");
+      var id = entry.channel + ":" + entry.source_url;
+      if (ids.has(id)) fail("powtórzona publikacja NFZ");
+      ids.add(id); counts[entry.channel] = (counts[entry.channel] || 0) + 1;
+      if (Object.hasOwn(entry, "published_date")) {
+        if (entry.channel !== "czs" && entry.published_date === null) fail("data publikacji NFZ");
+        expectBawDate(entry.published_date, "data publikacji NFZ");
+      }
+      if (entry.channel === "order") {
+        expectPattern(entry.act_number, /^[1-9][0-9]{0,3}\/20[0-9]{2}\/DSOZ$/, "numer aktu", 16);
+        expectInteger(entry.baw_document_id, "ID BAW", 1, 2147483647);
+      } else if (["news", "project", "jgp"].includes(entry.channel)) {
+        expectInteger(entry.item_id, "ID publikacji", 1, 2147483647);
+        if (!entry.source_url.endsWith("," + entry.item_id + ".html")) fail("ID publikacji");
+        expectArray(entry.files, "pliki JGP", 0, entry.channel === "jgp" ? 8 : 0);
+        if (entry.channel === "jgp" && entry.files.length === 0) fail("brak plików JGP");
+        var files = new Set();
+        entry.files.forEach(function (file) {
+          expectKeys(file, ["source_url", "sha256", "observed_at"], "plik JGP");
+          expectNfzEvidence(file, "jgp_file", value.observed_at);
+          if (!file.source_url.includes("/354/" + entry.item_id + "/") || files.has(file.source_url)) fail("powiązanie pliku JGP");
+          files.add(file.source_url);
+        });
+      } else if (entry.channel === "czs") {
+        if (!["ICD9", "MODTAR"].includes(entry.code) || codes.has(entry.code)) fail("słownik CZS");
+        codes.add(entry.code);
+        expectInteger(entry.generation, "generacja CZS", 1, 999999);
+        if (entry.source_url !== "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=" + entry.code + "&nrGen=" + entry.generation) fail("generacja CZS");
+        expectNullableString(entry.version, "wersja CZS", MAX_TEXT_LENGTH);
+        expectBawDate(entry.publisher_valid_from, "ważność wg CZS");
+        expectPattern(entry.generated_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|[+-]\d{2}:\d{2})?$/, "czas generacji", 32);
+        expectTimestamp(entry.generated_at.replace(/(Z|[+-]\d{2}:\d{2})$/, "") + "Z", "czas generacji");
+        if (/[+-]\d{2}:\d{2}$/.test(entry.generated_at) && !Number.isFinite(Date.parse(entry.generated_at))) fail("strefa generacji");
+        if (entry.code === "ICD9") {
+          if ([entry.year, entry.grouper_type, entry.display_evidence, entry.published_date, entry.publisher_valid_from].some(function (item) { return item !== null; })) fail("zakres ICD9");
+          if (entry.version !== null) expectPattern(entry.version, /^[1-9][0-9]{0,2}\.[0-9]{1,3}$/, "wersja ICD9", 7);
+        } else {
+          expectInteger(entry.year, "rok MODTAR", 2020, 2100);
+          if (entry.grouper_type !== "SZP") fail("zakres MODTAR");
+          if (entry.display_evidence === null && [entry.version, entry.published_date, entry.publisher_valid_from].some(function (item) { return item !== null; })) fail("dowód wersji MODTAR");
+        }
+        if (entry.display_evidence !== null) {
+          expectKeys(entry.display_evidence, ["source_url", "sha256", "observed_at"], "dowód MODTAR");
+          expectNfzEvidence(entry.display_evidence, "display", value.observed_at);
+        }
+      } else if (entry.channel === "icd9_companion") {
+        expectPattern(entry.version, /^[1-9][0-9]{0,2}\.[0-9]{1,3}$/, "wersja ICD9", 7);
+        expectPattern(entry.czs_xml_sha256, DIGEST_PATTERN, "suma XML CZS", 64);
+      } else if (entry.meaning !== "leading_indicator") fail("znaczenie AOTMiT");
+    });
+    Object.entries({ order: 32, news: 64, project: 64, jgp: 4, czs: 2, icd9_companion: 1, aotmit: 12 }).forEach(function (pair) { if ((counts[pair[0]] || 0) > pair[1]) fail("liczba publikacji NFZ"); });
+    value.entries.filter(function (entry) { return entry.channel === "icd9_companion"; }).forEach(function (entry) {
+      var dictionary = value.entries.find(function (item) { return item.channel === "czs" && item.code === "ICD9"; });
+      if (!dictionary || dictionary.sha256 !== entry.czs_xml_sha256 || dictionary.version !== entry.version) fail("powiązanie ICD9");
+    });
+    return value;
+  }
+
+  async function readBoundedJson(response, maximum) {
+    maximum = maximum || MAX_RESPONSE_BYTES;
     var length = response.headers.get("content-length");
     if (length !== null) {
       if (!/^[0-9]+$/.test(length)) fail("rozmiar odpowiedzi");
-      expectInteger(Number(length), "rozmiar odpowiedzi", 1, MAX_RESPONSE_BYTES);
+      expectInteger(Number(length), "rozmiar odpowiedzi", 1, maximum);
     }
     if (response.body === null) fail("treść odpowiedzi");
     var reader = response.body.getReader();
@@ -234,7 +338,7 @@
         var result = await reader.read();
         if (result.done) { complete = true; break; }
         received += result.value.byteLength;
-        if (received > MAX_RESPONSE_BYTES) fail("rozmiar odpowiedzi");
+        if (received > maximum) fail("rozmiar odpowiedzi");
         parts.push(decoder.decode(result.value, { stream: true }));
       }
       if (!complete) fail("liczba części odpowiedzi");
@@ -264,6 +368,15 @@
   }
   function catalogDocuments(card) {
     var records = [catalogRecord(card, "card", {}, card.title, [card.id], true)];
+    if (card.source === "nfz") {
+      records[0].identifiers += " " + [card.entry.code, card.entry.act_number, card.entry.item_id, card.version].filter(Boolean).join(" ");
+      records[0].keys.push.apply(records[0].keys, [card.entry.code, card.entry.act_number, card.entry.item_id].filter(Boolean).map(function (value) { return compactIdentifier(String(value)); }));
+      card.files.forEach(function (file, index) {
+        var name = decodeURIComponent(file.source_url.split("/").pop());
+        records.push(catalogRecord(card, "file-" + index, { files: name }, "Plik NFZ: " + name, [], false));
+      });
+      return records;
+    }
     if (card.source === "rsk") {
       records[0].identifiers += " " + card.aliases.join(" ");
       records[0].keys.push.apply(records[0].keys, card.aliases.map(compactIdentifier));
@@ -419,6 +532,48 @@
     link.target = "_blank";
     return link;
   }
+  function nfzDatasets(projection) {
+    return projection.entries.map(function (entry) {
+      return { source: "nfz", id: entry.source_url, title: entry.title, subtitle: NFZ_CHANNELS[entry.channel],
+        version: entry.version || "Nie ustalono", observed: entry.observed_at, files: entry.files || [], entry: entry };
+    });
+  }
+  function renderNfzCard(card) {
+    var entry = card.entry;
+    var article = element("article", "source-card");
+    article.append(element("span", "source-tag", card.subtitle), element("h3", "", card.title));
+    var facts = element("dl", "card-facts");
+    fact(facts, "Ostatnio sprawdzono", formatDate(entry.observed_at));
+    if (Object.hasOwn(entry, "version")) fact(facts, "Wersja wg wydawcy", card.version);
+    if (Object.hasOwn(entry, "published_date")) fact(facts, "Data publikacji", formatDate(entry.published_date));
+    if (entry.channel === "czs") {
+      fact(facts, "Generacja techniczna", String(entry.generation));
+      fact(facts, "Czas generacji wg źródła", entry.generated_at + (/Z$|[+-]\d{2}:\d{2}$/.test(entry.generated_at) ? "" : " (strefa niepodana)"));
+      if (entry.code === "MODTAR") {
+        fact(facts, "Zakres słownika", entry.year + " / " + entry.grouper_type);
+        fact(facts, "Ważny od wg wydawcy", formatDate(entry.publisher_valid_from));
+      }
+    }
+    article.append(facts);
+    var notice = entry.channel === "project" ? "Projekt, nie obowiązująca reguła rozliczeniowa." : entry.channel === "aotmit" ? "Sygnał taryfikacji AOTMiT, nie reguła rozliczeniowa NFZ." : "Obserwacja publikacji. Okres stosowania do rozliczeń nie został tu ustalony.";
+    article.append(element("p", "card-notice", notice));
+    var links = element("div", "nfz-links");
+    links.append(externalLink(entry.source_url, "Otwórz w oficjalnym źródle ↗"));
+    article.append(links);
+    if (entry.channel === "order") article.append(element("p", "card-notice", "Dokument BAW: " + entry.baw_document_id + ". Historię aktu znajdziesz w zakładce Zarządzenia NFZ."));
+    if (entry.display_evidence) links.append(externalLink(entry.display_evidence.source_url, "Informacja o wersji CZS ↗"));
+    var details = element("details", "technical-details");
+    details.append(element("summary", "", "Źródła i sumy kontrolne"));
+    details.append(element("span", "technical", "Odczyt (UTC): " + entry.observed_at + " · SHA-256 odpowiedzi źródła: " + entry.sha256));
+    if (entry.display_evidence) details.append(element("span", "technical", "SHA-256 informacji o wersji CZS: " + entry.display_evidence.sha256));
+    if (entry.czs_xml_sha256) details.append(element("span", "technical", "SHA-256 powiązanego XML CZS: " + entry.czs_xml_sha256));
+    card.files.forEach(function (file) {
+      var name = decodeURIComponent(file.source_url.split("/").pop());
+      details.append(externalLink(file.source_url, name + " ↗"), element("span", "technical", "Odczyt (UTC): " + file.observed_at + " · SHA-256: " + file.sha256));
+    });
+    article.append(details);
+    return article;
+  }
   function fileList(card) {
     var list = element("ul", "file-list");
     card.files.forEach(function (file) {
@@ -503,6 +658,7 @@
     return details;
   }
   function renderCard(card, evidence) {
+    if (card.source === "nfz") return renderNfzCard(card);
     var article = element("article", "source-card");
     var overline = element("div", "card-overline");
     overline.append(element("span", "source-tag", card.source === "rsk" ? "RSK" : "NFZ"));
@@ -542,10 +698,11 @@
     article.append(details);
     return article;
   }
-  function allCards(rsk, baw) {
+  function allCards(rsk, baw, nfz) {
     var cards = [];
     if (rsk) cards.push.apply(cards, rskDatasets(rsk));
     if (baw) cards.push.apply(cards, bawDatasets(baw));
+    if (nfz) cards.push.apply(cards, nfzDatasets(nfz));
     function priority(card) {
       if (card.id === "00CD10") return 0;
       if (card.id === "00CD09") return 1;
@@ -575,9 +732,13 @@
     });
     var summary = document.getElementById("source-summary");
     summary.replaceChildren();
-    [["RSK", state.rsk], ["BAW NFZ", state.baw]].forEach(function (pair) {
-      var unavailable = state.errors.includes(pair[0] === "BAW NFZ" ? "BAW" : pair[0]);
+    [["RSK", state.rsk, "RSK"], ["BAW NFZ", state.baw, "BAW"], ["Publikacje NFZ / CZS / AOTMiT", state.nfz, "NFZ"]].forEach(function (pair) {
+      var unavailable = state.errors.includes(pair[2]);
       var text = pair[1] ? (unavailable ? "Poprzedni zapis (może być nieaktualny): " : "Sprawdzono ") + formatDate(pair[1].projected_at || pair[1].observed_at) : "Dane niedostępne";
+      if (pair[2] === "NFZ" && pair[1]) {
+        if (classifyFreshness(pair[1].observed_at, Date.now()).kind !== "current") text += ". Obserwacja wymaga odświeżenia.";
+        text += pair[1].entries.length ? ". Tylko ostatnie sprawdzenie; niepełna historia publikacji." : ". Brak publikacji w tym zapisie.";
+      }
       var node = element("p");
       node.append(element("strong", "", pair[0] + ": "), document.createTextNode(text));
       summary.append(node);
@@ -595,7 +756,7 @@
       method: "GET", redirect: "error", signal: AbortSignal.timeout(15000),
     });
     if (!response.ok || !(response.headers.get("content-type") || "").toLowerCase().startsWith("application/json")) fail("odpowiedź źródła");
-    return validator(await readBoundedJson(response));
+    return validator(await readBoundedJson(response, path === NFZ_PATH ? 1024 * 1024 : MAX_RESPONSE_BYTES));
   }
   async function loadAll() {
     setLoadState("loading", "Wczytywanie słowników i zarządzeń...");
@@ -603,18 +764,21 @@
     var responses = await Promise.allSettled([
       loadOne(RSK_PATH, validateProjection),
       loadOne(BAW_PATH, validateBawProjection),
+      loadOne(NFZ_PATH, validateNfzProjection),
     ]);
     var rsk = responses[0].status === "fulfilled" ? responses[0].value : state.rsk;
     var baw = responses[1].status === "fulfilled" ? responses[1].value : state.baw;
+    var nfz = responses[2].status === "fulfilled" ? responses[2].value : state.nfz;
     try {
-      var cards = allCards(rsk, baw);
+      var cards = allCards(rsk, baw, nfz);
       var catalog = buildCatalogIndex(cards);
       state.rsk = rsk;
       state.baw = baw;
+      state.nfz = nfz;
       state.cards = cards;
       state.catalog = catalog;
     } catch (_error) {
-      state.errors = ["RSK", "BAW"];
+      state.errors = ["RSK", "BAW", "NFZ"];
       document.getElementById("retry-button").disabled = false;
       document.getElementById("retry-button").hidden = false;
       setLoadState("error", "Nie udało się przygotować wyszukiwania. Poprzednio wczytane dane mogą być nieaktualne. Spróbuj ponownie.");
@@ -622,7 +786,7 @@
       return;
     }
     document.getElementById("retry-button").disabled = false;
-    state.errors = responses.map(function (response, index) { return response.status === "rejected" ? (index === 0 ? "RSK" : "BAW") : null; }).filter(Boolean);
+    state.errors = responses.map(function (response, index) { return response.status === "rejected" ? ["RSK", "BAW", "NFZ"][index] : null; }).filter(Boolean);
     document.getElementById("retry-button").hidden = state.errors.length === 0;
     if (state.errors.length) {
       setLoadState("error", "Nie udało się wczytać: " + state.errors.join(", ") + ". Poprzednio wczytane dane mogą być nieaktualne; pozostałe źródła nadal są dostępne.");
@@ -687,6 +851,8 @@
       officialOriginUrl: officialOriginUrl,
       validateProjection: validateProjection,
       validateBawProjection: validateBawProjection,
+      validateNfzProjection: validateNfzProjection,
+      nfzDatasets: nfzDatasets,
       normalizeSearch: normalizeSearch,
       buildCatalogIndex: buildCatalogIndex,
       searchCatalog: searchCatalog,

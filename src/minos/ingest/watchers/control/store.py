@@ -1859,6 +1859,72 @@ class ControlStore:
             "heartbeat_pending",
         )
 
+    def load_reconciled_observations(
+        self, run: CommittedRun
+    ) -> CommittedObservationRevision:
+        """Read one exact public evidence fence, without historical fallback.
+
+        Check stored byte sizes before materializing JSON, inside the same read
+        transaction. Missing blob receipts fail closed rather than dropping rows.
+        """
+        self._require_open()
+        if self._connection.in_transaction:
+            raise ControlStorageError("public snapshot requires an idle connection")
+        try:
+            _ = self._connection.execute("BEGIN")
+            actual = self.recovery_reconciled_run_at_revision(
+                run.source_id, run.committed_state_revision
+            )
+            if (
+                actual.run_id != run.run_id
+                or actual.committed_at_ms != run.committed_at_ms
+            ):
+                raise ControlStorageError("public snapshot fence differs")
+            parameters = (run.source_id, run.run_id, run.committed_state_revision)
+            count, size = cast(
+                tuple[int, int],
+                self._connection.execute(
+                    """SELECT count(*), coalesce(sum(length(cast(metadata_json AS blob))
+                    + length(cast(source_identity AS blob)) + length(observation_id)
+                    + length(observation_kind) + length(response_sha256) + 8), 0)
+                   FROM observations WHERE source_id = ? AND run_id = ? AND state_revision = ?""",
+                    parameters,
+                ).fetchone(),
+            )
+            if count > 512 or size > 2 * 1024 * 1024:
+                raise ControlStorageError("public snapshot exceeds input bounds")
+            rows = cast(
+                list[tuple[str, str, str, str, int, str, int | None]],
+                self._connection.execute(
+                    """SELECT o.observation_id, o.observation_kind, o.source_identity,
+                          o.response_sha256, o.observed_at_ms, o.metadata_json, b.size_bytes
+                   FROM observations AS o LEFT JOIN blobs AS b ON b.sha256 = o.response_sha256
+                   WHERE o.source_id = ? AND o.run_id = ? AND o.state_revision = ?
+                   ORDER BY o.observation_kind, o.source_identity, o.observation_id LIMIT 513""",
+                    parameters,
+                ).fetchall(),
+            )
+            if len(rows) != count or any(row[6] is None for row in rows):
+                raise ControlStorageError("public snapshot blob evidence is incomplete")
+            observations = tuple(
+                CommittedObservation(
+                    identifier,
+                    kind,
+                    identity,
+                    digest,
+                    timestamp,
+                    _decode_stored_json(metadata, "public snapshot metadata"),
+                )
+                for identifier, kind, identity, digest, timestamp, metadata, _ in rows
+            )
+            return CommittedObservationRevision(
+                run.committed_state_revision, run.committed_at_ms, observations
+            )
+        except sqlite3.Error:
+            raise ControlStorageError("public snapshot read failed") from None
+        finally:
+            self._connection.rollback()
+
     def load_committed_observation_history(
         self,
         source_id: str,

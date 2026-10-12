@@ -35,6 +35,7 @@ from minos.ingest.watchers.control import (
     SourceSchedule,
 )
 from minos.ingest.watchers.nfz.collector import NfzSourceCollector
+from minos.ingest.watchers.nfz.publication import NfzPublicProjectionPublisher
 from minos.ingest.watchers.orchestrator import (
     RunRecoveryPublisher,
     WatcherOrchestrator,
@@ -473,6 +474,11 @@ class WatcherCliAdapter:
                             self._public_directory() / "baw", source="BAW"
                         )
                     ),
+                    "nfz": NfzPublicProjectionPublisher(
+                        ImmutableGenerationPublisher(
+                            self._public_directory() / "nfz", source="NFZ"
+                        )
+                    ),
                 }
             ),
         )
@@ -494,6 +500,7 @@ class WatcherCliAdapter:
             _prepare_private_directory(directory)
         prepare_public_root(self._public_directory())
         prepare_public_root(self._public_directory() / "baw")
+        prepare_public_root(self._public_directory() / "nfz")
         BlobStagingArea(
             self._paths.staging_directory,
             maximum_size_bytes=self._capacity_limits.maximum_download_size_bytes,

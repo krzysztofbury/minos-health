@@ -362,6 +362,11 @@ def compose_result(layout: Layout) -> dict[str, object]:
         str(UP_WAIT_TIMEOUT_S),
         *VALIDATION_SERVICES,
     ]
+    return bounded_command(arguments)
+
+
+def bounded_command(arguments: list[str]) -> dict[str, object]:
+    """Execute an operational command with the same private bounded capture."""
     began = time.monotonic()
     outcome = "completed"
     size = 0

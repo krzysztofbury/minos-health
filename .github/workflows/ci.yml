@@ -329,6 +329,12 @@ jobs:
             /app/.venv/bin/python -c \
             "from pathlib import Path; assert not Path('/var/lib/minos/staging/.minos-blob-ci-stale').exists()"
 
+      - name: Verify watcher-only activation and partial-failure rollback
+        run: |
+          smoke_root="$(mktemp -d)"
+          trap 'find "$smoke_root" -type d -exec chmod u+rwx {} +; rm -rf "$smoke_root"' EXIT
+          uv run python -m scripts.smoke_watcher_deploy "$smoke_root/host"
+
       - name: Scan the final watcher image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

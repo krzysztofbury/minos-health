@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "source": "NFZ",
+  "through_state_revision": 42,
+  "observed_at": "2026-10-01T12:00:00.000Z",
+  "coverage": "latest_reconciled_observation_only",
+  "redistribution": {"schema_version": 1, "artifacts": []},
+  "entries": [
+    {
+      "channel": "order", "title": "Zarządzenie 102/2026/DSOZ",
+      "act_number": "102/2026/DSOZ", "baw_document_id": 44041, "published_date": "2026-09-23",
+      "source_url": "https://www.nfz.gov.pl/zarzadzenia-prezesa/zarzadzenia-prezesa-nfz/zarzadzenie-nr-1022026dsoz,7982.html",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "news", "title": "Nowa wersja słownika ICD-9", "item_id": 9020,
+      "published_date": "2026-09-25", "files": [],
+      "source_url": "https://www.nfz.gov.pl/aktualnosci/aktualnosci-centrali/slownik-icd-9,9020.html",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "project", "title": "Projekt <img src=x onerror=alert(1)>", "item_id": 7012,
+      "published_date": "2026-09-30", "files": [],
+      "source_url": "https://www.nfz.gov.pl/zarzadzenia-prezesa/projekty-zarzadzen/projekt,7012.html",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "jgp", "title": "Opis algorytmu JGP", "item_id": 54, "published_date": "2026-04-22",
+      "source_url": "https://www.nfz.gov.pl/dla-swiadczeniodawcy/jednorodne-grupy-pacjentow/komunikaty-jgp/algorytm,54.html",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed",
+      "files": [{"source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultaktualnosci/354/54/1/opis_algorytmu_2026.docx", "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "observed_at": "2026-10-01T10:00:01.000Z"}]
+    },
+    {
+      "channel": "czs", "title": "Słownik CZS ICD9", "code": "ICD9", "generation": 93,
+      "generated_at": "2026-09-24T08:58:10", "version": "5.90", "year": null, "grouper_type": null,
+      "published_date": null, "publisher_valid_from": null, "display_evidence": null,
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=93",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "czs", "title": "Słownik CZS MODTAR", "code": "MODTAR", "generation": 102,
+      "generated_at": "2026-09-24T10:58:10", "version": "202664", "year": 2026, "grouper_type": "SZP",
+      "published_date": "2026-09-24", "publisher_valid_from": "2026-10-01",
+      "display_evidence": {"source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/Index/7364?kod=MODTAR", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "observed_at": "2026-10-01T10:00:01.000Z"},
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=MODTAR&nrGen=102",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "icd9_companion", "title": "Plik ICD-9 PL NFZ", "version": "5.90",
+      "czs_xml_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultstronaopisowa/782/1/2/icd-9_pl_cm_v_5.90.xlsx",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "aotmit", "title": "Obwieszczenie o taryfikacji leczenia szpitalnego", "meaning": "leading_indicator", "published_date": "2026-07-02",
+      "source_url": "https://bip.aotm.gov.pl/assets/files/taryfikacja/taryfy/obwieszczenia/2026/Synthetic%20taryfy.pdf",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    }
+  ]
+}

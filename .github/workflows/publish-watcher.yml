@@ -50,3 +50,20 @@ jobs:
             --cap-drop ALL --security-opt no-new-privileges "$reference" --version
           printf 'Watcher image: `%s`\nSource revision: `%s`\n' \
             "$reference" "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          python3 - "$reference" > "$RUNNER_TEMP/watcher-release.json" <<'PY'
+          import json, os, sys
+          print(json.dumps({
+              "revision": os.environ["GITHUB_SHA"],
+              "publish_run": int(os.environ["GITHUB_RUN_ID"]),
+              "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "image": sys.argv[1],
+          }, sort_keys=True))
+          PY
+
+      - name: Upload exact watcher identity
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: watcher-release
+          path: ${{ runner.temp }}/watcher-release.json
+          if-no-files-found: error
+          retention-days: 90

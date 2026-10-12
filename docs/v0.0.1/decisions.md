@@ -5,6 +5,17 @@ Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
 
 ## Product
 
+### Watcher-Only Feature Activation (2026-10-12)
+
+For #92, the owner approved a guarded watcher-only release path rather than
+stopping the whole active validation stack through the maintenance playbook.
+Require published immutable image evidence, successful main CI, isolated paused
+preflight against copied control state, exact Compose fencing, and retained
+rollback evidence. API, edge, tunnel and monitoring identities/restart counts
+must remain unchanged. This authorizes no schema migration, upstream recollection
+or automatic reference-bundle update. The ordinary API/edge deployment follows
+after the watcher has restored the NFZ public projection.
+
 ### Implementation Order After Comparison Delivery (2026-10-11)
 
 The owner deferred #42's capacity/SLO work until actual product traction and

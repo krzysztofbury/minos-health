@@ -5,8 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { waitForDevToolsPort } from "./devtools-port.mjs";
 
-const [, , chromium, pageUrl, rskFixture, bawFixture, outputDirectory] = process.argv;
-assert.ok(chromium && pageUrl && rskFixture && bawFixture && outputDirectory);
+const [, , chromium, pageUrl, rskFixture, bawFixture, outputDirectory, nfzFixture] = process.argv;
+assert.ok(chromium && pageUrl && rskFixture && bawFixture && outputDirectory && nfzFixture);
 
 class CdpClient {
   constructor(socket) {
@@ -126,6 +126,7 @@ try {
   const requests = [];
   const requestBodies = [];
   let bawUnavailable = false;
+  let nfzUnavailable = false;
   client.on("Runtime.consoleAPICalled", (event) => {
     if (event.type === "error") errors.push(event);
   });
@@ -135,7 +136,7 @@ try {
     if (event.request.postData) requestBodies.push(event.request.postData);
   });
   client.on("Fetch.requestPaused", async (event) => {
-    if (bawUnavailable && event.request.url.endsWith("/api/v1/provenance/baw")) {
+    if ((bawUnavailable && event.request.url.endsWith("/api/v1/provenance/baw")) || (nfzUnavailable && event.request.url.endsWith("/api/v1/provenance/nfz"))) {
       await client.send("Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 503 });
     } else {
       await client.send("Fetch.continueRequest", { requestId: event.requestId });
@@ -146,7 +147,7 @@ try {
   await client.send("Network.enable");
   await client.send("Accessibility.enable");
   await client.send("Fetch.enable", {
-    patterns: [{ requestStage: "Request", urlPattern: "*/api/v1/provenance/baw" }],
+    patterns: [{ requestStage: "Request", urlPattern: "*/api/v1/provenance/*" }],
   });
 
   const rsk = JSON.parse(await readFile(rskFixture, "utf8"));
@@ -371,6 +372,41 @@ try {
   assert.equal(errors.length, 0, "browser console errors were recorded");
   assert.equal(requests.some((url) => /(?:amazonaws\.com|s3[.-]|\/api\/v1\/artifacts)/i.test(url)), false);
   assert.equal(requests.some((url) => url.includes("/api/rsk/file/get/")), false);
+
+  bawUnavailable = false;
+  const nfz = JSON.parse(await readFile(new URL("../fixtures/nfz_projection.json", import.meta.url), "utf8"));
+  await writeFile(nfzFixture, JSON.stringify(nfz));
+  for (const [width, height, name] of [[1440, 900, "desktop"], [390, 844, "mobile"], [320, 568, "mobile-320"]]) {
+    await navigate(client, width, height, "is-ready");
+    await evaluate(client, `document.getElementById('tab-baw').focus()`);
+    await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
+    assert.equal(await evaluate(client, `document.getElementById('tab-nfz').getAttribute('aria-selected')`), "true");
+    assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 8);
+    assert.equal(await evaluate(client, `document.querySelectorAll('main img').length`), 0);
+    assert.match(await evaluate(client, `document.getElementById('catalog-results').textContent`), /Projekt, nie obowiązująca/);
+    assert.match(await evaluate(client, `document.getElementById('catalog-results').textContent`), /Sygnał taryfikacji AOTMiT/);
+    assert.match(await evaluate(client, `document.getElementById('source-summary').textContent`), /Obserwacja wymaga odświeżenia/);
+    assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+    await evaluate(client, `window.scrollTo(0, 0); document.activeElement.blur()`);
+    await screenshot(client, `sources-nfz-${name}.png`);
+    await evaluate(client, `document.querySelectorAll('.technical-details').forEach(node => node.open = true)`);
+    assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+  }
+  await evaluate(client, `(() => { const input = document.getElementById('source-search'); input.value = 'MODTAR 202664'; input.dispatchEvent(new Event('input', {bubbles:true})); })()`);
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 1);
+  assert.match(await evaluate(client, `document.querySelector('.source-card').textContent`), /strefa niepodana/);
+  assert.equal(requests.concat(requestBodies).some(value => /MODTAR|202664/.test(value)), false);
+  nfzUnavailable = true;
+  await navigate(client, 390, 844, "is-error");
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 4);
+  nfzUnavailable = false;
+  await writeFile(nfzFixture, JSON.stringify({ ...nfz, archive_key: "PRIVATE_SENTINEL" }));
+  await navigate(client, 390, 844, "is-error");
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 4);
+  await writeFile(nfzFixture, JSON.stringify({ ...nfz, entries: [] }));
+  await navigate(client, 390, 844, "is-ready");
+  assert.match(await evaluate(client, `document.getElementById('source-summary').textContent`), /Brak publikacji w tym zapisie/);
+  assert.equal(errors.length, 0, "NFZ browser errors were recorded");
 
   const homeLoaded = client.once("Page.loadEventFired");
   await client.send("Page.navigate", { url: new URL("/", pageUrl).href });
