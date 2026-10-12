@@ -24,19 +24,28 @@ pre-screen was performed on 2026-08-06 (see
    with points, source-linked traces and bounded near misses. Unsupported rules
    remain undetermined rather than being guessed into an answer.
 
-## Delivery Status (2026-10-11)
+## Delivery Status (2026-10-12)
 
 The public validation site serves terminology/JGP search, dated group and code
 pages, and the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper).
-The latest verified deployment is #156 (`5458ef2`, 2026-10-09), with a schema-10
-bundle, reviewed MODTAR binding and governing-act settlement-product exclusions.
-[Release evidence](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204)
-records the API, browser, privacy and exact-digest checks.
+The latest recorded verified validation deployment is #169 (`da8b675`, activated
+2026-10-12T09:23:17Z), adding release-pinned concept JSON with the unchanged
+schema-10 bundle. Reviewed MODTAR binding, governing-act settlement-product
+exclusions, pinned JGP comparisons and NFZ publication metadata are also live.
+[Deployment evidence](https://github.com/krzysztofbury/minos-health/issues/23#issuecomment-6121441538)
+records the API, browser, privacy and exact-digest checks. This is a dated
+acceptance record, not a new production inspection.
+
+Startup warm-up reliability (#157), guarded recovery diagnostics (#162), NFZ
+publication metadata (#92) and concept JSON (#23) are delivered and closed.
+The no-JS source-catalog and durable RSK/BAW citation slice is in
+[PR #171](https://github.com/krzysztofbury/minos-health/pull/171), with local
+acceptance passed and production activation pending; broader #80 remains open.
 
 The initial golden suite has 9 synthetic and 5 pinned-source derived cases.
-Practitioner builder acceptance (#158), real ward agreement (#38), startup
-warm-up reliability (#157), and full signed-release/capacity acceptance remain
-open. The [TODO](TODO.md) distinguishes delivered functionality from these gates.
+Practitioner builder acceptance (#158), real ward agreement (#38), and full
+signed-release/capacity acceptance remain open. The [TODO](TODO.md) distinguishes
+delivered functionality from these gates.
 
 ## Roadmap
 
@@ -220,8 +229,10 @@ copyright-exempt official materials under Art. 4 of Polish copyright law
 
 ## Status
 
-Minos is in specification and initial development. No release has been
-published. See [SPEC.md](SPEC.md) for the implementation baseline and
+Minos is in active public validation. No version tags or GitHub Releases have
+been published; exact-digest validation deployments are tracked separately from
+the full signed product-release gates in #41/#27. See [CHANGELOG.md](CHANGELOG.md)
+for unreleased changes, [SPEC.md](SPEC.md) for the implementation baseline and
 [TODO.md](TODO.md) for the current work queue.
 
 ## Contributing
