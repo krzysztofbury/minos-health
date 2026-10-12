@@ -39,9 +39,13 @@ These remaining gates stay open.
       See [publication evidence](docs/validation/nfz-publication-metadata.md).
 - [ ] Complete source-page discovery/citation improvements (#80). Historical
       downloads remain rights-gated (#84). No-JS RSK/BAW catalogs and durable
-      citations pass local acceptance; review and production activation are
-      pending in [PR #171](https://github.com/krzysztofbury/minos-health/pull/171).
+      citations are deployed through #171/#172 at `088f190`; production recovery
+      and public/browser acceptance passed. Cloudflare, facets/sorting/shareable
+      state, indexing, practitioner and legal evidence remain open.
       See [the evidence](docs/validation/source-citations.md).
+- [ ] Reduce redundant Actions work against measured CI budgets (#174).
+- [ ] Reconcile API startup/rollback waits with measured host contention (#27/#42).
+      The #171/#172 activation needed an owner-approved one-off five-minute wait.
 - [x] Preserve deployment/rollback diagnostics and verify edge recovery (#162,
       delivered through #166 at `850a58e`). Real partial-rollback recovery and
       public acceptance passed; the original #161/#164 failure causes remain

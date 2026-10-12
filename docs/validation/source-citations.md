@@ -1,7 +1,8 @@
 # Durable source citations
 
-Status: #80 focused RSK/BAW discovery/citation slice implemented locally,
-2026-10-12. Production activation and copied-production recovery are pending.
+Status: #80 focused RSK/BAW discovery/citation slice deployed through #171/#172
+at `088f190` on 2026-10-12T13:29:24Z. Copied-production recovery and public/browser
+acceptance passed. The wider #80 audit remains open.
 
 ## Approved retention contract
 
@@ -157,12 +158,74 @@ The measurements include validation, digest checking and source rendering;
 container timings also include curl startup. They are local representative
 boundary evidence, not sustained production capacity or field-user latency.
 
-## Next review boundary
+## Production activation
 
-The owner approved the quota/exhaustion policy and cited-revision rewrite
-restriction before implementation of the serving layer. Review the full
-publication/serving diff before merge and activation.
+Both PRs passed their full CI and container/browser checks before merge. Main CI
+run `38250442162`, private watcher publication `38250457222`, and private API/edge
+publication `38250456248` passed for `088f1907341539ce2715e50bef36c7e013103cfa`.
+The repository and all three GHCR packages remain private.
 
-Before activation, run copied-production-state recovery and measurements with
-the guarded watcher preflight. Local fixtures do not establish production
-recovery time, host capacity or source-history compatibility. #80 stays open.
+The guarded watcher preflight used a copied production control database, paused
+scheduling and isolated public storage on the host's ext4 filesystem. A read-only
+baseline mount supplied only existing public metadata for byte comparison. Two
+empty-tree replays produced identical complete citation inventories; every record
+passed the serving reader, and all three existing public generations per provider
+matched recovered bytes exactly. NFZ restoration also passed.
+
+| Provider | Records | Payload bytes | Allocated bytes | Empty restore 1 / 2 | Idempotent restore |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| RSK | 38 | 909,664 | 933,888 | 16,910.86 / 14,209.20 ms | 692.04 ms |
+| BAW | 22 | 332,552 | 393,216 | 3,640.28 / 5,733.24 ms | 189.38 ms |
+
+Probe peak RSS was 63,380 KiB. These are observed production-state recovery costs,
+not sustained-capacity claims. The initial local command deadline expired while
+the remote stage continued. Completed host records, released deployment lock,
+unchanged live Compose/services and removed isolated scratch were verified before
+recovering the receipt; the stage was not blindly repeated.
+
+The watcher activated first and preserved the API, edge, tunnel and monitoring
+identities/restart counts. Ordinary API/edge activation failed twice at the startup
+health gate. The first rollback restored both services automatically; the second
+needed the documented explicit rollback, after which public readiness/homepage
+and both service healthchecks passed.
+
+An isolated candidate under the same one-CPU / 512 MiB limits stayed alive without
+OOM or restarts and completed validation in 173.15 seconds. Sampled stacks showed
+progress through imports and bundle validation, with high measured host CPU/I/O
+pressure. Both candidate and prior-image starts exceeded the ordinary health
+grace during this incident. The owner approved a one-off, bounded five-minute
+startup wait. It retained the exact staged Compose/images, real healthchecks,
+request budgets, validation and guarded rollback, but waited through transient
+startup-unhealthy status before starting the edge. No new image build was needed.
+The permanent startup/rollback policy remains follow-up work under #27/#42.
+
+Final API/edge activation: `2026-10-12T13:29:24Z`.
+
+- Watcher: `sha256:3277b5088dec4df4af713652b8b1d15545ac4aa4bc8e43cd0eca10e9ca65b8e1`.
+- API: `sha256:53a6acfe32b62fccd834d611de66d663053e1ec3fdb424c81a27e0c735b89be3`.
+- Edge: `sha256:4a17eb2abd90030284ca580afef43bbc95ea2320c81c7c32a840774992f80d5d`.
+- Bundle/database: `8ae874b13a7a8648980c133822b4955f38ef4996440f8759fc53d68c28c2e0ac`.
+
+All five services were healthy with zero restarts/OOM kills. The running API had
+exactly the expected two read-only binds: bundle and public metadata. RSK/BAW/NFZ
+public projections were unchanged byte-for-byte. Source/provider/dataset pages
+and four current observation citations returned 200 with correct canonical URLs;
+private, query-bearing and noncanonical routes returned 404. Repeated citation
+main content was byte-identical. Cloudflare randomizes footer email-obfuscation
+tokens, so full edge HTML is not itself a stable artifact digest.
+
+Live Chromium passed no-JS desktop/390/320 px, touch, keyboard, 200% text zoom,
+independent provider failure, labelled initial fallback, retry and query-privacy
+checks. Public JGP/ICD-9 browser checks confirmed removal of the blanket cutoff
+copy while retaining concrete sources. Screenshots were visually inspected.
+The first post-startup JGP verification returned 504; the subsequent complete
+guarded verification passed readiness, rank, dated JGP/conditions and desktop/
+mobile search, then stored the host and local activation receipt. This records
+acceptance after startup, not absence of transient host-contention failures or
+field/load acceptance.
+
+Private receipts, bounded diagnostic events, operator probe programs and browser
+captures are retained under the local `deployment-1213/` evidence directory and
+`test-output/validation-deploy/088f1907341539ce2715e50bef36c7e013103cfa/`.
+All owned remote diagnostic containers and scratch directories were removed.
+Actions usage was investigated after deployment and recorded in #174.
