@@ -43,7 +43,8 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
         json.loads(Path(arguments[arguments.index("--file") + 1]).read_text()),
     )
     containers = cast(dict[str, dict[str, object]], state["containers"])
-    for service in ("reference-api", "edge"):
+    selected = ("watcher",) if arguments[-1] == "watcher" else ("reference-api", "edge")
+    for service in selected:
         image = compose["services"][service]["image"]
         old = next(
             (key for key, value in containers.items() if value["service"] == service),
@@ -58,6 +59,10 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             "restarts": 0,
             "health": "healthy",
         }
+        if service == "watcher" and state.get("fail_after_watcher"):
+            state["fail_after_watcher"] = False
+            containers[f"{service}-{state['sequence']}"]["health"] = "unhealthy"
+            return 1
         if service == "reference-api" and state.get("fail_after_api"):
             edge = next(
                 value for value in containers.values() if value["service"] == "edge"
@@ -83,6 +88,11 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             value for value in containers.values() if value["service"] == "watcher"
         )
         watcher["restarts"] = cast(int, watcher["restarts"]) + 1
+    if selected == ("watcher",) and state.get("restart_edge_on_up"):
+        edge = next(
+            value for value in containers.values() if value["service"] == "edge"
+        )
+        edge["restarts"] = cast(int, edge["restarts"]) + 1
     return 0
 
 

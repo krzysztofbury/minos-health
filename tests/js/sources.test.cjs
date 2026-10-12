@@ -11,6 +11,40 @@ const sources = require(path.join(
 
 const UUID = "00000000-0000-4000-8000-000000000011";
 const DIGEST = "a".repeat(64);
+const nfzFixture = require("../fixtures/nfz_projection.json");
+
+test("NFZ channels retain source meaning and support bounded local search", () => {
+  const value = sources.validateNfzProjection(cloned(nfzFixture));
+  assert.equal(value.entries.length, 8);
+  assert.equal(value.entries.find(entry => entry.code === "MODTAR").generated_at, "2026-09-24T10:58:10");
+  const catalog = sources.buildCatalogIndex(sources.nfzDatasets(value));
+  assert.equal(sources.searchCatalog(catalog, "MODTAR 202664", "nfz").hits[0].card.entry.code, "MODTAR");
+  assert.equal(sources.searchCatalog(catalog, "opis algorytmu 2026 docx", "nfz").hits[0].card.entry.channel, "jgp");
+  assert.equal(sources.searchCatalog(catalog, "MODTAR", "baw").hits.length, 0);
+});
+
+test("NFZ rejects private fields, unsafe links, mismatched versions and malformed dates", () => {
+  const mutations = [
+    v => { v.entries[0].archive_key = "private"; },
+    v => { v.entries[0].published_date = "2026-02-30"; },
+    v => { v.entries[0].source_url += "?token=secret"; },
+    v => { v.entries[0].source_url = v.entries[0].source_url.replace("www.nfz.gov.pl", "user@www.nfz.gov.pl"); },
+    v => { v.entries[4].generation = 94; },
+    v => { v.entries[4].source_url += "&nrGen=94"; },
+    v => { v.entries[5].display_evidence = null; },
+    v => { v.entries[3].files[0].source_url = v.entries[3].files[0].source_url.replace("/54/", "/55/"); },
+    v => { v.entries[7].meaning = "binding_rule"; },
+    v => { v.entries[7].source_url = v.entries[7].source_url.replace("Synthetic%20taryfy", "%252e%252e"); },
+    v => { v.entries[1].observed_at = "2026-10-02T10:00:00.000Z"; },
+    v => { v.entries.push(v.entries[0]); },
+    v => { v.redistribution.artifacts.push("private"); },
+  ];
+  for (const mutate of mutations) {
+    const value = cloned(nfzFixture); mutate(value);
+    assert.throws(() => sources.validateNfzProjection(value));
+  }
+  assert.equal(sources.validateNfzProjection({ ...cloned(nfzFixture), entries: [] }).entries.length, 0);
+});
 
 function entry(overrides = {}) {
   return {

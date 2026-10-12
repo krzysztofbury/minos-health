@@ -30,10 +30,12 @@ from minos.ingest.watchers.control import (
 from minos.ingest.watchers.czs.client import create_czs_client
 from minos.ingest.watchers.nfz.collector import NfzSourceCollector
 from minos.ingest.watchers.nfz.discovery import create_nfz_client
+from minos.ingest.watchers.nfz.publication import NfzPublicProjectionPublisher
 from minos.ingest.watchers.orchestrator import WatcherOrchestrator
 from minos.ingest.watchers.protocols import (
     CollectorRegistry,
     SourceDriftWatcherError,
+    SourcePublicProjectionPublisher,
     WatcherRuntimeError,
 )
 from minos.ingest.watchers.publication import (
@@ -488,14 +490,26 @@ def _setup(
         )
     prepare_public_root(tmp_path / "public")
     prepare_public_root(tmp_path / "public" / "baw")
+    prepare_public_root(tmp_path / "public" / "nfz")
     orchestrator = WatcherOrchestrator(
         store=store,
         archive=FilesystemBlobArchive(tmp_path / "archive"),
         collectors=collectors,
         recovery_publisher=_Recovery(),
         heartbeat=_Heartbeat(),
-        public_projection_publisher=BawPublicProjectionPublisher(
-            ImmutableGenerationPublisher(tmp_path / "public" / "baw", source="BAW")
+        public_projection_publisher=SourcePublicProjectionPublisher(
+            {
+                "baw": BawPublicProjectionPublisher(
+                    ImmutableGenerationPublisher(
+                        tmp_path / "public" / "baw", source="BAW"
+                    )
+                ),
+                "nfz": NfzPublicProjectionPublisher(
+                    ImmutableGenerationPublisher(
+                        tmp_path / "public" / "nfz", source="NFZ"
+                    )
+                ),
+            }
         ),
     )
     return store, orchestrator, calls, database
@@ -666,6 +680,44 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         assert [item.document_id for item in store.list_pending_baw_dispatches()] == [
             document_id
         ]
+        nfz_public = tmp_path / "public/nfz/current/api/v1/provenance/nfz.json"
+        public_bytes = nfz_public.read_bytes()
+        public = cast(dict[str, object], json.loads(public_bytes))
+        entries = cast(list[dict[str, object]], public["entries"])
+        assert {entry["channel"] for entry in entries} == {
+            "order",
+            "news",
+            "project",
+            "jgp",
+            "czs",
+            "icd9_companion",
+            "aotmit",
+        }
+        dictionaries = {
+            entry["code"]: entry for entry in entries if entry["channel"] == "czs"
+        }
+        assert dictionaries["ICD9"]["version"] == "5.90"
+        assert dictionaries["MODTAR"]["version"] == "202664"
+        assert dictionaries["MODTAR"]["generation"] == 102
+        assert dictionaries["MODTAR"]["generated_at"] == "2026-09-24T10:58:10"
+        assert dictionaries["MODTAR"]["publisher_valid_from"] == "2026-09-24"
+        assert all(
+            entry["service_applicability"] == "not_reviewed" for entry in entries
+        )
+        assert all(
+            secret not in public_bytes
+            for secret in (
+                b"response_headers",
+                b"blobs/",
+                b"run_id",
+                b"summary",
+                b"cursor",
+            )
+        )
+        NfzPublicProjectionPublisher(
+            ImmutableGenerationPublisher(tmp_path / "public/nfz", source="NFZ")
+        ).restore(store)
+        assert nfz_public.read_bytes() == public_bytes
         metadata = cast(
             dict[str, object],
             json.loads(
@@ -787,11 +839,13 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             database, "SELECT count(*) FROM source_changes WHERE source_id = 'nfz'"
         ) == [(8,)]
         prior_cursor = store.load_source_state("nfz").cursor
+        prior_public = nfz_public.read_bytes()
         czs_state["no_content"] = True
         rejected = store.claim_manual("nfz")
         with pytest.raises(SourceDriftWatcherError):
             _ = orchestrator.run_claim(rejected, rejected.retry_policy)
         assert store.load_source_state("nfz").cursor == prior_cursor
+        assert nfz_public.read_bytes() == prior_public
         assert _query(
             database, "SELECT count(*) FROM source_changes WHERE source_id = 'nfz'"
         ) == [(8,)]

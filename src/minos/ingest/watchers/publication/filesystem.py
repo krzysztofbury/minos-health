@@ -17,7 +17,7 @@ _MAX_GENERATIONS = 1024
 _MAX_STALE_DIRECTORIES = 128
 _MAX_PROJECTION_BYTES = 8 * 1024 * 1024
 _MAX_MANIFEST_BYTES = 64 * 1024
-_SOURCES = {"RSK": "rsk.json", "BAW": "baw.json"}
+_SOURCES = {"RSK": "rsk.json", "BAW": "baw.json", "NFZ": "nfz.json"}
 
 
 class PublicPublicationError(RuntimeError):

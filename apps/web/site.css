@@ -483,6 +483,7 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .result-count { color: var(--muted); font-size: var(--text-sm); }
 .controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 26rem); gap: 0.75rem 1.5rem; align-items: end; margin-bottom: 1.25rem; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
 .source-tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.nfz-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
 .source-tabs button { min-height: 44px; padding: 0.45rem 0.95rem; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink-soft); cursor: pointer; font-size: var(--text-sm); font-weight: 600; }
 .source-tabs button:hover { border-color: var(--accent); color: var(--accent); }
 .source-tabs button[aria-selected="true"] { border-color: var(--accent); color: #fff; background: var(--accent); }
