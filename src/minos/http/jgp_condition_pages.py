@@ -53,13 +53,8 @@ def code_link(system: str, code: str, day: str, matched: bool) -> str:
 
 def source_facts(source: Json) -> str:
     return (
-        (
-            '<p class="badge badge-warn">Dzień świadczenia wykracza poza zweryfikowany stan wiedzy pakietu.</p>'
-            if source["service_date_after_knowledge"]
-            else ""
-        )
-        + f'<p class="detail-source">Źródło: załącznik 9 do zarządzenia {_e(source["act_number"])}, '
-        + f"{_e(source['worksheet'])}. Stan wiedzy Minos: {_e(source['knowledge_as_of'])}. "
+        f'<p class="detail-source">Źródło: załącznik 9 do zarządzenia {_e(source["act_number"])}, '
+        + f"{_e(source['worksheet'])}. "
         + f'<a href="{_e(source["source_url"])}">Oficjalny skoroszyt NFZ</a></p>'
         + "<details><summary>Pochodzenie i warunki źródła</summary>"
         + f"<p>Wydanie: {_e(source['release_id'])}. SHA-256 skoroszytu: {_e(source['sha256'])}.</p>"

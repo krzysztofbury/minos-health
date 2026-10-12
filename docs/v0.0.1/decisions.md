@@ -5,6 +5,19 @@ Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
 
 ## Product
 
+### Source Freshness Presentation (2026-10-12)
+
+The owner removed the blanket "Stan wiedzy Minos" horizon warning and repeated
+cutoff copy from JGP catalogs, groups, comparisons and attachment-9 source
+summaries, including ICD-9 context. Keep concrete source releases, governing
+acts, publication/applicability dates, official links and checksums. A permanent
+generic warning adds no actionable information to those source details.
+
+This is a presentation decision. Bundle knowledge fences, explicit date/release
+selection, API provenance and failures for unsupported dates remain enforced.
+It neither advances a bundle's recorded cutoff nor enables deferred automatic
+processing/activation under #141. Data freshness remains an operational duty.
+
 ### Durable Source Citations (2026-10-12)
 
 For #80, the owner selected durable metadata-only observation citations rather
@@ -436,8 +449,9 @@ rather than repurposed; no issue tracked it.
   the CSP forbids form submission.
 - `/jgp` and `/jgp/{CODE}` redirect (302, `no-store`) to today in
   Europe/Warsaw; missing time-zone data is an explicit 503, never a UTC guess.
-  Dates after the knowledge horizon show the horizon notice. Lowercase codes
-  redirect permanently to the uppercase URL.
+   The original horizon notice was removed by the 2026-10-12 source-freshness
+   presentation decision above. Lowercase codes redirect permanently to the
+   uppercase URL.
 - Pages are server-rendered from one bundle lease per request and complete
   without JavaScript. `jgp.js` adds the date picker and a local code/name
   filter (case and Polish diacritics folded) that sends no request, writes no
@@ -452,7 +466,8 @@ rather than repurposed; no issue tracked it.
 - Measure labels quote the reviewed source column headers, empty catalog cells
   read "brak wartości w katalogu" (never 0), and every page states "punkty
   bazowe wg katalogu, bez modyfikatorów" with the governing act, BAW document,
-  service-start evidence, knowledge horizon and workbook checksum.
+   service-start evidence and workbook checksum. The knowledge horizon remains
+   part of the bundle and API provenance rather than repeated page copy.
 - A group page links to the next row window when its row ends, and to the
   previous day only when the row starts inside its release; before a release
   start the group may not exist, so only the date picker reaches that day.

@@ -1,8 +1,8 @@
 """Server-rendered JGP catalog pages (#26): one resolved release per page.
 
-Every page states the service date, the governing act and catalog release and
-the bundle's knowledge horizon. Values are catalog base points without
-modifiers; empty catalog cells read "brak wartości w katalogu", never zero.
+Every page states the service date, the governing act and catalog release.
+Values are catalog base points without modifiers; empty catalog cells read
+"brak wartości w katalogu", never zero.
 """
 
 from collections import Counter
@@ -126,16 +126,6 @@ def date_bar(
     )
 
 
-def horizon_badge(ruleset: dict[str, object]) -> str:
-    if ruleset["service_date_after_knowledge"] is not True:
-        return ""
-    return (
-        '        <p class="badge badge-warn jgp-horizon">Stan wiedzy Minos: '
-        + f"{_e(ruleset['knowledge_as_of'])}. Późniejsze zarządzenie może jeszcze"
-        + " nie być uwzględnione.</p>\n"
-    )
-
-
 def provenance(ruleset: dict[str, object], *, heading: str = "h2") -> str:
     binding = cast(dict[str, object], ruleset["modifiers"])
     modifier_status = (
@@ -148,7 +138,6 @@ def provenance(ruleset: dict[str, object], *, heading: str = "h2") -> str:
         ("Opublikowano", ruleset["published_on"]),
         ("Stosuje się do świadczeń od", ruleset["service_from"]),
         ("Podstawa", ruleset["service_evidence"]),
-        ("Stan wiedzy Minos", ruleset["knowledge_as_of"]),
         ("SHA-256 skoroszytu", ruleset["workbook_sha256"]),
         ("Modyfikatory", modifier_status),
     ]
@@ -222,7 +211,6 @@ def index_page(
         _head(crumbs),
         "        <h1>Katalog grup JGP</h1>\n",
         f'        <p class="page-lead">{lead}</p>\n',
-        horizon_badge(ruleset),
         '        <div class="jgp-controls">\n',
         date_bar(service_date, suffix, calendar),
         _scope_picker(service_date, scopes, scope),
@@ -387,7 +375,6 @@ def group_page(
         _head(crumbs),
         f'        <p class="detail-code">{" ".join(badges)}</p>\n',
         f"        <h1>{_e(group['name'])}</h1>\n",
-        horizon_badge(ruleset),
         '        <div class="jgp-controls">\n',
         date_bar(service_date, f"/{code}", calendar),
         "        </div>\n",

@@ -151,6 +151,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Remove the blanket knowledge-cutoff warning and repeated cutoff copy from
+  JGP and attachment-9 pages, keeping concrete source/version and applicability
+  details. Bundle/API knowledge fences remain enforced; this does not advance
+  data freshness or enable automatic data activation (#80; deployment pending).
 - Add a bounded NFZ/CZS/AOTMiT publication metadata projection and a separate
   source-catalog filter, preserving observation, publication and declared-validity
   dates without inferring settlement applicability (#92). Deployed through
