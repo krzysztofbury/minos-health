@@ -379,7 +379,7 @@ def transition(
                     str, service(cast(dict[str, object], json.loads(previous)))["image"]
                 ),
             )
-        except host.HostError, OSError:
+        except (host.HostError, OSError):
             restored = {"restored": False}
         raise host.HostError(
             "watcher activation failed",

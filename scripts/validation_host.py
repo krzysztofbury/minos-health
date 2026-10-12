@@ -57,6 +57,8 @@ FOREIGN_COMPOSE_GLOBS = (
     "rollback/compose.yaml",
     "candidate/compose.yaml",
     "catalog-deploy/*/*/compose.yaml",
+    "watcher-stage/*/previous.json",
+    "watcher-stage/*/candidate.json",
     "*.compose.yml",
 )
 
