@@ -2566,6 +2566,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     var entry = card.entry;
     var article = element("article", "source-card");
     article.append(element("span", "source-tag", card.subtitle), element("h3", "", card.title));
+    var sourceLink = element("a", "card-link", "Wszystkie publikacje tego źródła");
+    sourceLink.href = "/zrodla/nfz";
+    article.append(sourceLink);
     var facts = element("dl", "card-facts");
     fact(facts, "Ostatnio sprawdzono", formatDate(entry.observed_at));
     if (Object.hasOwn(entry, "version")) fact(facts, "Wersja wg wydawcy", card.version);
@@ -2687,6 +2690,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     var overline = element("div", "card-overline");
     overline.append(element("span", "source-tag", card.source === "rsk" ? "RSK" : "NFZ"));
     article.append(overline, element("h3", "", card.title), element("p", "card-lead", card.subtitle));
+    var datasetLink = element("a", "card-link", "Zestaw i obserwacje w Minos");
+    datasetLink.href = "/zrodla/" + card.source + "/" + card.id;
+    article.append(datasetLink);
     if (evidence && evidence.length) {
       var matches = element("ul", "match-evidence");
       evidence.forEach(function (label) { matches.append(element("li", "", label)); });
@@ -2736,6 +2742,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return cards.sort(function (left, right) { return priority(left) - priority(right) || left.title.localeCompare(right.title, "pl-PL"); });
   }
   function render() {
+    document.querySelectorAll("[data-fallback-source]").forEach(function (section) {
+      var source = section.getAttribute("data-fallback-source");
+      section.hidden = state[source] !== null || (state.source !== "all" && state.source !== source);
+      section.querySelector("[data-fallback-note]").hidden = section.hidden || !state.query.trim();
+    });
     var answer = state.catalog ? searchCatalog(state.catalog, state.query, state.source) : { hits: [], suggestions: [], invalid: false };
     var result = document.getElementById("catalog-results");
     result.replaceChildren();
@@ -2831,6 +2842,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     render();
   }
   function bind() {
+    document.getElementById("catalog-controls").hidden = false;
     var tabs = Array.from(document.querySelectorAll("[data-source]"));
     tabs.forEach(function (button) {
       button.id = "tab-" + button.getAttribute("data-source");

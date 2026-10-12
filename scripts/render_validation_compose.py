@@ -86,6 +86,11 @@ def render(base: dict[str, object], deployment: Deployment) -> dict[str, object]
     ]
     if len(public_volumes) != 1 or public_volumes[0].get("read_only") is not True:
         raise ValueError("public metadata bind must remain read-only")
+    if (
+        public_volumes[0].get("type") != "bind"
+        or public_volumes[0].get("source") != "/var/lib/minos/public"
+    ):
+        raise ValueError("public metadata bind source differs")
     edge["volumes"] = public_volumes
     edge["image"] = deployment.edge_image
     networks = cast(dict[str, object], edge["networks"])
@@ -95,6 +100,9 @@ def render(base: dict[str, object], deployment: Deployment) -> dict[str, object]
         deployment.api_image,
         Path("/opt/minos/reference") / deployment.database_sha256,
         deployment.database_sha256,
+    )
+    cast(list[dict[str, object]], services["reference-api"]["volumes"]).append(
+        dict(public_volumes[0])
     )
     definitions = cast(dict[str, object], base["networks"])
     definitions["reference"] = {"name": "minos_reference", "internal": True}

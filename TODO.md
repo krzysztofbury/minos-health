@@ -38,7 +38,9 @@ These remaining gates stay open.
       with guarded watcher activation and desktop/mobile `/zrodla` acceptance.
       See [publication evidence](docs/validation/nfz-publication-metadata.md).
 - [ ] Complete source-page discovery/citation improvements (#80). Historical
-      downloads remain rights-gated (#84).
+      downloads remain rights-gated (#84). No-JS RSK/BAW catalogs and durable
+      citations pass local acceptance; review and production activation are
+      pending. See [the evidence](docs/validation/source-citations.md).
 - [x] Preserve deployment/rollback diagnostics and verify edge recovery (#162,
       delivered through #166 at `850a58e`). Real partial-rollback recovery and
       public acceptance passed; the original #161/#164 failure causes remain

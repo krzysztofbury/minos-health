@@ -62,7 +62,7 @@
           <p id="result-count" class="result-count" aria-live="polite"></p>
         </div>
 
-        <div class="controls">
+        <div id="catalog-controls" class="controls" hidden>
           <div class="source-tabs" role="tablist" aria-label="Wybierz źródło danych">
             <button type="button" role="tab" data-source="all" aria-selected="true" aria-controls="catalog-results">Wszystkie</button>
             <button type="button" role="tab" data-source="rsk" aria-selected="false" aria-controls="catalog-results">Słowniki RSK</button>
@@ -81,6 +81,7 @@
         <div id="source-summary" class="source-summary" aria-live="polite"></div>
         <p id="load-state" class="load-state" role="status" aria-live="polite">Wczytywanie słowników i zarządzeń...</p>
         <button id="retry-button" class="button" type="button" hidden>Odśwież dane</button>
+        <div id="source-fallback"><p>Katalog online jest dostępny po włączeniu JavaScript. Oficjalne źródła są podlinkowane poniżej.</p></div>
         <div id="catalog-results" class="cards" role="tabpanel" aria-live="polite"></div>
         <button id="more-results" class="button button-quiet more-results" type="button" hidden>Pokaż kolejne</button>
         <p id="empty-state" class="empty-state" hidden>Nic nie pasuje. Spróbuj innej nazwy lub wybierz wszystkie źródła.</p>
@@ -95,7 +96,7 @@
           <li><strong>Linki</strong> prowadzą do oficjalnych serwisów RSK, NFZ i AOTMiT. Minos nie udostępnia kopii plików. Minos nie jest zatwierdzony przez NFZ, RSK ani WHO.</li>
         </ul>
       </section>
-      <noscript><p class="shell noscript">Katalog wymaga JavaScript. Możesz przejść bezpośrednio do <a href="https://rsk3.ezdrowie.gov.pl/">Rejestru Systemów Kodowania</a> lub <a href="https://baw.nfz.gov.pl/">Bazy Aktów Własnych NFZ</a>.</p></noscript>
+      <noscript><p class="shell noscript">Bez JavaScript korzystaj z linków do źródeł i zestawów. Oficjalne serwisy: <a href="https://rsk3.ezdrowie.gov.pl/">Rejestr Systemów Kodowania</a> i <a href="https://baw.nfz.gov.pl/">Baza Aktów Własnych NFZ</a>.</p></noscript>
     </main>
     <footer class="site-footer">
       <div class="shell site-footer-inner">

@@ -501,7 +501,7 @@ def _setup(
             {
                 "baw": BawPublicProjectionPublisher(
                     ImmutableGenerationPublisher(
-                        tmp_path / "public" / "baw", source="BAW"
+                        tmp_path / "public" / "baw", source="BAW", retain_citations=True
                     )
                 ),
                 "nfz": NfzPublicProjectionPublisher(
@@ -960,6 +960,20 @@ def test_baw_graph_archives_selected_bytes_and_does_not_repeat_change(
         second = store.claim_manual("baw")
         _ = orchestrator.run_claim(second, second.retry_policy)
         assert _query(database, "SELECT COUNT(*) FROM source_changes") == [(1,)]
+        retained = {
+            path.name: path.read_bytes()
+            for path in (tmp_path / "public/baw/citations").glob("*.json")
+        }
+        assert len(retained) == 2
+        recovered = tmp_path / "recovered-baw"
+        prepare_public_root(recovered)
+        BawPublicProjectionPublisher(
+            ImmutableGenerationPublisher(recovered, source="BAW", retain_citations=True)
+        ).restore(store)
+        assert {
+            path.name: path.read_bytes()
+            for path in (recovered / "citations").glob("*.json")
+        } == retained
     finally:
         store.close()
 

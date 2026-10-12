@@ -1824,6 +1824,30 @@ class ControlStore:
             status,
         )
 
+    def citation_recovery_runs(self, source_id: str) -> tuple[CommittedRun, ...]:
+        """Bounded replay fences; never turn an unreconciled commit into a citation."""
+        self._require_open()
+        _validate_identifier(source_id, "source ID", 64)
+        rows = cast(
+            list[tuple[str, int, int]],
+            self._connection.execute(
+                """
+                SELECT run_id, committed_state_revision, committed_at_ms
+                FROM watcher_runs
+                WHERE source_id = ? AND committed_state_revision IS NOT NULL
+                  AND status IN ('heartbeat_pending', 'successful')
+                ORDER BY committed_state_revision, run_id
+                LIMIT 1025
+                """,
+                (source_id,),
+            ).fetchall(),
+        )
+        _reject_truncated_rows(rows, 1024, "citation recovery run")
+        return tuple(
+            CommittedRun(source_id, run_id, revision, timestamp, "heartbeat_pending")
+            for run_id, revision, timestamp in rows
+        )
+
     def recovery_reconciled_run_at_revision(
         self,
         source_id: str,

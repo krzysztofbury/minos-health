@@ -53,6 +53,7 @@ from minos.http.pages import (
     sitemap,
 )
 from minos.http.reference import CapacityError, ReferencePool
+from minos.http.source_pages import SOURCE_ROUTE, register_source_pages
 from minos.store.artifact import dataset_identity
 from minos.store.jgp_condition_reference import (
     characteristics_calendar,
@@ -355,6 +356,7 @@ def create_app(
     *,
     expected_database_sha256: str | None = None,
     required_search_profile: str | None = None,
+    public_directory: Path | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -449,6 +451,8 @@ def create_app(
                     if PAGE_ROUTE.fullmatch(request.url.path)
                     else "/sitemap"
                     if SITEMAP_ROUTE.fullmatch(request.url.path)
+                    else "/zrodla"
+                    if SOURCE_ROUTE.fullmatch(request.url.path)
                     else "/api/v1/procedure-ranks"
                     if RANK_ROUTE.fullmatch(request.url.path)
                     else "/api/v1/jgp"
@@ -771,6 +775,7 @@ def create_app(
     register_jgp_pages(app, cache_control=PAGE_CACHE)
     register_comparison_pages(app, cache_control=PAGE_CACHE)
     register_grouping_routes(app, failure=failure)
+    register_source_pages(app, public_directory or Path("/var/lib/minos/public"))
     return app
 
 

@@ -9,6 +9,7 @@ validation stack; the only local change lets the edge answer to localhost.
 """
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -21,6 +22,11 @@ from typing import cast, final
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from minos.http.source_models import BawProjection  # noqa: E402
+from minos.ingest.watchers.nfz.public_models import NfzProjection  # noqa: E402
+from minos.ingest.watchers.rsk.public_models import (  # noqa: E402
+    RskProvenanceProjection,
+)
 from scripts.build_validation_edge import build  # noqa: E402
 from scripts.render_validation_compose import api_service  # noqa: E402
 
@@ -44,24 +50,41 @@ def docker(*arguments: str) -> None:
 
 
 def snapshot(origin: str) -> Path:
-    """Copy the public RSK/BAW projections so /zrodla has data without a watcher."""
+    """Copy bounded public projections so /zrodla has data without a watcher."""
     public = STATE / "public"
     if public.exists():
         shutil.rmtree(public)
-    for source, prefix in (("rsk", public), ("baw", public / "baw")):
-        target = prefix / "generations/local/api/v1/provenance" / f"{source}.json"
-        target.parent.mkdir(parents=True)
+    for source, prefix in (
+        ("rsk", public),
+        ("baw", public / "baw"),
+        ("nfz", public / "nfz"),
+    ):
         request = urllib.request.Request(
             f"{origin}/api/v1/provenance/{source}",
             headers={"User-Agent": "minos-health local-site"},
         )
-        # The operator chooses the public origin; only two fixed JSON paths are read.
+        # The operator chooses the public origin; only fixed JSON paths are read.
         with cast(
             HTTPResponse,
             urllib.request.urlopen(request, timeout=30),  # noqa: S310
         ) as response:
-            _ = target.write_bytes(response.read())
-        (prefix / "current").symlink_to("generations/local")
+            payload = response.read(8 * 1024 * 1024 + 1)
+        if len(payload) > 8 * 1024 * 1024:
+            raise ValueError("public projection exceeds the local copy bound")
+        projection = {
+            "rsk": RskProvenanceProjection,
+            "baw": BawProjection,
+            "nfz": NfzProjection,
+        }[source].model_validate_json(payload)
+        identity = (
+            f"{projection.through_state_revision}-{hashlib.sha256(payload).hexdigest()}"
+        )
+        target = (
+            prefix / "generations" / identity / "api/v1/provenance" / f"{source}.json"
+        )
+        target.parent.mkdir(parents=True)
+        _ = target.write_bytes(payload)
+        (prefix / "current").symlink_to("generations/" + identity)
     return public
 
 
@@ -141,6 +164,16 @@ def main(arguments: Arguments) -> None:
         },
         "networks": {"reference": {"internal": True}, "browser": {}},
     }
+    if arguments.provenance_from:
+        services = cast(dict[str, dict[str, object]], configuration["services"])
+        cast(list[dict[str, object]], services["reference-api"]["volumes"]).append(
+            {
+                "type": "bind",
+                "source": str(STATE / "public"),
+                "target": "/var/lib/minos/public",
+                "read_only": True,
+            }
+        )
     _ = compose.write_text(json.dumps(configuration, indent=2))
     docker(
         "compose",
@@ -162,7 +195,7 @@ if __name__ == "__main__":
     _ = parser.add_argument("--bundle", type=Path)
     _ = parser.add_argument(
         "--provenance-from",
-        help="Public origin whose RSK/BAW projections are copied for /zrodla.",
+        help="Public origin whose RSK/BAW/NFZ projections are copied for /zrodla.",
     )
     _ = parser.add_argument("--port", type=int, default=8080)
     _ = parser.add_argument("--down", action="store_true")

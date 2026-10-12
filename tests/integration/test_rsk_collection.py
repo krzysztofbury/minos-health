@@ -20,6 +20,7 @@ from minos.ingest.watchers.orchestrator import WatcherOrchestrator
 from minos.ingest.watchers.publication import (
     ImmutableGenerationPublisher,
     PublicPublicationError,
+    prepare_public_root,
 )
 from minos.ingest.watchers.recovery import PublishedRecoveryImage, RecoveryClass
 from minos.ingest.watchers.rsk.client import create_rsk_client
@@ -268,6 +269,26 @@ def test_filesystem_runtime_factory_completes_manual_rsk_run(tmp_path: Path) -> 
             store
         )
     assert (public_root / "current" / "api/v1/provenance/rsk.json").is_file()
+
+    # Empty public storage recovers both issued citations, not just latest.
+    retained = {
+        path.name: path.read_bytes()
+        for path in (public_root / "citations").glob("*.json")
+    }
+    assert set(retained) == {first_generation + ".json", second_generation + ".json"}
+    recovered_root = tmp_path / "recovered-public"
+    prepare_public_root(recovered_root)
+    with ControlStore.open(
+        database, source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS
+    ) as store:
+        RskPublicProjectionPublisher(
+            ImmutableGenerationPublisher(recovered_root, retain_citations=True)
+        ).restore(store)
+    assert {
+        path.name: path.read_bytes()
+        for path in (recovered_root / "citations").glob("*.json")
+    } == retained
+    assert (recovered_root / "current").readlink().name == second_generation
 
 
 def _query(database: Path, sql: str) -> list[tuple[object, ...]]:

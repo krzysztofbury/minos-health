@@ -36,6 +36,7 @@ def maintenance() -> dict[str, object]:
                         "read_only": True,
                     },
                     {
+                        "type": "bind",
                         "target": "/var/lib/minos/public",
                         "source": "/var/lib/minos/public",
                         "read_only": True,
@@ -71,7 +72,13 @@ def test_validation_cutover_preserves_existing_operational_services() -> None:
             "target": "/app/data",
             "read_only": True,
             "bind": {"create_host_path": False},
-        }
+        },
+        {
+            "type": "bind",
+            "target": "/var/lib/minos/public",
+            "source": "/var/lib/minos/public",
+            "read_only": True,
+        },
     ]
     assert api["read_only"] is True
     assert api["user"] == "10004:10004"

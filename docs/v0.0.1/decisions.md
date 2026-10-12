@@ -5,6 +5,23 @@ Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
 
 ## Product
 
+### Durable Source Citations (2026-10-12)
+
+For #80, the owner selected durable metadata-only observation citations rather
+than links tied to rotating public generations. Routine cleanup must preserve
+issued citations. Storage has an explicit bound; exhaustion refuses new
+publication rather than evicting evidence. Exact observation recovery is part
+of acceptance. Source, dataset, file, observation and legal applicability remain
+distinct, and raw archive bytes remain private.
+
+The owner approved 1,024 observations / 256 MiB per provider, explicit refusal
+at exhaustion, and refusal to rewrite an already-cited revision. Rollback to
+the original bytes remains supported. The serving layer reads only the same
+read-only public metadata tree as the edge, with independent source failures
+and bounded initial HTML. The RSK/BAW routes and local acceptance are recorded
+in [source citations](../validation/source-citations.md). Deployment remains a
+separate guarded acceptance boundary.
+
 ### Release-Pinned Concept JSON (2026-10-12)
 
 The owner approved #23's explicit dictionary release and code path, with an

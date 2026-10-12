@@ -441,7 +441,9 @@ class WatcherCliAdapter:
                     source_configuration_codecs=self._source_configuration_codecs,
                 ) as store:
                     publisher = RskPublicProjectionPublisher(
-                        ImmutableGenerationPublisher(self._public_directory())
+                        ImmutableGenerationPublisher(
+                            self._public_directory(), retain_citations=True
+                        )
                     )
                     return publisher.rebuild(
                         store,
@@ -467,11 +469,15 @@ class WatcherCliAdapter:
             public_projection_publisher=SourcePublicProjectionPublisher(
                 {
                     "rsk": RskPublicProjectionPublisher(
-                        ImmutableGenerationPublisher(self._public_directory())
+                        ImmutableGenerationPublisher(
+                            self._public_directory(), retain_citations=True
+                        )
                     ),
                     "baw": BawPublicProjectionPublisher(
                         ImmutableGenerationPublisher(
-                            self._public_directory() / "baw", source="BAW"
+                            self._public_directory() / "baw",
+                            source="BAW",
+                            retain_citations=True,
                         )
                     ),
                     "nfz": NfzPublicProjectionPublisher(
