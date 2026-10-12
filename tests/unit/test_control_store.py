@@ -1222,6 +1222,7 @@ def test_exact_public_snapshot_requires_recovery_and_never_falls_back(
     _configure_source(store)
     claim = store.acquire_claim(_manual_claim_request(_NOW_MS))
     first = store.commit_observations(claim.identity, _observation_commit())
+    assert store.citation_recovery_runs(_SOURCE_ID) == ()
     with pytest.raises(ControlStorageError, match="not recovery reconciled"):
         _ = store.load_reconciled_observations(first)
     _ = store.mark_heartbeat_pending(
@@ -1233,6 +1234,9 @@ def test_exact_public_snapshot_requires_recovery_and_never_falls_back(
         first.run_id, committed_state_revision=first.committed_state_revision
     )
     snapshot = store.load_reconciled_observations(first)
+    assert [run.run_id for run in store.citation_recovery_runs(_SOURCE_ID)] == [
+        first.run_id
+    ]
     assert len(snapshot.observations) == 1
     assert snapshot.observations[0].observation_id == _OBSERVATION_ID
     with pytest.raises(ControlStorageError, match="fence differs"):
@@ -1258,12 +1262,20 @@ def test_exact_public_snapshot_requires_recovery_and_never_falls_back(
     )
     with pytest.raises(ControlStorageError, match="not recovery reconciled"):
         _ = store.load_reconciled_observations(second)
+    assert [run.run_id for run in store.citation_recovery_runs(_SOURCE_ID)] == [
+        first.run_id
+    ]
     _ = store.mark_heartbeat_pending(
         second.run_id,
         committed_state_revision=second.committed_state_revision,
         recovery_receipt=_recovery_receipt(second),
     )
     selected = store.load_reconciled_observations(second)
+    assert [run.run_id for run in store.citation_recovery_runs(_SOURCE_ID)] == [
+        first.run_id,
+        second.run_id,
+    ]
+    assert store.citation_recovery_runs("other-source") == ()
     assert [
         (item.observation_id, item.observation_kind) for item in selected.observations
     ] == [("second-observation", "different_kind")]

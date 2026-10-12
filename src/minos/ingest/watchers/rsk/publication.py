@@ -98,6 +98,18 @@ class RskPublicProjectionPublisher:
         )
 
     def restore(self, store: ControlStore) -> None:
+        retained = self._generations.citation_revisions()
+        if retained is not None:
+            for historical in store.citation_recovery_runs("rsk"):
+                revision = historical.committed_state_revision
+                if revision in retained:
+                    continue
+                payload, digest, manifest = self._build_for_revision(store, revision)
+                self._generations.archive_citation(
+                    revision,
+                    digest,
+                    {"manifest.json": manifest, _PROJECTION_PATH: payload},
+                )
         run = store.latest_recovery_reconciled_run("rsk")
         if run is not None:
             self.publish(store, run)

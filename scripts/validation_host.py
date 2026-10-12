@@ -232,6 +232,27 @@ def swap_identities(
     _api_bind(services["reference-api"])["source"] = str(
         reference_root / deployment["database_sha256"]
     )
+    # Source pages read only the already-public metadata mounted by the edge.
+    # Never infer a wider watcher/control/archive mount from a host path.
+    public = [
+        volume
+        for volume in cast(list[dict[str, object]], services["edge"].get("volumes", []))
+        if volume.get("target") == "/var/lib/minos/public"
+    ]
+    require(
+        len(public) == 1
+        and public[0].get("type") == "bind"
+        and public[0].get("read_only") is True
+        and public[0].get("source") == "/var/lib/minos/public",
+        "edge public metadata bind differs",
+    )
+    volumes = cast(list[dict[str, object]], services["reference-api"]["volumes"])
+    mounted = [
+        volume for volume in volumes if volume.get("target") == "/var/lib/minos/public"
+    ]
+    require(not mounted or mounted == public, "API public metadata bind differs")
+    if not mounted:
+        volumes.append(copy.deepcopy(public[0]))
     return result
 
 

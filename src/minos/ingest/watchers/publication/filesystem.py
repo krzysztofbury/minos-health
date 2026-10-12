@@ -8,6 +8,14 @@ from pathlib import Path
 from typing import cast, final
 from uuid import uuid4
 
+from minos.ingest.watchers.publication.citations import CitationArchive
+from minos.ingest.watchers.publication.safety import (
+    PublicPublicationError as PublicPublicationError,
+)
+from minos.ingest.watchers.publication.safety import (
+    prepare_public_root as prepare_public_root,
+)
+
 _GENERATION_PATTERN = re.compile(
     r"^(?P<revision>[1-9][0-9]*)-(?P<digest>[0-9a-f]{64})$"
 )
@@ -18,27 +26,6 @@ _MAX_STALE_DIRECTORIES = 128
 _MAX_PROJECTION_BYTES = 8 * 1024 * 1024
 _MAX_MANIFEST_BYTES = 64 * 1024
 _SOURCES = {"RSK": "rsk.json", "BAW": "baw.json", "NFZ": "nfz.json"}
-
-
-class PublicPublicationError(RuntimeError):
-    """A public generation could not be installed without weakening isolation."""
-
-
-def prepare_public_root(root: Path) -> None:
-    try:
-        root.mkdir(mode=0o755, parents=True, exist_ok=True)
-        status = root.lstat()
-        if (
-            not stat.S_ISDIR(status.st_mode)
-            or status.st_uid != os.geteuid()
-            or stat.S_IMODE(status.st_mode) & 0o022
-        ):
-            raise PublicPublicationError("public root ownership or mode is unsafe")
-        root.chmod(0o755)
-    except PublicPublicationError:
-        raise
-    except OSError:
-        raise PublicPublicationError("public root is unavailable") from None
 
 
 def _no_publication_fault(_phase: str) -> None:
@@ -53,6 +40,7 @@ class ImmutableGenerationPublisher:
         *,
         source: str = "RSK",
         retained_generations: int = 3,
+        retain_citations: bool = False,
         fault: Callable[[str], None] | None = None,
     ) -> None:
         if retained_generations < 1 or retained_generations > 16:
@@ -70,7 +58,32 @@ class ImmutableGenerationPublisher:
             "api/v1/provenance": {self._filename: "file"},
         }
         self._retained_generations = retained_generations
+        self._retain_citations = retain_citations
         self._fault = fault or _no_publication_fault
+
+    def citation_revisions(self) -> frozenset[int] | None:
+        if not self._retain_citations:
+            return None
+        descriptor = self._open_root()
+        os.close(descriptor)
+        return frozenset(
+            record.revision
+            for record in CitationArchive(self._root / "citations").records()
+        )
+
+    def archive_citation(
+        self,
+        state_revision: int,
+        projection_sha256: str,
+        files: Mapping[str, bytes],
+    ) -> None:
+        self._validate_publication(state_revision, projection_sha256, files)
+        if self._retain_citations:
+            descriptor = self._open_root()
+            os.close(descriptor)
+            CitationArchive(self._root / "citations").publish(
+                state_revision, projection_sha256, files[self._projection_path]
+            )
 
     def publish(
         self,
@@ -104,6 +117,7 @@ class ImmutableGenerationPublisher:
                             generations_descriptor,
                             current[1],
                         )
+                self.archive_citation(state_revision, projection_sha256, files)
                 if current is not None and current[1] == generation:
                     self._install_or_rebuild_dangling(
                         generations_descriptor,
@@ -165,6 +179,7 @@ class ImmutableGenerationPublisher:
                     generations_descriptor,
                     expected[1],
                 )
+                self.archive_citation(target_revision, target_sha256, files)
                 self._install_generation(generations_descriptor, target, files)
                 self._fault("generation_fsynced")
                 self._switch_current(root_descriptor, target)

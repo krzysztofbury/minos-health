@@ -8,6 +8,7 @@ from typing import cast
 import pytest
 from pydantic import ValidationError
 
+import minos.ingest.watchers.publication.citations as citations
 import minos.ingest.watchers.rsk.publication as rsk_publication
 from minos.ingest.watchers.control import (
     CommittedBlobEvidence,
@@ -1108,3 +1109,182 @@ def test_checked_redistribution_manifest_is_deny_all() -> None:
         "schema_version": 1,
         "artifacts": [],
     }
+
+
+def test_citations_survive_generation_gc_and_legacy_upgrade(tmp_path: Path) -> None:
+    root = tmp_path / "public"
+    prepare_public_root(root)
+    first_digest, first_files = _generation_files("first")
+    legacy = ImmutableGenerationPublisher(root, retained_generations=1)
+    _ = legacy.publish(1, first_digest, first_files)
+    legacy_manifest = (root / "current/manifest.json").read_bytes()
+    publisher = ImmutableGenerationPublisher(
+        root, retained_generations=1, retain_citations=True
+    )
+    _ = publisher.publish(1, first_digest, first_files)
+    assert (root / "current/manifest.json").read_bytes() == legacy_manifest
+    digest = first_digest
+    for revision in range(2, 6):
+        digest, files = _generation_files(str(revision), revision=revision)
+        _ = publisher.publish(revision, digest, files)
+    assert len(list((root / "generations").iterdir())) == 1
+    assert publisher.citation_revisions() == frozenset(range(1, 6))
+    assert (root / "citations" / f"1-{first_digest}.json").read_bytes() == first_files[
+        "api/v1/provenance/rsk.json"
+    ]
+    # The operator's explicit rebuild cannot change an already-cited fact.
+    replacement_digest, replacement_files = _generation_files("replacement")
+    with pytest.raises(
+        PublicPublicationError, match="citation revision already differs"
+    ):
+        _ = publisher.rebuild(
+            expected_current_revision=5,
+            expected_current_sha256=digest,
+            target_revision=1,
+            target_sha256=replacement_digest,
+            files=replacement_files,
+        )
+    assert publisher.current() == (5, f"5-{digest}")
+
+
+@pytest.mark.parametrize("bound", ["count", "bytes"])
+def test_citation_capacity_refuses_new_pointer_without_evicting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bound: str
+) -> None:
+    prepare_public_root(tmp_path)
+    publisher = ImmutableGenerationPublisher(tmp_path, retain_citations=True)
+    digest, files = _generation_files("first")
+    _ = publisher.publish(1, digest, files)
+    if bound == "count":
+        monkeypatch.setattr(citations, "MAX_CITATION_REVISIONS", 1)
+    else:
+        monkeypatch.setattr(
+            citations, "MAX_CITATION_BYTES", len(files["api/v1/provenance/rsk.json"])
+        )
+    new_digest, new_files = _generation_files("second", revision=2)
+    with pytest.raises(PublicPublicationError, match="capacity is exhausted"):
+        _ = publisher.publish(2, new_digest, new_files)
+    assert publisher.current() == (1, f"1-{digest}")
+    assert publisher.citation_revisions() == frozenset({1})
+    # Retrying a retained record at the quota remains possible.
+    assert publisher.publish(1, digest, files) == f"1-{digest}"
+
+
+def test_citation_precedes_pointer_and_resumes_after_publication_fault(
+    tmp_path: Path,
+) -> None:
+    prepare_public_root(tmp_path)
+    digest, files = _generation_files("first")
+    publisher = ImmutableGenerationPublisher(tmp_path, retain_citations=True)
+    _ = publisher.publish(1, digest, files)
+
+    def interrupt(phase: str) -> None:
+        if phase == "generation_fsynced":
+            raise PublicPublicationError("injected interruption")
+
+    second_digest, second_files = _generation_files("second", revision=2)
+    with pytest.raises(PublicPublicationError, match="injected interruption"):
+        _ = ImmutableGenerationPublisher(
+            tmp_path, retain_citations=True, fault=interrupt
+        ).publish(2, second_digest, second_files)
+    assert publisher.current() == (1, f"1-{digest}")
+    assert publisher.citation_revisions() == frozenset({1, 2})
+    _ = publisher.publish(2, second_digest, second_files)
+    assert publisher.current() == (2, f"2-{second_digest}")
+    assert len(list((tmp_path / "citations").iterdir())) == 2
+
+
+@pytest.mark.parametrize("mutation", ["symlink", "hardlink", "bytes", "extra_file"])
+def test_citation_recovery_rejects_unsafe_or_corrupt_records(
+    tmp_path: Path, mutation: str
+) -> None:
+    prepare_public_root(tmp_path)
+    digest, files = _generation_files("first")
+    publisher = ImmutableGenerationPublisher(tmp_path, retain_citations=True)
+    _ = publisher.publish(1, digest, files)
+    record = tmp_path / "citations" / f"1-{digest}.json"
+    if mutation == "symlink":
+        record.unlink()
+        record.symlink_to(tmp_path / "current/api/v1/provenance/rsk.json")
+    elif mutation == "hardlink":
+        os.link(record, tmp_path / "private-copy")
+    elif mutation == "bytes":
+        record.chmod(0o644)
+        _ = record.write_bytes(b"x" * record.stat().st_size)
+        record.chmod(0o444)
+    else:
+        _ = (tmp_path / "citations/private.sqlite").write_bytes(b"private")
+    with pytest.raises(PublicPublicationError):
+        _ = publisher.citation_revisions()
+
+
+def test_citation_resume_removes_only_recognized_staging_files(tmp_path: Path) -> None:
+    root = tmp_path / "citations"
+    prepare_public_root(root)
+    interrupted = root / (".building-" + "a" * 32)
+    _ = interrupted.write_bytes(b"partial")
+    interrupted.chmod(0o600)
+    archive = citations.CitationArchive(root)
+    data = b'{"public":"metadata"}'
+    digest = hashlib.sha256(data).hexdigest()
+    archive.publish(1, digest, data)
+    assert not interrupted.exists()
+    assert [(item.revision, item.sha256) for item in archive.records()] == [(1, digest)]
+
+
+@pytest.mark.parametrize("after_rename", [False, True])
+def test_citation_write_failure_keeps_current_and_retry_is_durable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, after_rename: bool
+) -> None:
+    prepare_public_root(tmp_path)
+    publisher = ImmutableGenerationPublisher(tmp_path, retain_citations=True)
+    digest, files = _generation_files("first")
+    _ = publisher.publish(1, digest, files)
+    second_digest, second_files = _generation_files("second", revision=2)
+    original_rename = os.rename
+
+    def interrupt(
+        source: str, target: str, *, src_dir_fd: int, dst_dir_fd: int
+    ) -> None:
+        if target == f"2-{second_digest}.json":
+            if after_rename:
+                original_rename(
+                    source, target, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd
+                )
+            raise OSError("synthetic private path must not escape")
+        original_rename(source, target, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "rename", interrupt)
+        with pytest.raises(
+            PublicPublicationError, match="^citation publication failed$"
+        ):
+            _ = publisher.publish(2, second_digest, second_files)
+    assert publisher.current() == (1, f"1-{digest}")
+    assert not list((tmp_path / "citations").glob(".building-*"))
+
+    original_fsync = os.fsync
+    archive_inode = (tmp_path / "citations").stat().st_ino
+    parent_inode = tmp_path.stat().st_ino
+    synced = False
+    parent_synced = False
+
+    def observe_fsync(descriptor: int) -> None:
+        nonlocal synced, parent_synced
+        if os.fstat(descriptor).st_ino == archive_inode:
+            synced = True
+        if os.fstat(descriptor).st_ino == parent_inode:
+            parent_synced = True
+        original_fsync(descriptor)
+
+    def require_citation_durability(phase: str) -> None:
+        if phase == "generation_fsynced":
+            assert synced, "current must not advertise a non-durable citation"
+            assert parent_synced, "the citation directory must also be durable"
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "fsync", observe_fsync)
+        _ = ImmutableGenerationPublisher(
+            tmp_path, retain_citations=True, fault=require_citation_durability
+        ).publish(2, second_digest, second_files)
+    assert publisher.current() == (2, f"2-{second_digest}")

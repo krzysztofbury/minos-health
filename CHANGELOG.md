@@ -9,11 +9,24 @@ release.
 
 ## [Unreleased]
 
+These entries include public validation deployments, not a versioned product
+release. No version tags or GitHub Releases have been published; the complete
+signed-release and deployment-acceptance gates remain #41/#27.
+
 ### Added
 
+- Useful initial no-JS source catalogs, bounded provider/dataset pagination,
+  and stable RSK/BAW source, dataset and exact-observation citation URLs (#80,
+  #171; review and production activation pending). Retained metadata survives
+  generation cleanup, with owner-approved 1,024-record / 256 MiB provider
+  limits, explicit exhaustion, exact-byte recovery and immutable cited revisions.
+  Raw files remain private. Browser refresh preserves an independently failed
+  provider's initial HTML; maintenance hides unavailable API-backed detail links.
 - Release-pinned concept JSON with source-local hierarchy, separately attributed
   supporting evidence, bounded dated JGP membership and explicit release-scoped
-  rank applicability (#23).
+  rank applicability (#23). Deployed through #169 at `da8b675` on 2026-10-12;
+  [public acceptance](https://github.com/krzysztofbury/minos-health/issues/23#issuecomment-6121441538)
+  passed and the issue is closed.
 - Source-backed JGP catalog comparisons with explicit service-date/release
   selectors, scope/group filters, old/new base values and dataset-pinned shared
   URLs, including retroactive 74/2026 versus 102/2026 amendments (#104).
@@ -140,11 +153,15 @@ release.
 
 - Add a bounded NFZ/CZS/AOTMiT publication metadata projection and a separate
   source-catalog filter, preserving observation, publication and declared-validity
-  dates without inferring settlement applicability (#92; activation pending).
+  dates without inferring settlement applicability (#92). Deployed through
+  #167/#168 at `0bf9b31` on 2026-10-12; watcher and public/browser acceptance
+  passed and the issue is closed. See [metadata evidence](docs/validation/nfz-publication-metadata.md).
 - Preserve structured host refusals and bounded, privacy-safe Compose failure
   diagnostics. Rollback verifies both validation services, exact running images
   and operational isolation; explicit retries retain their original baseline,
   and complete rollback requires public readiness and homepage checks (#162).
+  Deployed through #166, with actual-host recovery acceptance completed and the
+  issue closed. The original #161/#164 failure causes remain unconfirmed.
 - Preload bounded immutable JGP comparison schedules before API readiness.
   Cache ownership follows the verified bundle; incomplete or over-budget
   construction fails startup. Date/release validation and request budgets remain
@@ -158,8 +175,10 @@ release.
   the SQLite pool; request and source-validation budgets are unchanged (#157).
 - Reconciled README, TODO, specification status and delivery documents with
   the verified #156 release and GitHub backlog (2026-10-11). Practitioner builder
-  acceptance from closed #39 is explicitly tracked in #158; #157 retains the
-  observed startup timeout. Full release, capacity and ward-evidence gates remain open.
+  acceptance from closed #39 is explicitly tracked in #158. A subsequent
+  2026-10-12 reconciliation records #157/#162/#92/#23 as delivered and closed,
+  #169 as the latest verified validation deployment, and #171 as pending review
+  and activation. Full release, capacity and ward-evidence gates remain open.
 - Replaced the planned Lambda, ECR, CloudFront, frontend-S3, and QNAP topology
   with one dedicated Mikr.us `3.0` Docker Compose host behind Cloudflare Tunnel;
   AWS now provides only versioned source storage, narrow IAM, budgets, and

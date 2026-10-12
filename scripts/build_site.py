@@ -19,6 +19,8 @@ SITE = WEB / "site"
 MAINTENANCE_OUTPUT = ROOT / "infra/ansible/files"
 PAGE_SHELL = ROOT / "src/minos/http/page_shell.html"
 JGP_PAGE_SHELL = ROOT / "src/minos/http/page_shell_jgp.html"
+SOURCES_PAGE_SHELL = ROOT / "src/minos/http/page_shell_sources.html"
+SOURCES_CONTENT = ROOT / "src/minos/http/source_catalog.html"
 type Mode = Literal["maintenance", "validation"]
 PLAUSIBLE = (
     '    <script src="/plausible-init.js"></script>\n'
@@ -259,6 +261,9 @@ PAGES = (
         "/zrodla",
         ("maintenance", "validation"),
         script="/sources.js",
+        values={
+            "initial_catalog": "<p>Katalog online jest dostępny po włączeniu JavaScript. Oficjalne źródła są podlinkowane poniżej.</p>"
+        },
     ),
     Page(
         "privacy-policy.html",
@@ -556,6 +561,8 @@ def main() -> None:
     }
     outputs[PAGE_SHELL] = render_page_shell().encode()
     outputs[JGP_PAGE_SHELL] = render_page_shell("/jgp", "page-jgp").encode()
+    outputs[SOURCES_PAGE_SHELL] = render_page_shell("/zrodla", "page-sources").encode()
+    outputs[SOURCES_CONTENT] = (SITE / "pages/sources.html").read_bytes()
     for target, content in outputs.items():
         name = target.name
         if arguments.check:

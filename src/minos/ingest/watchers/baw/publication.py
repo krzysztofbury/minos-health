@@ -37,6 +37,11 @@ class BawPublicProjectionPublisher:
         self._generations = generations
 
     def publish(self, store: ControlStore, run: CommittedRun) -> None:
+        self._publish(store, run, citation_only=False)
+
+    def _publish(
+        self, store: ControlStore, run: CommittedRun, *, citation_only: bool
+    ) -> None:
         if run.source_id != "baw":
             return
         history = store.load_committed_observation_history(
@@ -58,13 +63,23 @@ class BawPublicProjectionPublisher:
                 "redistribution": {"schema_version": 1, "artifacts": []},
             }
         )
-        _ = self._generations.publish(
+        publish = (
+            self._generations.archive_citation
+            if citation_only
+            else self._generations.publish
+        )
+        _ = publish(
             run.committed_state_revision,
             digest,
             {"manifest.json": manifest, _PROJECTION_PATH: payload},
         )
 
     def restore(self, store: ControlStore) -> None:
+        retained = self._generations.citation_revisions()
+        if retained is not None:
+            for historical in store.citation_recovery_runs("baw"):
+                if historical.committed_state_revision not in retained:
+                    self._publish(store, historical, citation_only=True)
         run = store.latest_recovery_reconciled_run("baw")
         if run is not None:
             self.publish(store, run)

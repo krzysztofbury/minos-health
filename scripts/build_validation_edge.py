@@ -243,6 +243,34 @@ def build(output: Path) -> None:
     config = (FILES / "edge-nginx.conf").read_text()
     # Nginx warning/error messages can include untrusted URLs and headers.
     config = config.replace("error_log /dev/stderr warn;", "error_log /dev/null;")
+    sources = """        location = /zrodla {
+            if ($request_uri != "/zrodla") {
+                return 404;
+            }
+            try_files /sources.html =404;
+        }"""
+    if config.count(sources) != 1:
+        raise ValueError("source catalog route layout changed")
+    config = config.replace(
+        sources,
+        """        location = /zrodla {
+            if ($args != "") { return 404; }
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+        }
+
+        location ~ "^/zrodla/(rsk|baw|nfz)(/obserwacje/[1-9][0-9]{0,18}-[0-9a-f]{64})?(/([0-9A-Z]{6}|[1-9][0-9]{0,15}))?(/strona/[1-9][0-9]{0,2})?$" {
+            if ($args != "") { return 404; }
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+        }""",
+    )
+    config = config.replace(
+        '~^/(|slowniki|slowniki/icd-10|slowniki/icd-9|zrodla|polityka-prywatnosci|regulamin)$ "no-cache";',
+        '~^/(|slowniki|slowniki/icd-10|slowniki/icd-9|polityka-prywatnosci|regulamin)$ "no-cache";\n        ~^/zrodla(/|$|\\?) "upstream";',
+    )
     health = """        location = /healthz {
             default_type application/json;
             return 200 '{"status":"ok","mode":"maintenance"}';

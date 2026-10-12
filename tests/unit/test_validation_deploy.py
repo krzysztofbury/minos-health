@@ -47,7 +47,18 @@ def compose(root: Path, api: str, edge: str, database: str) -> dict[str, object]
         "services": {
             "watcher": {"image": WATCHER},
             "cloudflared": {"image": "cloudflare/cloudflared@sha256:" + "8" * 64},
-            "edge": {"image": edge, "networks": {"edge": None, "reference": None}},
+            "edge": {
+                "image": edge,
+                "networks": {"edge": None, "reference": None},
+                "volumes": [
+                    {
+                        "type": "bind",
+                        "source": "/var/lib/minos/public",
+                        "target": "/var/lib/minos/public",
+                        "read_only": True,
+                    }
+                ],
+            },
             "reference-api": {
                 "image": api,
                 "healthcheck": {
@@ -240,6 +251,14 @@ def test_update_changes_only_validation_services_and_is_resumable(
         database
     )
     cast(list[dict[str, object]], api["volumes"])[0]["source"] = str(installed)
+    cast(list[dict[str, object]], api["volumes"]).append(
+        {
+            "type": "bind",
+            "source": "/var/lib/minos/public",
+            "target": "/var/lib/minos/public",
+            "read_only": True,
+        }
+    )
     assert rendered == expected
     assert (root / "compose.yaml").read_bytes() == before  # staging is not activation
 
@@ -446,6 +465,29 @@ def test_identity_swap_refuses_unknown_startup_policy(tmp_path: Path) -> None:
         "start_period"
     ] = "5m"
     with pytest.raises(HostError, match="startup grace is unexpected"):
+        _ = swap_identities(
+            live, PREVIOUS, deployment("2" * 64), tmp_path / "reference"
+        )
+
+
+@pytest.mark.parametrize("mutation", ["writable", "private", "missing", "api_conflict"])
+def test_source_pages_mount_only_the_exact_public_metadata_boundary(
+    tmp_path: Path, mutation: str
+) -> None:
+    live = compose(tmp_path, OLD_API, OLD_EDGE, OLD_DB)
+    services = cast(dict[str, dict[str, object]], live["services"])
+    public = cast(list[dict[str, object]], services["edge"]["volumes"])
+    if mutation == "writable":
+        public[0]["read_only"] = False
+    elif mutation == "private":
+        public[0]["source"] = "/var/lib/minos/control"
+    elif mutation == "missing":
+        public.clear()
+    else:
+        cast(list[dict[str, object]], services["reference-api"]["volumes"]).append(
+            {**public[0], "source": "/var/lib/minos/archive"}
+        )
+    with pytest.raises(HostError, match="public metadata bind differs"):
         _ = swap_identities(
             live, PREVIOUS, deployment("2" * 64), tmp_path / "reference"
         )
