@@ -17,11 +17,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 - Useful initial no-JS source catalogs, bounded provider/dataset pagination,
   and stable RSK/BAW source, dataset and exact-observation citation URLs (#80,
-  #171; review and production activation pending). Retained metadata survives
+  #171; deployed with #172 at `088f190` on 2026-10-12). Retained metadata survives
   generation cleanup, with owner-approved 1,024-record / 256 MiB provider
   limits, explicit exhaustion, exact-byte recovery and immutable cited revisions.
   Raw files remain private. Browser refresh preserves an independently failed
   provider's initial HTML; maintenance hides unavailable API-backed detail links.
+  Production copied-state recovery and public/browser acceptance passed; see
+  [activation evidence](docs/validation/source-citations.md#production-activation).
 - Release-pinned concept JSON with source-local hierarchy, separately attributed
   supporting evidence, bounded dated JGP membership and explicit release-scoped
   rank applicability (#23). Deployed through #169 at `da8b675` on 2026-10-12;
@@ -154,7 +156,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - Remove the blanket knowledge-cutoff warning and repeated cutoff copy from
   JGP and attachment-9 pages, keeping concrete source/version and applicability
   details. Bundle/API knowledge fences remain enforced; this does not advance
-  data freshness or enable automatic data activation (#80; deployment pending).
+  data freshness or enable automatic data activation (#80, #172; deployed at
+  `088f190` on 2026-10-12).
 - Add a bounded NFZ/CZS/AOTMiT publication metadata projection and a separate
   source-catalog filter, preserving observation, publication and declared-validity
   dates without inferring settlement applicability (#92). Deployed through

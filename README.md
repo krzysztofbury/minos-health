@@ -28,19 +28,23 @@ pre-screen was performed on 2026-08-06 (see
 
 The public validation site serves terminology/JGP search, dated group and code
 pages, and the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper).
-The latest recorded verified validation deployment is #169 (`da8b675`, activated
-2026-10-12T09:23:17Z), adding release-pinned concept JSON with the unchanged
-schema-10 bundle. Reviewed MODTAR binding, governing-act settlement-product
-exclusions, pinned JGP comparisons and NFZ publication metadata are also live.
-[Deployment evidence](https://github.com/krzysztofbury/minos-health/issues/23#issuecomment-6121441538)
-records the API, browser, privacy and exact-digest checks. This is a dated
+The latest recorded verified validation deployment is #171/#172 (`088f190`,
+activated 2026-10-12T13:29:24Z), adding initial source HTML, durable RSK/BAW
+citations and the owner-requested freshness-copy cleanup. The schema-10 bundle
+and release-pinned concept JSON remain available. Reviewed MODTAR binding,
+governing-act settlement-product exclusions, pinned JGP comparisons and NFZ
+publication metadata are also live.
+[Deployment evidence](docs/validation/source-citations.md#production-activation)
+records the recovery, API, browser, privacy and exact-digest checks, including
+the owner-approved one-off startup wait after guarded recovery. This is a dated
 acceptance record, not a new production inspection.
 
 Startup warm-up reliability (#157), guarded recovery diagnostics (#162), NFZ
 publication metadata (#92) and concept JSON (#23) are delivered and closed.
-The no-JS source-catalog and durable RSK/BAW citation slice is in
-[PR #171](https://github.com/krzysztofbury/minos-health/pull/171), with local
-acceptance passed and production activation pending; broader #80 remains open.
+The no-JS source-catalog and durable RSK/BAW citation slice from
+[PR #171](https://github.com/krzysztofbury/minos-health/pull/171) passed production
+recovery and public/browser acceptance; broader #80 remains open. Actions usage
+and redundant build work are measured in #174.
 
 The initial golden suite has 9 synthetic and 5 pinned-source derived cases.
 Practitioner builder acceptance (#158), real ward agreement (#38), and full
