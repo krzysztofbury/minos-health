@@ -82,14 +82,16 @@ def test_source_text_is_escaped_and_labelled_as_base_points() -> None:
     assert "Punkty bazowe wg katalogu, bez modyfikatorów." in page
     assert 'content="noindex, follow"' in page
     assert '<script src="/jgp.js" defer></script>' in page
-    assert "jgp-horizon" not in page  # within the knowledge horizon
 
 
-def test_after_horizon_dates_carry_a_visible_notice() -> None:
+def test_empty_catalog_keeps_source_details_without_a_blanket_freshness_notice() -> (
+    None
+):
     page = index_page(
         {**RULESET, "service_date_after_knowledge": True}, [], [], None, CALENDAR
     )
-    assert 'jgp-horizon">Stan wiedzy Minos: 2026-10-02' in page
+    assert "46/2026/DSOZ" in page
+    assert "Stan wiedzy Minos" not in page
     assert "Brak grup dla tego wyboru w tym dniu." in page
     assert "tree-pane" not in page  # no empty bordered box
 

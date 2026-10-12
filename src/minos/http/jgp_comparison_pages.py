@@ -8,7 +8,6 @@ from minos.http.jgp_pages import (
     LAYOUTS,
     _jgp_page,  # pyright: ignore[reportPrivateUsage]
     days_pl,
-    horizon_badge,
     marker_meaning,
     measure_labels,
     points_pl,
@@ -253,7 +252,6 @@ def comparison_page(
         + f'<p class="page-lead">{_e(BASE_POINTS_LABEL)}. To nie są punkty do rozliczenia.</p>'
         + "<p>Porównujemy wskazane wydania według stanu z dnia ich publikacji, również przy zmianach wstecznych. Daty świadczeń wybierają właściwe wiersze każdego wydania.</p>"
         + controls
-        + (horizon_badge(comparison.before) or horizon_badge(comparison.after))
         + "<p>Zakres porównania: obecność grup, definicje, oznaczenia zakresów i wartości katalogowe na wybrane dni. "
         + "Nie obejmuje zmian algorytmu, warunków kwalifikacji ani MODTAR; nie jest pełnym audytem wydania.</p>"
         + f"<details><summary>Porównaj kolejne wydania źródłowe</summary><ul>{quick}</ul></details>"

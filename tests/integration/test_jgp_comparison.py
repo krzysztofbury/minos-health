@@ -104,7 +104,6 @@ def test_same_release_selects_dated_twins_and_scope_from_either_side(
     assert re.findall(r'data-group="([A-Z0-9]+)"', response.text) == ["H21"]
     assert "<td>3 974,00</td><td>3 974,00</td>" in response.text
     assert "Synthetic § 4 ust. 5." in response.text
-    assert "Stan wiedzy Minos" in response.text
     unchanged = client.get(
         comparison_path(
             dataset,
