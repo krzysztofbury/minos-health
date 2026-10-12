@@ -36,7 +36,19 @@ A separate single request peaked at 685,326 Python allocation bytes. All request
 returned 200 under the unchanged shared query budget. These are local evidence,
 not production capacity or a replacement for deferred #42.
 
-Detailed local evidence is under `test-output/issue-23/`. Deployment acceptance
-must verify public bytes against the same store result and pinned bundle,
-positive dated/paged routes, invalid/missing identities, date gaps, query-string
-rejection, readiness and unchanged operational containers before closing #23.
+Detailed local evidence is under `test-output/issue-23/`.
+
+## Deployed acceptance (2026-10-12)
+
+PR #169 deployed revision `da8b675f1b3c338d53cea586e71a5085b31d65b4` at
+`2026-10-12T09:23:17Z`, following successful main CI 38228400458 and private
+image publication 38228416057. Watcher, tunnel and monitoring container identities
+and restart counts were preserved; the schema-10 reference bundle is unchanged.
+
+Six public ICD-9 `00.121` and ICD-10 `E11` responses, covering undated, dated
+`2026-10-02` and explicit catalog/page routes, exactly matched the verified
+bundle's store output. Responses were 4,392-10,725 bytes with no-store headers.
+Malformed date, absent release, uncovered date, query-string, page-bound and
+method refusals passed. Readiness, rank and JGP checks passed, with actual
+desktop/mobile screenshots visually reviewed. These checks complete #23;
+see [acceptance record](https://github.com/krzysztofbury/minos-health/issues/23#issuecomment-6121441538).

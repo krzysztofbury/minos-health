@@ -5,16 +5,18 @@ Execution backlog lives in [GitHub issues](https://github.com/krzysztofbury/mino
 estimates). This file remains the spec-level checklist; issues carry the
 day-to-day order.
 
-## Reconciled Delivery Status (2026-10-11)
+## Reconciled Delivery Status (2026-10-12)
 
-Latest verified validation deployment: #164, revision `bc4e9ef`, activated
-2026-10-11T18:06:56Z with the schema-10 bundle. [Release evidence](docs/validation/jgp-comparison.md#successful-164-activation)
-records exact identities, public API/browser/privacy checks and startup results.
+Latest verified validation deployment: #169, revision `da8b675`, activated
+2026-10-12T09:23:17Z with the unchanged schema-10 bundle.
+[Concept acceptance](https://github.com/krzysztofbury/minos-health/issues/23#issuecomment-6121441538)
+records exact identities, public JSON/bundle equality and API/browser checks.
 This is a dated deployment record, not a new production inspection.
 
-Owner-approved next order: #162 recovery, then #92 metadata and #23 concept
-detail. #42 waits for actual traction; #158/#126/#25 practitioner-dependent
-acceptance waits for practitioner access. These gates remain open.
+The owner-approved sequence #162 recovery, #92 metadata and #23 concept detail
+is delivered and all three issues are closed. #42 waits for actual traction;
+#158/#126/#25 practitioner-dependent acceptance waits for practitioner access.
+These remaining gates stay open.
 
 - [x] Deliver the supported grouper subset, reviewed MODTAR binding, trace,
       CLI/HTTP grouping and encounter builder (#34-#37, #39, #46, #129).
@@ -29,12 +31,18 @@ acceptance waits for practitioner access. These gates remain open.
 - [ ] Obtain practitioner entry-time and explanation acceptance (#158, carried
       from closed #39). Real ward outcome agreement remains separate in #38.
 - [ ] Complete search relevance/workflow and capacity evidence (#126, #25, #42).
-- [ ] Deliver the remaining reference features: JSON concept detail (#23),
-      NFZ publication metadata (#92), and source-page
-      discovery/citation improvements (#80). Historical downloads remain
-      rights-gated (#84).
-- [ ] Preserve deployment/rollback diagnostics and reliable edge restoration
-      (#162); the first #164 activation also lost its failure diagnostics.
+- [x] Deliver release-pinned JSON concept detail (#23), including separately
+      attributed hierarchy/rank evidence and optional dated JGP context (#169).
+      Public responses match the pinned bundle; see [concept evidence](docs/validation/concept-detail.md).
+- [x] Deliver NFZ/CZS/AOTMiT publication metadata (#92) through #167/#168,
+      with guarded watcher activation and desktop/mobile `/zrodla` acceptance.
+      See [publication evidence](docs/validation/nfz-publication-metadata.md).
+- [ ] Complete source-page discovery/citation improvements (#80). Historical
+      downloads remain rights-gated (#84).
+- [x] Preserve deployment/rollback diagnostics and verify edge recovery (#162,
+      delivered through #166 at `850a58e`). Real partial-rollback recovery and
+      public acceptance passed; the original #161/#164 failure causes remain
+      unknown. See [recovery acceptance](https://github.com/krzysztofbury/minos-health/issues/162#issuecomment-6113614043).
 - [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/AWS
       acceptance (#49), Cloudflare privacy audit (#28), signed releases (#41),
       full deployment acceptance (#27), and external brand/commercial gates (#2/#3).
@@ -544,8 +552,11 @@ UI remain the baseline.
 ## HTTP And Web
 
 - [x] Add `/healthz`, `/readyz`, and bounded `POST /api/v1/search` (#22).
-- [ ] Add the remaining JSON concept-detail contract (#23); explicitly decide
-      terminology release/date semantics and keep query values out of URLs.
+- [x] Add release-pinned JSON concept detail (#23). The optional service date
+      selects JGP context without changing the ICD release; mismatched bindings
+      fail closed and query strings remain rejected. [Contract and examples](docs/api.md#pinned-concept-detail).
+- [x] Expose bounded NFZ publication metadata and the separate `/zrodla` filter
+      (#92), with source dates distinct from settlement applicability.
 - [x] Add dated JGP group endpoints (#24), extended with conditions in #32.
 - [x] Add versioned response schemas and consistent error mapping.
 - [x] Build the responsive terminology search, dictionary trees, and code pages
