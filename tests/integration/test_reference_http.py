@@ -195,6 +195,7 @@ def test_search_and_detail_failures_are_distinct_and_recoverable(
     code: str,
 ) -> None:
     from minos.http import app as adapter
+    from minos.http import concepts
 
     def fail(*_args: object, **_kwargs: object) -> object:
         raise error_type("private diagnostic sentinel")
@@ -202,6 +203,11 @@ def test_search_and_detail_failures_are_distinct_and_recoverable(
     with TestClient(create_app(bundle(tmp_path))) as client:
         monkeypatch.setattr(adapter, "lookup", fail)
         monkeypatch.setattr(adapter, "render_code", fail)
+        monkeypatch.setattr(concepts, "concept_detail", fail)
+        detail = client.get("/api/v1/concepts/icd9-pl/icd9-czs-synthetic-v1/A01")
+        assert detail.status_code == status
+        assert detail.json() == {"api": 1, "status": "error", "error": {"code": code}}
+        assert detail.headers["cache-control"] == "no-store"
         response = client.post("/api/v1/search", json=request_body())
         assert response.status_code == status
         assert response.json() == {"api": 1, "status": "error", "error": {"code": code}}

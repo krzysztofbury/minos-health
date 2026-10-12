@@ -3,6 +3,7 @@ from typing import cast
 
 import pytest
 
+from minos.http.concepts import CONCEPT_ROUTE
 from minos.http.jgp import JGP_PAGE_ROUTE, JGP_ROUTE
 from minos.http.jgp_comparison import COMPARISON_ROUTE
 from scripts.build_validation_edge import _routes  # pyright: ignore[reportPrivateUsage]
@@ -109,3 +110,28 @@ def test_comparison_edge_and_log_allowlists(suffix: str, accepted: bool) -> None
     path = f"/jgp/porownaj/{'b' * 64}/2026-09-30/catalog-before/2026-10-01/catalog-after/{suffix}"
     assert bool(re.fullmatch(patterns[0], path)) is accepted
     assert bool(COMPARISON_ROUTE.fullmatch(path)) is accepted
+
+
+@pytest.mark.parametrize(
+    "suffix,accepted",
+    [
+        ("A01", True),
+        ("00.00001/jgp/2026-07-01", True),
+        ("A01/jgp/2026-07-01/1ae/pages/20", True),
+        ("A01/jgp/2026-07-01/1a/pages/21", False),
+        ("A01/jgp/2026-07-01/1a/pages/01", False),
+        ("A01/jgp/2026-7-01", False),
+        ("a01", False),
+        ("A01?date=2026-07-01", False),
+        ("A01/", False),
+        ("private text", False),
+    ],
+)
+def test_concept_edge_and_log_allowlists(suffix: str, accepted: bool) -> None:
+    patterns = cast(
+        list[str], re.findall(r'location ~ "(\^/api/v1/concepts/[^\"]+)"', _routes())
+    )
+    assert len(patterns) == 1
+    path = "/api/v1/concepts/icd9-pl/pinned-release/" + suffix
+    assert bool(re.fullmatch(patterns[0], path)) is accepted
+    assert bool(CONCEPT_ROUTE.fullmatch(path)) is accepted

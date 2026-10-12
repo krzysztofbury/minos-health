@@ -274,10 +274,12 @@ class ReferenceReader:
             list[tuple[str, str, str, str]],
             self._connection.execute(
                 """SELECT language, description_type, source_text, normalized_text FROM concept_description
-            WHERE source_release_id = ? AND node_ordinal = ? ORDER BY language, description_type""",
+            WHERE source_release_id = ? AND node_ordinal = ? ORDER BY language, description_type, source_text LIMIT 129""",
                 (release_id, row[1]),
             ).fetchall(),
         )
+        if len(descriptions) > 128:
+            raise QueryLimitError("concept descriptions exceed bound")
         return Concept(
             release_id,
             row[0],
