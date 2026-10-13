@@ -1,9 +1,9 @@
 name: CI
 
+# No push trigger: squash merges re-ran tested PRs on main (a quarter of the
+# October 2026 minutes). A release dispatches full CI on its commit instead.
 on:
   pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

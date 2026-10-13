@@ -136,6 +136,8 @@ def test_scoped_workflows_keep_reporting_and_manual_publication_serialized() -> 
         triggers = cast("dict[str, object]", document["on"])
         # Event-level path filters leave required checks pending indefinitely.
         assert triggers["pull_request"] == ""
+        # Merged PRs are not re-verified on main; releases dispatch instead.
+        assert "push" not in triggers
         jobs = cast("dict[str, dict[str, object]]", document["jobs"])
         assert "if" not in jobs["verify"]
         steps = cast("list[dict[str, object]]", jobs["verify"]["steps"])

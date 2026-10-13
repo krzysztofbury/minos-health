@@ -167,11 +167,14 @@ the Docker socket.
 ### Release
 
 1. Merge the reviewed change to `main`.
-2. Dispatch `reference-validation.yml` on `main` and wait for success:
+2. Dispatch full CI and `reference-validation.yml` on `main` and wait for both
+   to succeed. CI no longer runs on pushes to `main` (#174), so this is the only
+   full check of merged PRs combined, including any merged while behind `main`:
 
    ```sh
+   gh workflow run ci.yml --ref main
    gh workflow run reference-validation.yml --ref main
-   gh run list --workflow reference-validation.yml --branch main --limit 1
+   gh run list --branch main --limit 2
    ```
 
 3. Build the bundle from the reviewed manifest (see Inputs for missing blobs):

@@ -158,3 +158,17 @@ A local level-1 ZIP probe on the actual downloaded hosted archive produced
 extracted archive SHA-256. The workflow now requests level 1. Hosted transfer
 timing and rounded-cost acceptance remain pending the next necessary publication;
 the local compression result is not a hosted savings claim.
+
+## No main-push CI (2026-10-13)
+
+From 1 to 13 October, full CI on pushes to `main` used 542 of about 2,150
+runner minutes (each job rounded up to the minute), re-running checks that the
+squash-merged PRs had already passed. The owner chose to drop the push trigger.
+CI now runs on pull requests and manual dispatch only.
+
+The remaining risk is a PR merged while behind `main`: its combined result with
+the newer commits is not checked at merge time. Each release therefore dispatches
+full CI on the release commit beside the publication run
+(`validation-deploy.md`, Release step 2), so a release never ships an
+unverified combination. Merges between releases stay unverified on `main` until
+that dispatch.
