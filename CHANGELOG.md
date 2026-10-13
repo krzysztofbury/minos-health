@@ -153,6 +153,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Scope documentation-only CI to document/security checks while retaining full
+  checks for runtime, workflow and unknown changes. Cancel obsolete PR validation
+  without cancelling serialized manual publication (#174, #178).
 - Remove the blanket knowledge-cutoff warning and repeated cutoff copy from
   JGP and attachment-9 pages, keeping concrete source/version and applicability
   details. Bundle/API knowledge fences remain enforced; this does not advance

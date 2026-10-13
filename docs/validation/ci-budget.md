@@ -1,7 +1,9 @@
 # CI scope and Actions budget
 
-Issue: #174. First slice: documentation-only checks and obsolete PR cancellation.
-Hosted after-change measurements are pending review and publication.
+Issue: #174. First slice: documentation-only checks and obsolete PR cancellation,
+merged in #178 at `19082cf` on 2026-10-13. Full hosted PR verification passed.
+The documentation-only delivery record is the next hosted measurement; no savings
+are claimed until its job receipts are available.
 
 ## Baseline
 
@@ -43,6 +45,21 @@ permissions and private package publication guards are unchanged.
 
 ## Verification and remaining work
 
+The full local repository checks passed, including pytest, Ruff, mypy,
+BasedPyright, Bandit, Terraform formatting and Zizmor. There are 40 focused
+classifier/workflow checks. The historical #176 documentation-only change also
+selected the lightweight path when inspected using its exact Git revisions.
+
+Hosted #178 PR verification of the workflow change retained the full path:
+
+| Run | Boundary | Execution time | Rounded job minutes |
+| --- | --- | ---: | ---: |
+| [38385878346](https://github.com/krzysztofbury/minos-health/actions/runs/38385878346) | Full CI | 9m18s | 10 |
+| [38385878327](https://github.com/krzysztofbury/minos-health/actions/runs/38385878327) | Containers/browser | 3m36s | 4 |
+
+Both succeeded on their first attempt. PR publication remained skipped. The
+main-push run and this documentation-only follow-up have separate receipts.
+
 Local executable tests use real Git repositories to cover the whole-change-set
 contract, renamed runtime files, deleted README, symlinks/modes, manual dispatch,
 invalid/missing baselines, checkout mismatch and Actions output serialization.
@@ -54,7 +71,14 @@ workflow change and the next documentation-only delivery record. Do not skip CI
 on that documentation update. Count executed job time and per-job rounded minutes,
 including the PR and main paths; parallel wall-clock savings are not cost savings.
 
-The image-promotion trust boundary, more granular web/runtime/infrastructure
-classification, reviewed private build caching, representative after-change
+The owner approved the next image-promotion design: transfer the tested API/edge
+images within the same manual-main workflow, retaining read-only verification and
+an immutable artifact-ID handoff to the private publisher. Retain this temporary
+image archive for one day. A local representative archive measured 106,585,088
+bytes; transfer time and hosted/storage costs still need measurement. This approval
+does not activate new images on the production host.
+
+Implementation of that image-promotion boundary, more granular web/runtime/
+infrastructure classification, reviewed private build caching, representative after-change
 measurements and an owner-reviewed monthly budget remain in #174. This first
 slice does not claim the entire issue is complete.

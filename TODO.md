@@ -5,12 +5,12 @@ Execution backlog lives in [GitHub issues](https://github.com/krzysztofbury/mino
 estimates). This file remains the spec-level checklist; issues carry the
 day-to-day order.
 
-## Reconciled Delivery Status (2026-10-12)
+## Reconciled Delivery Status (2026-10-13)
 
-Latest verified validation deployment: #169, revision `da8b675`, activated
-2026-10-12T09:23:17Z with the unchanged schema-10 bundle.
-[Concept acceptance](https://github.com/krzysztofbury/minos-health/issues/23#issuecomment-6121441538)
-records exact identities, public JSON/bundle equality and API/browser checks.
+Latest verified validation deployment: #171/#172, revision `088f190`, activated
+2026-10-12T13:29:24Z with the unchanged schema-10 bundle.
+[Source/citation acceptance](docs/validation/source-citations.md#production-activation)
+records exact identities, copied-state recovery and public API/browser checks.
 This is a dated deployment record, not a new production inspection.
 
 The owner-approved sequence #162 recovery, #92 metadata and #23 concept detail
@@ -44,8 +44,9 @@ These remaining gates stay open.
       state, indexing, practitioner and legal evidence remain open.
       See [the evidence](docs/validation/source-citations.md).
 - [ ] Reduce redundant Actions work against measured CI budgets (#174).
-      First slice scopes documentation checks and cancels superseded PR validation;
-      hosted measurements and artifact-promotion review remain pending. See
+      #178 scopes documentation checks and cancels superseded PR validation;
+      full PR verification passed. Docs-only hosted measurement and the approved
+      tested-image transfer implementation remain pending. See
       [CI scope and budget](docs/validation/ci-budget.md).
 - [ ] Reconcile API startup/rollback waits with measured host contention (#27/#42).
       The #171/#172 activation needed an owner-approved one-off five-minute wait.
