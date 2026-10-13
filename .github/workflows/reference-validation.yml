@@ -112,7 +112,7 @@ jobs:
           name: tested-validation-images-${{ github.run_attempt }}
           path: ${{ runner.temp }}/tested-images/
           if-no-files-found: error
-          compression-level: 0 # Docker archive layers are already compressed.
+          compression-level: 1 # Hosted docker save includes compressible layers.
           retention-days: 1
 
   publish:

@@ -102,12 +102,13 @@ the entire issue is complete.
 ## Tested validation image transfer
 
 The second slice replaces the validation publisher's rebuild with a same-run
-transfer. Implementation and local Docker acceptance are complete; hosted
-publication acceptance is pending.
+transfer. Hosted publication acceptance passed in #180's main run
+`38391304551` at `47a236630d1e893ef80298c2430c501e4ca72b28`.
 
 - Export runs only after both browser/container verification and vulnerability
-  scans. Only a manual main publication uploads the image archive, with one-day
-  retention and no compression of the already-compressed layers.
+   scans. Only a manual main publication uploads the image archive, with one-day
+   retention and level-1 transport compression. The extracted Docker archive
+   remains byte-identical and is verified before loading.
 - Verification stays read-only. Its upload's immutable artifact ID is passed
   directly to the publisher. A missing ID or download digest mismatch fails the
   job. There is no artifact-name search, cross-run lookup or PR image artifact.
@@ -131,5 +132,29 @@ isolated loopback registry. The 106,572,288-byte archive exported in 1.026 secon
 restored in 0.924 seconds and pushed/pulled in 1.033 seconds. A deliberate byte
 mutation was refused before Docker load. All owned probe containers, image
 identities and scratch were removed. These local times do not estimate GitHub
-network transfer or billing. The first hosted main publication must establish
-those costs and private-GHCR identity acceptance before claiming savings.
+network transfer or billing.
+
+### Hosted Acceptance And Compression Follow-up (2026-10-13)
+
+The successful manual-main run transferred immutable artifact ID `11808803527`
+to the publisher, bound to run `38391304551`, attempt 1 and source `47a236630d1e893ef80298c2430c501e4ca72b28`.
+The existing release consumer accepted the receipt. Independent authenticated
+registry manifest reads matched both tested config digests; API and edge packages
+remain private. Temporary artifacts expire after one day and receipts after 90
+days. No host activation occurred.
+
+| Publication | Verify | Publish | Total execution | Rounded job minutes |
+| --- | ---: | ---: | ---: | ---: |
+| Prior rebuild, `38250456248` | 214s | 50s | 264s | 5 |
+| Tested transfer, `38391304551` | 199s | 66s | 265s | 6 |
+
+These observations establish exact-image promotion, not publication savings.
+The hosted Docker archive was 278,501,888 bytes, rather than the smaller local
+sample; its uncompressed Actions artifact occupied 278,502,596 bytes. The previous
+assumption that Docker save layers were already compressed did not hold here.
+
+A local level-1 ZIP probe on the actual downloaded hosted archive produced
+115,452,984 bytes in 2.347 seconds, a 58.5% reduction, and verified the exact
+extracted archive SHA-256. The workflow now requests level 1. Hosted transfer
+timing and rounded-cost acceptance remain pending the next necessary publication;
+the local compression result is not a hosted savings claim.
