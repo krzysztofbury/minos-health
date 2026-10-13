@@ -2,8 +2,8 @@
 
 Issue: #174. First slice: documentation-only checks and obsolete PR cancellation,
 merged in #178 at `19082cf` on 2026-10-13. Full hosted PR verification passed.
-The documentation-only delivery record is the next hosted measurement; no savings
-are claimed until its job receipts are available.
+Documentation-only PR #179 passed both existing verification checks in 95 seconds
+of combined job time. Main-push acceptance is recorded separately below.
 
 ## Baseline
 
@@ -60,6 +60,22 @@ Hosted #178 PR verification of the workflow change retained the full path:
 Both succeeded on their first attempt. PR publication remained skipped. The
 main-push run and this documentation-only follow-up have separate receipts.
 
+| Run | Boundary | Execution time | Rounded job minutes |
+| --- | --- | ---: | ---: |
+| [38386993114](https://github.com/krzysztofbury/minos-health/actions/runs/38386993114) | #178 main full CI | 10m09s | 11 |
+| [38387162615](https://github.com/krzysztofbury/minos-health/actions/runs/38387162615) | #179 documentation PR CI | 1m16s | 2 |
+| [38387162697](https://github.com/krzysztofbury/minos-health/actions/runs/38387162697) | #179 documentation PR validation | 19s | 1 |
+| [38388299143](https://github.com/krzysztofbury/minos-health/actions/runs/38388299143) | #179 documentation main CI | 1m06s | 2 |
+
+The docs-only PR used 1.58 execution minutes compared with #170's 13.55 PR minutes,
+an observed 88.3% reduction. This is one observed path, not a monthly savings
+forecast. Step receipts confirm changed-document checks and complete-history secret
+scanning ran, while unrelated runtime/infrastructure/container work was skipped.
+Including the successful main push, the full documentation delivery used 2m41s
+instead of the 23m36s baseline, an observed 88.6% reduction. Per-job rounding gives
+5 versus 25 minutes. Receipts are retained locally under
+`test-output/issue-174-ci-2026-10-13/`.
+
 Local executable tests use real Git repositories to cover the whole-change-set
 contract, renamed runtime files, deleted README, symlinks/modes, manual dispatch,
 invalid/missing baselines, checkout mismatch and Actions output serialization.
@@ -71,14 +87,49 @@ workflow change and the next documentation-only delivery record. Do not skip CI
 on that documentation update. Count executed job time and per-job rounded minutes,
 including the PR and main paths; parallel wall-clock savings are not cost savings.
 
-The owner approved the next image-promotion design: transfer the tested API/edge
+The owner approved the image-promotion design: transfer the tested API/edge
 images within the same manual-main workflow, retaining read-only verification and
 an immutable artifact-ID handoff to the private publisher. Retain this temporary
 image archive for one day. A local representative archive measured 106,585,088
 bytes; transfer time and hosted/storage costs still need measurement. This approval
 does not activate new images on the production host.
 
-Implementation of that image-promotion boundary, more granular web/runtime/
-infrastructure classification, reviewed private build caching, representative after-change
-measurements and an owner-reviewed monthly budget remain in #174. This first
-slice does not claim the entire issue is complete.
+More granular web/runtime/infrastructure classification, watcher cross-workflow
+promotion, reviewed private build caching, representative after-change measurements
+and an owner-reviewed monthly budget remain in #174. These slices do not claim
+the entire issue is complete.
+
+## Tested validation image transfer
+
+The second slice replaces the validation publisher's rebuild with a same-run
+transfer. Implementation and local Docker acceptance are complete; hosted
+publication acceptance is pending.
+
+- Export runs only after both browser/container verification and vulnerability
+  scans. Only a manual main publication uploads the image archive, with one-day
+  retention and no compression of the already-compressed layers.
+- Verification stays read-only. Its upload's immutable artifact ID is passed
+  directly to the publisher. A missing ID or download digest mismatch fails the
+  job. There is no artifact-name search, cross-run lookup or PR image artifact.
+- `scripts/validation_images.py` binds the archive length/SHA-256 and exact Docker
+  image IDs to the source SHA, workflow run and attempt. It refuses malformed,
+  oversized, nonregular, corrupt and mismatched input before loading images.
+- Loaded IDs, platform and source labels must match the verified identities.
+  Publication tags those IDs, pushes them without building, pulls the resulting
+  registry digests and verifies the image IDs again. Docker engine IDs may denote
+  config or manifest digests depending on the image store; equality is required
+  throughout the transfer on the pinned runner platform.
+- The existing `validation-release.json` contract remains unchanged. A small
+  `validation-build.json` receipt retains the transferred identity evidence for
+  90 days alongside it. The large image archive expires after one day.
+- A failed or partial publication emits no release receipt. The operator must
+  inspect failed attempts; the helper does not retry or activate the host.
+
+An owned local Docker probe used representative API/edge layers, synthetic source
+labels, removed the exported images before loading, and pushed/pulled through an
+isolated loopback registry. The 106,572,288-byte archive exported in 1.026 seconds,
+restored in 0.924 seconds and pushed/pulled in 1.033 seconds. A deliberate byte
+mutation was refused before Docker load. All owned probe containers, image
+identities and scratch were removed. These local times do not estimate GitHub
+network transfer or billing. The first hosted main publication must establish
+those costs and private-GHCR identity acceptance before claiming savings.

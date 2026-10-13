@@ -153,6 +153,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Transfer the tested API/edge images to the private validation publisher instead
+  of rebuilding them, with same-run artifact identity, bounded one-day image
+  retention and post-push identity verification (#174; hosted acceptance pending).
 - Scope documentation-only CI to document/security checks while retaining full
   checks for runtime, workflow and unknown changes. Cancel obsolete PR validation
   without cancelling serialized manual publication (#174, #178).
