@@ -25,7 +25,7 @@ import time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import cast, final
+from typing import NamedTuple, cast, final
 
 PRODUCTION_ROOT = Path("/opt/minos")
 VALIDATION_SERVICES = ("reference-api", "edge")
@@ -47,8 +47,8 @@ MIN_AVAILABLE_MIB = 300
 MAX_KEEP = 5
 INSPECT_FORMAT = '{{.Id}} {{.RestartCount}} {{if .State.Running}}{{if index .State "Health"}}{{.State.Health.Status}}{{else}}none{{end}}{{else}}{{.State.Status}}{{end}}'
 PULL_TIMEOUT_S = 900
-UP_WAIT_TIMEOUT_S = 180
-COMPOSE_TIMEOUT_S = UP_WAIT_TIMEOUT_S + 120
+UP_WAIT_TIMEOUT_S = 300
+COMPOSE_TIMEOUT_S = 300
 DOCKER_TIMEOUT_S = 60
 MAX_COMMAND_OUTPUT = 256 * 1024
 # Compose files owned by the watcher and maintenance procedures; their images
@@ -90,7 +90,7 @@ def canonical(value: object) -> bytes:
     return (json.dumps(value, indent=2, sort_keys=True) + "\n").encode()
 
 
-def run(arguments: list[str], timeout_s: int) -> str:
+def run(arguments: list[str], timeout_s: float) -> str:
     try:
         completed = subprocess.run(
             arguments, capture_output=True, text=True, timeout=timeout_s, check=False
@@ -362,35 +362,196 @@ def validation_health(layout: Layout) -> dict[str, str]:
     }
 
 
+class StartupState(NamedTuple):
+    identifier: str
+    restarts: int
+    running: bool
+    oom_killed: bool
+    health: str
+
+
+def remaining(deadline: float) -> float:
+    budget = deadline - time.monotonic()
+    if budget <= 0:
+        raise HostError(
+            "startup deadline exhausted",
+            {"status": "startup_deadline", "failure_classes": ["timeout"]},
+        )
+    return min(DOCKER_TIMEOUT_S, budget)
+
+
+def startup_state(layout: Layout, service: str, deadline: float) -> StartupState | None:
+    identifiers = run(
+        [
+            "docker",
+            "ps",
+            "--all",
+            "--no-trunc",
+            "--filter",
+            f"label=com.docker.compose.project={layout.project}",
+            "--filter",
+            f"label=com.docker.compose.service={service}",
+            "--format",
+            "{{.ID}}",
+        ],
+        remaining(deadline),
+    ).split()
+    require(len(identifiers) <= 1, "duplicate startup service")
+    if not identifiers:
+        return None
+    identifier = identifiers[0]
+    require(
+        bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", identifier)),
+        "invalid container ID",
+    )
+    values = run(
+        [
+            "docker",
+            "inspect",
+            "--format",
+            '{{.Id}} {{.RestartCount}} {{.State.Running}} {{.State.OOMKilled}} {{if index .State "Health"}}{{or .State.Health.Status "none"}}{{else}}none{{end}}',
+            identifier,
+        ],
+        remaining(deadline),
+    ).split()
+    require(
+        len(values) == 5
+        and values[0] == identifier
+        and values[1].isdigit()
+        and values[2] in ("true", "false")
+        and values[3] in ("true", "false")
+        and values[4] in ("none", "starting", "unhealthy", "healthy"),
+        "invalid startup state",
+    )
+    return StartupState(
+        identifier, int(values[1]), values[2] == "true", values[3] == "true", values[4]
+    )
+
+
+def check_startup(
+    state: StartupState | None, baseline: StartupState | None
+) -> StartupState:
+    require(state is not None, "startup service is missing")
+    assert state is not None
+    expected_restarts = (
+        baseline.restarts
+        if baseline is not None and baseline.identifier == state.identifier
+        else 0
+    )
+    if not state.running or state.oom_killed or state.restarts != expected_restarts:
+        raise HostError(
+            "startup process failed",
+            {
+                "status": "startup_process_failed",
+                "failure_classes": ["process_failure"],
+            },
+        )
+    require(state.health != "none", "startup healthcheck is missing")
+    return state
+
+
 def compose_result(layout: Layout) -> dict[str, object]:
-    """Drain both streams within fixed byte/time bounds; persist only safe facts.
+    """One real-health deadline for API then edge, also used for exact rollback.
 
-    Compose lifecycle messages normally go to stderr, even on success. Raw
-    output is never retained: known failure classes plus exit/elapsed/byte
-    counts are sufficient to distinguish timeout, unhealthy and process failure.
-    Service state is captured independently by the calling transition.
+    Compose's unhealthy abort can precede --wait-timeout. Poll health explicitly
+    while a process is still in its initial bounded startup, preserving the
+    image's health policy and the byte-identical prior Compose on rollback.
     """
-    arguments = [
-        "docker",
-        "compose",
-        "--project-name",
-        layout.project,
-        "--file",
-        str(layout.compose),
-        "up",
-        "--detach",
-        "--no-deps",
-        "--wait",
-        "--wait-timeout",
-        str(UP_WAIT_TIMEOUT_S),
-        *VALIDATION_SERVICES,
-    ]
-    return bounded_command(arguments)
+    began = time.monotonic()
+    deadline = began + UP_WAIT_TIMEOUT_S
+    phase = "inspection"
+    output_bytes = 0
+    ready: dict[str, StartupState] = {}
+    unhealthy: set[str] = set()
+
+    def result(details: dict[str, object]) -> dict[str, object]:
+        return {
+            **details,
+            "phase": phase,
+            "startup_wait_seconds": UP_WAIT_TIMEOUT_S,
+            "duration_ms": round((time.monotonic() - began) * 1000),
+            "output_bytes": output_bytes,
+            "startup_unhealthy_seen": sorted(unhealthy),
+        }
+
+    def check_ready() -> None:
+        for completed, expected in ready.items():
+            current = check_startup(
+                startup_state(layout, completed, deadline), expected
+            )
+            if current != expected:
+                raise HostError(
+                    "ready service changed during startup",
+                    {
+                        "status": "startup_readiness_lost",
+                        "failure_classes": ["state_changed"],
+                    },
+                )
+
+    try:
+        before = {
+            service: startup_state(layout, service, deadline)
+            for service in VALIDATION_SERVICES
+        }
+        for service in VALIDATION_SERVICES:
+            phase = service
+            launched = bounded_command(
+                [
+                    "docker",
+                    "compose",
+                    "--project-name",
+                    layout.project,
+                    "--file",
+                    str(layout.compose),
+                    "up",
+                    "--detach",
+                    "--no-deps",
+                    service,
+                ],
+                timeout_s=remaining(deadline),
+            )
+            output_bytes += cast(int, launched["output_bytes"])
+            if launched["status"] != "completed":
+                return result(launched)
+            observed: str | None = None
+            while True:
+                check_ready()
+                current = check_startup(
+                    startup_state(layout, service, deadline), before[service]
+                )
+                require(
+                    observed in (None, current.identifier), "startup container changed"
+                )
+                observed = current.identifier
+                _ = remaining(deadline)
+                if current.health == "healthy":
+                    ready[service] = current
+                    break
+                if current.health == "unhealthy":
+                    unhealthy.add(service)
+                time.sleep(min(2.0, remaining(deadline)))
+        check_ready()
+        _ = remaining(deadline)
+        return result({"status": "completed", "exit_code": 0, "failure_classes": []})
+    except (HostError, OSError, ValueError) as error:
+        details: dict[str, object] = (
+            error.details if isinstance(error, HostError) else {}
+        )
+        if time.monotonic() >= deadline:
+            details = {"status": "startup_deadline", "failure_classes": ["timeout"]}
+        return result(
+            details or {"status": "startup_inspection_failed", "failure_classes": []}
+        )
 
 
-def bounded_command(arguments: list[str]) -> dict[str, object]:
+def bounded_command(
+    arguments: list[str], *, timeout_s: float | None = None
+) -> dict[str, object]:
     """Execute an operational command with the same private bounded capture."""
     began = time.monotonic()
+    limit = (
+        COMPOSE_TIMEOUT_S if timeout_s is None else min(COMPOSE_TIMEOUT_S, timeout_s)
+    )
     outcome = "completed"
     size = 0
     classifications: set[str] = set()
@@ -406,7 +567,7 @@ def bounded_command(arguments: list[str]) -> dict[str, object]:
             with selectors.DefaultSelector() as selector:
                 _ = selector.register(process.stdout, selectors.EVENT_READ)
                 while selector.get_map():
-                    if time.monotonic() - began >= COMPOSE_TIMEOUT_S:
+                    if time.monotonic() - began >= limit:
                         outcome = "timeout"
                         break
                     for key, _ in selector.select(timeout=0.1):
@@ -433,9 +594,7 @@ def bounded_command(arguments: list[str]) -> dict[str, object]:
             if outcome == "completed":
                 try:
                     _ = process.wait(
-                        timeout=max(
-                            0.01, COMPOSE_TIMEOUT_S - (time.monotonic() - began)
-                        )
+                        timeout=max(0.01, limit - (time.monotonic() - began))
                     )
                 except subprocess.TimeoutExpired:
                     outcome = "timeout"

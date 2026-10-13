@@ -27,7 +27,7 @@ def main(output: Path, api_image: str, edge_image: str) -> None:
     from scripts.check_reference_web import get_json
     from scripts.render_validation_compose import api_service
     from scripts.smoke_reference_web import docker, fixture, get_page
-    from scripts.validation_host import Layout, operational
+    from scripts.validation_host import Layout, compose_result, operational
 
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -106,6 +106,21 @@ def main(output: Path, api_image: str, edge_image: str) -> None:
     }
     candidate = copy.deepcopy(previous)
     candidate_services = cast(dict[str, dict[str, object]], candidate["services"])
+    entrypoint = cast(
+        list[str],
+        json.loads(
+            docker(
+                "image", "inspect", "--format", "{{json .Config.Entrypoint}}", api_image
+            )
+        ),
+    )
+    candidate_services["reference-api"]["entrypoint"] = [
+        "/build/.venv/bin/python",
+        "-c",
+        f"import os,time; time.sleep(4); os.execv({entrypoint[0]!r}, {entrypoint!r})",
+    ]
+    health = cast(dict[str, object], candidate_services["reference-api"]["healthcheck"])
+    health.update({"start_period": "0s", "interval": "1s", "retries": 1})
     for name in ("reference-api", "edge"):
         candidate_services[name]["labels"] = {"minos.test.revision": REVISION}
     _ = compose.write_text(json.dumps(candidate))
@@ -129,11 +144,10 @@ import os, pathlib, subprocess, sys
 docker={real_docker!r}
 args=sys.argv[1:]
 marker=pathlib.Path({str(marker)!r})
-if args[:1] == ['compose'] and 'up' in args and marker.exists():
+if args[:1] == ['compose'] and 'up' in args and args[-1] == 'edge' and marker.exists():
     marker.unlink()
     prefix=args[:args.index('up')]
     subprocess.run([docker,*prefix,'rm','--stop','--force','edge'],check=True)
-    subprocess.run([docker,*args[:-2],'reference-api'],check=True)
     subprocess.run([docker,*prefix,'create','edge'],check=True)
     print('injected failure after API restore PRIVATE_SENTINEL',file=sys.stderr)
     sys.exit(1)
@@ -156,8 +170,23 @@ os.execv(docker,[docker,*args])
         )
 
     try:
-        _ = docker(*prefix, "up", "--wait", "--wait-timeout", "60")
+        _ = docker(
+            *prefix,
+            "up",
+            "--wait",
+            "--wait-timeout",
+            "60",
+            "watcher",
+            "cloudflared",
+            "uptime-kuma",
+        )
         baseline = operational(Layout(root, project))
+        delayed = compose_result(Layout(root, project))
+        assert delayed["status"] == "completed", delayed
+        assert "reference-api" in cast(list[str], delayed["startup_unhealthy_seen"]), (
+            delayed
+        )
+        assert operational(Layout(root, project)) == baseline
         first = rollback_call()
         failed = cast(dict[str, object], json.loads(first.stdout))
         assert first.returncode == 2 and failed["ok"] is False, failed
@@ -200,6 +229,7 @@ os.execv(docker,[docker,*args])
             json.dumps(
                 {
                     "partial_rollback": details,
+                    "delayed_readiness": delayed,
                     "recovery": result,
                     "edge_http": "passed",
                     "operational_sentinels": 3,
@@ -212,7 +242,7 @@ os.execv(docker,[docker,*args])
 
 
 if __name__ == "__main__":
-    _ = signal.signal(signal.SIGTERM, terminate)
+    _previous_handler = signal.signal(signal.SIGTERM, terminate)
     parser = argparse.ArgumentParser(description=__doc__)
     _ = parser.add_argument("output", type=Path)
     _ = parser.add_argument(
