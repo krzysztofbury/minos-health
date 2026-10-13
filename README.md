@@ -43,8 +43,10 @@ Startup warm-up reliability (#157), guarded recovery diagnostics (#162), NFZ
 publication metadata (#92) and concept JSON (#23) are delivered and closed.
 The no-JS source-catalog and durable RSK/BAW citation slice from
 [PR #171](https://github.com/krzysztofbury/minos-health/pull/171) passed production
-recovery and public/browser acceptance; broader #80 remains open. Actions usage
-and redundant build work are measured in #174.
+recovery and public/browser acceptance; source filters, sorting and shareable
+views followed at `736ba9f` (#185), and broader #80 remains open. Bounded startup
+readiness (#181) passed its first production activation. Actions usage is measured
+in #174; full CI no longer re-runs on pushes to `main`.
 
 The initial golden suite has 9 synthetic and 5 pinned-source derived cases.
 Practitioner builder acceptance (#158), real ward agreement (#38), and full

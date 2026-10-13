@@ -36,5 +36,12 @@ Real Chromium exercises facet selection, reload of a shared view, reset, two-pag
 navigation, narrow-panel fit, query exclusion from requests, keyboard, provider
 failure and recovery. Desktop, 390px and 320px screenshots are visually reviewed.
 Existing server-side integration tests retain source/citation and failure-isolation
-coverage. Production activation and representative field-performance acceptance
-remain separate from these local regression checks.
+coverage. Representative field-performance acceptance remains separate from
+these local regression checks.
+
+## Production
+
+Deployed through #185 in release `736ba9f`, activated 2026-10-13T14:09:23Z. On
+`https://minoshealth.pl/zrodla` the publisher, format and sort controls and the
+view link render; choosing XLSX narrowed the catalog to 11 sets, and the shared
+fragment held only `source`, `publisher`, `format`, `sort` and `page`.

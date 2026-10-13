@@ -40,17 +40,22 @@ These remaining gates stay open.
 - [ ] Complete source-page discovery/citation improvements (#80). Historical
       downloads remain rights-gated (#84). No-JS RSK/BAW catalogs and durable
       citations are deployed through #171/#172 at `088f190`; production recovery
-      and public/browser acceptance passed. Cloudflare, facets/sorting/shareable
-      state, indexing, practitioner and legal evidence remain open.
+      and public/browser acceptance passed. Facets, sorting and shareable state
+      are deployed through #185 at `736ba9f`. Cloudflare, indexing, practitioner
+      and legal evidence remain open.
       See [the evidence](docs/validation/source-citations.md).
 - [ ] Reduce redundant Actions work against measured CI budgets (#174).
       #178 scopes documentation checks and cancels superseded PR validation;
       full PR/main verification passed. The docs-only PR/main path used 2m41s
-      versus 23m36s previously. Tested-image transfer passes local acceptance;
-      hosted publication acceptance remains pending. See
+      versus 23m36s previously. Tested-image transfer passed hosted acceptance
+      (#180, #183: 45s publish). #186 drops full CI on main pushes; a code change
+      now costs 14 rounded minutes instead of about 25. The monthly budget awaits
+      owner review. See
       [CI scope and budget](docs/validation/ci-budget.md).
-- [ ] Reconcile API startup/rollback waits with measured host contention (#27/#42).
-      The #171/#172 activation needed an owner-approved one-off five-minute wait.
+- [x] Reconcile API startup/rollback waits with measured host contention (#181,
+      delivered through #182). The first activation at `736ba9f` rode out an
+      initially unhealthy API in 212.7 of 300 seconds; the contention source
+      remains unidentified (#27/#42).
 - [x] Preserve deployment/rollback diagnostics and verify edge recovery (#162,
       delivered through #166 at `850a58e`). Real partial-rollback recovery and
       public acceptance passed; the original #161/#164 failure causes remain
