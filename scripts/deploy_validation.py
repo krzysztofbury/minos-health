@@ -461,6 +461,16 @@ def verify_ingress(base: str) -> dict[str, object]:
     return {"public_ingress": "healthy", "readyz_status": status, "home_status": home}
 
 
+def verify_home(base: str) -> str:
+    """Refuse a homepage the proxy rewrote; email obfuscation injects /cdn-cgi/."""
+    status, body = get(base + "/")
+    if status != 200:
+        raise DeployError(f"public homepage is not served: {status}")
+    if b"/cdn-cgi/" in body:
+        raise DeployError("public homepage was rewritten by the edge proxy")
+    return "served without edge rewriting"
+
+
 def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
     status, body = get(base + "/readyz")
     ready = cast(dict[str, object], json.loads(body)) if status == 200 else {}
@@ -469,6 +479,7 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
             f"public readiness does not serve the planned dataset: {status}"
         )
     checks: dict[str, object] = {"readyz": "ready", "dataset_id": value.dataset_id}
+    checks["home"] = verify_home(base)
     if value.rank_sample is not None:
         code, rank = value.rank_sample
         status, body = get(f"{base}/slowniki/icd-9/{code}")

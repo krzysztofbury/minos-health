@@ -761,3 +761,31 @@ def test_rollback_success_event_requires_public_ingress(
         with pytest.raises(DeployError, match="public ingress"):
             deploy_validation.main(arguments)
         assert "rolled_back" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "error"),
+    [
+        (200, b"<html><a href='mailto:kontakt@minoshealth.pl'>", None),
+        (
+            200,
+            b'<script src="/cdn-cgi/scripts/x/cloudflare-static/email-decode.min.js">',
+            "rewritten by the edge proxy",
+        ),
+        (503, b"", "not served"),
+    ],
+)
+def test_verify_home_refuses_a_proxy_rewritten_homepage(
+    monkeypatch: pytest.MonkeyPatch, status: int, body: bytes, error: str | None
+) -> None:
+    def get(_url: str) -> tuple[int, bytes]:
+        return status, body
+
+    monkeypatch.setattr(deploy_validation, "get", get)
+    if error is None:
+        assert deploy_validation.verify_home("https://example.test") == (
+            "served without edge rewriting"
+        )
+    else:
+        with pytest.raises(DeployError, match=error):
+            _ = deploy_validation.verify_home("https://example.test")
