@@ -155,9 +155,9 @@ assumption that Docker save layers were already compressed did not hold here.
 
 A local level-1 ZIP probe on the actual downloaded hosted archive produced
 115,452,984 bytes in 2.347 seconds, a 58.5% reduction, and verified the exact
-extracted archive SHA-256. The workflow now requests level 1. Hosted transfer
-timing and rounded-cost acceptance remain pending the next necessary publication;
-the local compression result is not a hosted savings claim.
+extracted archive SHA-256. The workflow now requests level 1. The first hosted
+publication with it, run `38408703227` for release `736ba9f`, spent 45 seconds in
+the publish job against 66 seconds for `38391304551`, one rounded minute either way.
 
 ## No main-push CI (2026-10-13)
 
@@ -172,3 +172,28 @@ full CI on the release commit beside the publication run
 (`validation-deploy.md`, Release step 2), so a release never ships an
 unverified combination. Merges between releases stay unverified on `main` until
 that dispatch.
+
+## Measured per-change budget (2026-10-13)
+
+Rounded job minutes from Actions receipts after #178, #183 and #186:
+
+| Change | Receipts | Verify | Containers and browser | Publish | Rounded minutes |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Web copy | #185 | 576s | 204s | | 14 |
+| Python dependency | #173 | 567s | 214s | | 14 |
+| Infrastructure lock | #177 | 545s | 209s | | 14 |
+| Workflow pins | #175 | 565s | 209s | | 14 |
+| Workflow and test | #186 | 587s | 238s | | 14 |
+| Documentation only | #179 | 95s combined | | | 2 |
+| Release (dispatch CI and publication) | `38408698178`, `38408703227` | 616s | 270s | 45s | 17 |
+
+Every non-documentation PR currently costs the same 14 rounded minutes; scope
+does not yet shorten runtime paths. Before #186, each merge added full CI on
+`main` (#178 main run: 10m09s, 11 rounded minutes), so a code change cost about
+25 minutes and now costs 14.
+
+Proposed monthly budget, pending owner review: GitHub Pro includes 3,000 minutes.
+Keeping 20% headroom allows about 2,400, for example 150 code PRs (2,100) plus
+10 releases (170) plus documentation and Dependabot runs. The 2,150 minutes used
+from 1 to 13 October came mostly from many small agent PRs; batching related work
+into fewer PRs is the main lever. A self-hosted runner is parked as the next one.

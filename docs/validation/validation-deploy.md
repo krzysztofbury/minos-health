@@ -277,9 +277,15 @@ Deterministic tests exercise deadline exhaustion and process/state failures.
 The disposable container probe additionally forces initial API unhealthy status,
 injects a partial edge restoration failure, retries the exact prior Compose and
 checks HTTP readiness and three unchanged operational sentinels. Local synthetic
-checks do not establish production contention performance. Representative host
-verification of the permanent path remains pending the separately reviewed next
-activation; no production restart is authorized by this change.
+checks do not establish production contention performance.
+
+Production acceptance: the first activation on the permanent path, release
+`736ba9f` at 2026-10-13T14:09:23Z, observed the API initially unhealthy (the
+pattern that aborted the 2026-10-12 activations near 160 seconds) and completed
+the edge phase in 212.7 seconds of the 300-second deadline, exit 0, with no
+failure class and no rollback. Watcher, tunnel and Kuma kept their IDs and restart
+counts. This is one activation under the host load of that moment, leaving about
+87 seconds of headroom; the 2026-10-12 contention source remains unidentified.
 
 Local regression evidence covers nonzero remote refusals, partial restoration,
 missing edge despite a successful Compose exit, unrelated Compose refusal,

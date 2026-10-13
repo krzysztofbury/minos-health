@@ -15,6 +15,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- Source catalog publisher and file-format filters (including historical
+  attachments), name and observation-time sorting, 50-card pages and a shareable
+  view link that never carries typed text (#80, #185; deployed at `736ba9f` on
+  2026-10-13). See [discovery evidence](docs/validation/source-discovery.md).
 - Useful initial no-JS source catalogs, bounded provider/dataset pagination,
   and stable RSK/BAW source, dataset and exact-observation citation URLs (#80,
   #171; deployed with #172 at `088f190` on 2026-10-12). Retained metadata survives
@@ -153,9 +157,16 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Stop re-running full CI on pushes to `main`; releases dispatch full CI on
+  their commit instead (#174, #186).
+- Bound activation and rollback startup readiness: API first, then edge, under
+  one 300-second deadline, tolerating initial unhealthy status only while the
+  process stays alive (#181, #182). First production activation completed in
+  212.7 seconds at `736ba9f` on 2026-10-13.
 - Transfer the tested API/edge images to the private validation publisher instead
   of rebuilding them, with same-run artifact identity, bounded one-day image
-  retention and post-push identity verification (#174; hosted acceptance pending).
+  retention and post-push identity verification (#174, #180). Hosted acceptance
+  passed; level-1 transport compression (#183) cut the publish job to 45 seconds.
 - Scope documentation-only CI to document/security checks while retaining full
   checks for runtime, workflow and unknown changes. Cancel obsolete PR validation
   without cancelling serialized manual publication (#174, #178).
