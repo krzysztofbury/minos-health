@@ -22,6 +22,11 @@ These remaining gates stay open.
       CLI/HTTP grouping and encounter builder (#34-#37, #39, #46, #129).
 - [x] Deliver settlement-product classification/exclusions and official builder
       dictionaries (#145, #151), plus warm-up logging and dictionary caching (#155).
+- [x] Review captured source updates (#184): MODTAR generation 103 bound (adds
+      PZA04/PZF13 to 17.10/17.11 for July-December), knowledge horizons moved to
+      2026-10-13, ICD-10 013 re-export verified identical and kept, reader accepts
+      the rsk3 namespace. Product attachments and ELI PDFs keep documented
+      monitoring gaps. See [data sources](docs/v0.0.1/data-sources.md).
 - [x] Fix the observed startup warm-up timeout (#157). Bounded local recovery
       and actual-host retry passed; #164 is now successfully activated, with
       complete warm-up and first current/older-act golden requests passing. See

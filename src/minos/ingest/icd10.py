@@ -18,7 +18,12 @@ from minos.domain.reference import (
     SourceHeader,
 )
 
-NAMESPACE = "http://rsk.rejestrymedyczne.csioz.gov.pl"
+# RSK moved its export namespace with the rsk3 platform (#184): the reviewed
+# 013 XML of 2026-09-22 differs from the deployed one only in this namespace,
+# the root version attribute and the export link. A document uses one of them.
+NAMESPACES: frozenset[str] = frozenset(
+    ("http://rsk.rejestrymedyczne.csioz.gov.pl", "https://rsk3.ezdrowie.gov.pl/")
+)
 CHUNK_SIZE_BYTES = 16 * 1024
 ROOT_ATTRIBUTES: frozenset[str] = frozenset(
     (
@@ -108,6 +113,7 @@ class _XmlState:
         self.elements = 0
         self.nodes = 0
         self.namespace_declarations = 0
+        self.document_namespace: str | None = None
         self.root_closed = False
 
     def fail(self, reason: str) -> NoReturn:
@@ -132,8 +138,14 @@ class _XmlState:
         self.namespace_declarations += 1
         if self.namespace_declarations > self.limits.max_attributes:
             self.fail("namespace declaration count exceeds limit")
-        if uri != NAMESPACE or (prefix and len(prefix) > 64):
+        if (
+            uri is None
+            or uri not in NAMESPACES
+            or (self.document_namespace not in (None, uri))
+            or (prefix and len(prefix) > 64)
+        ):
             self.fail("unsupported XML namespace declaration")
+        self.document_namespace = uri
 
     def comment(self, value: str) -> None:
         if len(value) > self.limits.max_text_characters:
@@ -153,7 +165,9 @@ class _XmlState:
             for value in attributes.values()
         ):
             self.fail("XML attribute value exceeds limit")
-        prefix = NAMESPACE + "}"
+        if self.document_namespace is None:
+            self.fail("unsupported XML namespace")
+        prefix = self.document_namespace + "}"
         if not qualified_name.startswith(prefix):
             self.fail("unsupported XML namespace")
         name = qualified_name[len(prefix) :]

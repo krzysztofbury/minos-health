@@ -310,7 +310,9 @@ found on `dane.gov.pl`.
 
 The checksum-verified #6 capture inspected for #11 contains a UTF-8 `hcd`
 document in namespace `http://rsk.rejestrymedyczne.csioz.gov.pl`, not an NFZ
-`komunikat`. Root attributes are `hcd`, `visible`, `closed`, `version`,
+`komunikat`. Since the rsk3 platform RSK exports the same resource under
+`https://rsk3.ezdrowie.gov.pl/`; the reader accepts exactly these two, one per
+document (#184). Root attributes are `hcd`, `visible`, `closed`, `version`,
 `applicationdate`, `registrationdate` and `maxchars`. XML `version="7"` is
 distinct from catalog resource version `013`. Root scalar fields are
 `expirationreason`, `name`, `common_name`, `codesformat`, `charset`,
@@ -545,6 +547,23 @@ the generated SQLite reference database. Issue #21 owns verified change selectio
 pinned manifest proposals, logical diff validation and automatic activation of
 policy-qualified routine data-only updates. Failed or significant candidates
 retain the last good release and produce an actionable Telegram alert.
+
+### Freshness Review 2026-10-13 (#184)
+
+- ICD-10 PL 013: RSK now serves a re-export (UUID `d38bfc6b...`, SHA-256
+  `4a82a176...`, 12,738,069 bytes) beside the pinned one (`b8dd1741...`,
+  `f3dc9811...`), which still downloads byte for byte. Parsed, all 48,058
+  classification events are identical; only the namespace, the root `version`
+  attribute (7 to 13) and the export `link` differ. The deployed pin stays;
+  re-pinning would rename the release without a content change.
+- MODTAR: generation 103 is pinned and bound (see `jgp-modifiers-ingest.md`).
+- Monitoring coverage: the public BAW projection lists parent documents and
+  selected files, not the 30 pinned product-catalog attachments. Their
+  freshness follows from the parent document and attachment metadata, which
+  showed no act after 102/2026; their bytes are not re-checked by the watcher.
+  The two ELI legal dictionary PDFs (specialties, discharge modes) are not
+  watched at all and need a manual check against the Sejm ELI API before
+  claiming they are current.
 
 ## Archive And Failure Rules
 

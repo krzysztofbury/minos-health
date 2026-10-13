@@ -1,6 +1,6 @@
 {
-  "characteristics_knowledge_as_of": "2026-10-02",
-  "characteristics_knowledge_evidence": "Reviewed 46/2026 lineage through 102/2026, using the existing 2026-10-02 horizon. Research capture on 2026-10-03 does not advance knowledge coverage.",
+  "characteristics_knowledge_as_of": "2026-10-13",
+  "characteristics_knowledge_evidence": "Reviewed 46/2026 lineage through 102/2026. BAW watcher projection revision 318 observed 2026-10-13T05:01Z: the latest act date among tracked documents is 2026-09-23 (102/2026/DSOZ, consolidated 44042 and comparison documents 44043/44044); no later amendment of 46/2026/DSOZ. The pinned catalog and attachment 9 workbooks matched their checksums at the same URLs on 2026-10-13 (#184).",
   "characteristics": [
     {
       "release_id": "jgp-conditions-46-2026-original-915c13de1b40",

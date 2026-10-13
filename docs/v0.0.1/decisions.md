@@ -549,7 +549,11 @@ These owner assumptions replace the answers and unblock #35:
   robotic groups under 17.18, PZA04/PZF13, PZD04A) follow the dictionary and are
   shown as known risks next to the affected answers.
 - Generation 102 (published 2026-09-24) binds every 2026 catalog from that
-  knowledge date; earlier knowledge dates stay unbound.
+  knowledge date; earlier knowledge dates stay unbound. On 2026-10-13 (#184)
+  generation 103 (published 2026-10-09) replaced it under the same rule, from
+  knowledge date 2026-10-09: it equals 102 plus four records adding PZA04 and
+  PZF13 to 17.10 and 17.11 for months 7-12, which settles that #129 difference
+  for July-December. January-June stays as published (without them).
 - Section 17(6a) (simultaneous bilateral inguinal hernia, F72/F73, 1.4, from
   2026-10-01) is missing from MODTAR but undisputed. It is a separately
   attributed legal supplement that the caller must declare.

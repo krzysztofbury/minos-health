@@ -1,8 +1,8 @@
 """Write the owner-assumed MODTAR overlay into the content-addressed archive.
 
-Owner decision 2026-10-07 (docs/v0.0.1/decisions.md): MODTAR as published wins,
-generation 102 binds every 2026 catalog, and section 17(6a) is a separately
-attributed supplement the caller must declare. The overlay is deterministic:
+Owner decision 2026-10-07 (docs/v0.0.1/decisions.md): MODTAR as published wins
+and binds every 2026 catalog (generation 102, then 103 from 2026-10-13, #184),
+and section 17(6a) is a separately attributed supplement the caller must declare. The overlay is deterministic:
 the same pinned XML and catalog windows always give the same bytes and digest.
 """
 
@@ -52,7 +52,12 @@ SECTION_17_6A = LegalProvision(
 )
 
 
-def overlay(manifest: ModifierManifest, archive: Path, bundle: Path) -> LegalOverlay:
+def overlay(
+    manifest: ModifierManifest,
+    archive: Path,
+    bundle: Path,
+    reviewed_on: date = REVIEWED_ON,
+) -> LegalOverlay:
     with tempfile.TemporaryDirectory(dir=archive) as staging:
         with verified_source(
             archive, manifest.xml, staging_directory=Path(staging)
@@ -88,7 +93,7 @@ def overlay(manifest: ModifierManifest, archive: Path, bundle: Path) -> LegalOve
         manifest.generation,
         "SZP",
         tuple(governing),
-        REVIEWED_ON,
+        reviewed_on,
         (EVIDENCE,),
         tuple(rows),
         (SECTION_17_6A,),
@@ -102,6 +107,7 @@ class Arguments(argparse.Namespace):
     generation: int = 0
     archive_root: Path = Path()
     catalog_bundle: Path = Path()
+    reviewed_on: date = REVIEWED_ON
 
 
 def main() -> None:
@@ -110,6 +116,9 @@ def main() -> None:
     _ = parser.add_argument("--generation", type=int, required=True)
     _ = parser.add_argument("--archive-root", type=Path, required=True)
     _ = parser.add_argument("--catalog-bundle", type=Path, required=True)
+    _ = parser.add_argument(
+        "--reviewed-on", type=date.fromisoformat, default=REVIEWED_ON
+    )
     args = Arguments()
     _ = parser.parse_args(namespace=args)
     selection = cast(
@@ -120,7 +129,7 @@ def main() -> None:
         for item in selection["modifiers"]
         if item["generation"] == args.generation
     )
-    value = overlay(manifest, args.archive_root, args.catalog_bundle)
+    value = overlay(manifest, args.archive_root, args.catalog_bundle, args.reviewed_on)
     content = canonical_json(
         LegalOverlayInput.model_validate_json(json.dumps(asdict(value), default=str))
     )

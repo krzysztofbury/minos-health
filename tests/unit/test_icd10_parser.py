@@ -49,6 +49,23 @@ def test_synthetic_source_preserves_structure_and_distinguishes_codes() -> None:
     }
 
 
+def test_the_rsk3_namespace_yields_the_same_classification() -> None:
+    original = (FIXTURES / "minimal.xml").read_bytes()
+    moved = original.replace(
+        b"http://rsk.rejestrymedyczne.csioz.gov.pl", b"https://rsk3.ezdrowie.gov.pl/"
+    )
+    assert moved != original
+    assert tuple(parse_icd10(BytesIO(moved))) == tuple(parse_icd10(BytesIO(original)))
+    # One document may not mix the two reviewed namespaces.
+    mixed = original.replace(
+        b"<nodes>",
+        b'<nodes xmlns="https://rsk3.ezdrowie.gov.pl/">',
+        1,
+    )
+    with pytest.raises(SourceError, match="namespace"):
+        _ = tuple(parse_icd10(BytesIO(mixed)))
+
+
 @pytest.mark.parametrize(
     ("filename", "reason"),
     [("dtd.xml", "prohibited"), ("unsupported.xml", "unsupported XML structure")],
