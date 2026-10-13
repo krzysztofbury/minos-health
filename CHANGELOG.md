@@ -15,6 +15,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- A read-only site audit (`tests/browser/site-audit-browser.mjs`) of every
+  public page family: no-JS at three widths, 200% text, clipping, console errors
+  and script origins (#80). Release verification now refuses a homepage the
+  edge proxy rewrote (`/cdn-cgi/`). See [the audit](docs/validation/site-audit.md).
 - Source catalog publisher and file-format filters (including historical
   attachments), name and observation-time sorting, 50-card pages and a shareable
   view link that never carries typed text (#80, #185; deployed at `736ba9f` on
@@ -157,6 +161,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- `/gruper` without JavaScript shows only the explanation instead of step
+  controls that cannot work, and long attachment names wrap inside source cards
+  (#80).
 - Hash the reference database once per API process instead of once per pool
   connection, re-hashing any file whose stat identity changes, and index
   characteristics evidence in one pass. Validation is unchanged; local readiness
