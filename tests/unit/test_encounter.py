@@ -341,7 +341,8 @@ def test_error_and_default_repr_do_not_disclose_facts(
         assert "A00" not in repr(fact)
         assert "00.121" not in str(fact)
         assert "ward-a" not in repr(fact)
-        assert "1990" not in repr(fact)
+        assert "1990-02-03" not in repr(fact)
+        assert "date(1990, 2, 3)" not in repr(fact)
     assert capsys.readouterr() == ("", "")
 
 
@@ -387,7 +388,9 @@ def test_product_occurrences_dates_and_completeness_are_preserved() -> None:
     assert partial.settlement_products == result.settlement_products
     for fact in (result, *result.settlement_products):
         assert "5.52.01.0001363" not in repr(fact)
-        assert "2026" not in str(fact)
+        # A bare year can occur in object.__repr__'s hexadecimal address.
+        assert "2026-" not in str(fact)
+        assert "date(2026," not in str(fact)
     attribute = "code"
     with pytest.raises(FrozenInstanceError):
         setattr(result.settlement_products[0], attribute, "other")
