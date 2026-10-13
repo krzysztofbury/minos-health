@@ -174,7 +174,13 @@ def host_for(site: tuple[Path, Path, Path]) -> Host:
         ).decode()
         completed = subprocess.run(
             [sys.executable, "-", command, encoded],
-            input=HOST_PROGRAM.read_bytes(),
+            input=(
+                "import sys, types\nmodule = types.ModuleType('host_fixture')\n"
+                f"exec({HOST_PROGRAM.read_text()!r}, module.__dict__)\n"
+                # Keep real subprocess/CLI/receipt coverage without five-minute
+                # waits for deliberately unhealthy synthetic containers.
+                "module.UP_WAIT_TIMEOUT_S = 5\nsys.exit(module.main(sys.argv))\n"
+            ).encode(),
             capture_output=True,
             timeout=60,
             check=False,
@@ -700,7 +706,7 @@ def test_invalid_or_conflicting_host_answers_never_report_success(
 
 
 @pytest.mark.parametrize("mode", ["timeout", "output_limit"])
-def test_compose_failure_capture_is_bounded_and_private(
+def test_operational_command_capture_is_bounded_and_private(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str
 ) -> None:
     docker = tmp_path / "docker"
@@ -713,15 +719,13 @@ def test_compose_failure_capture_is_bounded_and_private(
     docker.chmod(0o755)
     monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ["PATH"])
     monkeypatch.setattr(validation_host, "COMPOSE_TIMEOUT_S", 0.2)
-    log = tmp_path / "compose.log"
-    with pytest.raises(HostError):
-        validation_host.compose_up(validation_host.Layout(tmp_path, "minos-test"), log)
-    record = cast(dict[str, object], json.loads(log.read_bytes()))
+    record = validation_host.bounded_command(["docker", "compose", "up"])
     assert record["status"] == mode
     assert (
         cast(int, record["output_bytes"]) <= validation_host.MAX_COMMAND_OUTPUT + 4096
     )
-    assert log.stat().st_size < 1024 and "PRIVATE_PAYLOAD" not in log.read_text()
+    encoded = json.dumps(record)
+    assert len(encoded) < 1024 and "PRIVATE_PAYLOAD" not in encoded
 
 
 @pytest.mark.parametrize("healthy", [False, True])

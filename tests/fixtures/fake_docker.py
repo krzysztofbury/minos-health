@@ -43,7 +43,11 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
         json.loads(Path(arguments[arguments.index("--file") + 1]).read_text()),
     )
     containers = cast(dict[str, dict[str, object]], state["containers"])
-    selected = ("watcher",) if arguments[-1] == "watcher" else ("reference-api", "edge")
+    selected = tuple(
+        argument
+        for argument in arguments[arguments.index("up") + 1 :]
+        if argument in ("reference-api", "edge", "watcher")
+    )
     for service in selected:
         image = compose["services"][service]["image"]
         old = next(
@@ -104,6 +108,22 @@ def main(arguments: list[str]) -> int:
     output: list[str] = []
     status = 0
     match arguments:
+        case [
+            "ps",
+            "--all",
+            "--no-trunc",
+            "--filter",
+            _,
+            "--filter",
+            service,
+            "--format",
+            "{{.ID}}",
+        ]:
+            output = [
+                key
+                for key, value in containers.items()
+                if value["service"] == service.rsplit("=", 1)[1]
+            ]
         case ["ps", "--all", "--no-trunc", "--filter", _, "--format", _]:
             output = [f"{key} {value['service']}" for key, value in containers.items()]
         case ["ps", "-aq", "--no-trunc"]:
@@ -116,6 +136,13 @@ def main(arguments: list[str]) -> int:
                     list[str],
                     images[cast(str, containers[identifier]["image"])]["references"],
                 )[0]
+            ]
+        case ["inspect", "--format", template, identifier] if "OOMKilled" in template:
+            container = containers[identifier]
+            health = cast(str, container["health"])
+            running = health in ("none", "starting", "unhealthy", "healthy")
+            output = [
+                f"{identifier} {container['restarts']} {str(running).lower()} {str(container.get('oom_killed', False)).lower()} {health if running else 'none'}"
             ]
         case ["inspect", "--format", _, *identifiers]:
             output = [

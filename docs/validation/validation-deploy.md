@@ -105,15 +105,22 @@ Run from the repository root with the materialized inventory described in
    is refused.
 7. **Pull** both digests into `image-pull.log`.
 8. **Activate.** Record the operational container IDs and restart counts
-   (`ob`), install `compose.json` as `compose.yaml`, then run:
+   (`ob`), install `compose.json` as `compose.yaml`, then use the host helper's
+   bounded readiness transition. It starts each service separately:
 
    ```sh
    docker compose --project-name minos --file /opt/minos/compose.yaml \
-     up --detach --no-deps --wait --wait-timeout 180 reference-api edge
+      up --detach --no-deps reference-api
+   # The helper requires real API health before starting edge.
+   docker compose --project-name minos --file /opt/minos/compose.yaml \
+     up --detach --no-deps edge
    ```
 
    Never restart `minos-compose.service`: its start path stops the watcher.
-   If `up` fails, reinstall the rollback file and run the same command.
+   Both starts and all inspections share one 300-second deadline. Initial
+   unhealthy status may recover; exits, OOMs, new restarts, ambiguous state or
+   lost API readiness fail the transition. If activation fails, reinstall the
+   rollback file and attempt the same transition once with a new deadline.
 9. **Confirm isolation.** Record `oa` and require it to equal `ob`: watcher,
    tunnel and Kuma keep the same container IDs and restart counts.
 10. **Verify publicly** through `https://minoshealth.pl`: `/readyz` is ready;
@@ -130,7 +137,7 @@ Run from the repository root with the materialized inventory described in
 ### Rollback
 
 Rollback restores `validation-rollback/<revision>/compose.yaml` as
-`compose.yaml` and repeats the step 8 `up` command. The previous bundle and
+`compose.yaml` and repeats the step 8 bounded readiness transition. The previous bundle and
 images remain installed, so rollback needs no network access. Bundles must not
 be deleted while any retained rollback file references them.
 
@@ -197,7 +204,7 @@ event; every step can be rerun on its own with `--revision <sha>`.
 | `inspect` | live identities, live revision, Compose SHA-256, memory, disk, container health | none |
 | `plan` | revision is remote `main`; publish run is a successful `workflow_dispatch` of that commit on `main`; artifact matches; bundle opens and its database matches its manifest; records the live Compose SHA-256; writes `test-output/validation-deploy/<revision>/plan.json` | none |
 | `stage` | live Compose unchanged since `plan`; deterministic archive upload (skipped if the bundle is installed); checksum; atomic install as root `0755`/`0444`; `deployment.json`; rollback copy; identity swap that asserts all previous identities; pulls both digests and requires `linux/amd64` plus the source revision label | new files only |
-| `activate` | Compose unchanged since `plan`; at least 300 MiB available; operational snapshot; installs the staged file; `up --no-deps --wait reference-api edge`; on failure restores the rollback file and waits for health; requires unchanged watcher, tunnel and Kuma container IDs and restart counts and healthy validation services; rerunning on an active release reports `already_active` | live Compose |
+| `activate` | Compose unchanged since `plan`; at least 300 MiB available; operational snapshot; installs the staged file; starts API then edge under one 300-second real-health deadline; on failure restores the rollback file with one separately bounded attempt; requires unchanged watcher, tunnel and Kuma container IDs and restart counts and healthy validation services; rerunning on an active release reports `already_active` | live Compose |
 | `verify` | public `/readyz` serves the planned dataset identity; for rank bundles one exact page shows the expected rank and, with `--chromium`, the desktop and mobile rank acceptance runs; writes `activation-receipt.json` on the host (with the host's own activation time) and locally | receipt only |
 | `rollback --revision <sha>` | accepts only that candidate or its exact retained prior Compose; restores both validation services; requires healthy API/edge, expected running images and unchanged operational services; checks public readiness and homepage before reporting complete rollback | live Compose |
 | `prune [--keep n] [--apply]` | lists, or with `--apply` removes, unreferenced images, bundles and staged archives | deletes only with `--apply` |
@@ -212,8 +219,8 @@ cannot turn a success-shaped response into success. Empty or invalid responses
 remain explicit transport/protocol failures, not inferred authentication errors.
 
 Compose stdout and stderr are drained together with a 256 KiB output ceiling
-and a 300-second command deadline (the existing 180-second Compose wait plus
-120 seconds). Timeout/output exhaustion kills the command process group. Raw
+and a command deadline capped by the remaining shared startup budget.
+Timeout/output exhaustion kills the command process group. Raw
 output is discarded: retained records contain outcome, exit code, elapsed time,
 byte count and allowlisted failure classes only. This avoids retaining paths,
 environment values or credentials printed by dependencies. A generic command
@@ -246,6 +253,30 @@ command probes public `/readyz` and `/` before emitting `rolled_back`. A public
 failure reports restored local state and failed ingress rather than complete
 recovery. Automatic activation restoration also leaves public ingress explicitly
 unchecked; it remains a failed activation requiring operator verification.
+
+### Bounded Startup Readiness (#181)
+
+The 2026-10-12 activation incident showed that Compose may abort on an initial
+unhealthy result before its wait timeout. An isolated candidate reached readiness
+after 173.15 seconds under the existing one-CPU/512 MiB limits, with no OOM or
+restart and observed CPU/I/O pressure. The source of that contention remains
+unidentified. A five-minute owner-approved wait then enabled activation.
+
+Activation and rollback now share the same explicit readiness path: API first,
+then edge, one 300-second deadline per attempt including launches and inspections.
+The exact prior Compose bytes and health policy survive rollback. A created but
+unstarted container is valid pre-start state; after launch, missing healthchecks,
+missing/duplicate containers, exits, OOMs, new restarts and identity changes fail.
+The API must remain healthy while the edge starts. Diagnostics retain only fixed
+fields, including the phase and which services were observed initially unhealthy.
+
+Deterministic tests exercise deadline exhaustion and process/state failures.
+The disposable container probe additionally forces initial API unhealthy status,
+injects a partial edge restoration failure, retries the exact prior Compose and
+checks HTTP readiness and three unchanged operational sentinels. Local synthetic
+checks do not establish production contention performance. Representative host
+verification of the permanent path remains pending the separately reviewed next
+activation; no production restart is authorized by this change.
 
 Local regression evidence covers nonzero remote refusals, partial restoration,
 missing edge despite a successful Compose exit, unrelated Compose refusal,

@@ -5,6 +5,17 @@ Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
 
 ## Product
 
+### Bounded Validation Startup And Rollback (2026-10-13)
+
+For #181, the owner approved one shared five-minute real-health deadline for
+each API/edge activation or rollback attempt. Start API first and edge only
+after API readiness. Initial unhealthy status may recover within that bound;
+exits, OOMs, new restarts, ambiguous state or lost API health fail closed.
+Preserve the exact prior Compose bytes, validation and request/resource limits.
+A failed activation retains one separately bounded rollback attempt. Production
+activation still requires an exact-image plan and owner review. See the
+[deployment procedure](../validation/validation-deploy.md).
+
 ### Source Freshness Presentation (2026-10-12)
 
 The owner removed the blanket "Stan wiedzy Minos" horizon warning and repeated
