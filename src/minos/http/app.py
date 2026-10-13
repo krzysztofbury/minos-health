@@ -351,6 +351,10 @@ def browse(
     return answer
 
 
+# A child of the configured `minos.http` logger, like the warm-up status (#155).
+STARTUP_LOGGER = logging.getLogger("minos.http.startup")
+
+
 def create_app(
     bundle: Path,
     *,
@@ -360,7 +364,9 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+        started = time.monotonic()
         pool = await run_in_threadpool(ReferencePool, bundle)
+        pool_ms = round((time.monotonic() - started) * 1000)
         if (
             required_search_profile is not None
             and pool.manifest.dataset.search_profile != required_search_profile
@@ -381,6 +387,16 @@ def create_app(
         except BaseException:
             pool.close()
             raise
+        # Fixed fields only: host activation timing evidence for #189.
+        STARTUP_LOGGER.info(
+            json.dumps(
+                {
+                    "event": "api_startup",
+                    "pool_ms": pool_ms,
+                    "trees_ms": round((time.monotonic() - started) * 1000) - pool_ms,
+                }
+            )
+        )
         # Readiness never waits for grouping inputs; they warm in the background.
         warmup: threading.Thread | None = None
         warmup_stop = threading.Event()

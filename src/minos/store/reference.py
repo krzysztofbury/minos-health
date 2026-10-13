@@ -47,6 +47,35 @@ _VALIDATED_CONDITIONS: set[tuple[str, str]] = set()
 _VALIDATED_MODIFIERS: set[tuple[str, str]] = set()
 _VALIDATED_MODIFIER_BINDINGS: set[tuple[str, str]] = set()
 _VALIDATED_SEARCH_SYNONYMS: set[tuple[str, str]] = set()
+# Database files whose SHA-256 this process verified, by stat identity. A pool
+# opens several connections; re-hashing ~445 MB for each dominated host startup
+# under the 512 MiB container limit (#189). A replaced or rewritten file has a
+# different identity and is hashed again.
+_VERIFIED_DATABASES: dict[tuple[int, int, int, int, int], tuple[str, int]] = {}
+
+
+def _stat_identity(path: Path) -> tuple[int, int, int, int, int]:
+    # ctime is included because utime can restore mtime but never ctime.
+    value = os.stat(path, follow_symlinks=False)
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def _verify_database(database: Path, expected: tuple[str, int]) -> None:
+    before = _stat_identity(database)
+    if _VERIFIED_DATABASES.get(before) == expected:
+        return
+    identity = file_identity(database, max_bytes=expected[1])
+    if identity != expected or _stat_identity(database) != before:
+        raise ArtifactError("reference database checksum or byte count does not match")
+    if len(_VERIFIED_DATABASES) >= 16:
+        _VERIFIED_DATABASES.clear()
+    _VERIFIED_DATABASES[before] = identity
 
 
 def read_artifact_manifest(bundle: Path) -> ArtifactManifest:
@@ -96,11 +125,9 @@ def open_reference_bundle(
     manifest = read_artifact_manifest(bundle)
     database = bundle / DATABASE_NAME
     try:
-        identity = file_identity(database, max_bytes=manifest.database_size_bytes)
-        if identity != (manifest.database_sha256, manifest.database_size_bytes):
-            raise ArtifactError(
-                "reference database checksum or byte count does not match"
-            )
+        _verify_database(
+            database, (manifest.database_sha256, manifest.database_size_bytes)
+        )
         connection = sqlite3.connect(
             database.resolve().as_uri() + "?mode=ro&immutable=1",
             uri=True,

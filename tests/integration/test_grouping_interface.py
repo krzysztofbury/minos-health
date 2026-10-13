@@ -183,6 +183,14 @@ def test_warmup_status_reaches_the_configured_api_logger(
     }
     assert summaries[0]["status"] == "completed"
     assert summaries[0]["attempts"] == 1
+    # #189: startup phase timings reach the same configured hierarchy.
+    startup = [
+        cast(dict[str, object], json.loads(record.getMessage()))
+        for record in caplog.records
+        if record.name == "minos.http.startup"
+    ]
+    assert len(startup) == 1
+    assert set(startup[0]) == {"event", "pool_ms", "trees_ms"}
 
 
 def _case_variants() -> dict[str, dict[str, object]]:

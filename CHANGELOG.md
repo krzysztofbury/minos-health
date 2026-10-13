@@ -157,6 +157,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Hash the reference database once per API process instead of once per pool
+  connection, re-hashing any file whose stat identity changes, and index
+  characteristics evidence in one pass. Validation is unchanged; local readiness
+  under production limits fell from about 12 to 8.5 seconds. Startup phase
+  timings are logged with fixed fields (#189).
 - Bind MODTAR generation 103 (published 2026-10-09) to every 2026 catalog under
   the owner rule "MODTAR as published wins": PZA04 and PZF13 gain 17.10 (1.2)
   and 17.11 (1.1) for July-December, settling that #129 difference for those
