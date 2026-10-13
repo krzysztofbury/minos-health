@@ -58,7 +58,7 @@
 
       <section id="catalog" class="shell catalog" aria-labelledby="catalog-title">
         <div class="catalog-header">
-          <h2 id="catalog-title">Katalog wersji</h2>
+          <h2 id="catalog-title" tabindex="-1">Katalog wersji</h2>
           <p id="result-count" class="result-count" aria-live="polite"></p>
         </div>
 
@@ -74,6 +74,13 @@
             <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" aria-describedby="search-note search-feedback" placeholder="np. ICD10, 46/2026, załącznik 9"><button id="reset-search" class="button button-quiet" type="button">Wyczyść</button></div>
           </div>
           <p id="search-note" class="search-note">Filtr działa na nazwach, numerach i nazwach plików. Nie przeszukuje treści plików ani kodów.</p>
+          <div class="catalog-facets">
+            <label for="catalog-publisher">Wydawca<select id="catalog-publisher"><option value="all">Wszyscy wydawcy</option></select></label>
+            <label for="catalog-format">Format pliku (także w historii)<select id="catalog-format"><option value="all">Wszystkie formaty</option></select></label>
+            <label for="catalog-sort">Kolejność<select id="catalog-sort"><option value="relevance">Dopasowanie / kolejność katalogu</option><option value="title">Nazwa A-Z</option><option value="observed">Ostatnio sprawdzono</option></select></label>
+          </div>
+          <div class="catalog-actions"><button id="reset-catalog" class="button button-quiet" type="button">Resetuj filtry</button><a id="share-catalog" class="card-link" href="/zrodla">Link do tego widoku</a></div>
+          <p class="search-note">Link zachowuje źródło, wydawcę, format i kolejność. Wpisany tekst nie trafia do linku; strona wyników jest zachowywana tylko bez tekstu filtra.</p>
           <p id="search-feedback" class="search-note" role="status" aria-live="polite"></p>
           <div id="search-suggestions" class="search-suggestions" aria-live="polite"></div>
         </div>
@@ -83,7 +90,7 @@
         <button id="retry-button" class="button" type="button" hidden>Odśwież dane</button>
         <div id="source-fallback"><p>Katalog online jest dostępny po włączeniu JavaScript. Oficjalne źródła są podlinkowane poniżej.</p></div>
         <div id="catalog-results" class="cards" role="tabpanel" aria-live="polite"></div>
-        <button id="more-results" class="button button-quiet more-results" type="button" hidden>Pokaż kolejne</button>
+        <div class="catalog-actions"><button id="previous-results" class="button button-quiet" type="button" hidden>Poprzednia strona</button><button id="more-results" class="button button-quiet" type="button" hidden>Następna strona</button></div>
         <p id="empty-state" class="empty-state" hidden>Nic nie pasuje. Spróbuj innej nazwy lub wybierz wszystkie źródła.</p>
       </section>
 

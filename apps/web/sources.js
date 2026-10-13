@@ -20,7 +20,10 @@
   var EXTENSION_PATTERN = /^[a-z0-9][a-z0-9._+-]{0,31}$/;
   var TIMESTAMP_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,6}))?Z$/;
   var CONTROL_PATTERN = /\p{C}/u;
-  var state = { rsk: null, baw: null, nfz: null, source: "all", query: "", errors: [], cards: [], catalog: null, visible: 50, sourcePages: false };
+  var state = { rsk: null, baw: null, nfz: null, source: "all", publisher: "all", format: "all", sort: "relevance", page: 1, query: "", errors: [], cards: [], catalog: null, sourcePages: false };
+  var PUBLISHERS = { nfz: "Narodowy Fundusz Zdrowia", "who-pl": "Biuro Światowej Organizacji Zdrowia w Polsce", who: "World Health Organization", ec: "Komisja Europejska", snomed: "SNOMED International", aotmit: "AOTMiT", other: "Pozostali / niepodani" };
+  var FORMATS = ["xml", "xlsx", "xls", "pdf", "docx", "doc", "zip", "zipx", "html", "other"];
+  var PAGE_SIZE = 50;
   var NFZ_CHANNELS = { order: "Publikacja zarządzenia NFZ", news: "Aktualności NFZ", project: "Projekt zarządzenia", jgp: "Komunikaty JGP", czs: "Słowniki CZS NFZ", icd9_companion: "Plik ICD-9 PL NFZ", aotmit: "AOTMiT - sygnał taryfikacji" };
   var BAW_ROLES = { 1: "Akt pierwotny", 3: "Tekst po zmianach", 4: "Porównanie zmian", 5: "Skrócone porównanie zmian", 6: "Akt zmieniający" };
 
@@ -721,21 +724,81 @@
     }
     return cards.sort(function (left, right) { return priority(left) - priority(right) || left.title.localeCompare(right.title, "pl-PL"); });
   }
+  function cardPublisher(card) {
+    if (card.source === "baw") return "nfz";
+    if (card.source === "nfz") return card.entry.channel === "aotmit" ? "aotmit" : "nfz";
+    return Object.keys(PUBLISHERS).find(function (key) { return PUBLISHERS[key] === card.subtitle; }) || "other";
+  }
+  function cardFormats(card) {
+    var names = card.source === "baw" ? card.documents.flatMap(function (doc) { return doc.files.map(function (file) { return file.name; }); }) :
+      card.source === "rsk" ? card.entries.map(function (file) { return "file." + file.extension; }) :
+      card.files.map(function (file) { return new URL(file.source_url).pathname; });
+    if (card.source === "nfz") names.push(card.entry.channel === "czs" ? "file.xml" : new URL(card.entry.source_url).pathname);
+    return Array.from(new Set(names.map(function (name) {
+      var extension = name.split(".").pop().toLowerCase();
+      return FORMATS.includes(extension) ? extension : "other";
+    })));
+  }
+  function catalogSelection(hits, selection) {
+    var result = hits.filter(function (hit) {
+      return (selection.publisher === "all" || cardPublisher(hit.card) === selection.publisher) &&
+        (selection.format === "all" || cardFormats(hit.card).includes(selection.format));
+    });
+    if (selection.sort !== "relevance") result.sort(function (left, right) {
+      var order = selection.sort === "observed" ? Date.parse(right.card.observed) - Date.parse(left.card.observed) : left.card.title.localeCompare(right.card.title, "pl-PL");
+      return order || (left.card.source + ":" + left.card.id).localeCompare(right.card.source + ":" + right.card.id, "en");
+    });
+    return result;
+  }
+  function readSelection(fragment) {
+    var defaults = { source: "all", publisher: "all", format: "all", sort: "relevance", page: 1 };
+    if (!fragment || fragment.length > 160 || !fragment.startsWith("#katalog=1&")) return defaults;
+    var params = new URLSearchParams(fragment.slice(1));
+    var keys = Array.from(params.keys());
+    if (new Set(keys).size !== keys.length || keys.some(function (key) { return !["katalog", "source", "publisher", "format", "sort", "page"].includes(key); })) return defaults;
+    var selected = { source: params.get("source"), publisher: params.get("publisher"), format: params.get("format"), sort: params.get("sort"), page: Number(params.get("page")) };
+    if (!["all", "rsk", "baw", "nfz"].includes(selected.source) || !["all"].concat(Object.keys(PUBLISHERS)).includes(selected.publisher) ||
+      !["all"].concat(FORMATS).includes(selected.format) || !["relevance", "title", "observed"].includes(selected.sort) ||
+      !/^[1-9][0-9]{0,3}$/.test(params.get("page") || "") || selected.page > 1000) return defaults;
+    return selected;
+  }
+  function selectionHash(selection) {
+    if (selection.source === "all" && selection.publisher === "all" && selection.format === "all" && selection.sort === "relevance" && selection.page === 1) return "";
+    var params = new URLSearchParams({ katalog: "1", source: selection.source, publisher: selection.publisher, format: selection.format, sort: selection.sort, page: String(selection.query ? 1 : selection.page) });
+    return "#" + params.toString();
+  }
+  function syncSelection() {
+    document.querySelectorAll("[data-source]").forEach(function (button) {
+      var selected = button.getAttribute("data-source") === state.source;
+      button.setAttribute("aria-selected", String(selected));
+      button.tabIndex = selected ? 0 : -1;
+    });
+    ["publisher", "format", "sort"].forEach(function (name) { document.getElementById("catalog-" + name).value = state[name]; });
+    document.getElementById("catalog-results").setAttribute("aria-labelledby", "tab-" + state.source);
+    var fragment = selectionHash(state);
+    document.getElementById("share-catalog").href = location.pathname + fragment;
+    if (location.hash !== fragment) history.replaceState(null, "", location.pathname + fragment);
+  }
   function render() {
     document.querySelectorAll("[data-fallback-source]").forEach(function (section) {
       var source = section.getAttribute("data-fallback-source");
       section.hidden = state[source] !== null || (state.source !== "all" && state.source !== source);
-      section.querySelector("[data-fallback-note]").hidden = section.hidden || !state.query.trim();
+      section.querySelector("[data-fallback-note]").hidden = section.hidden || !(state.query.trim() || state.publisher !== "all" || state.format !== "all");
     });
     var answer = state.catalog ? searchCatalog(state.catalog, state.query, state.source) : { hits: [], suggestions: [], invalid: false };
+    answer.hits = catalogSelection(answer.hits, state);
+    var pages = Math.max(1, Math.ceil(answer.hits.length / PAGE_SIZE));
+    if (state.catalog) state.page = Math.min(state.page, pages);
+    syncSelection();
     var result = document.getElementById("catalog-results");
     result.replaceChildren();
-    answer.hits.slice(0, state.visible).forEach(function (hit) { result.append(renderCard(hit.card, hit.evidence)); });
+    answer.hits.slice((state.page - 1) * PAGE_SIZE, state.page * PAGE_SIZE).forEach(function (hit) { result.append(renderCard(hit.card, hit.evidence)); });
     document.getElementById("result-count").textContent = countLabel(answer.hits.length);
     document.getElementById("empty-state").hidden = answer.hits.length !== 0 || answer.invalid;
     document.getElementById("source-search").setAttribute("aria-invalid", answer.invalid ? "true" : "false");
-    document.getElementById("search-feedback").textContent = answer.invalid ? "Wpisz maksymalnie 80 znaków i 8 słów, bez znaków sterujących." : answer.hits.length > state.visible ? "Wyświetlono " + state.visible + " z " + answer.hits.length + " zestawów." : "";
-    document.getElementById("more-results").hidden = answer.hits.length <= state.visible;
+    document.getElementById("search-feedback").textContent = answer.invalid ? "Wpisz maksymalnie 80 znaków i 8 słów, bez znaków sterujących." : pages > 1 ? "Strona " + state.page + " z " + pages + ". Do " + PAGE_SIZE + " zestawów na stronie." : "";
+    document.getElementById("more-results").hidden = state.page >= pages;
+    document.getElementById("previous-results").hidden = state.page <= 1;
     var suggestions = document.getElementById("search-suggestions");
     suggestions.replaceChildren();
     if (answer.suggestions.length) suggestions.append(element("span", "", "Czy chodziło o: "));
@@ -817,7 +880,7 @@
       tab.tabIndex = selected ? 0 : -1;
     });
     state.source = button.getAttribute("data-source");
-    state.visible = 50;
+    state.page = 1;
     document.getElementById("catalog-results").setAttribute("aria-labelledby", button.id);
     render();
   }
@@ -837,21 +900,39 @@
         tabs[next].focus();
       });
     });
-    selectTab(tabs[0]);
+    Object.keys(PUBLISHERS).forEach(function (key) {
+      var option = element("option", "", PUBLISHERS[key]); option.value = key;
+      document.getElementById("catalog-publisher").append(option);
+    });
+    FORMATS.forEach(function (format) {
+      var option = element("option", "", format === "other" ? "Inny / niepodany" : format.toUpperCase()); option.value = format;
+      document.getElementById("catalog-format").append(option);
+    });
+    Object.assign(state, readSelection(location.hash));
+    render();
+    ["publisher", "format", "sort"].forEach(function (name) {
+      document.getElementById("catalog-" + name).addEventListener("change", function (event) { state[name] = event.target.value; state.page = 1; render(); });
+    });
+    window.addEventListener("hashchange", function () {
+      Object.assign(state, readSelection(location.hash)); state.query = "";
+      document.getElementById("source-search").value = ""; render();
+    });
     document.getElementById("source-search").addEventListener("input", function (event) {
       state.query = event.target.value;
-      state.visible = 50;
+      state.page = 1;
       render();
     });
     document.getElementById("reset-search").addEventListener("click", function () { setQuery(""); document.getElementById("source-search").focus(); });
-    document.getElementById("more-results").addEventListener("click", function () { state.visible += 50; render(); });
+    document.getElementById("reset-catalog").addEventListener("click", function () { Object.assign(state, readSelection("")); setQuery(""); document.getElementById("source-search").focus(); });
+    document.getElementById("more-results").addEventListener("click", function () { state.page += 1; render(); document.getElementById("catalog-title").focus(); });
+    document.getElementById("previous-results").addEventListener("click", function () { state.page -= 1; render(); document.getElementById("catalog-title").focus(); });
     document.getElementById("retry-button").addEventListener("click", loadAll);
     loadAll();
   }
   function setQuery(query) {
     document.getElementById("source-search").value = query;
     state.query = query;
-    state.visible = 50;
+    state.page = 1;
     render();
   }
   function classifyFreshness(timestamp, nowMs) {
@@ -875,6 +956,9 @@
       searchCatalog: searchCatalog,
       rskDatasets: rskDatasets,
       bawDatasets: bawDatasets,
+      readSelection: readSelection,
+      selectionHash: selectionHash,
+      catalogSelection: catalogSelection,
     };
   }
 }());

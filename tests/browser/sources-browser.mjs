@@ -91,6 +91,7 @@ async function navigate(client, width, height, expected) {
 }
 
 async function screenshot(client, name) {
+  await evaluate(client, "window.scrollTo(0, 0)");
   const image = await client.send("Page.captureScreenshot", {
     captureBeyondViewport: true, format: "png", fromSurface: true,
   });
@@ -309,8 +310,11 @@ try {
   assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 50);
   assert.equal(await evaluate(client, `document.getElementById('result-count').textContent`), '58 zestawów');
   await evaluate(client, `document.getElementById('more-results').click()`);
-  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 58);
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 8);
   assert.equal(await evaluate(client, `document.getElementById('more-results').hidden`), true);
+  assert.match(await evaluate(client, `document.getElementById('share-catalog').hash`), /page=2/);
+  await evaluate(client, `document.getElementById('previous-results').click()`);
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 50);
   await evaluate(client, `document.getElementById('tab-rsk').click()`);
   assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 50);
   await writeFile(rskFixture, JSON.stringify(rsk));
@@ -327,6 +331,32 @@ try {
   assert.ok(mobile.searchTop < 844, `search starts below first viewport: ${mobile.searchTop}`);
   assert.ok(mobile.firstHeight < 450, `collapsed card is too tall: ${mobile.firstHeight}`);
   await screenshot(client, "sources-mobile.png");
+  const faceted = await evaluate(client, `(() => {
+    const publisher = document.getElementById('catalog-publisher'); publisher.value = 'nfz'; publisher.dispatchEvent(new Event('change'));
+    const format = document.getElementById('catalog-format'); format.value = 'xlsx'; format.dispatchEvent(new Event('change'));
+    const sort = document.getElementById('catalog-sort'); sort.value = 'title'; sort.dispatchEvent(new Event('change'));
+    const titles = [...document.querySelectorAll('.source-card h3')].map(node => node.textContent);
+    const input = document.getElementById('source-search'); input.value = 'PRIVATE_QUERY_CANARY'; input.dispatchEvent(new Event('input'));
+    return { titles, link: document.getElementById('share-catalog').href, url: location.href, overflow: document.documentElement.scrollWidth > innerWidth };
+  })()`);
+  assert.deepEqual(faceted.titles, ['Zarządzenie 46/2026/DSOZ']);
+  assert.equal(faceted.overflow, false);
+  assert.equal((faceted.link + faceted.url).includes('PRIVATE_QUERY_CANARY'), false);
+  assert.match(faceted.link, /publisher=nfz&format=xlsx&sort=title&page=1/);
+  assert.equal(faceted.url, faceted.link);
+  const sharedReload = client.once('Page.loadEventFired');
+  await client.send('Page.reload');
+  await sharedReload;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (await evaluate(client, `document.getElementById('source-search').value === '' && document.querySelectorAll('.source-card').length === 1`)) break;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.equal(await evaluate(client, `document.querySelector('.source-card h3').textContent`), 'Zarządzenie 46/2026/DSOZ');
+  await screenshot(client, 'sources-facets-mobile.png');
+  await evaluate(client, `document.getElementById('reset-catalog').click()`);
+  assert.equal(await evaluate(client, `location.hash + location.search`), '');
+  assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 4);
+  assert.equal(requests.concat(requestBodies).some(value => value.includes('PRIVATE_QUERY_CANARY')), false);
   await evaluate(client, `(() => { const input = document.getElementById('source-search'); input.value = 'zalacznikx'; input.dispatchEvent(new Event('input', {bubbles:true})); })()`);
   assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
   await screenshot(client, "sources-suggestions-mobile.png");
@@ -343,6 +373,10 @@ try {
 
   await navigate(client, 320, 568, "is-ready");
   assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
+  assert.equal(await evaluate(client, `(() => {
+    const bounds = document.getElementById('catalog-controls').getBoundingClientRect();
+    return [...document.querySelectorAll('#catalog-controls input, #catalog-controls select, #catalog-controls button')].every(node => node.getBoundingClientRect().right <= bounds.right);
+  })()`), true, 'catalog controls must fit inside the narrow panel');
   await screenshot(client, "sources-mobile-320.png");
 
   bawUnavailable = true;
