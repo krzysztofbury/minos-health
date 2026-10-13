@@ -2838,7 +2838,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       var unavailable = state.errors.includes(pair[2]);
       var text = pair[1] ? (unavailable ? "Poprzedni zapis (może być nieaktualny): " : "Sprawdzono ") + formatDate(pair[1].projected_at || pair[1].observed_at) : "Dane niedostępne";
       if (pair[2] === "NFZ" && pair[1]) {
-        if (classifyFreshness(pair[1].observed_at, Date.now()).kind !== "current") text += ". Obserwacja wymaga odświeżenia.";
+        if (classifyFreshness(pair[1].observed_at, Date.now()).kind !== "current") text += ". Obserwacja wymaga odświeżenia";
         text += pair[1].entries.length ? ". Tylko ostatnie sprawdzenie; niepełna historia publikacji." : ". Brak publikacji w tym zapisie.";
       }
       var node = element("p");
