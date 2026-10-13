@@ -488,6 +488,12 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .source-tabs button:hover { border-color: var(--accent); color: var(--accent); }
 .source-tabs button[aria-selected="true"] { border-color: var(--accent); color: #fff; background: var(--accent); }
 .search-field label { display: block; margin-bottom: 0.3rem; font-size: var(--text-sm); font-weight: 600; }
+.controls > * { min-width: 0; }
+.catalog-facets { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 0.75rem; }
+.catalog-facets label { min-width: 0; font-size: var(--text-sm); font-weight: 600; }
+.catalog-facets select { display: block; width: 100%; min-width: 0; min-height: 44px; margin-top: 0.3rem; padding: 0.5rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
+.catalog-actions { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; margin-block: 0.5rem; }
+.catalog-actions a { display: inline-flex; align-items: center; min-height: 44px; }
 .search-input-row { display: flex; gap: 0.5rem; }
 .search-input-row input { flex: 1; min-width: 0; min-height: 44px; padding: 0.45rem 0.75rem; border: 2px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
 .search-input-row input:focus { border-color: var(--accent); outline: 3px solid var(--accent-tint); outline-offset: 0; }

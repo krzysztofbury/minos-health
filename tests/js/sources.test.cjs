@@ -13,6 +13,37 @@ const UUID = "00000000-0000-4000-8000-000000000011";
 const DIGEST = "a".repeat(64);
 const nfzFixture = require("../fixtures/nfz_projection.json");
 
+test("shareable catalog state retains only bounded non-sensitive selections", () => {
+  const selected = { source: "nfz", publisher: "nfz", format: "xml", sort: "title", page: 2 };
+  assert.deepEqual(sources.readSelection(sources.selectionHash(selected)), selected);
+  const withQuery = sources.selectionHash({ ...selected, query: "PRIVATE_QUERY_CANARY" });
+  assert.equal(withQuery.includes("PRIVATE_QUERY_CANARY"), false);
+  assert.equal(sources.readSelection(withQuery).page, 1);
+  for (const fragment of ["#query=PRIVATE_QUERY_CANARY", sources.selectionHash(selected) + "&source=baw", sources.selectionHash(selected) + "&query=canary",
+    sources.selectionHash(selected).replace("page=2", "page=1001"), sources.selectionHash(selected).replace("publisher=nfz", "publisher=canary"), "#" + "a".repeat(200)]) {
+    assert.deepEqual(sources.readSelection(fragment), { source: "all", publisher: "all", format: "all", sort: "relevance", page: 1 });
+  }
+});
+
+test("publisher and format facets inspect source evidence including historical files", () => {
+  const nfz = sources.nfzDatasets(sources.validateNfzProjection(cloned(nfzFixture)));
+  const historical = { source: "baw", id: "43868", title: "Akt", observed: "2026-09-30T08:20:00Z",
+    documents: [{ files: [{ name: "Akt.zipx" }] }, { files: [{ name: "Zalacznik9.xlsx" }] }] };
+  const hits = [historical, ...nfz].map(card => ({ card, evidence: [] }));
+  const selection = { publisher: "nfz", format: "xlsx", sort: "title" };
+  assert.ok(sources.catalogSelection(hits, selection).some(hit => hit.card.id === "43868"));
+  const aotmit = sources.catalogSelection(hits, { ...selection, publisher: "aotmit", format: "pdf" });
+  assert.equal(aotmit.length, 1);
+  assert.equal(aotmit[0].card.entry.channel, "aotmit");
+  assert.equal(sources.catalogSelection(hits, { ...selection, publisher: "who" }).length, 0);
+});
+
+test("observed sort uses timestamps and stable identity ties, not input order", () => {
+  const hits = ["b", "a"].map(id => ({ card: { source: "nfz", id, title: "Same", observed: "2026-10-01T00:00:00Z" } }));
+  hits.push({ card: { source: "nfz", id: "newer", title: "Same", observed: "2026-10-01T00:00:00.001Z" } });
+  assert.deepEqual(sources.catalogSelection(hits, { publisher: "all", format: "all", sort: "observed" }).map(hit => hit.card.id), ["newer", "a", "b"]);
+});
+
 test("NFZ channels retain source meaning and support bounded local search", () => {
   const value = sources.validateNfzProjection(cloned(nfzFixture));
   assert.equal(value.entries.length, 8);
