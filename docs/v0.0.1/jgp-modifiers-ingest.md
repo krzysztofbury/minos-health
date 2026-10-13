@@ -185,7 +185,7 @@ The table is kept as the record of the differences.
 | All 2026 windows | `M5`, generations 100/102 | Q16E is marked 1 (general vascular surgery only, not the second reference level), yet `M5` includes it. Which provision places it under section 17(7)? |
 | All 2026 windows | `17.1`, generations 100/102 | S21/S22/S23 carry only hematology and transplantology markers, not pediatric oncology and hematology. On what contract-scope basis are they included? |
 | All 2026 windows | `17.18`, generations 100/102 | F45R/L31R/M22R (robotic) are absent. Section 19(7) excludes them only from the 1.25 DiLO rule, and section 19(8) does not list them. Which provision excludes them from 1.17? |
-| All 2026 windows | `17.10`, `17.11`, generations 100/102 | PZA04/PZF13 fall within "PZA01-PZL13" and have the same scope markers as the included PZA03/PZF12. Is their absence intentional? |
+| January-June 2026 | `17.10`, `17.11`, generations 100/102/103 | PZA04/PZF13 fall within "PZA01-PZL13" and have the same scope markers as the included PZA03/PZF12. Generation 103 adds them for months 7-12 only. Is their absence for January-June intentional? |
 | July-December 2026 | `17.10`, `17.11` | PZD04A is identical in the after-74 and after-102 catalogs. Generation 100 (published 2026-08-20, after 74/2026) lacks it; generation 102 adds it for months 7-12. Does the correction apply to the full July-December period? |
 
 How earlier knowledge-time bindings disclose the PZD04A gap is a Minos design
@@ -349,4 +349,29 @@ releases activated the binding; see the
 uv run python -m scripts.build_modtar_overlay \
   --modifiers manifests/sources/jgp-modtar-reference.json --generation 102 \
   --archive-root data/archive --catalog-bundle data/bundles/<conditions-bundle>
+```
+
+### Generation 103 (2026-10-13, #184)
+
+Generation 103 (page 7389, label 202665, published and valid from 2026-10-09)
+was fetched on 2026-10-13 and matched the watcher's SHA-256
+`8cda7960...`. Parsed with the reviewed reader and compared ignoring record
+ordinals, it equals generation 102 plus four records: `17.10` (1.2) and `17.11`
+(1.1) for PZF13 and PZA04, months 7-12. Nothing was removed or changed; the
+ordinals shift because the records are inserted. Counts: 1,616 modifiers, 1,615
+periods and group mappings, one inactive empty record.
+
+Under the owner rule above, all three 2026 catalogs now bind generation 103
+from knowledge date 2026-10-09 with overlay `ab7b3884...` (1,616 rows, reconciled
+against the real catalog windows). Regenerating generation 102 reproduced its
+pinned overlay `60f960b1...` byte for byte. Generations 100 and 102 stay pinned
+as history. The catalog and characteristics knowledge horizons moved to
+2026-10-13 on BAW evidence that no act after 102/2026 exists, so the binding is
+visible at the bundle horizon.
+
+```sh
+uv run python -m scripts.build_modtar_overlay \
+  --modifiers manifests/sources/jgp-modtar-reference.json --generation 103 \
+  --archive-root data/archive --catalog-bundle data/bundles/<conditions-bundle> \
+  --reviewed-on 2026-10-13
 ```

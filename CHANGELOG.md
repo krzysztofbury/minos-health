@@ -157,6 +157,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Bind MODTAR generation 103 (published 2026-10-09) to every 2026 catalog under
+  the owner rule "MODTAR as published wins": PZA04 and PZF13 gain 17.10 (1.2)
+  and 17.11 (1.1) for July-December, settling that #129 difference for those
+  months. Catalog and characteristics knowledge horizons move to 2026-10-13 on
+  BAW evidence that no act after 102/2026 exists. The ICD-10 reader accepts the
+  rsk3 export namespace; the RSK 013 re-export is content-identical, so the
+  deployed ICD-10 pin stays (#184).
 - Stop re-running full CI on pushes to `main`; releases dispatch full CI on
   their commit instead (#174, #186).
 - Bound activation and rollback startup readiness: API first, then edge, under

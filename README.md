@@ -28,9 +28,11 @@ pre-screen was performed on 2026-08-06 (see
 
 The public validation site serves terminology/JGP search, dated group and code
 pages, and the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper).
-The latest recorded verified validation deployment is #171/#172 (`088f190`,
-activated 2026-10-12T13:29:24Z), adding initial source HTML, durable RSK/BAW
-citations and the owner-requested freshness-copy cleanup. The schema-10 bundle
+The latest recorded verified validation deployment is `736ba9f` (activated
+2026-10-13T14:09:23Z) with source filters, sharing and bounded startup readiness;
+#171/#172 (`088f190`) added initial source HTML and durable RSK/BAW citations.
+MODTAR generation 103 and the 2026-10-13 knowledge horizon (#184) follow in the
+next release. The schema-10 bundle
 and release-pinned concept JSON remain available. Reviewed MODTAR binding,
 governing-act settlement-product exclusions, pinned JGP comparisons and NFZ
 publication metadata are also live.
