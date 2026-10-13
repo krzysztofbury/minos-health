@@ -280,8 +280,13 @@ class _State:
 def interpret_sheet(sheet: c.Characteristics) -> c.Characteristics:
     state = _State(sheet)
     groups: list[c.Group] = []
+    # One pass in sheet order; scanning all evidence per group was quadratic and
+    # dominated startup validation (#189). Items keep their source order.
+    by_context: dict[str, list[c.Evidence]] = {}
+    for evidence in sheet.evidence:
+        by_context.setdefault((evidence.context or "").strip(), []).append(evidence)
     for group in sheet.groups:
-        items = [e for e in sheet.evidence if (e.context or "").strip() == group.code]
+        items = list(by_context.get(group.code, ()))
         branches: list[int] = []
         other: list[int] = []
         connectors: list[int] = []

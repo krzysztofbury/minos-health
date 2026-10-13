@@ -287,6 +287,26 @@ failure class and no rollback. Watcher, tunnel and Kuma kept their IDs and resta
 counts. This is one activation under the host load of that moment, leaving about
 87 seconds of headroom; the 2026-10-12 contention source remains unidentified.
 
+### Startup Work Before Readiness (#189)
+
+The next activation, `680476d` with a freshly uploaded bundle, needed 267.6 of
+300 seconds. The host log showed about 203 seconds between container start and
+the first warm-up step, against about 5 seconds locally. Before readiness the API
+opened four pool connections, and each re-hashed the whole ~445 MB database.
+Page cache counts against the 512 MiB container limit, so the file could not stay
+cached beside the process and each hash plausibly re-read the VPS disk; a cold,
+just-uploaded bundle made it worse. Characteristics re-validation also scanned
+all evidence once per group (78 million string strips).
+
+The database is now hashed once per process; later connections accept it only
+while its device, inode, size, mtime and ctime are unchanged, so a rewritten or
+replaced file is hashed again and refused. Evidence lookup is indexed in one pass
+with identical interpretation output (fingerprinted on all five real sheets).
+Every validation still runs. Under the production limits locally, readiness fell
+from about 12 to about 8.5 seconds; the host gain is expected to be larger but is
+unmeasured until the next activation. The API now logs fixed-field
+`api_startup` timings (`pool_ms`, `trees_ms`) to measure it.
+
 Local regression evidence covers nonzero remote refusals, partial restoration,
 missing edge despite a successful Compose exit, unrelated Compose refusal,
 changed operational baseline on retry, bounded timeout/output capture and the

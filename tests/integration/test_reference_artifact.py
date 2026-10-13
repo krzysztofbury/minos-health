@@ -305,13 +305,28 @@ def test_recursive_queries_fail_explicitly_instead_of_silent_truncation(
             )
 
 
-def test_read_rejects_database_tampering(tmp_path: Path) -> None:
+@pytest.mark.parametrize("change", ["in_place", "restored_mtime", "replaced"])
+def test_read_rejects_database_tampering(tmp_path: Path, change: str) -> None:
     manifest = stage_source(tmp_path)
     bundle = tmp_path / "bundle"
     _ = build_reference_artifact(manifest, tmp_path, bundle)
-    with (bundle / "minos.db").open("r+b") as database:
-        _ = database.seek(100)
-        _ = database.write(b"corrupt")
+    database = bundle / "minos.db"
+    # A successful open lets later connections skip re-hashing (#189); a changed
+    # file must still be refused afterwards in the same process.
+    with open_reference(bundle):
+        pass
+    before = database.stat()
+    content = bytearray(database.read_bytes())
+    content[100:107] = b"corrupt"
+    if change == "replaced":
+        replacement = tmp_path / "replacement.db"
+        _ = replacement.write_bytes(bytes(content))
+        _ = replacement.replace(database)
+    else:
+        with database.open("r+b") as handle:
+            _ = handle.write(bytes(content))
+        if change == "restored_mtime":
+            os.utime(database, ns=(before.st_atime_ns, before.st_mtime_ns))
     with pytest.raises(ArtifactError, match="checksum"):
         with open_reference(bundle):
             pytest.fail("tampered database opened")

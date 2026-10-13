@@ -57,6 +57,9 @@ These remaining gates stay open.
       now costs 14 rounded minutes instead of about 25. The monthly budget awaits
       owner review. See
       [CI scope and budget](docs/validation/ci-budget.md).
+- [ ] Recover API startup headroom (#189): the database is hashed once per
+      process and evidence lookup is linear; host timing is measured on the next
+      activation through the new `api_startup` log.
 - [x] Reconcile API startup/rollback waits with measured host contention (#181,
       delivered through #182). The first activation at `736ba9f` rode out an
       initially unhealthy API in 212.7 of 300 seconds; the contention source
