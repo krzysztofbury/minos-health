@@ -44,10 +44,20 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --all-groups --python 3.14.7
 
+      - name: Classify the complete change set
+        id: scope
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          CI_HEAD: ${{ github.sha }}
+        run: uv run python -m scripts.ci_scope
+
       - name: Validate host materializer safety boundary
+        if: steps.scope.outputs.docs_only != 'true'
         run: uv run pytest tests/unit/test_materialize_ansible_host.py
 
       - name: Syntax-check the production Ansible playbook
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           uvx --from ansible-core==2.21.4 ansible-playbook \
             infra/ansible/site.yml --syntax-check \
@@ -63,6 +73,7 @@ jobs:
           SYNTHETIC_DIGEST_HEX: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 
       - name: Render and validate the production runtime configuration
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           uvx --from ansible-core==2.21.4 ansible localhost \
             --inventory localhost, --connection local \
@@ -90,23 +101,28 @@ jobs:
             tunnel --config /etc/cloudflared/config.yml ingress validate
 
       - name: Verify the production systemd unit
+        if: steps.scope.outputs.docs_only != 'true'
         run: systemd-analyze verify infra/ansible/files/minos-compose.service
 
       - name: Simulate deployment schema incompatibility
+        if: steps.scope.outputs.docs_only != 'true'
         run: >-
           uv run pytest tests/unit/test_watcher_runtime.py
           -k deployment_copy_rejects_schema_mismatch
 
       - name: Install Terraform
+        if: steps.scope.outputs.docs_only != 'true'
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: 1.16.4
           terraform_wrapper: false
 
       - name: Initialize Terraform providers
+        if: steps.scope.outputs.docs_only != 'true'
         run: terraform -chdir=infra/bootstrap init -backend=false -lockfile=readonly
 
       - name: Initialize, validate, and test production watcher Terraform
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher"
           terraform -chdir=infra/terraform/watcher init \
@@ -115,6 +131,7 @@ jobs:
           terraform -chdir=infra/terraform/watcher test
 
       - name: Initialize, validate, and test scoped watcher operators
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher-operators"
           terraform -chdir=infra/terraform/watcher-operators init \
@@ -123,6 +140,7 @@ jobs:
           terraform -chdir=infra/terraform/watcher-operators test
 
       - name: Initialize, validate, and test disposable watcher Terraform
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher-acceptance"
           terraform -chdir=infra/terraform/watcher-acceptance init \
@@ -131,24 +149,37 @@ jobs:
           terraform -chdir=infra/terraform/watcher-acceptance test
 
       - name: Run pre-commit checks
+        if: steps.scope.outputs.docs_only != 'true'
         run: uv run pre-commit run --all-files --show-diff-on-failure
 
+      - name: Check changed documentation
+        if: steps.scope.outputs.docs_only == 'true'
+        env:
+          BASE: ${{ steps.scope.outputs.base }}
+          HEAD: ${{ steps.scope.outputs.head }}
+        run: uv run pre-commit run --from-ref "$BASE" --to-ref "$HEAD" --show-diff-on-failure
+
       - name: Verify pinned catalog search asset
+        if: steps.scope.outputs.docs_only != 'true'
         run: uv run python scripts/build_catalog_assets.py --check
 
       - name: Verify rendered site pages
+        if: steps.scope.outputs.docs_only != 'true'
         run: uv run python scripts/build_site.py --check
 
       - name: Scan complete Git history for secrets
         run: uv run pre-commit run gitleaks-history --hook-stage manual --all-files
 
       - name: Audit Python dependencies
+        if: steps.scope.outputs.docs_only != 'true'
         run: uv run pip-audit
 
       - name: Validate Terraform
+        if: steps.scope.outputs.docs_only != 'true'
         run: terraform -chdir=infra/bootstrap validate
 
       - name: Scan Terraform configuration
+        if: steps.scope.outputs.docs_only != 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.70.0
@@ -160,9 +191,11 @@ jobs:
           hide-progress: true
 
       - name: Build package
+        if: steps.scope.outputs.docs_only != 'true'
         run: uv build --no-sources
 
       - name: Smoke test built wheel
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           smoke_dir="$(mktemp -d)"
           uv export --frozen --no-dev --extra reference --no-emit-project \
@@ -251,12 +284,14 @@ jobs:
           PY
 
       - name: Build and exercise the standalone offline reference CLI
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           bash scripts/build_standalone_cli.sh "$RUNNER_TEMP/standalone"
           docker pull debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
           uv run python scripts/smoke_standalone_cli.py "$RUNNER_TEMP/standalone/build/dist/minos"
 
       - name: Build and exercise the watcher container and Compose runtime
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
           cleanup() {
@@ -330,12 +365,14 @@ jobs:
             "from pathlib import Path; assert not Path('/var/lib/minos/staging/.minos-blob-ci-stale').exists()"
 
       - name: Verify watcher-only activation and partial-failure rollback
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           smoke_root="$(mktemp -d)"
           trap 'find "$smoke_root" -type d -exec chmod u+rwx {} +; rm -rf "$smoke_root"' EXIT
           uv run python -m scripts.smoke_watcher_deploy "$smoke_root/host"
 
       - name: Scan the final watcher image
+        if: steps.scope.outputs.docs_only != 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.70.0

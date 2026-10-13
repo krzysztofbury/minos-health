@@ -8,8 +8,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: reference-validation-${{ github.ref }}
-  cancel-in-progress: false
+  group: reference-validation-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
@@ -20,6 +20,7 @@ jobs:
       - name: Check out exact source revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Install uv
@@ -28,18 +29,35 @@ jobs:
           version: "0.12.7"
           checksum: 788f18abea7c5f55d6216e4f5613fd89d4d59b631efeec117b2b07fe72f1da21
 
+      - name: Install dependencies
+        run: uv sync --locked --all-groups --python 3.14.7
+
+      - name: Classify the complete change set
+        id: scope
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+          CI_HEAD: ${{ github.sha }}
+        run: uv run python -m scripts.ci_scope
+
+      - name: Record documentation-only validation
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo 'Documentation-only change; document and history-secret checks run in CI.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Install browser driver runtime
+        if: steps.scope.outputs.docs_only != 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "26.10.0"
 
       - name: Verify browser startup race and failure handling
+        if: steps.scope.outputs.docs_only != 'true'
         run: node --test tests/browser/devtools-port.test.mjs
 
       - name: Build and exercise validation images using synthetic data only
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           set -euo pipefail
-          uv sync --locked --all-groups --python 3.14.7
           uv run python scripts/build_validation_edge.py "$RUNNER_TEMP/edge-artifacts"
           docker build --platform linux/amd64 --provenance=false \
             --file packaging/api/Dockerfile --build-arg "VCS_REF=$GITHUB_SHA" \
@@ -57,6 +75,7 @@ jobs:
           uv run python scripts/smoke_validation_rollback.py "$RUNNER_TEMP/rollback-smoke"
 
       - name: Scan validation API for fixable high/critical vulnerabilities
+        if: steps.scope.outputs.docs_only != 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.70.0
@@ -68,6 +87,7 @@ jobs:
           hide-progress: true
 
       - name: Scan validation edge for fixable high/critical vulnerabilities
+        if: steps.scope.outputs.docs_only != 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.70.0

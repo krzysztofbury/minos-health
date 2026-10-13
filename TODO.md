@@ -44,6 +44,9 @@ These remaining gates stay open.
       state, indexing, practitioner and legal evidence remain open.
       See [the evidence](docs/validation/source-citations.md).
 - [ ] Reduce redundant Actions work against measured CI budgets (#174).
+      First slice scopes documentation checks and cancels superseded PR validation;
+      hosted measurements and artifact-promotion review remain pending. See
+      [CI scope and budget](docs/validation/ci-budget.md).
 - [ ] Reconcile API startup/rollback waits with measured host contention (#27/#42).
       The #171/#172 activation needed an owner-approved one-off five-minute wait.
 - [x] Preserve deployment/rollback diagnostics and verify edge recovery (#162,
