@@ -45,8 +45,9 @@ These remaining gates stay open.
       See [the evidence](docs/validation/source-citations.md).
 - [ ] Reduce redundant Actions work against measured CI budgets (#174).
       #178 scopes documentation checks and cancels superseded PR validation;
-      full PR verification passed. Docs-only hosted measurement and the approved
-      tested-image transfer implementation remain pending. See
+      full PR/main verification passed. The docs-only PR/main path used 2m41s
+      versus 23m36s previously. Tested-image transfer passes local acceptance;
+      hosted publication acceptance remains pending. See
       [CI scope and budget](docs/validation/ci-budget.md).
 - [ ] Reconcile API startup/rollback waits with measured host contention (#27/#42).
       The #171/#172 activation needed an owner-approved one-off five-minute wait.

@@ -171,6 +171,43 @@ def test_ci_bootstraps_and_preflights_a_clean_watcher_volume_before_start() -> N
     assert '"/var/lib/minos/public"' in ci[start:]
 
 
+def test_validation_promotion_uses_only_its_verified_immutable_artifact() -> None:
+    workflow = load_workflow(WORKFLOW_DIR / "reference-validation.yml")
+    jobs = cast("dict[str, dict[str, object]]", workflow["jobs"])
+    verification = jobs["verify"]
+    publication = jobs["publish"]
+    steps = cast("list[dict[str, object]]", verification["steps"])
+    transfer = next(step for step in steps if step.get("id") == "tested-images")
+    export = next(
+        step for step in steps if "validation_images export" in str(step.get("run"))
+    )
+    assert transfer["if"] == export["if"] == publication["if"]
+    assert verification["outputs"] == {
+        "image_artifact_id": "${{ steps.tested-images.outputs.artifact-id }}"
+    }
+    options = cast("dict[str, object]", transfer["with"])
+    assert options["retention-days"] == "1"
+    assert options["if-no-files-found"] == "error"
+    scan_indices = [
+        index
+        for index, step in enumerate(steps)
+        if str(step.get("uses", "")).startswith("aquasecurity/trivy-action@")
+    ]
+    assert len(scan_indices) == 2
+    assert max(scan_indices) < steps.index(export) < steps.index(transfer)
+    publication_steps = cast("list[dict[str, object]]", publication["steps"])
+    download = next(
+        step
+        for step in publication_steps
+        if str(step.get("uses", "")).startswith("actions/download-artifact@")
+    )
+    assert download["with"] == {
+        "artifact-ids": "${{ needs.verify.outputs.image_artifact_id }}",
+        "path": "${{ runner.temp }}/tested-images",
+        "digest-mismatch": "error",
+    }
+
+
 def test_trivy_exception_is_narrow_and_expires() -> None:
     exception = (ROOT / ".trivyignore.yaml").read_text()
     assert "id: AVD-AWS-0132" in exception
