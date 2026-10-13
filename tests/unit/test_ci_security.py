@@ -130,6 +130,34 @@ def test_ci_scans_nonempty_git_history_for_secrets() -> None:
     assert history_hook["stages"] == ["manual"]
 
 
+def test_scoped_workflows_keep_reporting_and_manual_publication_serialized() -> None:
+    for name in ("ci.yml", "reference-validation.yml"):
+        document = load_workflow(WORKFLOW_DIR / name)
+        triggers = cast("dict[str, object]", document["on"])
+        # Event-level path filters leave required checks pending indefinitely.
+        assert triggers["pull_request"] == ""
+        jobs = cast("dict[str, dict[str, object]]", document["jobs"])
+        assert "if" not in jobs["verify"]
+        steps = cast("list[dict[str, object]]", jobs["verify"]["steps"])
+        scoped = next(step for step in steps if step.get("id") == "scope")
+        assert scoped["env"] == {
+            "CI_EVENT": "${{ github.event_name }}",
+            "CI_BASE": "${{ github.event.pull_request.base.sha || github.event.before || '' }}",
+            "CI_HEAD": "${{ github.sha }}",
+        }
+        for step in steps:
+            run = str(step.get("run", ""))
+            if "docker " in run or "terraform " in run:
+                assert step.get("if") == "steps.scope.outputs.docs_only != 'true'"
+            if "gitleaks-history" in run:
+                assert "if" not in step
+        if name == "reference-validation.yml":
+            assert document["concurrency"] == {
+                "group": "reference-validation-${{ github.event_name }}-${{ github.ref }}",
+                "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+            }
+
+
 def test_ci_bootstraps_and_preflights_a_clean_watcher_volume_before_start() -> None:
     ci = (WORKFLOW_DIR / "ci.yml").read_text()
     build = ci.index("docker build --platform linux/amd64 --target watcher")
