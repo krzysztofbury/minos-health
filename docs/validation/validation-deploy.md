@@ -196,6 +196,10 @@ the Docker socket.
    Then look at the screenshots in
    `test-output/validation-deploy/<revision>/browser/`.
 
+`verify` also refuses a public homepage containing `/cdn-cgi/`: a proxy
+rewrite such as Cloudflare email obfuscation changes served HTML and injects a
+script (see [the site audit](site-audit.md)).
+
 `deploy` runs `plan`, `stage`, `activate`, `verify` and, unless `--no-prune`,
 `prune --keep 1 --apply`. It stops at the first failure with one JSON `failed`
 event; every step can be rerun on its own with `--revision <sha>`.
@@ -303,9 +307,15 @@ while its device, inode, size, mtime and ctime are unchanged, so a rewritten or
 replaced file is hashed again and refused. Evidence lookup is indexed in one pass
 with identical interpretation output (fingerprinted on all five real sheets).
 Every validation still runs. Under the production limits locally, readiness fell
-from about 12 to about 8.5 seconds; the host gain is expected to be larger but is
-unmeasured until the next activation. The API now logs fixed-field
-`api_startup` timings (`pool_ms`, `trees_ms`) to measure it.
+from about 12 to about 8.5 seconds. The API now logs fixed-field `api_startup`
+timings (`pool_ms`, `trees_ms`).
+
+On the host, release `f9a0a72` (2026-10-13) reached `api_startup` 87 seconds
+after container start (pool 59.4 s, trees 6.1 s) against about 203 before, and
+the edge transition took 120.5 of 300 seconds against 267.6; the API was never
+unhealthy. That activation reused the bundle installed an hour earlier, so the
+page cache may have been warm; a freshly uploaded bundle records the cold case
+in the same log.
 
 Local regression evidence covers nonzero remote refusals, partial restoration,
 missing edge despite a successful Compose exit, unrelated Compose refusal,

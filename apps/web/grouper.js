@@ -753,6 +753,9 @@
   window.addEventListener("pagehide", clearCase);
   if (window.matchMedia("(max-width: 55rem)").matches) byId("case-card-details").open = false;
   clearCase();
+  // The builder stays hidden without JavaScript, where its controls cannot work.
+  document.querySelector(".wizard").hidden = false;
+  byId("group-availability").textContent = "Sprawdzamy dostępność zestawu reguł...";
   window.MinosRequest("/api/v1/releases", { cache: "no-store", credentials: "omit" }).then(function (data) {
     data.releases.forEach(function (release) { if (!releases[release.system] || release.origin === "czs") releases[release.system] = release.release_id; });
     var available = data.grouping && data.grouping.available;

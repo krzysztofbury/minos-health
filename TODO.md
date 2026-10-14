@@ -46,9 +46,10 @@ These remaining gates stay open.
       downloads remain rights-gated (#84). No-JS RSK/BAW catalogs and durable
       citations are deployed through #171/#172 at `088f190`; production recovery
       and public/browser acceptance passed. Facets, sorting and shareable state
-      are deployed through #185 at `736ba9f`. Cloudflare, indexing, practitioner
-      and legal evidence remain open.
-      See [the evidence](docs/validation/source-citations.md).
+      are deployed through #185 at `736ba9f`. The 102-check site audit passes
+      locally; Cloudflare obfuscation and `www` redirects are fixed in the zones.
+      Indexing, field performance, practitioner and legal evidence remain open. See [the evidence](docs/validation/source-citations.md) and
+      [the site audit](docs/validation/site-audit.md).
 - [ ] Reduce redundant Actions work against measured CI budgets (#174).
       #178 scopes documentation checks and cancels superseded PR validation;
       full PR/main verification passed. The docs-only PR/main path used 2m41s
@@ -57,9 +58,10 @@ These remaining gates stay open.
       now costs 14 rounded minutes instead of about 25. The monthly budget awaits
       owner review. See
       [CI scope and budget](docs/validation/ci-budget.md).
-- [ ] Recover API startup headroom (#189): the database is hashed once per
-      process and evidence lookup is linear; host timing is measured on the next
-      activation through the new `api_startup` log.
+- [x] Recover API startup headroom (#189, delivered through #190 at `f9a0a72`):
+      the database is hashed once per process and evidence lookup is linear.
+      The host transition fell from 267.6 to 120.5 of 300 seconds (cache possibly
+      warm); see [startup work](docs/validation/validation-deploy.md#startup-work-before-readiness-189).
 - [x] Reconcile API startup/rollback waits with measured host contention (#181,
       delivered through #182). The first activation at `736ba9f` rode out an
       initially unhealthy API in 212.7 of 300 seconds; the contention source
@@ -69,7 +71,9 @@ These remaining gates stay open.
       public acceptance passed; the original #161/#164 failure causes remain
       unknown. See [recovery acceptance](https://github.com/krzysztofbury/minos-health/issues/162#issuecomment-6113614043).
 - [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/AWS
-      acceptance (#49), Cloudflare privacy audit (#28), signed releases (#41),
+      acceptance (#49), release-path privacy checks (#28; the Cloudflare zone
+      audit is done, see [the site audit](docs/validation/site-audit.md#cloudflare-28)),
+      signed releases (#41),
       full deployment acceptance (#27), and external brand/commercial gates (#2/#3).
 
 Deferred work remains #141 (unattended activation), #95 (assisted case entry),

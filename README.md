@@ -24,15 +24,15 @@ pre-screen was performed on 2026-08-06 (see
    with points, source-linked traces and bounded near misses. Unsupported rules
    remain undetermined rather than being guessed into an answer.
 
-## Delivery Status (2026-10-12)
+## Delivery Status (2026-10-13)
 
 The public validation site serves terminology/JGP search, dated group and code
 pages, and the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper).
-The latest recorded verified validation deployment is `736ba9f` (activated
-2026-10-13T14:09:23Z) with source filters, sharing and bounded startup readiness;
-#171/#172 (`088f190`) added initial source HTML and durable RSK/BAW citations.
-MODTAR generation 103 and the 2026-10-13 knowledge horizon (#184) follow in the
-next release. The schema-10 bundle
+The latest recorded verified validation deployment is `f9a0a72` (activated
+2026-10-13T16:17:39Z) with MODTAR generation 103, the 2026-10-13 knowledge
+horizon (#184) and faster API startup (#189); `736ba9f` added source filters,
+sharing and bounded startup readiness, and #171/#172 (`088f190`) initial source
+HTML and durable RSK/BAW citations. The schema-10 bundle
 and release-pinned concept JSON remain available. Reviewed MODTAR binding,
 governing-act settlement-product exclusions, pinned JGP comparisons and NFZ
 publication metadata are also live.

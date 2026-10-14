@@ -544,7 +544,7 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .act-state h4, .additional-amendments h4 { font-size: var(--text-sm); }
 .act-variant { padding-left: 0.8rem; border-left: 2px solid var(--line); }
 .technical { display: block; margin-top: 0.4rem; color: var(--muted); font: var(--text-xs)/1.45 var(--font-code); overflow-wrap: anywhere; }
-.card-link { display: inline-flex; align-items: center; min-height: 44px; margin-top: 0.5rem; font-size: var(--text-sm); font-weight: 700; }
+.card-link { display: inline-flex; align-items: center; max-width: 100%; min-height: 44px; margin-top: 0.5rem; font-size: var(--text-sm); font-weight: 700; overflow-wrap: anywhere; }
 .card-notice { margin-top: 0.6rem; color: var(--muted); font-size: var(--text-sm); }
 .how-to { margin-top: 2.5rem; }
 .how-to h2 { margin-bottom: 0.75rem; font-size: var(--text-lg); }
