@@ -161,6 +161,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Cloudflare zones (#28, #80, owner-approved 2026-10-14): Email Address
+  Obfuscation, Web Analytics auto-install and Network Error Logging are off,
+  and `www` hosts redirect in one hop to `https://minoshealth.pl` with the path
+  and without the query string.
 - `/gruper` without JavaScript shows only the explanation instead of step
   controls that cannot work, and long attachment names wrap inside source cards
   (#80).

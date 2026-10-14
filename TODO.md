@@ -47,9 +47,8 @@ These remaining gates stay open.
       citations are deployed through #171/#172 at `088f190`; production recovery
       and public/browser acceptance passed. Facets, sorting and shareable state
       are deployed through #185 at `736ba9f`. The 102-check site audit passes
-      locally; production fails on Cloudflare email obfuscation. Cloudflare
-      settings, indexing, field performance, practitioner and legal evidence
-      remain open. See [the evidence](docs/validation/source-citations.md) and
+      locally; Cloudflare obfuscation and `www` redirects are fixed in the zones.
+      Indexing, field performance, practitioner and legal evidence remain open. See [the evidence](docs/validation/source-citations.md) and
       [the site audit](docs/validation/site-audit.md).
 - [ ] Reduce redundant Actions work against measured CI budgets (#174).
       #178 scopes documentation checks and cancels superseded PR validation;
@@ -72,7 +71,9 @@ These remaining gates stay open.
       public acceptance passed; the original #161/#164 failure causes remain
       unknown. See [recovery acceptance](https://github.com/krzysztofbury/minos-health/issues/162#issuecomment-6113614043).
 - [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/AWS
-      acceptance (#49), Cloudflare privacy audit (#28), signed releases (#41),
+      acceptance (#49), release-path privacy checks (#28; the Cloudflare zone
+      audit is done, see [the site audit](docs/validation/site-audit.md#cloudflare-28)),
+      signed releases (#41),
       full deployment acceptance (#27), and external brand/commercial gates (#2/#3).
 
 Deferred work remains #141 (unattended activation), #95 (assisted case entry),

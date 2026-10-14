@@ -174,6 +174,7 @@ try {
   if (socket) socket.close();
   browser.kill("SIGTERM");
   await new Promise(resolve => browser.exitCode !== null ? resolve() : browser.once("exit", resolve));
-  await rm(profile, { recursive: true, force: true });
+  // Chromium can still be flushing its profile just after exit.
+  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
 process.exitCode = failures.length ? 1 : 0;

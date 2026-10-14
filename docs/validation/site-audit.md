@@ -1,9 +1,9 @@
 # Public Site Audit (#80, #28)
 
-Read-only acceptance of every public page family on 2026-10-13, against
-production `f9a0a72` and a local stack built from this change. It covers what can
-be measured from outside; Cloudflare account settings, Search Console and field
-performance need the owner (see Open).
+Acceptance of every public page family on 2026-10-13/14, against production
+`f9a0a72` and a local stack built from this change, plus an owner-approved
+Cloudflare zone audit for `minoshealth.pl` and `minoshealth.com`. Search Console
+and field performance still need the owner (see Open).
 
 ## Method
 
@@ -28,14 +28,15 @@ and were reviewed by eye.
 
 ## Findings
 
-- Cloudflare Email Address Obfuscation is on. Every page served through the zone
-  shows the contact address as "[email protected]" without JavaScript, links it
-  to a Cloudflare page, and injects
-  `/cdn-cgi/scripts/.../email-decode.min.js`. The origin HTML is correct. All
-  102 production checks fail on this alone, apart from the clipping below; the
-  local stack built from this change passes all 102. Owner action: switch the zone setting off. `deploy_validation verify`
-  now refuses a homepage containing `/cdn-cgi/`, so a release will report this
-  until the setting is off.
+- Cloudflare Email Address Obfuscation was on. Every page served through the
+  zone showed the contact address as "[email protected]" without JavaScript,
+  linked it to a Cloudflare page, and injected
+  `/cdn-cgi/scripts/.../email-decode.min.js`; the origin HTML was correct. All
+  102 production checks failed on it. It is now off (see Cloudflare), and
+  production passes 101 of 102; the remaining check is the card clipping below,
+  fixed by this change. The local stack built from this change passes all 102.
+  `deploy_validation verify` now refuses a homepage containing `/cdn-cgi/`, so a
+  re-enabled rewrite stops the next release.
 - `/gruper` without JavaScript showed a permanent "Sprawdzamy dostępność" status
   and step buttons that could not work next to the "Formularz wymaga JavaScript"
   notice. The builder now starts hidden; the script reveals it and replaces the
@@ -51,16 +52,19 @@ and were reviewed by eye.
 
 | Request | Result |
 | --- | --- |
-| `http://minoshealth.pl/` | 301 to HTTPS (the earlier 200 is gone) |
-| `https://www.minoshealth.pl/<path>` | one 301 to the apex, path kept |
-| `http://www.minoshealth.pl/<path>` | two hops: HTTPS first, then the apex |
-| `https://minoshealth.com/<path>` | 308 to `.pl`, path kept; with a query string, 404 |
-| `https://www.minoshealth.com/<path>?q` | 301 to the `.com` apex with the query, then 404 |
+| Request | Before | After |
+| --- | --- | --- |
+| `http://minoshealth.pl/` | 301 to HTTPS | unchanged |
+| `http(s)://www.minoshealth.pl/<path>?q` | HTTP took two hops; query kept | one 301 to `https://minoshealth.pl/<path>`, no query |
+| `http(s)://www.minoshealth.com/<path>?q` | two hops via the `.com` apex; query kept | one 301 to `https://minoshealth.pl/<path>`, no query |
+| `https://minoshealth.com/<path>` | origin 308 to `.pl`, path kept; with a query, 404 | unchanged |
 
-Typed text never reaches the origin: the edge refuses query strings with 404.
-The `www.minoshealth.com` rule still copies the query into its `Location` and
-takes two hops. Owner action: point it straight at
-`https://minoshealth.pl/${path}` without the query.
+Both zones' `www` rules declared `preserve_query_string: false` but built the
+target with `wildcard_replace(http.request.full_uri, ...)`, and `full_uri`
+already contains the query. They now match `http.host eq "www.<zone>"` and
+target `concat("https://minoshealth.pl", http.request.uri.path)`. Typed text
+never reached the origin either way: the edge refuses query strings with 404.
+Code pages answer `HEAD` with 405 (GET-only routes); crawlers use GET.
 
 `robots.txt` allows everything except `/api/` and names one sitemap index with
 the pages (5 URLs), ICD-10 (12,371) and ICD-9 (10,180) sitemaps. Home,
@@ -68,12 +72,26 @@ dictionaries, code and source pages are `index, follow` with self canonicals.
 Dated JGP pages, the grouper and the legal pages are `noindex`, as decided in
 `docs/v0.0.1/decisions.md`; making JGP pages indexable is an owner decision.
 
+## Cloudflare (#28)
+
+Read through the Cloudflare API with owner OAuth on 2026-10-14; each change was
+approved by the owner and checked live afterwards.
+
+- Changed in both zones: Email Address Obfuscation off; the `www` redirect rules
+  above; Web Analytics (RUM) auto-install disabled (it had not reached pages,
+  since the CSP blocks it, and the privacy policy names only Plausible);
+  Network Error Logging off, so browsers no longer send failure reports with
+  URLs to `a.nel.cloudflare.com` and responses carry no `nel`/`report-to`
+  headers.
+- No Logpush jobs at zone or account level, no Page Rules, Rocket Loader off.
+  Zone rulesets are the managed defaults, the `.pl` per-IP rate limit on
+  `/api/v1/group` and a default leaked-credential rule on `.com`.
+- The log-retention control answers Unauthorized: it is an Enterprise feature,
+  so these Free-plan zones keep only Cloudflare's default security-event window.
+- Other zones in the account were not read or changed.
+
 ## Open
 
-- Cloudflare: Email Address Obfuscation off and the `www.minoshealth.com` rule
-  (above); for #28, the zone's logging and retention settings, Logpush jobs,
-  Web Analytics/RUM and Network Error Logging (responses carry a `cf-nel`
-  header). Published vendor defaults are not account evidence.
 - Indexing: Search Console coverage for the sitemaps. A third-party `site:`
   search returned nothing, which proves nothing either way.
 - Field performance: the keyless PageSpeed Insights quota was exhausted, and the
