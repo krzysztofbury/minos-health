@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import final
 
@@ -29,6 +30,17 @@ class Startup:
         self.health_seen: list[str] = []
         self.fault = ""
         self.reuse = False
+        self.retired: list[float] = []
+        self.retire_bounds: list[float] = []
+        self.retire_cost = 0.0
+
+    def retire(self, _layout: host.Layout, api: str, deadline: float) -> list[str]:
+        assert api == "reference-api"
+        assert self.clock.now < deadline
+        self.retired.append(self.clock.now)
+        self.retire_bounds.append(deadline)
+        self.clock.sleep(self.retire_cost)
+        return ["reference-api-blue"]
 
     def command(
         self, arguments: list[str], *, timeout_s: float | None = None
@@ -97,7 +109,14 @@ def startup(monkeypatch: pytest.MonkeyPatch) -> Startup:
     monkeypatch.setattr(host, "time", scenario.clock)
     monkeypatch.setattr(host, "bounded_command", scenario.command)
     monkeypatch.setattr(host, "startup_state", scenario.inspect)
+    monkeypatch.setattr(host, "retire_superseded", scenario.retire)
     return scenario
+
+
+def layout(root: Path) -> host.Layout:
+    services: dict[str, dict[str, object]] = {"reference-api": {}, "edge": {}}
+    _ = (root / "compose.yaml").write_text(json.dumps({"services": services}))
+    return host.Layout(root, "startup")
 
 
 @pytest.mark.parametrize("reuse", [False, True])
@@ -106,7 +125,7 @@ def test_initial_unhealthy_can_recover_without_weakening_real_health(
 ) -> None:
     startup.reuse = reuse
 
-    result = host.compose_result(host.Layout(tmp_path, "startup"))
+    result = host.compose_result(layout(tmp_path))
 
     assert result["status"] == "completed"
     assert list(startup.launched) == ["reference-api", "edge"]
@@ -119,7 +138,7 @@ def test_initial_unhealthy_can_recover_without_weakening_real_health(
 def test_api_and_edge_share_one_deadline(startup: Startup, tmp_path: Path) -> None:
     startup.delays = {"reference-api": 6, "edge": 6}
 
-    result = host.compose_result(host.Layout(tmp_path, "startup"))
+    result = host.compose_result(layout(tmp_path))
 
     assert result["status"] == "startup_deadline"
     assert result["phase"] == "edge"
@@ -134,7 +153,7 @@ def test_command_and_inspection_time_counts_toward_deadline(
     startup.launch_cost = 2
     startup.probe_cost = 0.5
 
-    result = host.compose_result(host.Layout(tmp_path, "startup"))
+    result = host.compose_result(layout(tmp_path))
 
     assert result["status"] in ("timeout", "startup_deadline")
     assert startup.clock.now == 10
@@ -158,10 +177,11 @@ def test_process_or_ambiguous_state_fails_without_waiting_out_grace(
 ) -> None:
     startup.fault = fault
 
-    result = host.compose_result(host.Layout(tmp_path, "startup"))
+    result = host.compose_result(layout(tmp_path))
 
     assert result["status"] != "completed"
     assert "edge" not in startup.launched
+    assert startup.retired == []
     assert startup.clock.now < 4
     assert "PRIVATE_INSPECTION_OUTPUT" not in str(result)
 
@@ -171,8 +191,46 @@ def test_api_must_stay_ready_while_edge_starts(
 ) -> None:
     startup.fault = "lost-readiness"
 
-    result = host.compose_result(host.Layout(tmp_path, "startup"))
+    result = host.compose_result(layout(tmp_path))
 
     assert result["status"] != "completed"
     assert result["phase"] == "edge"
     assert startup.clock.now == 4
+
+
+def test_superseded_api_retires_only_after_the_new_edge_is_ready(
+    startup: Startup, tmp_path: Path
+) -> None:
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "completed"
+    assert result["overlap"] is True
+    assert result["retired"] == ["reference-api-blue"]
+    assert startup.retired == [6]
+
+
+def test_without_overlap_superseded_api_retires_before_the_target_starts(
+    startup: Startup, tmp_path: Path
+) -> None:
+    startup.launch_cost = 1
+
+    result = host.compose_result(layout(tmp_path), overlap=False)
+
+    assert result["status"] == "completed"
+    assert result["overlap"] is False
+    assert startup.retired == [0]
+    assert startup.launched["reference-api"] == 1
+
+
+def test_retirement_has_its_own_bound_after_a_slow_startup(
+    startup: Startup, tmp_path: Path
+) -> None:
+    startup.delays = {"reference-api": 4, "edge": 4}
+    startup.retire_cost = 5
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "completed"
+    assert startup.retired == [8]
+    assert startup.retire_bounds == [8 + host.RETIRE_TIMEOUT_S]
+    assert startup.clock.now > host.UP_WAIT_TIMEOUT_S

@@ -24,13 +24,16 @@ pre-screen was performed on 2026-08-06 (see
    with points, source-linked traces and bounded near misses. Unsupported rules
    remain undetermined rather than being guessed into an answer.
 
-## Delivery Status (2026-10-13)
+## Delivery Status (2026-10-14)
 
 The public validation site serves terminology/JGP search, dated group and code
 pages, and the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper).
-The latest recorded verified validation deployment is `f9a0a72` (activated
-2026-10-13T16:17:39Z) with MODTAR generation 103, the 2026-10-13 knowledge
-horizon (#184) and faster API startup (#189); `736ba9f` added source filters,
+The latest recorded verified validation deployment is `fda0788` (activated
+2026-10-14T07:20:30Z, bundle `5cea0d5d` unchanged) with the no-JS builder and
+long source-card link fixes (#191); production then passed all 102
+[site audit](docs/validation/site-audit.md) checks. `f9a0a72` added MODTAR
+generation 103, the 2026-10-13 knowledge horizon (#184) and faster API startup
+(#189); `736ba9f` added source filters,
 sharing and bounded startup readiness, and #171/#172 (`088f190`) initial source
 HTML and durable RSK/BAW citations. The schema-10 bundle
 and release-pinned concept JSON remain available. Reviewed MODTAR binding,

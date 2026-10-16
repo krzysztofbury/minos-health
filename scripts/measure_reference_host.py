@@ -60,8 +60,13 @@ def snapshot() -> dict[str, list[object]]:
         config = cast(dict[str, object], row["Config"])
         labels = cast(dict[str, str], config["Labels"])
         services[labels["com.docker.compose.service"]] = row
-    if set(services) != {
+    # The API runs as one blue/green colour, or as the legacy service (#192).
+    apis = set(services) & {
         "reference-api",
+        "reference-api-blue",
+        "reference-api-green",
+    }
+    if len(apis) != 1 or set(services) - apis != {
         "edge",
         "watcher",
         "cloudflared",

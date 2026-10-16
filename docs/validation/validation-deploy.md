@@ -11,7 +11,9 @@ the signed product release of #41 or the full Compose deployment of #27.
 
 An update replaces exactly three identities on the Mikr.us host:
 
-- the `reference-api` image digest;
+- the reference API image digest, which also moves the API to the other colour
+  (`reference-api-blue` or `reference-api-green`, see
+  [Colour Activation](#colour-activation-without-downtime-192));
 - the `edge` image digest;
 - the read-only reference bundle, selected by its database SHA-256.
 
@@ -101,19 +103,25 @@ Run from the repository root with the materialized inventory described in
    file and asserting the expected previous API image, edge image,
    `MINOS_REFERENCE_DATABASE_SHA256` and the single read-only `/app/data`
    bind source before replacing those four values and migrating the known API
-   startup grace to 120 seconds. Any other starting state
-   is refused.
+   startup grace to 120 seconds. The API moves to the other colour, and the
+   edge moves to that colour's network and dependency. Any other starting
+   state or network topology is refused.
 7. **Pull** both digests into `image-pull.log`.
-8. **Activate.** Record the operational container IDs and restart counts
+8. **Activate.** Require `MemAvailable` of at least 300 MiB plus the API
+   memory limit, record the operational container IDs and restart counts
    (`ob`), install `compose.json` as `compose.yaml`, then use the host helper's
-   bounded readiness transition. It starts each service separately:
+   bounded readiness transition. It starts each service separately and retires
+   the superseded colour last:
 
    ```sh
    docker compose --project-name minos --file /opt/minos/compose.yaml \
-      up --detach --no-deps reference-api
+      up --detach --no-deps reference-api-blue
    # The helper requires real API health before starting edge.
    docker compose --project-name minos --file /opt/minos/compose.yaml \
      up --detach --no-deps edge
+   # Only after real edge health: stop and remove the previous colour.
+   docker stop --time 10 <previous API container ID>
+   docker rm <previous API container ID>
    ```
 
    Never restart `minos-compose.service`: its start path stops the watcher.
@@ -137,7 +145,11 @@ Run from the repository root with the materialized inventory described in
 ### Rollback
 
 Rollback restores `validation-rollback/<revision>/compose.yaml` as
-`compose.yaml` and repeats the step 8 bounded readiness transition. The previous bundle and
+`compose.yaml` and repeats the step 8 bounded readiness transition. The previous
+colour is a different service, so it starts beside the current one; if it is
+still running (a failed activation) Compose reuses it unchanged. Without room
+for two APIs, rollback retires the current API first and accepts downtime rather
+than refusing recovery. The previous bundle and
 images remain installed, so rollback needs no network access. Bundles must not
 be deleted while any retained rollback file references them.
 
@@ -211,7 +223,7 @@ event; every step can be rerun on its own with `--revision <sha>`.
 | `inspect` | live identities, live revision, Compose SHA-256, memory, disk, container health | none |
 | `plan` | revision is remote `main`; publish run is a successful `workflow_dispatch` of that commit on `main`; artifact matches; bundle opens and its database matches its manifest; records the live Compose SHA-256; writes `test-output/validation-deploy/<revision>/plan.json` | none |
 | `stage` | live Compose unchanged since `plan`; deterministic archive upload (skipped if the bundle is installed); checksum; atomic install as root `0755`/`0444`; `deployment.json`; rollback copy; identity swap that asserts all previous identities; pulls both digests and requires `linux/amd64` plus the source revision label | new files only |
-| `activate` | Compose unchanged since `plan`; at least 300 MiB available; operational snapshot; installs the staged file; starts API then edge under one 300-second real-health deadline; on failure restores the rollback file with one separately bounded attempt; requires unchanged watcher, tunnel and Kuma container IDs and restart counts and healthy validation services; rerunning on an active release reports `already_active` | live Compose |
+| `activate` | Compose unchanged since `plan`; at least 300 MiB plus the API memory limit available; operational snapshot; installs the staged file; starts the new API colour beside the live one, then edge, under one 300-second real-health deadline, then retires the old colour under a separate 60-second bound; on failure restores the rollback file with one separately bounded attempt; requires unchanged watcher, tunnel and Kuma container IDs and restart counts and healthy validation services; rerunning on an active release reports `already_active` | live Compose |
 | `verify` | public `/readyz` serves the planned dataset identity; for rank bundles one exact page shows the expected rank and, with `--chromium`, the desktop and mobile rank acceptance runs; writes `activation-receipt.json` on the host (with the host's own activation time) and locally | receipt only |
 | `rollback --revision <sha>` | accepts only that candidate or its exact retained prior Compose; restores both validation services; requires healthy API/edge, expected running images and unchanged operational services; checks public readiness and homepage before reporting complete rollback | live Compose |
 | `prune [--keep n] [--apply]` | lists, or with `--apply` removes, unreferenced images, bundles and staged archives | deletes only with `--apply` |
@@ -325,6 +337,49 @@ after API restoration while the dependent edge is `created`, then repeats
 rollback and verifies both healthchecks plus HTTP readiness/homepage. Three
 inert operational sentinels retain IDs/restart counts. This smoke runs in the
 validation-image CI workflow. It does not fault-inject production.
+
+### Colour Activation Without Downtime (#192)
+
+Until #192, activation recreated `reference-api` in place, and the edge
+returned 502 for the whole API startup: 87 to 270 seconds on the host. Uptime
+Kuma recorded 502 episodes on 2026-10-09 through 2026-10-14. Those on 2026-10-13
+and 2026-10-14 matched release activations, and each sent Telegram down/up
+alerts.
+
+The API now alternates between `reference-api-blue` and `reference-api-green`.
+Each colour is alone on its own internal network (`reference-blue`,
+`reference-green`) under the alias `reference-api`. The edge image and its
+`proxy_pass http://reference-api:8081` are unchanged: nginx resolves the name
+once at startup on the only API network the edge joins. The legacy
+`reference-api` service on `reference` is accepted as the starting colour, and
+the first activation moves it to blue.
+
+One transition serves activation and rollback:
+
+1. start the target API beside the live one (the live API keeps serving
+   through the old edge) and wait for real health;
+2. recreate the edge on the target colour's network and wait for real health;
+3. stop (10-second grace) and remove every API container that the live Compose
+   no longer defines, under a separate 60-second bound. Retirement is cleanup
+   after real health, so it never consumes the startup deadline; without room
+   for two APIs, rollback retires first and the 300 seconds start afterwards.
+
+The shared 300-second deadline, fail-closed process checks, exact prior Compose
+rollback and operational isolation are unchanged. Retirement happens only after
+both new services are healthy, so a failed activation restores by reusing the
+untouched previous API and edge. A retained superseded colour fails the
+`restored` check. The edge shares a network with exactly one API, so one edge
+never mixes colours. A retired colour's empty internal network may remain; the
+next activation of that colour reuses it.
+
+The edge recreation remains a short interruption. The disposable container
+smoke (`scripts/smoke_validation_rollback.py`) starts a candidate API that
+waits 10 seconds before serving and polls edge readiness every 100 ms. On
+2026-10-16 locally: 184 probes, longest unready interval 0.5 seconds, legacy API
+retired after the new edge was healthy, and the partial-rollback recovery passed
+with both colours. Production overlap costs one extra API (memory limit 512 MiB)
+on the one-CPU host while the candidate starts, so responses may slow but not
+fail. A production activation has not yet been measured.
 
 ### Retention
 

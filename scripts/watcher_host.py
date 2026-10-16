@@ -13,7 +13,8 @@ from scripts import validation_host as host
 
 IMAGE = re.compile(r"ghcr\.io/krzysztofbury/minos-health-watcher@sha256:[0-9a-f]{64}")
 REVISION = re.compile(r"[0-9a-f]{40}")
-PRESERVED = {"reference-api", "edge", "cloudflared", "uptime-kuma"}
+# Exactly one reference API colour is preserved beside these services (#192).
+PRESERVED = {"edge", "cloudflared", "uptime-kuma"}
 PYTHON = "/app/.venv/bin/python"
 
 
@@ -42,8 +43,10 @@ def render(document: dict[str, object], image: str) -> dict[str, object]:
 
 def baseline(layout: host.Layout) -> list[list[str]]:
     records = host.containers(layout)
+    services = {row[0] for row in records}
+    apis = services & set(host.API_SERVICES)
     host.require(
-        {row[0] for row in records} == PRESERVED | {"watcher"},
+        len(apis) == 1 and services - apis == PRESERVED | {"watcher"},
         "unexpected live services",
     )
     host.require(len(records) == 5, "duplicate live services")

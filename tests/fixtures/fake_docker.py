@@ -4,21 +4,25 @@ State lives in the JSON file named by FAKE_DOCKER_STATE so a test can arrange
 containers and images, inject failures and inspect every recorded call.
 """
 
+import hashlib
 import json
 import os
 import sys
 from pathlib import Path
 from typing import cast
 
-STATE = Path(os.environ["FAKE_DOCKER_STATE"])
+
+def state_path() -> Path:
+    # Resolved per call so tests can import service_config without a state file.
+    return Path(os.environ["FAKE_DOCKER_STATE"])
 
 
 def load() -> dict[str, object]:
-    return cast(dict[str, object], json.loads(STATE.read_text()))
+    return cast(dict[str, object], json.loads(state_path().read_text()))
 
 
 def save(state: dict[str, object]) -> None:
-    _ = STATE.write_text(json.dumps(state, indent=2, sort_keys=True))
+    _ = state_path().write_text(json.dumps(state, indent=2, sort_keys=True))
 
 
 def image_id(state: dict[str, object], reference: str) -> str:
@@ -28,6 +32,15 @@ def image_id(state: dict[str, object], reference: str) -> str:
         if reference in cast(list[str], image["references"]) or reference == identifier:
             return identifier
     raise KeyError(reference)
+
+
+API_SERVICES = ("reference-api", "reference-api-blue", "reference-api-green")
+RUNNING = ("none", "starting", "unhealthy", "healthy")
+
+
+def service_config(service: object) -> str:
+    """Stand-in for Compose's config hash: unchanged services are not recreated."""
+    return hashlib.sha256(json.dumps(service, sort_keys=True).encode()).hexdigest()
 
 
 def compose_up(state: dict[str, object], arguments: list[str]) -> int:
@@ -46,15 +59,21 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
     selected = tuple(
         argument
         for argument in arguments[arguments.index("up") + 1 :]
-        if argument in ("reference-api", "edge", "watcher")
+        if argument in (*API_SERVICES, "edge", "watcher")
     )
     for service in selected:
         image = compose["services"][service]["image"]
+        config = service_config(compose["services"][service])
         old = next(
             (key for key, value in containers.items() if value["service"] == service),
             None,
         )
         if old is not None:
+            if (
+                containers[old].get("config") == config
+                and containers[old]["health"] in RUNNING
+            ):
+                continue
             del containers[old]
         state["sequence"] = cast(int, state["sequence"]) + 1
         containers[f"{service}-{state['sequence']}"] = {
@@ -62,12 +81,13 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             "image": image_id(state, image),
             "restarts": 0,
             "health": "healthy",
+            "config": config,
         }
         if service == "watcher" and state.get("fail_after_watcher"):
             state["fail_after_watcher"] = False
             containers[f"{service}-{state['sequence']}"]["health"] = "unhealthy"
             return 1
-        if service == "reference-api" and state.get("fail_after_api"):
+        if service in API_SERVICES and state.get("fail_after_api"):
             edge = next(
                 value for value in containers.values() if value["service"] == "edge"
             )
@@ -183,6 +203,13 @@ def main(arguments: list[str]) -> int:
                 status = 1
             else:
                 del images[identifier]
+        case ["stop", "--time", _, identifier]:
+            containers[identifier]["health"] = "exited"
+            if state.get("fail_stop"):
+                state["fail_stop"] = False
+                status = 1
+        case ["rm", identifier]:
+            del containers[identifier]
         case ["compose", *rest] if "up" in rest:
             status = compose_up(state, rest)
         case _:

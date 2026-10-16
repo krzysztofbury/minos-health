@@ -24,6 +24,7 @@ from scripts.deploy_validation import (
     parse_host_answer,
 )
 from scripts.validation_host import HostError, swap_identities
+from tests.fixtures.fake_docker import service_config
 
 ROOT = Path(__file__).parents[2]
 HOST_PROGRAM = ROOT / "scripts" / "validation_host.py"
@@ -50,6 +51,9 @@ def compose(root: Path, api: str, edge: str, database: str) -> dict[str, object]
             "edge": {
                 "image": edge,
                 "networks": {"edge": None, "reference": None},
+                "depends_on": {
+                    "reference-api": {"condition": "service_healthy", "required": True}
+                },
                 "volumes": [
                     {
                         "type": "bind",
@@ -61,6 +65,8 @@ def compose(root: Path, api: str, edge: str, database: str) -> dict[str, object]
             },
             "reference-api": {
                 "image": api,
+                "mem_limit": "512m",
+                "networks": {"reference": None},
                 "healthcheck": {
                     "test": ["CMD", "python", "probe.py"],
                     "interval": "10s",
@@ -78,6 +84,10 @@ def compose(root: Path, api: str, edge: str, database: str) -> dict[str, object]
                     }
                 ],
             },
+        },
+        "networks": {
+            "edge": {"internal": True, "name": "minos_edge"},
+            "reference": {"internal": True, "name": "minos_reference"},
         },
     }
 
@@ -139,6 +149,7 @@ def site(tmp_path: Path) -> tuple[Path, Path, Path]:
         "maintenance": {"references": [MAINTENANCE], "size": 90, "revision": ""},
         "local-build": {"references": [], "size": 5, "revision": ""},
     }
+    services = cast(dict[str, dict[str, object]], live["services"])
     state: dict[str, object] = {
         "calls": [],
         "fail_up": 0,
@@ -147,9 +158,10 @@ def site(tmp_path: Path) -> tuple[Path, Path, Path]:
         "images": images,
         "containers": {
             "api-0": {"service": "reference-api", "image": "live-api", "restarts": 0,
-                      "health": "healthy"},
+                      "health": "healthy",
+                      "config": service_config(services["reference-api"])},
             "edge-0": {"service": "edge", "image": "live-edge", "restarts": 0,
-                       "health": "healthy"},
+                       "health": "healthy", "config": service_config(services["edge"])},
             "watcher-0": {"service": "watcher", "image": "watcher", "restarts": 2,
                           "health": "healthy"},
         },
@@ -249,9 +261,9 @@ def test_update_changes_only_validation_services_and_is_resumable(
     rendered = cast(dict[str, object], json.loads((stage / "compose.json").read_text()))
     expected = cast(dict[str, object], json.loads(before))
     services = cast(dict[str, dict[str, object]], expected["services"])
-    services["reference-api"]["image"] = NEW_API
+    api = services.pop("reference-api")
+    api["image"] = NEW_API
     services["edge"]["image"] = NEW_EDGE
-    api = services["reference-api"]
     cast(dict[str, object], api["healthcheck"])["start_period"] = "120s"
     cast(dict[str, str], api["environment"])["MINOS_REFERENCE_DATABASE_SHA256"] = (
         database
@@ -265,6 +277,13 @@ def test_update_changes_only_validation_services_and_is_resumable(
             "read_only": True,
         }
     )
+    api["networks"] = {"reference-blue": {"aliases": ["reference-api"]}}
+    services["reference-api-blue"] = api
+    services["edge"]["networks"] = {"edge": None, "reference-blue": None}
+    services["edge"]["depends_on"] = {
+        "reference-api-blue": {"condition": "service_healthy", "required": True}
+    }
+    cast(dict[str, object], expected["networks"])["reference-blue"] = {"internal": True}
     assert rendered == expected
     assert (root / "compose.yaml").read_bytes() == before  # staging is not activation
 
@@ -273,6 +292,19 @@ def test_update_changes_only_validation_services_and_is_resumable(
     activated = host("activate", params)
     assert activated["status"] == "activated"
     assert (root / "compose.yaml").read_bytes() == (stage / "compose.json").read_bytes()
+    containers = cast(dict[str, dict[str, object]], docker_state(site)["containers"])
+    assert sorted(str(value["service"]) for value in containers.values()) == [
+        "edge",
+        "reference-api-blue",
+        "watcher",
+    ]
+    calls = cast(list[list[str]], docker_state(site)["calls"])
+    started = [call[-1] for call in calls if call[0] == "compose" and "up" in call]
+    assert started == ["reference-api-blue", "edge"]
+    # The live API serves through the old edge until the new edge is healthy.
+    assert calls.index(["stop", "--time", "10", "api-0"]) > max(
+        index for index, call in enumerate(calls) if call[0] == "compose"
+    )
     assert (stage / "ob").read_bytes() == (stage / "oa").read_bytes()
     assert host("activate", params)["status"] == "already_active"
     stored = host("receipt", {"deployment": params["deployment"], "receipt": {"x": 1}})
@@ -297,6 +329,9 @@ def test_failed_activation_restores_previous_compose(
         _ = host("activate", params)
     assert (root / "compose.yaml").read_bytes() == before
     assert not (root / "validation-stage" / NEW_REVISION / "activated-at.txt").exists()
+    # The untouched live API and edge kept serving: restoration reused both.
+    containers = cast(dict[str, dict[str, object]], docker_state(site)["containers"])
+    assert sorted(containers) == ["api-0", "edge-0", "watcher-0"]
 
 
 def test_operational_restart_during_activation_fails(
@@ -566,8 +601,9 @@ def test_partial_rollback_retains_diagnostics_and_original_recovery_baseline(
     with pytest.raises(DeployError, match="rollback incomplete") as failed:
         _ = host("rollback", {"revision": NEW_REVISION})
     assert failed.value.details["validation_health"] == {
-        "reference-api": "healthy",
         "edge": "created",
+        "reference-api": "healthy",
+        "reference-api-blue": "healthy",
     }
     assert failed.value.details["operational"] == "unchanged"
     assert failed.value.details["recovery"] == "rollback --revision " + NEW_REVISION
@@ -632,11 +668,16 @@ def test_successful_compose_exit_does_not_override_runtime_state(
         "unhealthy_edge": "unhealthy",
         "wrong_edge_image": "healthy",
     }[failure]
+    retained = (
+        {} if failure == "wrong_edge_image" else {"reference-api-blue": "healthy"}
+    )
     assert failed.value.details["validation_health"] == {
-        "reference-api": "healthy",
         "edge": expected_health,
+        "reference-api": "healthy",
+        **retained,
     }
-    assert failed.value.details["identities_match"] is (failure == "unhealthy_edge")
+    # A retained superseded colour or a stale edge image is never a match.
+    assert failed.value.details["identities_match"] is False
     assert (
         json.loads(
             (
@@ -789,3 +830,147 @@ def test_verify_home_refuses_a_proxy_rewritten_homepage(
     else:
         with pytest.raises(DeployError, match=error):
             _ = deploy_validation.verify_home("https://example.test")
+
+
+def test_identity_swap_alternates_blue_and_green(tmp_path: Path) -> None:
+    blue = swap_identities(
+        compose(tmp_path, OLD_API, OLD_EDGE, OLD_DB),
+        PREVIOUS,
+        deployment(OLDER_DB),
+        tmp_path / "reference",
+    )
+    following = {**PREVIOUS, "api_image": NEW_API, "edge_image": NEW_EDGE,
+                 "database_sha256": OLDER_DB}  # fmt: skip
+    reference = tmp_path / "reference"
+    green = swap_identities(blue, following, deployment(OLD_DB), reference)
+    following = {**following, "database_sha256": OLD_DB}
+    back = swap_identities(green, following, deployment(OLDER_DB), reference)
+    for rendered, colour in ((green, "green"), (back, "blue")):
+        services = cast(dict[str, dict[str, object]], rendered["services"])
+        assert [name for name in services if name.startswith("reference-api")] == [
+            f"reference-api-{colour}"
+        ]
+        assert services[f"reference-api-{colour}"]["networks"] == {
+            f"reference-{colour}": {"aliases": ["reference-api"]}
+        }
+        assert services["edge"]["networks"] == {
+            "edge": None,
+            f"reference-{colour}": None,
+        }
+        assert list(cast(dict[str, object], services["edge"]["depends_on"])) == [
+            f"reference-api-{colour}"
+        ]
+    networks = cast(dict[str, dict[str, object]], back["networks"])
+    assert {name for name in networks if name.startswith("reference-")} == {
+        "reference-blue",
+        "reference-green",
+    }
+    assert all(networks[name]["internal"] is True for name in networks)
+
+
+def _extra_edge_network(live: dict[str, object]) -> None:
+    services = cast(dict[str, dict[str, object]], live["services"])
+    services["edge"]["networks"] = {"edge": None, "reference": None, "monitoring": None}
+
+
+def _shared_api_network(live: dict[str, object]) -> None:
+    services = cast(dict[str, dict[str, object]], live["services"])
+    services["reference-api"]["networks"] = {"reference": None, "edge": None}
+
+
+def _public_target_network(live: dict[str, object]) -> None:
+    cast(dict[str, object], live["networks"])["reference-blue"] = {}
+
+
+def _second_api(live: dict[str, object]) -> None:
+    services = cast(dict[str, dict[str, object]], live["services"])
+    services["reference-api-green"] = deepcopy(services["reference-api"])
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (_extra_edge_network, "edge network differs"),
+        (_shared_api_network, "API network differs"),
+        (_public_target_network, "target API network is not internal"),
+        (_second_api, "exactly one reference API"),
+    ],
+)
+def test_identity_swap_refuses_unreviewed_colour_topology(
+    tmp_path: Path, mutate: Callable[[dict[str, object]], None], message: str
+) -> None:
+    live = compose(tmp_path, OLD_API, OLD_EDGE, OLD_DB)
+    mutate(live)
+    with pytest.raises(HostError, match=message):
+        _ = swap_identities(
+            live, PREVIOUS, deployment("2" * 64), tmp_path / "reference"
+        )
+
+
+def test_activation_requires_room_for_two_apis(site: tuple[Path, Path, Path]) -> None:
+    root, _, _ = site
+    live = cast(dict[str, object], json.loads((root / "compose.yaml").read_bytes()))
+    services = cast(dict[str, dict[str, object]], live["services"])
+    services["reference-api"]["mem_limit"] = "1024g"
+    _ = (root / "compose.yaml").write_text(json.dumps(live))
+    host = host_for(site)
+    params = staged(site, host)
+    before = (root / "compose.yaml").read_bytes()
+    with pytest.raises(DeployError, match="memory headroom"):
+        _ = host("activate", params)
+    assert (root / "compose.yaml").read_bytes() == before
+    assert not any(
+        call[0] == "compose"
+        for call in cast(list[list[str]], docker_state(site)["calls"])
+    )
+
+
+def test_rollback_without_room_for_two_apis_retires_first(
+    site: tuple[Path, Path, Path],
+) -> None:
+    root, _, _ = site
+    host = host_for(site)
+    params = staged(site, host)
+    _ = host("activate", params)
+    source = root / "validation-rollback" / NEW_REVISION / "compose.yaml"
+    prior = cast(dict[str, object], json.loads(source.read_bytes()))
+    services = cast(dict[str, dict[str, object]], prior["services"])
+    services["reference-api"]["mem_limit"] = "1024g"
+    _ = source.write_text(json.dumps(prior))
+    offset = len(cast(list[object], docker_state(site)["calls"]))
+    result = host("rollback", {"revision": NEW_REVISION})
+    assert result["status"] == "restored"
+    calls = cast(list[list[str]], docker_state(site)["calls"])[offset:]
+    actions = [
+        call[0] if call[0] in ("stop", "rm") else call[-1]
+        for call in calls
+        if call[0] in ("stop", "rm") or (call[0] == "compose" and "up" in call)
+    ]
+    # Without room for two APIs, recovery accepts downtime over refusal.
+    assert actions == ["stop", "rm", "reference-api", "edge"]
+    record = root / "validation-stage" / NEW_REVISION / "rollback-operations.log"
+    log = cast(dict[str, object], json.loads(record.read_bytes()))
+    assert log["overlap"] is False and log["retired"] == ["reference-api-blue"]
+
+
+def test_failed_retirement_restores_the_previous_release(
+    site: tuple[Path, Path, Path],
+) -> None:
+    root, _, base = site
+    host = host_for(site)
+    before = (root / "compose.yaml").read_bytes()
+    params = staged(site, host)
+    state = docker_state(site)
+    state["fail_stop"] = True
+    _ = (base / "docker-state.json").write_text(json.dumps(state))
+    with pytest.raises(DeployError, match="previous release was restored") as failed:
+        _ = host("activate", params)
+    activation = cast(dict[str, object], failed.value.details["activation_failure"])
+    assert activation["phase"] == "retire"
+    assert (root / "compose.yaml").read_bytes() == before
+    containers = cast(dict[str, dict[str, object]], docker_state(site)["containers"])
+    assert sorted(str(value["service"]) for value in containers.values()) == [
+        "edge",
+        "reference-api",
+        "watcher",
+    ]

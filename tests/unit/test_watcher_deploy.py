@@ -217,3 +217,35 @@ def test_release_gate_binds_successful_main_build_to_artifact(
         with pytest.raises(DeployError):
             deploy_watcher.reviewed(plan)
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("apis", "accepted"),
+    [
+        (["reference-api"], True),
+        (["reference-api-green"], True),
+        (["reference-api-blue", "reference-api-green"], False),
+        ([], False),
+    ],
+)
+def test_watcher_baseline_preserves_exactly_one_api_colour(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    apis: list[str],
+    accepted: bool,
+) -> None:
+    services = [*apis, "edge", "cloudflared", "uptime-kuma", "watcher"]
+    records = [(name, name + "-0", "0", "healthy") for name in sorted(services)]
+
+    def containers(_layout: validation_host.Layout) -> list[tuple[str, str, str, str]]:
+        return records
+
+    monkeypatch.setattr(validation_host, "containers", containers)
+    layout = validation_host.Layout(tmp_path, "minos")
+    if accepted:
+        assert [row[0] for row in watcher_host.baseline(layout)] == sorted(
+            [*apis, "edge", "cloudflared", "uptime-kuma"]
+        )
+    else:
+        with pytest.raises(validation_host.HostError, match="unexpected live"):
+            _ = watcher_host.baseline(layout)
