@@ -5,12 +5,12 @@ Execution backlog lives in [GitHub issues](https://github.com/krzysztofbury/mino
 estimates). This file remains the spec-level checklist; issues carry the
 day-to-day order.
 
-## Reconciled Delivery Status (2026-10-13)
+## Reconciled Delivery Status (2026-10-14)
 
-Latest verified validation deployment: #171/#172, revision `088f190`, activated
-2026-10-12T13:29:24Z with the unchanged schema-10 bundle.
-[Source/citation acceptance](docs/validation/source-citations.md#production-activation)
-records exact identities, copied-state recovery and public API/browser checks.
+Latest verified validation deployment: #191, revision `fda0788`, activated
+2026-10-14T07:20:30Z with the unchanged bundle `5cea0d5d`; the production site
+audit passed 102/102. Earlier source/citation activation evidence remains in
+[source/citation acceptance](docs/validation/source-citations.md#production-activation).
 This is a dated deployment record, not a new production inspection.
 
 The owner-approved sequence #162 recovery, #92 metadata and #23 concept detail

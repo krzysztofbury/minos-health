@@ -32,9 +32,10 @@ and were reviewed by eye.
   zone showed the contact address as "[email protected]" without JavaScript,
   linked it to a Cloudflare page, and injected
   `/cdn-cgi/scripts/.../email-decode.min.js`; the origin HTML was correct. All
-  102 production checks failed on it. It is now off (see Cloudflare), and
-  production passes 101 of 102; the remaining check is the card clipping below,
-  fixed by this change. The local stack built from this change passes all 102.
+  102 production checks failed on it. It is now off (see Cloudflare). Production
+  then passed 101 of 102; the remaining check was the card clipping below. After
+  release `fda0788` (#191, 2026-10-14) production passes all 102
+  ([evidence](https://github.com/krzysztofbury/minos-health/issues/80#issuecomment-6163132074)).
   `deploy_validation verify` now refuses a homepage containing `/cdn-cgi/`, so a
   re-enabled rewrite stops the next release.
 - `/gruper` without JavaScript showed a permanent "Sprawdzamy dostępność" status
