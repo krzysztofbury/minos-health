@@ -58,6 +58,11 @@ These remaining gates stay open.
       now costs 14 rounded minutes instead of about 25. The monthly budget awaits
       owner review. See
       [CI scope and budget](docs/validation/ci-budget.md).
+- [ ] Activate API releases without downtime (#192): blue/green API colours
+      with retirement after real API and edge health; the disposable smoke kept
+      readiness within 0.5 seconds of interruption while a 10-second candidate
+      started. Production activation evidence is pending. See
+      [colour activation](docs/validation/validation-deploy.md#colour-activation-without-downtime-192).
 - [x] Recover API startup headroom (#189, delivered through #190 at `f9a0a72`):
       the database is hashed once per process and evidence lookup is linear.
       The host transition fell from 267.6 to 120.5 of 300 seconds (cache possibly

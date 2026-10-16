@@ -4,8 +4,16 @@ Run as root over SSH by ``scripts/deploy_validation.py`` with
 ``python3 - <command> <base64-json>``. It uses only the standard library and
 must stay compatible with the host's Python 3.12. Every mutating command holds
 one exclusive lock, refuses any starting state other than the reviewed plan, and
-changes only ``reference-api``, ``edge`` and their bundle; watcher, tunnel and
+changes only the reference API, ``edge`` and their bundle; watcher, tunnel and
 monitoring containers must keep their identities and restart counts.
+
+The API alternates between blue and green services (#192). Each colour is
+alone on its own internal network under the alias ``reference-api``, so the
+edge image is unchanged and follows the colour of the network it joins. A
+transition starts the target API beside the live one, moves the edge only after
+real API health, and then retires the superseded API: API startup no longer
+interrupts public traffic. The legacy ``reference-api`` service is accepted as
+the initial live colour.
 """
 
 import base64
@@ -28,7 +36,16 @@ from pathlib import Path
 from typing import NamedTuple, cast, final
 
 PRODUCTION_ROOT = Path("/opt/minos")
-VALIDATION_SERVICES = ("reference-api", "edge")
+LEGACY_API_SERVICE = "reference-api"
+API_ALIAS = "reference-api"
+API_NETWORKS = {
+    LEGACY_API_SERVICE: "reference",
+    "reference-api-blue": "reference-blue",
+    "reference-api-green": "reference-green",
+}
+API_SERVICES = tuple(API_NETWORKS)
+EDGE_SERVICE = "edge"
+VALIDATION_SERVICES = (*API_SERVICES, EDGE_SERVICE)
 DATABASE_VARIABLE = "MINOS_REFERENCE_DATABASE_SHA256"
 BUNDLE_FILES = ("manifest.json", "minos.db", "review.txt")
 API_IMAGE = re.compile(
@@ -44,6 +61,11 @@ MAX_PARAMS_BYTES = 16 * 1024
 MAX_COMPOSE_BYTES = 1024 * 1024
 MAX_BUNDLE_BYTES = 512 * 1024 * 1024
 MIN_AVAILABLE_MIB = 300
+MEMORY_LIMIT = re.compile(r"([0-9]+)([bkmg]?)")
+RETIRE_GRACE_S = 10
+# Retirement is cleanup after real health, so it has its own bound and never
+# consumes the owner-approved startup deadline (#181).
+RETIRE_TIMEOUT_S = 60
 MAX_KEEP = 5
 INSPECT_FORMAT = '{{.Id}} {{.RestartCount}} {{if .State.Running}}{{if index .State "Health"}}{{.State.Health.Status}}{{else}}none{{end}}{{else}}{{.State.Status}}{{end}}'
 PULL_TIMEOUT_S = 900
@@ -177,9 +199,39 @@ def _api_bind(api: dict[str, object]) -> dict[str, object]:
     return binds[0]
 
 
+def api_service(compose: dict[str, object]) -> str:
+    services = cast(dict[str, object], compose["services"])
+    present = [name for name in API_SERVICES if name in services]
+    require(len(present) == 1, "compose must define exactly one reference API")
+    return present[0]
+
+
+def successor(api: str) -> str:
+    return (
+        "reference-api-green" if api == "reference-api-blue" else "reference-api-blue"
+    )
+
+
+def api_networks(api: str) -> dict[str, object]:
+    if api == LEGACY_API_SERVICE:
+        return {API_NETWORKS[api]: None}
+    return {API_NETWORKS[api]: {"aliases": [API_ALIAS]}}
+
+
+def api_memory_mib(compose: dict[str, object]) -> int:
+    services = cast(dict[str, dict[str, object]], compose["services"])
+    match = MEMORY_LIMIT.fullmatch(
+        str(services[api_service(compose)].get("mem_limit", "")).lower()
+    )
+    require(match is not None, "reference API memory limit is not exact")
+    assert match is not None
+    scale = {"": 1, "b": 1, "k": 1024, "m": 1024**2, "g": 1024**3}[match[2]]
+    return -(-int(match[1]) * scale // 1024**2)
+
+
 def live_identities(compose: dict[str, object]) -> dict[str, str]:
     services = cast(dict[str, dict[str, object]], compose["services"])
-    api, edge = services["reference-api"], services["edge"]
+    api, edge = services[api_service(compose)], services[EDGE_SERVICE]
     environment = cast(dict[str, str], api["environment"])
     return {
         "api_image": cast(str, api["image"]),
@@ -215,9 +267,11 @@ def swap_identities(
     )
     result = copy.deepcopy(compose)
     services = cast(dict[str, dict[str, object]], result["services"])
-    services["reference-api"]["image"] = deployment["api_image"]
+    live_api = api_service(compose)
+    api = services[live_api]
+    api["image"] = deployment["api_image"]
     services["edge"]["image"] = deployment["edge_image"]
-    health = services["reference-api"].get("healthcheck")
+    health = api.get("healthcheck")
     require(isinstance(health, dict), "API healthcheck is missing")
     health = cast(dict[str, object], health)
     require(
@@ -226,12 +280,10 @@ def swap_identities(
     # Existing hosts retain their old Compose configuration during an image
     # swap. Apply the measured conditions grace here, not only on first install.
     health["start_period"] = "120s"
-    cast(dict[str, str], services["reference-api"]["environment"])[
-        DATABASE_VARIABLE
-    ] = deployment["database_sha256"]
-    _api_bind(services["reference-api"])["source"] = str(
-        reference_root / deployment["database_sha256"]
-    )
+    cast(dict[str, str], api["environment"])[DATABASE_VARIABLE] = deployment[
+        "database_sha256"
+    ]
+    _api_bind(api)["source"] = str(reference_root / deployment["database_sha256"])
     # Source pages read only the already-public metadata mounted by the edge.
     # Never infer a wider watcher/control/archive mount from a host path.
     public = [
@@ -246,14 +298,57 @@ def swap_identities(
         and public[0].get("source") == "/var/lib/minos/public",
         "edge public metadata bind differs",
     )
-    volumes = cast(list[dict[str, object]], services["reference-api"]["volumes"])
+    volumes = cast(list[dict[str, object]], api["volumes"])
     mounted = [
         volume for volume in volumes if volume.get("target") == "/var/lib/minos/public"
     ]
     require(not mounted or mounted == public, "API public metadata bind differs")
     if not mounted:
         volumes.append(copy.deepcopy(public[0]))
+    recolour(result, live_api)
     return result
+
+
+def recolour(compose: dict[str, object], live_api: str) -> None:
+    """Move the API to the other colour and the edge to that colour's network.
+
+    The live service, its isolated network and the edge's exact attachment
+    must match the reviewed topology, so no other route can reach either API.
+    """
+    services = cast(dict[str, dict[str, object]], compose["services"])
+    networks = cast(dict[str, dict[str, object]], compose["networks"])
+    target = successor(live_api)
+    live_network, target_network = API_NETWORKS[live_api], API_NETWORKS[target]
+    api = services.pop(live_api)
+    edge = services[EDGE_SERVICE]
+    require(api.get("networks") == api_networks(live_api), "API network differs")
+    require(
+        edge.get("networks") == {EDGE_SERVICE: None, live_network: None},
+        "edge network differs",
+    )
+    dependency = edge.get("depends_on")
+    require(
+        dependency is None
+        or (
+            isinstance(dependency, dict)
+            and list(cast(dict[str, object], dependency)) == [live_api]
+        ),
+        "edge dependency differs",
+    )
+    require(
+        networks.get(live_network, {}).get("internal") is True,
+        "API network is not internal",
+    )
+    require(
+        networks.get(target_network, {"internal": True}).get("internal") is True,
+        "target API network is not internal",
+    )
+    _ = networks.setdefault(target_network, {"internal": True})
+    api["networks"] = api_networks(target)
+    services[target] = api
+    edge["networks"] = {EDGE_SERVICE: None, target_network: None}
+    if dependency is not None:
+        edge["depends_on"] = {target: cast(dict[str, object], dependency)[live_api]}
 
 
 def validate_deployment(value: object) -> dict[str, str]:
@@ -450,12 +545,50 @@ def check_startup(
     return state
 
 
-def compose_result(layout: Layout) -> dict[str, object]:
-    """One real-health deadline for API then edge, also used for exact rollback.
+def retire_superseded(layout: Layout, api: str, deadline: float) -> list[str]:
+    """Stop and remove API containers that the live Compose no longer defines."""
+    listing = run(
+        [
+            "docker",
+            "ps",
+            "--all",
+            "--no-trunc",
+            "--filter",
+            f"label=com.docker.compose.project={layout.project}",
+            "--format",
+            '{{.ID}} {{.Label "com.docker.compose.service"}}',
+        ],
+        remaining(deadline),
+    ).split("\n")
+    retired: list[str] = []
+    for line in listing:
+        if not line.strip():
+            continue
+        identifier, service = line.split(" ", 1)
+        if service not in API_SERVICES or service == api:
+            continue
+        require(
+            bool(re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", identifier)),
+            "invalid container ID",
+        )
+        _ = run(
+            ["docker", "stop", "--time", str(RETIRE_GRACE_S), identifier],
+            remaining(deadline),
+        )
+        _ = run(["docker", "rm", identifier], remaining(deadline))
+        retired.append(service)
+    return sorted(retired)
+
+
+def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]:
+    """One real-health deadline for API, edge and retirement, also for rollback.
 
     Compose's unhealthy abort can precede --wait-timeout. Poll health explicitly
     while a process is still in its initial bounded startup, preserving the
     image's health policy and the byte-identical prior Compose on rollback.
+    With ``overlap`` the superseded API keeps serving through the old edge until
+    the target API and the new edge are healthy; without it (insufficient
+    memory) the superseded API is retired first, accepting downtime.
     """
     began = time.monotonic()
     deadline = began + UP_WAIT_TIMEOUT_S
@@ -463,6 +596,7 @@ def compose_result(layout: Layout) -> dict[str, object]:
     output_bytes = 0
     ready: dict[str, StartupState] = {}
     unhealthy: set[str] = set()
+    retired: list[str] = []
 
     def result(details: dict[str, object]) -> dict[str, object]:
         return {
@@ -472,13 +606,13 @@ def compose_result(layout: Layout) -> dict[str, object]:
             "duration_ms": round((time.monotonic() - began) * 1000),
             "output_bytes": output_bytes,
             "startup_unhealthy_seen": sorted(unhealthy),
+            "overlap": overlap,
+            "retired": retired,
         }
 
-    def check_ready() -> None:
+    def check_ready(bound: float) -> None:
         for completed, expected in ready.items():
-            current = check_startup(
-                startup_state(layout, completed, deadline), expected
-            )
+            current = check_startup(startup_state(layout, completed, bound), expected)
             if current != expected:
                 raise HostError(
                     "ready service changed during startup",
@@ -489,11 +623,17 @@ def compose_result(layout: Layout) -> dict[str, object]:
                 )
 
     try:
+        _, compose = load_compose(layout.compose)
+        api = api_service(compose)
+        order = (api, EDGE_SERVICE)
+        if not overlap:
+            phase = "retire"
+            retired = retire_superseded(layout, api, began + RETIRE_TIMEOUT_S)
+            deadline = time.monotonic() + UP_WAIT_TIMEOUT_S
         before = {
-            service: startup_state(layout, service, deadline)
-            for service in VALIDATION_SERVICES
+            service: startup_state(layout, service, deadline) for service in order
         }
-        for service in VALIDATION_SERVICES:
+        for service in order:
             phase = service
             launched = bounded_command(
                 [
@@ -515,7 +655,7 @@ def compose_result(layout: Layout) -> dict[str, object]:
                 return result(launched)
             observed: str | None = None
             while True:
-                check_ready()
+                check_ready(deadline)
                 current = check_startup(
                     startup_state(layout, service, deadline), before[service]
                 )
@@ -530,14 +670,19 @@ def compose_result(layout: Layout) -> dict[str, object]:
                 if current.health == "unhealthy":
                     unhealthy.add(service)
                 time.sleep(min(2.0, remaining(deadline)))
-        check_ready()
+        check_ready(deadline)
         _ = remaining(deadline)
+        if overlap:
+            phase = "retire"
+            bound = time.monotonic() + RETIRE_TIMEOUT_S
+            retired = retire_superseded(layout, api, bound)
+            check_ready(bound)
         return result({"status": "completed", "exit_code": 0, "failure_classes": []})
     except (HostError, OSError, ValueError) as error:
         details: dict[str, object] = (
             error.details if isinstance(error, HostError) else {}
         )
-        if time.monotonic() >= deadline:
+        if time.monotonic() >= deadline and phase != "retire":
             details = {"status": "startup_deadline", "failure_classes": ["timeout"]}
         return result(
             details or {"status": "startup_inspection_failed", "failure_classes": []}
@@ -616,10 +761,10 @@ def bounded_command(
     }
 
 
-def compose_up(layout: Layout, log: Path) -> None:
+def compose_up(layout: Layout, log: Path, *, overlap: bool = True) -> None:
     details: dict[str, object]
     try:
-        details = compose_result(layout)
+        details = compose_result(layout, overlap=overlap)
     except OSError:
         details = {"status": "os_error"}
     # Keep the last attempt and its predecessor, bounded across explicit retries.
@@ -633,15 +778,19 @@ def compose_up(layout: Layout, log: Path) -> None:
 def transition_state(layout: Layout, before: list[list[str]]) -> dict[str, object]:
     """Best-effort fixed-field state; inspection failures must not mask recovery."""
     state: dict[str, object] = {
-        "validation_health": {name: "unknown" for name in VALIDATION_SERVICES},
+        "validation_health": {"api": "unknown", EDGE_SERVICE: "unknown"},
         "operational": "unknown",
         "identities_match": False,
         "public_ingress": "not_checked",
     }
     try:
+        _, compose = load_compose(layout.compose)
+        expected_services = {api_service(compose), EDGE_SERVICE}
         health = validation_health(layout)
+        # Superseded colours stay visible: a retained API is not a restored state.
         state["validation_health"] = {
-            name: health.get(name, "missing") for name in VALIDATION_SERVICES
+            name: health.get(name, "missing")
+            for name in sorted(expected_services | set(health))
         }
     except (HostError, OSError, ValueError, KeyError):
         pass
@@ -654,6 +803,7 @@ def transition_state(layout: Layout, before: list[list[str]]) -> dict[str, objec
     try:
         _, compose = load_compose(layout.compose)
         expected = live_identities(compose)
+        api = api_service(compose)
         records = [
             record for record in containers(layout) if record[0] in VALIDATION_SERVICES
         ]
@@ -663,24 +813,34 @@ def transition_state(layout: Layout, before: list[list[str]]) -> dict[str, objec
                 ["docker", "inspect", "--format", "{{.Config.Image}}", identifier],
                 DOCKER_TIMEOUT_S,
             ).strip()
-            matches[service] = (
-                image
-                == expected["api_image" if service == "reference-api" else "edge_image"]
+            matches[service] = image == expected.get(
+                {api: "api_image", EDGE_SERVICE: "edge_image"}.get(service, ""), ""
             )
-        state["identities_match"] = matches == {
-            name: True for name in VALIDATION_SERVICES
-        }
+        state["identities_match"] = matches == {api: True, EDGE_SERVICE: True}
     except (HostError, OSError, ValueError, KeyError):
         pass
     return state
 
 
 def restored(state: dict[str, object]) -> bool:
+    health = cast(dict[str, str], state["validation_health"])
+    # identities_match pins the single API to the live Compose colour.
     return (
-        state["validation_health"] == {name: "healthy" for name in VALIDATION_SERVICES}
+        len(health) == 2
+        and EDGE_SERVICE in health
+        and set(health.values()) == {"healthy"}
         and state["operational"] == "unchanged"
         and state["identities_match"] is True
     )
+
+
+def overlap_fits(compose: dict[str, object]) -> bool:
+    """Recovery outranks availability: without room for two APIs, or without an
+    exact limit to reserve, rollback retires the superseded API first."""
+    try:
+        return memory_available_mib() >= MIN_AVAILABLE_MIB + api_memory_mib(compose)
+    except (HostError, OSError, ValueError, KeyError):
+        return False
 
 
 def restore(
@@ -688,10 +848,15 @@ def restore(
 ) -> dict[str, object]:
     directory = layout.stage(revision)
     write_once(directory / "rollback-ob.json", canonical(before))
-    write_private(layout.compose, layout.rollback(revision).read_bytes())
+    content = layout.rollback(revision).read_bytes()
+    write_private(layout.compose, content)
     failure: dict[str, object] | None = None
     try:
-        compose_up(layout, directory / "rollback-operations.log")
+        compose_up(
+            layout,
+            directory / "rollback-operations.log",
+            overlap=overlap_fits(cast(dict[str, object], json.loads(content))),
+        )
     except (HostError, OSError) as error:
         failure = (
             error.details if isinstance(error, HostError) else {"status": "os_error"}
@@ -873,7 +1038,13 @@ def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
         "live compose changed since plan",
     )
     available = memory_available_mib()
-    require(available >= MIN_AVAILABLE_MIB, "host memory headroom is below the floor")
+    # The candidate API starts beside the live one before the live one retires.
+    require(
+        available
+        >= MIN_AVAILABLE_MIB
+        + api_memory_mib(cast(dict[str, object], json.loads(staged))),
+        "host memory headroom is below the floor",
+    )
     before = operational(layout)
     require(bool(before), "operational services are not running")
     write_private(directory / "ob", canonical(before))
@@ -911,11 +1082,7 @@ def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     after = operational(layout)
     write_private(directory / "oa", canonical(after))
     require(after == before, "operational services changed during activation")
-    health = validation_health(layout)
-    require(
-        health == {name: "healthy" for name in VALIDATION_SERVICES},
-        "new release is not healthy",
-    )
+    require(restored(transition_state(layout, before)), "new release is not healthy")
     activated_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     write_private(directory / "activated-at.txt", (activated_at + "\n").encode())
     return {

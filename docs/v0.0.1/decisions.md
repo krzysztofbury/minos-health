@@ -1,9 +1,21 @@
 # Decisions
 
 Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
-2026-09-23, 2026-10-01, 2026-10-02, 2026-10-03, and 2026-10-05
+2026-09-23, 2026-10-01, 2026-10-02, 2026-10-03, 2026-10-05, and 2026-10-16
 
 ## Product
+
+### API Activation Without Downtime (2026-10-16)
+
+For #192, the owner chose blue/green for the API only. Each release starts the
+new API colour beside the live one, moves the edge after real API health, and
+retires the old colour after real edge health. The API startup no longer
+interrupts public traffic. The edge is still recreated per release (about one
+second), which the public-edge Kuma monitor's retries absorb. The #181 deadline,
+fail-closed checks and exact prior Compose rollback stay. Activation requires
+`MemAvailable` for two APIs. Rollback without that room retires the current API
+first, because recovery outranks availability. See
+[colour activation](../validation/validation-deploy.md#colour-activation-without-downtime-192).
 
 ### Bounded Validation Startup And Rollback (2026-10-13)
 

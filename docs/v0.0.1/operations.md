@@ -547,6 +547,13 @@ watcher terminal up/down pushes, and notifications do not replace SQLite as the
 detailed authority. Monitor requests are best-effort and never block or alter
 watcher completion.
 
+The public-edge HTTP monitor checks every 60 seconds and retries 3 times at
+20-second intervals before it reports down and notifies (owner setting,
+2026-10-16). One failed check, such as the transient Kuma DNS failure of
+2026-10-15, no longer pages, and a real outage still alerts after about a
+minute. Validation releases avoid the API startup outage (#192); see
+[colour activation](../validation/validation-deploy.md#colour-activation-without-downtime-192).
+
 Because Kuma is on the same Mikr.us host, it cannot detect or notify for a total
 host, network, or power outage. This limitation is accepted for now. There is no
 paid external monitoring SaaS in the accepted design.

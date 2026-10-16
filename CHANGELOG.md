@@ -161,6 +161,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Validation releases start the new API colour (`reference-api-blue` or
+  `reference-api-green`) beside the live one and retire the old colour only
+  after the new API and edge are healthy (#192). The API startup (87 to 270
+  seconds on the host) no longer returns 502; only the edge swap remains, about
+  0.5 seconds in the disposable container smoke. Rollback reuses a still-running
+  previous colour. The public-edge Kuma monitor now retries 3 times at 20-second
+  intervals before alerting, so one failed check no longer pages.
 - Cloudflare zones (#28, #80, owner-approved 2026-10-14): Email Address
   Obfuscation, Web Analytics auto-install and Network Error Logging are off,
   and `www` hosts redirect in one hop to `https://minoshealth.pl` with the path

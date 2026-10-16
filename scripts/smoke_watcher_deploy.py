@@ -139,7 +139,11 @@ def main(output: Path, image: str) -> None:
     previous: dict[str, object] = {
         "services": {
             "watcher": watcher,
-            **{name: sentinel for name in watcher_host.PRESERVED},
+            # A colour API proves the preserved set accepts blue/green (#192).
+            **{
+                name: sentinel
+                for name in (*sorted(watcher_host.PRESERVED), "reference-api-blue")
+            },
         },
         "networks": {},
     }
