@@ -12,8 +12,9 @@ root-owned Unix socket, has no unprivileged operators, defaults containers to
 recovery material stored only in 1Password; it cannot authenticate over SSH.
 The watcher image and host identity use the release-contract UID/GID
 `10001:10001`. Watcher secrets use the separate supplementary GID `10002` and
-are mounted only into the watcher. The AWS credentials remain an
-operator-supplied host file; no secret value is stored in this directory.
+are mounted only into the watcher. The R2 key (#200) remains an
+operator-supplied host file in the S3-compatible credential format; no secret
+value is stored in this directory.
 Self-hosted Uptime Kuma 2.5.5 uses dedicated UID/GID `10003:10003`, the pinned
 official MIT `slim-rootless` `linux/amd64` image, no Docker socket or host port,
 a private monitoring network, a separate outbound HTTP monitor and notification
@@ -80,8 +81,8 @@ ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
   uvx --from ansible-core==2.21.4 ansible-playbook \
   infra/ansible/site.yml --check --diff \
   -e watcher_archive_backend=s3 \
-  -e watcher_s3_bucket=<watcher-snapshot-bucket> \
-  -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
+  -e watcher_s3_bucket=minos-archive \
+  -e watcher_s3_endpoint=https://<cloudflare-account-id>.eu.r2.cloudflarestorage.com \
   -e watcher_expected_image_digest=sha256:<64-hex-digest> \
   -e watcher_source_revision=<40-hex-source-commit> \
   -e '{"watcher_uptime_kuma_required":false,"uptime_kuma_public_status_enabled":false}'
@@ -108,7 +109,7 @@ checks a separate fresh, pinned-host-key login before closing the old connection
 Keep the fresh-session preflight above for first activation and host recovery;
 an Ansible ping through an existing control socket does not prove new logins work.
 
-Before the first apply, retrieve the tunnel credential and watcher AWS
+Before the first apply, retrieve the tunnel credential and watcher R2
 credentials to mode-`0600` temporary files outside the repository. Obtain the
 exact watcher image digest from the reviewed release.
 Apply only after the playbook's hostname assertion passes and key authentication
@@ -128,24 +129,25 @@ trap 'exit 143' TERM
 
 op document get minos-production-cloudflared-credentials \
   --vault MinosHealth --out "$credential_dir/cloudflared-credentials.json"
-op document get minos-production-watcher-aws-credentials \
-  --vault MinosHealth --out "$credential_dir/watcher-aws-credentials"
+op document get minos-production-watcher-r2-credentials \
+  --vault MinosHealth --out "$credential_dir/watcher-r2-credentials"
 ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
   uvx --from ansible-core==2.21.4 ansible-playbook \
   infra/ansible/site.yml --diff \
   -e watcher_archive_backend=s3 \
-  -e watcher_s3_bucket=<watcher-snapshot-bucket> \
-  -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
+  -e watcher_s3_bucket=minos-archive \
+  -e watcher_s3_endpoint=https://<cloudflare-account-id>.eu.r2.cloudflarestorage.com \
   -e watcher_expected_image_digest=sha256:<64-hex-digest> \
   -e watcher_source_revision=<40-hex-source-commit> \
   -e '{"watcher_uptime_kuma_required":false,"uptime_kuma_public_status_enabled":false}' \
   -e "cloudflared_credentials_source=$credential_dir/cloudflared-credentials.json" \
-  -e "watcher_aws_credentials_source=$credential_dir/watcher-aws-credentials"
+  -e "watcher_aws_credentials_source=$credential_dir/watcher-r2-credentials"
 ```
 
-The AWS document must contain only a `[default]` profile with one long-lived
-`aws_access_key_id` and `aws_secret_access_key`. The playbook validates the
-bounded credential and target schemas without logging values, stages the AWS credential under
+The R2 document must contain only a `[default]` profile with the 32-hex
+`aws_access_key_id` and 64-hex `aws_secret_access_key` of the bucket-scoped
+`minos-r2-watcher` token. The playbook validates the bounded credential and
+target schemas without logging values, stages the R2 credential under
 `/etc/minos/watcher/candidate` and the tunnel credential under
 `/etc/minos/cloudflared/candidate`, and validates the staged files before
 activation. It replaces active files atomically only while the service is
@@ -197,7 +199,7 @@ projection or validates the current immutable tree, manifest, digest, schema, an
 revision fence. It does not invoke a collector. An existing malformed projection
 enters activation rescue before any candidate service starts.
 The playbook then runs one 900-second-bounded manual RSK canary with the same
-pinned image, live volume, S3 credentials, and public
+pinned image, live volume, R2 credentials, and public
 projection root. Manual mode forces the allowlisted XML download. The canary must
 commit, complete durable local finalization, and produce a canonical valid
 projection before active services start.
@@ -215,7 +217,7 @@ watcher assertion covers its exact digest, numeric identity, supplementary secre
 group, read-only root, dropped capabilities, restart count, resource limits,
 bounded logs, mounts, and healthy state after a 30-second stability interval.
 The watcher alone mounts `/var/lib/minos/public` read-write. The edge mounts that
-directory read-only and receives no watcher control, archive, staging, AWS, or
+directory read-only and receives no watcher control, archive, staging, R2, or
 other watcher secret mounts. Its exact provenance route reads the atomic
 `current` generation; the artifact namespace remains an unconditional 404.
 The same reviewed edge artifacts provide the exact `/zrodla`, `/site.css`,
@@ -227,7 +229,7 @@ until the runtime inventory drops them. During activation, Ansible requests thos
 strict CSP headers, and the exact provenance endpoint from inside the running
 production edge container. Provenance must return HTTP 200 and its bytes must
 match the digest of the revalidated current generation. The page reads only the public same-origin provenance
-projection; it receives no private archive, control database, S3, or artifact
+projection; it receives no private archive, control database, R2, or artifact
 route.
 
 ## Uptime Kuma Safe Bootstrap
@@ -242,7 +244,7 @@ portal.
 
 The accepted bootstrap is deliberately two-stage:
 
-When the watcher release and S3 credentials are not ready, Kuma can be
+When the watcher release and R2 credentials are not ready, Kuma can be
 initialized privately ahead of the full stack. The reviewed standalone model
 `infra/ansible/uptime-kuma-bootstrap.compose.yml` uses the same exact image,
 numeric identity, writable data directory, and resource boundaries as the
@@ -332,8 +334,8 @@ bind-mounted data. Do not run the two Kuma services concurrently.
      uvx --from ansible-core==2.21.4 ansible-playbook \
      infra/ansible/site.yml --diff \
      -e watcher_archive_backend=s3 \
-     -e watcher_s3_bucket=<watcher-snapshot-bucket> \
-     -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
+     -e watcher_s3_bucket=minos-archive \
+     -e watcher_s3_endpoint=https://<cloudflare-account-id>.eu.r2.cloudflarestorage.com \
      -e watcher_expected_image_digest=sha256:<64-hex-digest> \
      -e watcher_source_revision=<40-hex-source-commit> \
       -e '{"watcher_uptime_kuma_required":true,"uptime_kuma_public_status_enabled":false}' \
@@ -350,8 +352,8 @@ bind-mounted data. Do not run the two Kuma services concurrently.
      uvx --from ansible-core==2.21.4 ansible-playbook \
      infra/ansible/site.yml --diff \
      -e watcher_archive_backend=s3 \
-     -e watcher_s3_bucket=<watcher-snapshot-bucket> \
-     -e watcher_s3_expected_bucket_owner=<twelve-digit-account-id> \
+     -e watcher_s3_bucket=minos-archive \
+     -e watcher_s3_endpoint=https://<cloudflare-account-id>.eu.r2.cloudflarestorage.com \
      -e watcher_expected_image_digest=sha256:<64-hex-digest> \
      -e watcher_source_revision=<40-hex-source-commit> \
       -e '{"watcher_uptime_kuma_required":true,"uptime_kuma_public_status_enabled":true}'
@@ -436,19 +438,14 @@ Mikr.us host, network, or power outage from outside its fault domain.
 
 - Git stores this baseline, Compose definitions, release manifests, and other
   reviewed non-secret configuration.
-- 1Password stores SSH, console-recovery, Cloudflare, GHCR, AWS, and monitoring
+- 1Password stores SSH, console-recovery, Cloudflare, GHCR, R2, and monitoring
   credentials. Secrets never enter Git or a general filesystem backup.
-- Private versioned S3 stores immutable source blobs, control-database recovery
+- The private R2 bucket `minos-archive` stores immutable source blobs, control-database recovery
   images, trusted recovery copies, signed inventories, release manifests, and
   deployment receipts according to the operations runbook.
 - The live Mikr.us filesystem is not a backup. Empty-host recovery reapplies this
   playbook, installs fresh secrets, restores the verified control database, and
   pulls the exact recorded image digests.
-
-The watcher S3 bucket, IAM policy, upload jobs, and restore drill are not active
-yet. Until their reviewed Terraform plan is approved and applied, Git plus
-1Password can reconstruct this host baseline, but no future mutable watcher state
-is protected.
 
 The provider LXC currently reports `sys-kernel-config.mount` and
 `systemd-remount-fs.service` as failed because the host controls those kernel and

@@ -23,6 +23,7 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
     ClientError,
 )
 
+from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
 from minos.ingest.watchers.control import (
     CONTROL_SCHEMA_VERSION,
     ControlSnapshotError,
@@ -50,7 +51,6 @@ _CONTROL_COPY_TIMEOUT_SECONDS = 300.0
 _CONTROL_COPY_MAXIMUM_BYTES = 2 * GIBIBYTE
 _CONTROL_COPY_PAGES_PER_STEP = 256
 _SQLITE_MINIMUM_PAGE_BYTES = 512
-_AWS_ACCOUNT_ID = re.compile(r"[0-9]{12}")
 _S3_BUCKET = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
 _PRODUCTION_PROBE_NAMES = (
     "capacity",
@@ -126,6 +126,7 @@ class _Boto3(Protocol):
         service_name: str,
         *,
         region_name: str,
+        endpoint_url: str,
         config: object,
     ) -> object: ...
 
@@ -511,30 +512,30 @@ class S3ChecksumProbe:
         client: _S3Client,
         *,
         bucket: str,
-        expected_bucket_owner: str,
     ) -> None:
-        _validate_s3_identity(bucket, expected_bucket_owner)
+        _validate_s3_bucket(bucket)
         self._client = client
         self._bucket = bucket
-        self._expected_bucket_owner = expected_bucket_owner
 
     @classmethod
     def create(
         cls,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
     ) -> Self:
-        if not region or len(region) > 64:
-            raise PreflightError("S3 probe region is unsupported")
+        try:
+            endpoint = validate_r2_endpoint(endpoint)
+        except ValueError:
+            raise PreflightError("S3 probe endpoint is unsupported") from None
         boto3_api = cast(_Boto3, boto3)  # pyright: ignore[reportInvalidCast]
         try:
             client = cast(
                 _S3Client,
                 boto3_api.client(
                     "s3",
-                    region_name=region,
+                    region_name=R2_REGION,
+                    endpoint_url=endpoint,
                     config=Config(
                         connect_timeout=10,
                         read_timeout=60,
@@ -544,11 +545,7 @@ class S3ChecksumProbe:
             )
         except BotoCoreError as error:
             raise PreflightError("S3 checksum probe client creation failed") from error
-        return cls(
-            client,
-            bucket=bucket,
-            expected_bucket_owner=expected_bucket_owner,
-        )
+        return cls(client, bucket=bucket)
 
     def check(self) -> None:
         payload = secrets.token_bytes(32)
@@ -568,20 +565,19 @@ class S3ChecksumProbe:
                 ChecksumAlgorithm="SHA256",
                 ChecksumSHA256=checksum,
                 IfNoneMatch="*",
-                ExpectedBucketOwner=self._expected_bucket_owner,
             )
             response = self._client.head_object(
                 Bucket=self._bucket,
                 Key=key,
                 ChecksumMode="ENABLED",
-                ExpectedBucketOwner=self._expected_bucket_owner,
             )
         except BotoCoreError, ClientError:
             raise PreflightError("S3 checksum probe failed") from None
         if (
             response.get("ContentLength") != len(payload)
             or response.get("ChecksumSHA256") != checksum
-            or response.get("ChecksumType") != "FULL_OBJECT"
+            # R2 omits ChecksumType for a single-part object; never composite.
+            or response.get("ChecksumType") not in (None, "FULL_OBJECT")
         ):
             raise PreflightError("S3 checksum probe verification failed")
 
@@ -857,7 +853,7 @@ def _read_system_disk_usage(path: Path) -> DiskUsage:
     return DiskUsage(usage.total, usage.used, usage.free)
 
 
-def _validate_s3_identity(bucket: str, expected_bucket_owner: str) -> None:
+def _validate_s3_bucket(bucket: str) -> None:
     if (
         _S3_BUCKET.fullmatch(bucket) is None
         or ".." in bucket
@@ -865,8 +861,6 @@ def _validate_s3_identity(bucket: str, expected_bucket_owner: str) -> None:
         or "-." in bucket
     ):
         raise PreflightError("S3 probe bucket is unsupported")
-    if _AWS_ACCOUNT_ID.fullmatch(expected_bucket_owner) is None:
-        raise PreflightError("S3 probe expected owner is unsupported")
 
 
 def _is_image_digest(value: str) -> bool:

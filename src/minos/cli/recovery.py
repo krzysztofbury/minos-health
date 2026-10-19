@@ -61,8 +61,7 @@ class RecoveryCommandError(RuntimeError):
 class RecoveryCommandArguments:
     action: str
     bucket: str | None = None
-    expected_bucket_owner: str | None = None
-    region: str | None = None
+    endpoint: str | None = None
     maximum_inventories: str | None = None
     public_key_file: Path | None = None
     allowed_signers_file: Path | None = None
@@ -88,7 +87,6 @@ class RecoveryCommandResult:
     state_revision: int | None
     sha256: str | None
     object_key: str | None
-    version_id: str | None
     last_modified_ms: int | None
     installed: bool = False
 
@@ -102,7 +100,6 @@ class RecoveryCommandResult:
             "sequence": self.sequence,
             "sha256": self.sha256,
             "state_revision": self.state_revision,
-            "version_id": self.version_id,
         }
         encoded = json.dumps(
             payload,
@@ -143,27 +140,17 @@ class RecoveryCommandDependencies:
         self,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
     ) -> _OperatorStorage:
-        return S3OperatorRecoveryStorage.create(
-            bucket=bucket,
-            region=region,
-            expected_bucket_owner=expected_bucket_owner,
-        )
+        return S3OperatorRecoveryStorage.create(bucket=bucket, endpoint=endpoint)
 
     def recovery_selector(
         self,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
     ) -> _RecoverySelector:
-        return S3RecoveryStore.create(
-            bucket=bucket,
-            region=region,
-            expected_bucket_owner=expected_bucket_owner,
-        )
+        return S3RecoveryStore.create(bucket=bucket, endpoint=endpoint)
 
     def verifier(self, public_key: str, signer_identity: str) -> InventoryVerifier:
         return SshKeygenEd25519Verifier(
@@ -204,10 +191,8 @@ class RecoveryEnvironmentSettings(BaseSettings):
 
     s3_bucket: str | None = None
     s3_bucket_file: Path | None = None
-    expected_bucket_owner: str | None = None
-    expected_bucket_owner_file: Path | None = None
-    aws_region: str | None = None
-    aws_region_file: Path | None = None
+    s3_endpoint: str | None = None
+    s3_endpoint_file: Path | None = None
     maximum_inventories: int | None = Field(
         default=None, ge=1, le=MAX_INVENTORY_OBJECTS
     )
@@ -236,8 +221,7 @@ class RecoveryEnvironmentSettings(BaseSettings):
 @dataclass(frozen=True, slots=True)
 class _CommonConfiguration:
     bucket: str
-    region: str
-    expected_bucket_owner: str
+    endpoint: str
     maximum_inventories: int
     signer_identity: str
     public_key: str
@@ -262,8 +246,7 @@ class RecoveryCliCommand:
         )
         storage = self._dependencies.operator_storage(
             bucket=configuration.bucket,
-            region=configuration.region,
-            expected_bucket_owner=configuration.expected_bucket_owner,
+            endpoint=configuration.endpoint,
         )
         verifier = self._dependencies.verifier(
             configuration.public_key,
@@ -302,8 +285,7 @@ class RecoveryCliCommand:
         bounds = _resolve_recovery_bounds(self._arguments, self._settings)
         selector = self._dependencies.recovery_selector(
             bucket=configuration.bucket,
-            region=configuration.region,
-            expected_bucket_owner=configuration.expected_bucket_owner,
+            endpoint=configuration.endpoint,
         )
         candidate = selector.select_newest(
             bounds,
@@ -311,7 +293,6 @@ class RecoveryCliCommand:
         )
         source = VerifiedRecoverySource(
             candidate.key,
-            candidate.version_id,
             candidate.sha256,
             candidate.size_bytes,
             candidate.metadata.state_revision,
@@ -384,19 +365,11 @@ def _resolve_common_configuration(
         settings.s3_bucket_file,
         "S3 bucket",
     )
-    owner = _resolve_text(
-        arguments.expected_bucket_owner,
-        settings.expected_bucket_owner,
-        settings.expected_bucket_owner_file,
-        "expected S3 bucket owner",
-    )
-    region = _resolve_text(
-        arguments.region,
-        settings.aws_region
-        or os.environ.get("AWS_REGION")
-        or os.environ.get("AWS_DEFAULT_REGION"),
-        settings.aws_region_file,
-        "AWS region",
+    endpoint = _resolve_text(
+        arguments.endpoint,
+        settings.s3_endpoint,
+        settings.s3_endpoint_file,
+        "R2 endpoint",
     )
     maximum_inventories = _resolve_integer(
         arguments.maximum_inventories,
@@ -420,8 +393,7 @@ def _resolve_common_configuration(
     )
     return _CommonConfiguration(
         bucket,
-        region,
-        owner,
+        endpoint,
         maximum_inventories,
         identity,
         public_key,
@@ -467,7 +439,7 @@ def _chain_result(
     chain: VerifiedInventoryChain,
 ) -> RecoveryCommandResult:
     if chain.head is None:
-        return RecoveryCommandResult(operation, 0, None, None, None, None, None, None)
+        return RecoveryCommandResult(operation, 0, None, None, None, None, None)
     return _verified_inventory_result(operation, chain, chain.head)
 
 
@@ -506,7 +478,6 @@ def _verified_inventory_result(
         inventory.trusted_object_revision,
         inventory.trusted_object_checksum_sha256,
         inventory.trusted_object_key,
-        inventory.trusted_object_version_id,
         inventory.trusted_object_last_modified_ms,
         installed,
     )

@@ -31,6 +31,8 @@ from tests.fixtures.jgp_conditions import stage as stage_conditions
 from tests.integration.test_jgp_conditions_reference import conditions_manifest
 from tests.integration.test_jgp_modifier_binding import binding_dataset
 
+_ENDPOINT = "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com"
+
 
 class _CloseFailure(io.BytesIO):
     @override
@@ -67,8 +69,9 @@ class Client:
                 "GetObject",
             )
         assert parameters["Bucket"] == "minos-build-synthetic"
-        assert parameters["ExpectedBucketOwner"] == "123456789012"
-        assert parameters["VersionId"] == "archived-version"
+        # R2 answers 501 to bucket-owner headers and has no object versions.
+        assert "ExpectedBucketOwner" not in parameters
+        assert "VersionId" not in parameters
         assert parameters["ChecksumMode"] == "ENABLED"
         digest = cast(str, parameters["Key"]).removeprefix("blobs/sha256/")
         content = self.blobs[digest]
@@ -80,14 +83,10 @@ class Client:
         self.streams.append(body)
         response: dict[str, object] = {
             "Body": body,
-            "VersionId": "archived-version",
             "ContentLength": len(content),
             "ChecksumSHA256": base64.b64encode(bytes.fromhex(digest)).decode(),
-            "ChecksumType": "FULL_OBJECT",
         }
-        if self.damage == "version":
-            response["VersionId"] = "newer-version"
-        elif self.damage == "checksum":
+        if self.damage == "checksum":
             response["ChecksumSHA256"] = base64.b64encode(b"x" * 32).decode()
         elif self.damage == "size":
             response["ContentLength"] = len(content) + 1
@@ -107,8 +106,6 @@ class Client:
             _ = body.seek(0, io.SEEK_END)
             _ = body.write(b"X")
             _ = body.seek(0)
-        elif self.damage == "delete-marker":
-            response["DeleteMarker"] = True
         return response
 
 
@@ -116,16 +113,14 @@ def selection(root: Path, manifest: DatasetManifest) -> ArchiveSelection:
     return ArchiveSelection.model_validate_json(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "dataset_id": dataset_identity(manifest),
                 "bucket": "minos-build-synthetic",
-                "region": "eu-central-1",
-                "expected_bucket_owner": "123456789012",
+                "endpoint": _ENDPOINT,
                 "objects": [
                     {
                         "sha256": path.name,
                         "size_bytes": path.stat().st_size,
-                        "version_id": "archived-version",
                     }
                     for path in sorted((root / "blobs/sha256").iterdir())
                 ],
@@ -175,7 +170,6 @@ def test_pinned_archive_reuses_full_builder_and_is_repeat_deterministic(
 @pytest.mark.parametrize(
     "damage",
     [
-        "version",
         "checksum",
         "size",
         "boolean-size",
@@ -184,7 +178,6 @@ def test_pinned_archive_reuses_full_builder_and_is_repeat_deterministic(
         "body",
         "truncated",
         "oversized",
-        "delete-marker",
     ],
 )
 def test_unverified_archive_never_reaches_builder_and_cleans_owned_staging(
@@ -215,9 +208,7 @@ def test_selection_must_match_every_input_before_any_remote_read(
     elif damage == "missing":
         raw["objects"].pop()
     elif damage == "extra":
-        raw["objects"].append(
-            {"sha256": "a" * 64, "size_bytes": 1, "version_id": "other"}
-        )
+        raw["objects"].append({"sha256": "a" * 64, "size_bytes": 1})
     elif damage == "duplicate":
         raw["objects"].append(raw["objects"][0])
     else:
@@ -282,15 +273,22 @@ def test_archive_build_cli_preserves_offline_cli_and_reuses_real_builder(
     assert str(tmp_path) not in capsys.readouterr().err
 
 
-def test_transport_pins_reject_unversioned_or_arbitrary_remote_requests(
-    tmp_path: Path,
-) -> None:
+def test_transport_pins_reject_arbitrary_remote_requests(tmp_path: Path) -> None:
     manifest = conditions_manifest(tmp_path)
-    for version in ("", "null", "\nversion", "a" * 1025):
+    for endpoint in (
+        "https://s3.eu-central-1.amazonaws.com",
+        "https://minoshealth.pl",
+        _ENDPOINT + "/",
+        "http://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+    ):
         raw = selection(tmp_path, manifest).model_dump(mode="json")
-        raw["objects"][0]["version_id"] = version
+        raw["endpoint"] = endpoint
         with pytest.raises(ValidationError):
             _ = ArchiveSelection.model_validate_json(json.dumps(raw))
+    raw = selection(tmp_path, manifest).model_dump(mode="json")
+    raw["objects"][0]["version_id"] = "archived-version"
+    with pytest.raises(ValidationError):
+        _ = ArchiveSelection.model_validate_json(json.dumps(raw))
     raw = selection(tmp_path, manifest).model_dump(mode="json")
     raw["objects"][0]["key"] = "terraform/state"
     with pytest.raises(ValidationError):
@@ -327,7 +325,7 @@ class _Stub(Protocol):
     def assert_no_pending_responses(self) -> None: ...
 
 
-def test_sdk_request_pins_owner_version_key_and_native_checksum(tmp_path: Path) -> None:
+def test_sdk_request_pins_key_and_native_checksum(tmp_path: Path) -> None:
     from botocore.response import StreamingBody  # type: ignore[import-untyped]
     from botocore.stub import Stubber  # type: ignore[import-untyped]
 
@@ -338,7 +336,8 @@ def test_sdk_request_pins_owner_version_key_and_native_checksum(tmp_path: Path) 
         ArchiveS3Client,
         factory.client(
             "s3",
-            region_name="eu-central-1",
+            region_name="auto",
+            endpoint_url=_ENDPOINT,
             aws_access_key_id="synthetic",
             aws_secret_access_key="synthetic",
         ),
@@ -355,9 +354,7 @@ def test_sdk_request_pins_owner_version_key_and_native_checksum(tmp_path: Path) 
                 "get_object",
                 {
                     "Body": StreamingBody(stream, len(content)),
-                    "VersionId": "archived-version",
                     "ContentLength": len(content),
-                    "ChecksumType": "FULL_OBJECT",
                     "ChecksumSHA256": base64.b64encode(
                         hashlib.sha256(content).digest()
                     ).decode(),
@@ -365,8 +362,6 @@ def test_sdk_request_pins_owner_version_key_and_native_checksum(tmp_path: Path) 
                 {
                     "Bucket": "minos-build-synthetic",
                     "Key": f"blobs/sha256/{item.sha256}",
-                    "VersionId": "archived-version",
-                    "ExpectedBucketOwner": "123456789012",
                     "ChecksumMode": "ENABLED",
                 },
             )
@@ -447,7 +442,7 @@ def test_archive_transfer_has_a_deadline_before_any_remote_read(
     assert not list(tmp_path.glob(".minos-archive-*"))
 
 
-def test_production_client_has_bounded_retries_and_no_endpoint_override(
+def test_production_client_has_bounded_retries_and_only_the_pinned_endpoint(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -455,9 +450,12 @@ def test_production_client_has_bounded_retries_and_no_endpoint_override(
     pins = selection(tmp_path, manifest)
     client = Client(tmp_path)
 
-    def factory(service: str, *, region_name: str, config: object) -> Client:
+    def factory(
+        service: str, *, region_name: str, endpoint_url: str, config: object
+    ) -> Client:
         assert service == "s3"
-        assert region_name == "eu-central-1"
+        assert region_name == "auto"
+        assert endpoint_url == _ENDPOINT
         settings = cast(_SdkConfig, config)
         assert settings.retries == {"total_max_attempts": 1, "mode": "standard"}
         assert settings.ignore_configured_endpoint_urls is True
@@ -478,8 +476,7 @@ def test_selection_bounds_objects_and_cumulative_transfer_bytes(tmp_path: Path) 
     raw = selection(tmp_path, manifest).model_dump(mode="json")
     for count, size in ((129, 1), (9, 64 * 1024 * 1024)):
         raw["objects"] = [
-            {"sha256": f"{number:064x}", "version_id": "version", "size_bytes": size}
-            for number in range(count)
+            {"sha256": f"{number:064x}", "size_bytes": size} for number in range(count)
         ]
         with pytest.raises(ValidationError):
             _ = ArchiveSelection.model_validate_json(json.dumps(raw))

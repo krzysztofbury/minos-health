@@ -7,6 +7,7 @@ import math
 import os
 import re
 import stat
+import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
     ClientError,
 )
 
+from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
 from minos.ingest.watchers.recovery.inventory import (
     MAX_INVENTORY_BYTES,
     MAX_INVENTORY_OBJECTS,
@@ -38,8 +40,8 @@ from minos.ingest.watchers.recovery.trusted_keys import (
     parse_trusted_recovery_key,
 )
 
-_AWS_ACCOUNT_ID = re.compile(r"[0-9]{12}")
 _S3_BUCKET = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
+_ETAG = re.compile(r'"[0-9a-f]{32}(?:-[0-9]{1,5})?"')
 _INVENTORY_PREFIX = "recovery-inventories/"
 _MAX_LIST_PAGE_SIZE = 1000
 _STREAM_CHUNK_BYTES = 1024 * 1024
@@ -56,8 +58,6 @@ class _StreamingBody(Protocol):
 class _S3Client(Protocol):
     @property
     def meta(self) -> _ClientMeta: ...
-
-    def copy_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
     def get_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
@@ -84,6 +84,7 @@ class _Boto3(Protocol):
         service_name: str,
         *,
         region_name: str,
+        endpoint_url: str,
         config: object,
     ) -> object: ...
 
@@ -94,7 +95,8 @@ class _ClientErrorLike(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class _ObjectIdentity:
-    version_id: str
+    # The ETag pins a read to the object HEAD verified (R2 has no versions).
+    etag: str
     sha256: str
     size_bytes: int
     last_modified_ms: int
@@ -107,13 +109,11 @@ class S3OperatorRecoveryStorage:
         client: _S3Client,
         *,
         bucket: str,
-        expected_bucket_owner: str,
         page_size: int = _MAX_LIST_PAGE_SIZE,
     ) -> None:
-        _validate_configuration(client, bucket, expected_bucket_owner, page_size)
+        _validate_configuration(client, bucket, page_size)
         self._client = client
         self._bucket = bucket
-        self._expected_bucket_owner = expected_bucket_owner
         self._page_size = page_size
 
     @classmethod
@@ -121,23 +121,27 @@ class S3OperatorRecoveryStorage:
         cls,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
         page_size: int = _MAX_LIST_PAGE_SIZE,
         connect_timeout_seconds: float = 10,
         read_timeout_seconds: float = 60,
     ) -> Self:
         _validate_timeout(connect_timeout_seconds)
         _validate_timeout(read_timeout_seconds)
-        if len(region) < 1 or len(region) > 64:
-            raise RecoveryInventoryStorageError("S3 operator region is invalid")
+        try:
+            endpoint = validate_r2_endpoint(endpoint)
+        except ValueError:
+            raise RecoveryInventoryStorageError(
+                "R2 operator endpoint is invalid"
+            ) from None
         boto3_api = cast(_Boto3, boto3)  # pyright: ignore[reportInvalidCast]
         try:
             client = cast(
                 _S3Client,
                 boto3_api.client(
                     "s3",
-                    region_name=region,
+                    region_name=R2_REGION,
+                    endpoint_url=endpoint,
                     config=Config(
                         connect_timeout=connect_timeout_seconds,
                         read_timeout=read_timeout_seconds,
@@ -149,12 +153,7 @@ class S3OperatorRecoveryStorage:
             raise RecoveryInventoryStorageError(
                 "S3 operator client creation failed"
             ) from None
-        return cls(
-            client,
-            bucket=bucket,
-            expected_bucket_owner=expected_bucket_owner,
-            page_size=page_size,
-        )
+        return cls(client, bucket=bucket, page_size=page_size)
 
     def list_inventories(self, *, maximum_objects: int) -> BoundedInventoryListing:
         _validate_inventory_bound(maximum_objects)
@@ -208,53 +207,47 @@ class S3OperatorRecoveryStorage:
             or maximum_bytes > MAX_INVENTORY_BYTES
         ):
             raise RecoveryInventoryStorageError("inventory read bound is invalid")
-        content, _identity = self._get_bytes(
-            key, maximum_bytes=maximum_bytes, version_id=None
-        )
+        content, _identity = self._get_bytes(key, maximum_bytes=maximum_bytes)
         return content
 
     def copy_trusted_if_absent(
         self, request: TrustedCopyRequest
     ) -> ConditionalWriteResult:
         _validate_copy_request(request)
-        source = self._head(request.source.key, version_id=request.source.version_id)
+        source = self._head(request.source.key)
         _require_source_identity(source, request)
-        parameters: dict[str, object] = {
-            "Bucket": self._bucket,
-            "Key": request.destination_key,
-            "CopySource": {
-                "Bucket": self._bucket,
-                "Key": request.source.key,
-                "VersionId": request.source.version_id,
-            },
-            "ChecksumAlgorithm": "SHA256",
-            "IfNoneMatch": "*",
-            "ExpectedBucketOwner": self._expected_bucket_owner,
-            "ExpectedSourceBucketOwner": self._expected_bucket_owner,
-        }
-        try:
-            response = self._client.copy_object(**parameters)
-        except ClientError as error:
-            if _client_error_status(error) != 412:
-                raise RecoveryInventoryStorageError(
-                    "S3 trusted recovery copy failed"
-                ) from None
-            _ = self._require_trusted_copy(request)
-            return ConditionalWriteResult.PRECONDITION_FAILED
-        except BotoCoreError:
+        # R2 CopyObject ignores If-None-Match and drops the SHA-256 checksum, so
+        # the copy is a pinned, verified download and a create-once upload.
+        with tempfile.TemporaryFile() as staged:
+            descriptor = staged.fileno()
+            self._download_pinned(request.source.key, source, descriptor)
+            _ = os.lseek(descriptor, 0, os.SEEK_SET)
             try:
+                _ = self._client.put_object(
+                    Bucket=self._bucket,
+                    Key=request.destination_key,
+                    ContentLength=source.size_bytes,
+                    ChecksumAlgorithm="SHA256",
+                    ChecksumSHA256=_encode_sha256(source.sha256),
+                    IfNoneMatch="*",
+                    Body=staged,
+                )
+            except ClientError as error:
+                if _client_error_status(error) != 412:
+                    raise RecoveryInventoryStorageError(
+                        "S3 trusted recovery copy failed"
+                    ) from None
                 _ = self._require_trusted_copy(request)
-            except RecoveryInventoryStorageError:
-                raise RecoveryInventoryStorageError(
-                    "S3 trusted recovery copy outcome is unresolved"
-                ) from None
-            return ConditionalWriteResult.PRECONDITION_FAILED
-        version_id = _response_version_id(response)
-        copied = self._require_trusted_copy(request)
-        if copied.version_id != version_id:
-            raise RecoveryInventoryStorageError(
-                "S3 trusted recovery copy version differs"
-            )
+                return ConditionalWriteResult.PRECONDITION_FAILED
+            except BotoCoreError:
+                try:
+                    _ = self._require_trusted_copy(request)
+                except RecoveryInventoryStorageError:
+                    raise RecoveryInventoryStorageError(
+                        "S3 trusted recovery copy outcome is unresolved"
+                    ) from None
+                return ConditionalWriteResult.PRECONDITION_FAILED
+        _ = self._require_trusted_copy(request)
         return ConditionalWriteResult.CREATED
 
     def head_trusted(self, key: str) -> TrustedObjectIdentity:
@@ -264,12 +257,11 @@ class S3OperatorRecoveryStorage:
             raise RecoveryInventoryStorageError(
                 "trusted recovery key is invalid"
             ) from None
-        identity = self._head(key, version_id=None)
+        identity = self._head(key)
         if identity.sha256 != parsed.sha256:
             raise RecoveryInventoryStorageError("S3 trusted recovery key differs")
         return TrustedObjectIdentity(
             key,
-            identity.version_id,
             identity.sha256,
             identity.size_bytes,
             identity.last_modified_ms,
@@ -283,14 +275,13 @@ class S3OperatorRecoveryStorage:
             raise RecoveryInventoryStorageError("inventory write size is invalid")
         sha256 = hashlib.sha256(content).hexdigest()
         try:
-            response = self._client.put_object(
+            _ = self._client.put_object(
                 Bucket=self._bucket,
                 Key=key,
                 ContentLength=len(content),
                 ChecksumAlgorithm="SHA256",
                 ChecksumSHA256=_encode_sha256(sha256),
                 IfNoneMatch="*",
-                ExpectedBucketOwner=self._expected_bucket_owner,
                 Body=content,
             )
         except ClientError as error:
@@ -298,9 +289,7 @@ class S3OperatorRecoveryStorage:
                 raise RecoveryInventoryStorageError(
                     "S3 recovery inventory write failed"
                 ) from None
-            existing, _identity = self._get_bytes(
-                key, maximum_bytes=MAX_INVENTORY_BYTES, version_id=None
-            )
+            existing = self._read_inventory_bytes(key)
             if existing != content:
                 raise RecoveryInventoryStorageError(
                     "S3 recovery inventory write conflicts"
@@ -308,11 +297,7 @@ class S3OperatorRecoveryStorage:
             return ConditionalWriteResult.PRECONDITION_FAILED
         except BotoCoreError:
             try:
-                existing, _identity = self._get_bytes(
-                    key,
-                    maximum_bytes=MAX_INVENTORY_BYTES,
-                    version_id=None,
-                )
+                existing = self._read_inventory_bytes(key)
             except RecoveryInventoryStorageError:
                 raise RecoveryInventoryStorageError(
                     "S3 recovery inventory write outcome is unresolved"
@@ -322,12 +307,7 @@ class S3OperatorRecoveryStorage:
                     "S3 recovery inventory write conflicts"
                 ) from None
             return ConditionalWriteResult.PRECONDITION_FAILED
-        version_id = _response_version_id(response)
-        stored, identity = self._get_bytes(
-            key,
-            maximum_bytes=MAX_INVENTORY_BYTES,
-            version_id=version_id,
-        )
+        stored, identity = self._get_bytes(key, maximum_bytes=MAX_INVENTORY_BYTES)
         if stored != content or identity.sha256 != sha256:
             raise RecoveryInventoryStorageError(
                 "S3 recovery inventory verification differs"
@@ -341,9 +321,14 @@ class S3OperatorRecoveryStorage:
     ) -> None:
         _validate_trusted_identity(identity)
         _validate_empty_destination(destination_descriptor)
-        head = self._head(identity.key, version_id=identity.version_id)
+        head = self._head(identity.key)
         _require_public_identity(head, identity)
-        response = self._get(identity.key, version_id=identity.version_id)
+        self._download_pinned(identity.key, head, destination_descriptor)
+
+    def _download_pinned(
+        self, key: str, head: _ObjectIdentity, destination_descriptor: int
+    ) -> None:
+        response = self._get(key, etag=head.etag)
         primary_error: BaseException | None = None
         try:
             try:
@@ -356,9 +341,9 @@ class S3OperatorRecoveryStorage:
                 sha256, size_bytes = _stream_to_descriptor(
                     body,
                     destination_descriptor,
-                    maximum_size_bytes=identity.size_bytes,
+                    maximum_size_bytes=head.size_bytes,
                 )
-                if sha256 != identity.sha256 or size_bytes != identity.size_bytes:
+                if sha256 != head.sha256 or size_bytes != head.size_bytes:
                     raise RecoveryInventoryStorageError(
                         "S3 trusted recovery download bytes differ"
                     )
@@ -379,7 +364,7 @@ class S3OperatorRecoveryStorage:
             ) from None
 
     def _require_trusted_copy(self, request: TrustedCopyRequest) -> _ObjectIdentity:
-        copied = self._head(request.destination_key, version_id=None)
+        copied = self._head(request.destination_key)
         if (
             copied.sha256 != request.source.sha256
             or copied.size_bytes != request.source.size_bytes
@@ -392,7 +377,6 @@ class S3OperatorRecoveryStorage:
             "Bucket": self._bucket,
             "Prefix": _INVENTORY_PREFIX,
             "MaxKeys": self._page_size,
-            "ExpectedBucketOwner": self._expected_bucket_owner,
         }
         if continuation_token is not None:
             parameters["ContinuationToken"] = continuation_token
@@ -403,35 +387,24 @@ class S3OperatorRecoveryStorage:
                 "S3 recovery inventory listing failed"
             ) from None
 
-    def _head(self, key: str, *, version_id: str | None) -> _ObjectIdentity:
-        parameters: dict[str, object] = {
-            "Bucket": self._bucket,
-            "Key": key,
-            "ChecksumMode": "ENABLED",
-            "ExpectedBucketOwner": self._expected_bucket_owner,
-        }
-        if version_id is not None:
-            _validate_version_id(version_id)
-            parameters["VersionId"] = version_id
+    def _head(self, key: str) -> _ObjectIdentity:
         try:
-            response = self._client.head_object(**parameters)
+            response = self._client.head_object(
+                Bucket=self._bucket, Key=key, ChecksumMode="ENABLED"
+            )
         except BotoCoreError, ClientError:
             raise RecoveryInventoryStorageError(
                 "S3 operator object verification failed"
             ) from None
-        identity = _parse_object_identity(response)
-        if version_id is not None and identity.version_id != version_id:
-            raise RecoveryInventoryStorageError("S3 operator object version differs")
-        return identity
+        return _parse_object_identity(response)
 
     def _get_bytes(
         self,
         key: str,
         *,
         maximum_bytes: int,
-        version_id: str | None,
     ) -> tuple[bytes, _ObjectIdentity]:
-        response = self._get(key, version_id=version_id)
+        response = self._get(key, etag=None)
         primary_error: BaseException | None = None
         try:
             try:
@@ -439,10 +412,6 @@ class S3OperatorRecoveryStorage:
                 if identity.size_bytes > maximum_bytes:
                     raise RecoveryInventoryStorageError(
                         "S3 inventory object exceeds its bound"
-                    )
-                if version_id is not None and identity.version_id != version_id:
-                    raise RecoveryInventoryStorageError(
-                        "S3 inventory object version differs"
                     )
                 body = _response_body(response)
                 content, sha256 = _read_bounded(body, maximum_bytes)
@@ -459,16 +428,19 @@ class S3OperatorRecoveryStorage:
             _close_body(response, primary_error)
         return content, identity
 
-    def _get(self, key: str, *, version_id: str | None) -> Mapping[str, object]:
+    def _read_inventory_bytes(self, object_key: str) -> bytes:
+        limit = MAX_INVENTORY_BYTES
+        content, _identity = self._get_bytes(object_key, maximum_bytes=limit)
+        return content
+
+    def _get(self, key: str, *, etag: str | None) -> Mapping[str, object]:
         parameters: dict[str, object] = {
             "Bucket": self._bucket,
             "Key": key,
             "ChecksumMode": "ENABLED",
-            "ExpectedBucketOwner": self._expected_bucket_owner,
         }
-        if version_id is not None:
-            _validate_version_id(version_id)
-            parameters["VersionId"] = version_id
+        if etag is not None:
+            parameters["IfMatch"] = etag
         try:
             return self._client.get_object(**parameters)
         except BotoCoreError, ClientError:
@@ -495,24 +467,25 @@ def _parse_object_identity(response: Mapping[str, object]) -> _ObjectIdentity:
     size_bytes = response.get("ContentLength")
     checksum = response.get("ChecksumSHA256")
     checksum_type = response.get("ChecksumType")
-    version_id = response.get("VersionId")
+    etag = response.get("ETag")
     last_modified = response.get("LastModified")
     if (
         not _is_strict_integer(size_bytes)
         or size_bytes < 1
         or not isinstance(checksum, str)
-        or checksum_type != "FULL_OBJECT"
-        or not isinstance(version_id, str)
+        # R2 omits ChecksumType for a single-part object; never accept composite.
+        or checksum_type not in (None, "FULL_OBJECT")
+        or not isinstance(etag, str)
+        or _ETAG.fullmatch(etag) is None
         or not isinstance(last_modified, datetime)
         or last_modified.tzinfo is None
     ):
         raise RecoveryInventoryStorageError("S3 operator object identity is incomplete")
-    _validate_version_id(version_id)
     last_modified_ms = int(last_modified.astimezone(UTC).timestamp() * 1000)
     if last_modified_ms < 1 or last_modified_ms > _MAX_TIMESTAMP_MS:
         raise RecoveryInventoryStorageError("S3 operator object timestamp is invalid")
     return _ObjectIdentity(
-        version_id,
+        etag,
         _decode_sha256(checksum),
         size_bytes,
         last_modified_ms,
@@ -626,8 +599,6 @@ def _require_source_identity(
     identity: _ObjectIdentity, request: TrustedCopyRequest
 ) -> None:
     source = request.source
-    if identity.version_id != source.version_id:
-        raise RecoveryInventoryStorageError("S3 recovery source version differs")
     if identity.sha256 != source.sha256 or identity.size_bytes != source.size_bytes:
         raise RecoveryInventoryStorageError("S3 recovery source bytes differ")
 
@@ -636,8 +607,7 @@ def _require_public_identity(
     actual: _ObjectIdentity, expected: TrustedObjectIdentity
 ) -> None:
     if (
-        actual.version_id != expected.version_id
-        or actual.sha256 != expected.sha256
+        actual.sha256 != expected.sha256
         or actual.size_bytes != expected.size_bytes
         or actual.last_modified_ms != expected.last_modified_ms
     ):
@@ -659,7 +629,6 @@ def _validate_copy_request(request: TrustedCopyRequest) -> None:
         or source_key.state_revision != request.source.state_revision
     ):
         raise RecoveryInventoryStorageError("trusted recovery source is invalid")
-    _validate_version_id(request.source.version_id)
     if not _is_strict_integer(request.source.state_revision):
         raise RecoveryInventoryStorageError("trusted recovery source is invalid")
     if (
@@ -677,7 +646,6 @@ def _validate_trusted_identity(identity: TrustedObjectIdentity) -> None:
         raise RecoveryInventoryStorageError(
             "trusted recovery identity is invalid"
         ) from None
-    _validate_version_id(identity.version_id)
     if (
         parsed.sha256 != identity.sha256
         or not _is_strict_integer(identity.size_bytes)
@@ -705,7 +673,6 @@ def _validate_inventory_key(key: str) -> None:
 def _validate_configuration(
     client: _S3Client,
     bucket: str,
-    expected_bucket_owner: str,
     page_size: int,
 ) -> None:
     if (
@@ -715,8 +682,6 @@ def _validate_configuration(
         or "-." in bucket
     ):
         raise RecoveryInventoryStorageError("S3 operator bucket is invalid")
-    if _AWS_ACCOUNT_ID.fullmatch(expected_bucket_owner) is None:
-        raise RecoveryInventoryStorageError("S3 operator bucket owner is invalid")
     if not _is_strict_integer(page_size) or page_size < 1 or page_size > 1000:
         raise RecoveryInventoryStorageError("S3 operator page size is invalid")
     retries = client.meta.config.retries
@@ -742,21 +707,6 @@ def _validate_timeout(value: object) -> None:
         or value > 300
     ):
         raise RecoveryInventoryStorageError("S3 operator timeout is invalid")
-
-
-def _validate_version_id(version_id: str) -> None:
-    if len(version_id) < 1 or len(version_id) > 1024:
-        raise RecoveryInventoryStorageError("S3 operator version is invalid")
-    if any(ord(character) < 0x21 or ord(character) > 0x7E for character in version_id):
-        raise RecoveryInventoryStorageError("S3 operator version is invalid")
-
-
-def _response_version_id(response: Mapping[str, object]) -> str:
-    version_id = response.get("VersionId")
-    if not isinstance(version_id, str):
-        raise RecoveryInventoryStorageError("S3 conditional write version is missing")
-    _validate_version_id(version_id)
-    return version_id
 
 
 def _encode_sha256(sha256: str) -> str:

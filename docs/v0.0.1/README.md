@@ -28,7 +28,7 @@ model.
 - [data-and-licensing.md](data-and-licensing.md): provenance requirements and
   the code/data licensing boundary, including the Art. 4 position.
 - [deployment.md](deployment.md): image lifecycle, CI/CD, the Mikr.us Compose
-  runtime, S3 archive, and Cloudflare Tunnel.
+  runtime, R2 archive, and Cloudflare Tunnel.
 - [operations.md](operations.md): logging, monitoring, backups, rollback,
   recovery, and verification.
 - [release-diff.md](release-diff.md): selected-scope logical release comparisons,

@@ -24,6 +24,7 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
     ReadTimeoutError,
 )
 
+from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
 from minos.ingest.watchers.control import RecoveryReceipt
 from minos.ingest.watchers.recovery.image import (
     RecoveryImageStagingArea,
@@ -48,7 +49,7 @@ from minos.ingest.watchers.recovery.models import (
     VerifiedRecoveryImage,
 )
 
-_AWS_ACCOUNT_ID = re.compile(r"[0-9]{12}")
+_ETAG = re.compile(r'"[0-9a-f]{32}(?:-[0-9]{1,5})?"')
 _S3_BUCKET = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
 _RECOVERY_PROBE_KEY = re.compile(
     r"\Aprobes/recovery/[0-9]{4}-[0-9]{2}-[0-9]{2}/"
@@ -107,6 +108,7 @@ class _Boto3(Protocol):
         service_name: str,
         *,
         region_name: str,
+        endpoint_url: str,
         config: object,
     ) -> object: ...
 
@@ -117,7 +119,8 @@ class _ClientErrorLike(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class _HeadIdentity:
-    version_id: str
+    # The ETag pins a download to the object HEAD verified (R2 has no versions).
+    etag: str
     sha256: str
     size_bytes: int
     last_modified_ms: int
@@ -152,7 +155,6 @@ class S3RecoveryStore:
         client: _S3Client,
         *,
         bucket: str,
-        expected_bucket_owner: str,
         maximum_conflict_attempts: int = 3,
         conflict_delay_seconds: float = 0.05,
         selection_timeout_seconds: float = _DEFAULT_SELECTION_TIMEOUT_SECONDS,
@@ -164,7 +166,6 @@ class S3RecoveryStore:
         _validate_s3_configuration(
             client,
             bucket,
-            expected_bucket_owner,
             maximum_conflict_attempts,
             conflict_delay_seconds,
             selection_timeout_seconds,
@@ -172,7 +173,6 @@ class S3RecoveryStore:
         )
         self._client = client
         self._bucket = bucket
-        self._expected_bucket_owner = expected_bucket_owner
         self._maximum_conflict_attempts = maximum_conflict_attempts
         self._conflict_delay_seconds = conflict_delay_seconds
         self._selection_timeout_seconds = float(selection_timeout_seconds)
@@ -186,8 +186,7 @@ class S3RecoveryStore:
         cls,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
         maximum_conflict_attempts: int = 3,
         conflict_delay_seconds: float = 0.05,
         selection_timeout_seconds: float = _DEFAULT_SELECTION_TIMEOUT_SECONDS,
@@ -195,8 +194,10 @@ class S3RecoveryStore:
         connect_timeout_seconds: float = 10,
         read_timeout_seconds: float = 60,
     ) -> Self:
-        if not region or len(region) > 64:
-            raise RecoveryStorageError("S3 region is unsupported")
+        try:
+            endpoint = validate_r2_endpoint(endpoint)
+        except ValueError as error:
+            raise RecoveryStorageError(str(error)) from None
         _validate_timeout(connect_timeout_seconds, "S3 connect timeout")
         _validate_timeout(read_timeout_seconds, "S3 read timeout")
         boto3_api = cast(_Boto3, boto3)  # pyright: ignore[reportInvalidCast]
@@ -205,7 +206,8 @@ class S3RecoveryStore:
                 _S3Client,
                 boto3_api.client(
                     "s3",
-                    region_name=region,
+                    region_name=R2_REGION,
+                    endpoint_url=endpoint,
                     config=Config(
                         connect_timeout=connect_timeout_seconds,
                         read_timeout=read_timeout_seconds,
@@ -218,7 +220,6 @@ class S3RecoveryStore:
         return cls(
             client,
             bucket=bucket,
-            expected_bucket_owner=expected_bucket_owner,
             maximum_conflict_attempts=maximum_conflict_attempts,
             conflict_delay_seconds=conflict_delay_seconds,
             selection_timeout_seconds=selection_timeout_seconds,
@@ -258,7 +259,6 @@ class S3RecoveryStore:
                         ChecksumAlgorithm="SHA256",
                         ChecksumSHA256=checksum_base64,
                         IfNoneMatch="*",
-                        ExpectedBucketOwner=self._expected_bucket_owner,
                         Body=body,
                     )
                     body.verify_complete()
@@ -297,7 +297,6 @@ class S3RecoveryStore:
         )
         return PublishedRecoveryImage(
             key,
-            head.version_id,
             image.sha256,
             image.size_bytes,
             image.metadata,
@@ -312,7 +311,7 @@ class S3RecoveryStore:
         match = _RECOVERY_PROBE_KEY.fullmatch(published.key)
         if match is None or match.group(1) != published.sha256:
             raise RecoveryVerificationError("recovery probe key is invalid")
-        head = self._head(published.key, version_id=published.version_id)
+        head = self._head(published.key)
         _require_object_identity(head, published.sha256, published.size_bytes)
         captured_at_ms = self._clock_ms()
         _validate_captured_time(captured_at_ms)
@@ -341,7 +340,6 @@ class S3RecoveryStore:
                 )
             candidate = VerifiedRecoveryCandidate(
                 published.key,
-                head.version_id,
                 head.sha256,
                 head.size_bytes,
                 head.last_modified_ms,
@@ -438,10 +436,7 @@ class S3RecoveryStore:
         *,
         _budget: _SelectionBudget | None = None,
     ) -> Generator[VerifiedRecoveryImage]:
-        version_id = (
-            listed.version_id if isinstance(listed, VerifiedRecoveryCandidate) else None
-        )
-        head = self._head(listed.key, version_id=version_id, budget=_budget)
+        head = self._head(listed.key, budget=_budget)
         captured_at_ms = self._clock_ms()
         _validate_captured_time(captured_at_ms)
         if head.size_bytes != listed.size_bytes:
@@ -478,14 +473,13 @@ class S3RecoveryStore:
             )
             candidate = VerifiedRecoveryCandidate(
                 listed.key,
-                head.version_id,
                 head.sha256,
                 head.size_bytes,
                 head.last_modified_ms,
                 metadata,
             )
             if isinstance(listed, VerifiedRecoveryCandidate) and candidate != listed:
-                raise RecoveryVerificationError("version-pinned recovery image changed")
+                raise RecoveryVerificationError("pinned recovery image changed")
             yield VerifiedRecoveryImage(path, candidate)
 
     @contextmanager
@@ -499,11 +493,10 @@ class S3RecoveryStore:
             raise RecoveryVerificationError(
                 "published recovery key does not match its checksum"
             )
-        head = self._head(published.key, version_id=published.version_id)
+        head = self._head(published.key)
         _require_object_identity(head, published.sha256, published.size_bytes)
         candidate = VerifiedRecoveryCandidate(
             published.key,
-            head.version_id,
             head.sha256,
             head.size_bytes,
             head.last_modified_ms,
@@ -580,7 +573,6 @@ class S3RecoveryStore:
             ) from write_error
         return PublishedRecoveryImage(
             key,
-            head.version_id,
             image.sha256,
             image.size_bytes,
             image.metadata,
@@ -590,18 +582,13 @@ class S3RecoveryStore:
         self,
         key: str,
         *,
-        version_id: str | None = None,
         budget: _SelectionBudget | None = None,
     ) -> _HeadIdentity:
         parameters: dict[str, object] = {
             "Bucket": self._bucket,
             "Key": key,
             "ChecksumMode": "ENABLED",
-            "ExpectedBucketOwner": self._expected_bucket_owner,
         }
-        if version_id is not None:
-            _validate_version_id(version_id)
-            parameters["VersionId"] = version_id
         try:
             if budget is not None:
                 budget.consume_request()
@@ -624,7 +611,6 @@ class S3RecoveryStore:
             "Bucket": self._bucket,
             "Prefix": prefix,
             "MaxKeys": page_size,
-            "ExpectedBucketOwner": self._expected_bucket_owner,
         }
         if continuation_token is not None:
             parameters["ContinuationToken"] = continuation_token
@@ -649,13 +635,12 @@ class S3RecoveryStore:
             response = self._client.get_object(
                 Bucket=self._bucket,
                 Key=key,
-                VersionId=head.version_id,
+                IfMatch=head.etag,
                 ChecksumMode="ENABLED",
-                ExpectedBucketOwner=self._expected_bucket_owner,
             )
         except (BotoCoreError, ClientError) as error:
             raise RecoveryStorageError(
-                "S3 version-pinned recovery download failed"
+                "S3 ETag-pinned recovery download failed"
             ) from error
         body = response.get("Body")
         if body is None or not hasattr(body, "read") or not hasattr(body, "close"):
@@ -718,7 +703,6 @@ def recovery_receipt(image: PublishedRecoveryImage) -> RecoveryReceipt:
         sha256=image.sha256,
         size_bytes=image.size_bytes,
         archive_key=image.key,
-        version_id=image.version_id,
         verified_sha256=image.sha256,
         verified_size_bytes=image.size_bytes,
     )
@@ -739,23 +723,24 @@ def _parse_object_identity(response: Mapping[str, object]) -> _HeadIdentity:
     size_bytes = response.get("ContentLength")
     checksum = response.get("ChecksumSHA256")
     checksum_type = response.get("ChecksumType")
-    version_id = response.get("VersionId")
+    etag = response.get("ETag")
     last_modified = response.get("LastModified")
     if (
         not _is_strict_integer(size_bytes)
         or size_bytes < 1
         or size_bytes > MAX_RECOVERY_IMAGE_SIZE_BYTES
         or not isinstance(checksum, str)
-        or checksum_type != "FULL_OBJECT"
-        or not isinstance(version_id, str)
+        # R2 omits ChecksumType for a single-part object; never accept composite.
+        or checksum_type not in (None, "FULL_OBJECT")
+        or not isinstance(etag, str)
+        or _ETAG.fullmatch(etag) is None
         or not isinstance(last_modified, datetime)
         or last_modified.tzinfo is None
     ):
         raise RecoveryVerificationError("S3 recovery identity response is incomplete")
-    _validate_version_id(version_id)
     last_modified_ms = _datetime_to_timestamp_ms(last_modified)
     return _HeadIdentity(
-        version_id,
+        etag,
         _decode_sha256(checksum),
         size_bytes,
         last_modified_ms,
@@ -929,7 +914,6 @@ def _validate_listing_bounds(maximum_objects: int, page_size: int) -> None:
 def _validate_s3_configuration(
     client: _S3Client,
     bucket: str,
-    expected_bucket_owner: str,
     attempts: int,
     delay_seconds: float,
     selection_timeout_seconds: float,
@@ -942,8 +926,6 @@ def _validate_s3_configuration(
         or "-." in bucket
     ):
         raise RecoveryStorageError("S3 bucket name is unsupported")
-    if _AWS_ACCOUNT_ID.fullmatch(expected_bucket_owner) is None:
-        raise RecoveryStorageError("expected S3 bucket owner must be an account ID")
     if not _is_strict_integer(attempts) or attempts < 1 or attempts > 10:
         raise RecoveryStorageError("S3 conflict attempt bound is unsupported")
     if (
@@ -979,17 +961,6 @@ def _validate_timeout(value: object, label: str) -> None:
         or value > 300
     ):
         raise RecoveryStorageError(f"{label} is outside the supported range")
-
-
-def _validate_version_id(version_id: str) -> None:
-    if (
-        len(version_id) < 1
-        or len(version_id) > 1024
-        or any(
-            ord(character) < 0x21 or ord(character) > 0x7E for character in version_id
-        )
-    ):
-        raise RecoveryVerificationError("S3 recovery version ID is invalid")
 
 
 def _encode_sha256(sha256: str) -> str:

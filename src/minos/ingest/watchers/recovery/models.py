@@ -128,7 +128,6 @@ class ListedRecoveryImage:
 @dataclass(frozen=True, slots=True)
 class PublishedRecoveryImage:
     key: str
-    version_id: str
     sha256: str
     size_bytes: int
     metadata: RecoveryImageMetadata
@@ -137,7 +136,6 @@ class PublishedRecoveryImage:
 @dataclass(frozen=True, slots=True)
 class VerifiedRecoveryCandidate:
     key: str
-    version_id: str
     sha256: str
     size_bytes: int
     last_modified_ms: int

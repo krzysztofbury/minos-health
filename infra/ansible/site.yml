@@ -33,7 +33,6 @@
     watcher_uptime_kuma_required: false
     watcher_nfz_activation_enabled: false
     watcher_image_repository: ghcr.io/krzysztofbury/minos-health-watcher
-    watcher_aws_region: eu-central-1
     cloudflared_credential_path: "/etc/minos/cloudflared/{{ cloudflared_tunnel_id }}.json"
 
   pre_tasks:
@@ -57,7 +56,7 @@
             watcher_uptime_kuma_required
           - watcher_archive_backend is defined
           - watcher_s3_bucket is defined
-          - watcher_s3_expected_bucket_owner is defined
+          - watcher_s3_endpoint is defined
           - watcher_expected_image_digest is defined
           - watcher_source_revision is defined
           - expected_hostname is defined
@@ -75,11 +74,8 @@
             watcher_s3_bucket | default('') is
             match('^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$')
           - >-
-            watcher_s3_expected_bucket_owner | default('') is
-            match('^[0-9]{12}$')
-          - >-
-            watcher_aws_region is
-            match('^[a-z]{2}(-[a-z]+)+-[0-9]+$')
+            watcher_s3_endpoint | default('') is
+            match('^https://[0-9a-f]{32}(\\.(eu|fedramp))?\\.r2\\.cloudflarestorage\\.com$')
           - >-
             expected_hostname | default('') is
             match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
@@ -276,15 +272,15 @@
       when: not ansible_check_mode
       no_log: true
 
-    - name: Require the exact AWS watcher credential schema
+    - name: Require the exact R2 watcher credential schema
       ansible.builtin.assert:
         that:
           - watcher_aws_credentials_candidate_payload | length in range(64, 4097)
           - >-
             watcher_aws_credentials_candidate_payload is match(
-              '^\[default\]\naws_access_key_id[ \t]*=[ \t]*AKIA[A-Z0-9]{16}\naws_secret_access_key[ \t]*=[ \t]*[A-Za-z0-9/+=]{40}\n?$'
+              '^\[default\]\naws_access_key_id[ \t]*=[ \t]*[0-9a-f]{32}\naws_secret_access_key[ \t]*=[ \t]*[0-9a-f]{64}\n?$'
             )
-        fail_msg: The AWS watcher credential candidate has an invalid schema.
+        fail_msg: The R2 watcher credential candidate has an invalid schema.
       when: not ansible_check_mode
       no_log: true
 

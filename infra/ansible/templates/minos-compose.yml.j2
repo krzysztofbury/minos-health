@@ -1,8 +1,6 @@
 name: minos
 
 x-watcher-environment: &watcher-environment
-  AWS_DEFAULT_REGION: "{{ watcher_aws_region }}"
-  AWS_REGION: "{{ watcher_aws_region }}"
   AWS_SHARED_CREDENTIALS_FILE: /run/secrets/aws-credentials
   MINOS_WATCHER_ARCHIVE_BACKEND: "{{ watcher_archive_backend }}"
   MINOS_WATCHER_ARCHIVE_DIRECTORY: /var/lib/minos/archive
@@ -13,7 +11,7 @@ x-watcher-environment: &watcher-environment
   MINOS_WATCHER_READINESS_FILE: /tmp/minos-watcher-ready.json
   MINOS_WATCHER_RUNTIME_IMAGE_DIGEST: "{{ watcher_runtime_image_digest }}"
   MINOS_WATCHER_S3_BUCKET: "{{ watcher_s3_bucket }}"
-  MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER: "{{ watcher_s3_expected_bucket_owner }}"
+  MINOS_WATCHER_S3_ENDPOINT: "{{ watcher_s3_endpoint }}"
   MINOS_WATCHER_SCHEDULER_PAUSED: "true"
   MINOS_WATCHER_STAGING_DIRECTORY: /var/lib/minos/staging
   MINOS_WATCHER_UPTIME_KUMA_REQUIRED: "{{ watcher_uptime_kuma_required | string | lower }}"

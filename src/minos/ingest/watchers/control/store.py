@@ -2343,9 +2343,6 @@ class ControlStore:
                     "recovery_state_revision": recovery_receipt.state_revision
                     if recovery_receipt is not None
                     else None,
-                    "recovery_version_id": recovery_receipt.version_id
-                    if recovery_receipt is not None
-                    else None,
                 },
                 state_revision=state_revision,
                 now_ms=now_ms,
@@ -3523,15 +3520,6 @@ def _validate_recovery_receipt(
         raise ControlValidationError(
             "recovery image archive key is not revision-derived"
         )
-    if (
-        len(receipt.version_id) < 1
-        or len(receipt.version_id) > 1024
-        or any(
-            ord(character) < 0x21 or ord(character) > 0x7E
-            for character in receipt.version_id
-        )
-    ):
-        raise ControlValidationError("recovery image version ID is invalid")
 
 
 def _validate_observation(

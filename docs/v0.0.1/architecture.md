@@ -125,7 +125,7 @@ evidence-backed task and is not a baseline dependency.
 The watcher control SQLite database owns source configuration, UTC schedules and
 durable due cursors, fenced run claims, source cursors, state revisions,
 observations, artifact references, changes, incidents, and audit events. Exact
-source bytes live in private versioned S3. On startup the watcher reconciles
+source bytes live in a private R2 bucket under SHA-256 keys. On startup the watcher reconciles
 `committed` and `heartbeat_pending` runs before reconstructing in-memory jobs;
 application-level due cursors coalesce downtime into one bounded catch-up run.
 `heartbeat_pending` is retained as a compatibility name for durable local
@@ -192,10 +192,6 @@ minos-health/
 |   |-- sources/
 |   `-- releases/
 |-- infra/
-|   |-- bootstrap/
-|   |-- terraform/
-|   |   |-- watcher/                # S3 archive, IAM, OIDC reads, budget
-|   |   `-- watcher-acceptance/     # disposable real-AWS acceptance
 |   `-- ansible/                     # Mikr.us host and Compose deployment
 |-- scripts/
 |-- docs/v0.0.1/
@@ -221,7 +217,7 @@ reference migrations at startup.
 `database/control` is the mutable watcher contract. It also uses raw numbered
 SQLite migrations, but it is never bundled into the public API image or client
 data. The watcher is its only writer. Consistent recovery images are created
-with the SQLite backup API and uploaded to S3; the live database, WAL, and
+with the SQLite backup API and uploaded to R2; the live database, WAL, and
 shared-memory files are never copied as a backup set.
 
 `database/control/sqlite/schema.sql` is the canonical readable definition of
@@ -251,7 +247,7 @@ The shared archive boundary stages at most one mode-`0600` file per configured
 directory while incrementally computing its byte count and SHA-256. The local
 adapter copies into an archive-owned mode-`0600` inode, atomically installs the
 digest path without replacement, and re-verifies it for development.
-The production adapter uses direct single-part S3 `PutObject` with conditional
+The production adapter uses direct single-part R2 `PutObject` (S3 API) with conditional
 creation and native SHA-256, then checksum-enabled `HeadObject`; it never uses a
 transfer manager or multipart upload. Both return the same control-plane receipt
 and reject existing bytes that do not match the requested digest and size.
@@ -259,7 +255,7 @@ and reject existing bytes that do not match the requested digest and size.
 The recovery boundary creates consistent SQLite copies only through
 `sqlite3.Connection.backup()`. Recovery-only metadata is embedded in the copy,
 not the live schema, preserving rollback compatibility with the retained watcher.
-Images are integrity-checked, hashed, conditionally uploaded, version-pinned, and
+Images are integrity-checked, hashed, conditionally uploaded, ETag-pinned, and
 selected through bounded pagination. Operator-trusted copies use a separately
 signed canonical inventory chain and a restore path that acquires the same
 database-derived process lock as the watcher.
@@ -424,7 +420,7 @@ The watcher is a separate immutable image. Its read-only root filesystem has one
 persistent volume owned by its pinned numeric identity for control SQLite and
 recovery-image staging. Downloads use a separate disk-backed staging directory
 with one temporary file, a `600 MiB` application quota, and a `512 MiB` per-file
-ceiling. Raw bytes are uploaded and checksum-verified in S3 before the related
+ceiling. Raw bytes are uploaded and checksum-verified in R2 before the related
 observation and source cursor are committed. The edge, API, and watcher images
 are promoted as one compatible digest set.
 

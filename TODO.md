@@ -84,7 +84,7 @@ These remaining gates stay open.
       delivered through #166 at `850a58e`). Real partial-rollback recovery and
       public acceptance passed; the original #161/#164 failure causes remain
       unknown. See [recovery acceptance](https://github.com/krzysztofbury/minos-health/issues/162#issuecomment-6113614043).
-- [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/AWS
+- [ ] Complete hosted archive-reader/build evidence (#19), watcher recovery/R2
       acceptance (#49), release-path privacy checks (#28; the Cloudflare zone
       audit is done, see [the site audit](docs/validation/site-audit.md#cloudflare-28)),
       signed releases (#41),
@@ -315,11 +315,16 @@ UI remain the baseline.
       Mikr.us Compose topology, service-restricted secrets and volumes,
       scheduler-paused preflight, read-only watcher status, bounded local logs,
       ordinary-loss restore, and suspected-compromise restore tooling.
-- [ ] Execute the remaining #49 external acceptance: broad disposable real-AWS
-      watcher/refusal tests, both empty-host restore drills, confirmed budget
-      alert delivery and representative host overlap/load evidence. Production
-      provisioning, secrets, preflight and the RSK/BAW/NFZ watchers are delivered;
-      #142's focused S3 build cases do not complete the broader acceptance.
+- [ ] Execute the remaining #49 external acceptance: R2 refusal evidence
+      (bucket lock against overwrite and delete), both empty-host restore drills
+      and representative host overlap/load evidence. Production provisioning,
+      secrets, preflight and the RSK/BAW/NFZ watchers are delivered. The AWS
+      acceptance harness and budget alert were retired with AWS (#200).
+- [ ] Move the archive to Cloudflare R2 and retire Minos AWS (#200): code,
+      docs, EU bucket with lock and lifecycle rules, vault tokens and the
+      verified copy (549 objects, 0 failures) are done; the watcher cutover,
+      post-cutover delta copy and AWS teardown remain. See
+      [the migration evidence](docs/validation/r2-migration.md).
 - [x] Add the issue #6 private capture gate: fixed anonymous endpoints, bounded
       exact-byte staging, semantic `00CD10` XML selection, rotation quarantine,
       schema-shaped synthetic fixtures, and an opt-in live compatibility check.
@@ -371,9 +376,8 @@ UI remain the baseline.
       scoped Mikr.us watcher identity, GitHub OIDC read role, and budget in
       remote Terraform state before the first production run. Enforce
       conditional creates and deny watcher overwrite and deletion.
-- [ ] Resolve the SNS budget subscription inconsistency (list returned
-      `Deleted`, direct read returned confirmed). Do not claim budget email
-      alerts work until a delivered alert is observed (#49).
+- [x] Close the SNS budget subscription inconsistency: the AWS budget and its
+      subscription were retired with AWS (#200).
 - [x] Define the raw-SQL watcher control schema for sources, schedules, runs,
       observations, blobs, source cursors, monotonic state revisions, changes,
       incidents, and audit events. Keep the canonical `schema.sql` synchronized
@@ -384,8 +388,10 @@ UI remain the baseline.
 - [x] Implement bounded mode-0600 blob staging plus equivalent local and S3
       content-addressed adapters with conditional-create, verified-reuse, native
       SHA-256, byte-count, conflict, timeout, and corruption unit coverage.
-- [ ] Prove S3 versioning, native checksum, conditional-create, IAM denial,
-      lifecycle, and bounded listing semantics against a disposable AWS stack.
+- [x] Prove the object-store contract against the real store: the R2
+      capability check (create-once, native SHA-256, ETag pins, refused
+      bucket-owner header, CopyObject behavior) replaced the disposable AWS
+      stack (#200).
 - [x] At the watcher orchestration boundary, turn archive verification failures
       into hard incidents and failed claims, and prove observations and source
       cursors remain unchanged.

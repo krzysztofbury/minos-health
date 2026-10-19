@@ -63,7 +63,6 @@ def test_verified_run_image_allows_reconciliation_and_cleans_up(tmp_path: Path) 
         with staging.create(store, request) as image:
             published = PublishedRecoveryImage(
                 recovery_key(image.metadata, image.sha256),
-                "integration-version-1",
                 image.sha256,
                 image.size_bytes,
                 image.metadata,

@@ -387,7 +387,7 @@ and must match the pre-download structure before the observation set can
 commit.
 
 Production composition registers `RskSourceCollector` for watcher kind `rsk`
-with the runtime's bounded blob staging area for both filesystem and S3 archive
+with the runtime's bounded blob staging area for both filesystem and R2 archive
 backends. The explicit `watcher bootstrap-rsk` command creates the canonical
 source only when absent and installs independent durable daily and weekly
 verification obligations. Runtime startup validates every enabled source kind
@@ -400,7 +400,7 @@ It allowlists only HCD, bounded resource and publisher labels, official file
 identity and dates, file type and byte count, the exact metadata-response
 SHA-256, and the verified product SHA-256 only for privately archived bytes.
 Descriptions, publisher addresses and contacts, tax identifiers, education
-links, arbitrary publisher and file URLs, response headers, cursors, S3 keys,
+links, arbitrary publisher and file URLs, response headers, cursors, object keys,
 and signed URLs are excluded. Official origin links are reconstructed only from
 the fixed validated RSK file endpoint and a validated UUID.
 
@@ -428,7 +428,7 @@ summary under `/api/v1/provenance/baw`. It uses its own immutable generation
 under the same watcher-writable, edge-read-only public directory. The summary
 contains only document IDs, act labels and dates, publisher legal status,
 official BAW document links, selected file names and sizes, and verified
-checksums. Generated source UUIDs, raw legal responses, private S3 addresses,
+checksums. Generated source UUIDs, raw legal responses, private object-store addresses,
 control records, and downloadable Minos artifact URLs are not published.
 Service applicability stays unknown until reviewed from the governing act.
 The `/zrodla` directory can search across BAW and RSK without mixing their
@@ -537,7 +537,7 @@ Issue #7 dispatches discovered BAW IDs to #8. It does not duplicate BAW file
 retrieval. Issue #8 does not discover unrelated NFZ news or own CZS.
 
 Implementation order is #49, then completion of #6, then #8, then #7. Issue #49
-establishes the SQLite control plane, local and S3 blob contracts, recovery
+establishes the SQLite control plane, local and R2 blob contracts, recovery
 images, and Mikr.us scheduler. Issue #8 supplies the working BAW dispatch target
 that issue #7 subsequently calls.
 
@@ -575,16 +575,16 @@ retain the last good release and produce an actionable Telegram alert.
    counts, magic, extension, archive safety, and parser bounds.
 4. Address exact response bodies and downloaded files by SHA-256. Use
    single-part conditional `PutObject` with exact `ContentLength` and the
-   Base64-encoded whole-object SHA-256 in `ChecksumSHA256`; deny watcher
-   overwrite and deletion under blob prefixes. Derive the requested key from the
+   Base64-encoded whole-object SHA-256 in `ChecksumSHA256`; R2 bucket lock rules
+   refuse overwrite and deletion under blob prefixes. Derive the requested key from the
    local digest; after create or `412`, verify checksum and byte count with
    checksum-enabled `HeadObject`. Retry `409` conflicts within the bounded
-   operation. S3 versioning, content addressing, and IAM enforce the
-   application-level write-once rule. Filenames and mutable URLs are metadata,
+   operation. Content addressing, create-once writes and the bucket lock enforce
+   the application-level write-once rule. Filenames and mutable URLs are metadata,
    not identity.
 5. Fetch metadata before and after a download batch. A changed source view
    invalidates that attempt rather than publishing a mixed observation.
-6. Advance SQLite state only after every referenced S3 blob passes that
+6. Advance SQLite state only after every referenced R2 blob passes that
    verification. Commit the observation, artifact references, change or incident
    record, source cursor, incremented state revision, claim fencing token, and
    `committed` run state in one local transaction. A post-upload crash may leave

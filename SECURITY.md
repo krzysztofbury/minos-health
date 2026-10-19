@@ -31,7 +31,7 @@ Security and observability events should use request IDs, route templates,
 status classes, bounded timings, and dataset versions instead of request text.
 
 Source datasets, derived databases, container images containing licensed data,
-Terraform state, signing material, and deployment credentials must be stored in
+signing material, and deployment credentials must be stored in
 the private systems described in
 [the operations runbook](docs/v0.0.1/operations.md), not committed to Git.
 
@@ -40,7 +40,6 @@ credentials stay in external profiles or keychains. Production secret values
 are host-managed files readable only by root and the required service UID or
 GID, mounted read-only into only that container. Operator and recovery copies
 remain in the password manager.
-GitHub Actions authenticates to AWS with short-lived OIDC credentials. The
-narrowly scoped Mikr.us watcher access key is an explicit external-host
-exception and must not be stored in GitHub, `.env`, Terraform variables or
-state, Compose YAML, logs, or container images.
+GitHub Actions holds no object-store credentials. The bucket-scoped R2 watcher
+key on the Mikr.us host must not be stored in GitHub, `.env`, Compose YAML,
+logs, or container images; its recovery copy stays in the password manager.

@@ -59,7 +59,6 @@ class _Recovery:
             digest,
             4096,
             f"control-recovery/run/{revision:020d}/{digest}.sqlite3",
-            "version-1",
             digest,
             4096,
         )

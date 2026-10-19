@@ -65,7 +65,7 @@ jobs:
             -e cloudflared_tunnel_id=11111111-2222-3333-4444-555555555555 \
             -e watcher_archive_backend=s3 \
             -e watcher_s3_bucket=minos-ci-fixture \
-            -e watcher_s3_expected_bucket_owner=123456789012 \
+            -e watcher_s3_endpoint=https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com \
             -e watcher_expected_image_digest=sha256:${SYNTHETIC_DIGEST_HEX} \
             -e watcher_source_revision=${GITHUB_SHA}
         env:
@@ -79,7 +79,7 @@ jobs:
             --inventory localhost, --connection local \
             --module-name ansible.builtin.template \
             --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/minos-compose.yml.j2 dest=${RUNNER_TEMP}/minos-compose.yaml" \
-            --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","uptime_kuma_gid":10003,"uptime_kuma_image_reference":"docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6","uptime_kuma_uid":10003,"watcher_archive_backend":"s3","watcher_aws_region":"eu-central-1","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_expected_bucket_owner":"123456789012","watcher_secrets_gid":10002,"watcher_uid":10001,"watcher_uptime_kuma_required":false}'
+            --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","uptime_kuma_gid":10003,"uptime_kuma_image_reference":"docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6","uptime_kuma_uid":10003,"watcher_archive_backend":"s3","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_endpoint":"https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com","watcher_secrets_gid":10002,"watcher_uid":10001,"watcher_uptime_kuma_required":false}'
           uvx --from ansible-core==2.21.4 ansible localhost \
             --inventory localhost, --connection local \
             --module-name ansible.builtin.template \
@@ -110,44 +110,6 @@ jobs:
           uv run pytest tests/unit/test_watcher_runtime.py
           -k deployment_copy_rejects_schema_mismatch
 
-      - name: Install Terraform
-        if: steps.scope.outputs.docs_only != 'true'
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
-        with:
-          terraform_version: 1.16.4
-          terraform_wrapper: false
-
-      - name: Initialize Terraform providers
-        if: steps.scope.outputs.docs_only != 'true'
-        run: terraform -chdir=infra/bootstrap init -backend=false -lockfile=readonly
-
-      - name: Initialize, validate, and test production watcher Terraform
-        if: steps.scope.outputs.docs_only != 'true'
-        run: |
-          export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher"
-          terraform -chdir=infra/terraform/watcher init \
-            -backend=false -lockfile=readonly
-          terraform -chdir=infra/terraform/watcher validate
-          terraform -chdir=infra/terraform/watcher test
-
-      - name: Initialize, validate, and test scoped watcher operators
-        if: steps.scope.outputs.docs_only != 'true'
-        run: |
-          export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher-operators"
-          terraform -chdir=infra/terraform/watcher-operators init \
-            -backend=false -lockfile=readonly
-          terraform -chdir=infra/terraform/watcher-operators validate
-          terraform -chdir=infra/terraform/watcher-operators test
-
-      - name: Initialize, validate, and test disposable watcher Terraform
-        if: steps.scope.outputs.docs_only != 'true'
-        run: |
-          export TF_DATA_DIR="$RUNNER_TEMP/terraform-watcher-acceptance"
-          terraform -chdir=infra/terraform/watcher-acceptance init \
-            -backend=false -lockfile=readonly
-          terraform -chdir=infra/terraform/watcher-acceptance validate
-          terraform -chdir=infra/terraform/watcher-acceptance test
-
       - name: Run pre-commit checks
         if: steps.scope.outputs.docs_only != 'true'
         run: uv run pre-commit run --all-files --show-diff-on-failure
@@ -174,18 +136,13 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         run: uv run pip-audit
 
-      - name: Validate Terraform
-        if: steps.scope.outputs.docs_only != 'true'
-        run: terraform -chdir=infra/bootstrap validate
-
-      - name: Scan Terraform configuration
+      - name: Scan infrastructure configuration
         if: steps.scope.outputs.docs_only != 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           version: v0.70.0
           scan-type: config
           scan-ref: infra
-          trivyignores: .trivyignore.yaml
           severity: HIGH,CRITICAL
           exit-code: "1"
           hide-progress: true

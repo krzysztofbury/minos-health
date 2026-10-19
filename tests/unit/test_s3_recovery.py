@@ -28,7 +28,6 @@ from minos.ingest.watchers.recovery import (
 )
 
 _BUCKET = "minos-recovery-test"
-_OWNER = "123456789012"
 _CREATED_AT_MS = 1_758_225_600_000
 
 
@@ -53,9 +52,9 @@ class _FakeMeta:
 
 @final
 class _StoredObject:
-    def __init__(self, content: bytes, version_id: str) -> None:
+    def __init__(self, content: bytes) -> None:
         self.content = content
-        self.version_id = version_id
+        self.etag = f'"{hashlib.md5(content, usedforsecurity=False).hexdigest()}"'
         self.checksum = base64.b64encode(hashlib.sha256(content).digest()).decode(
             "ascii"
         )
@@ -76,6 +75,7 @@ class _FakeS3Client:
         self.override_last_modified: datetime | None = None
         self.download_body: object | None = None
         self.repeat_listing_token = False
+        self.replace_before_get = False
 
     def put_object(self, **kwargs: object) -> Mapping[str, object]:
         body = cast(_Readable, kwargs["Body"])
@@ -97,20 +97,16 @@ class _FakeS3Client:
             else None
         )
         if outcome is None or self.store_before_error:
-            version = f"version-{len(self.objects) + 1}"
-            self.objects[key] = _StoredObject(content, version)
+            self.objects[key] = _StoredObject(content)
         if outcome is not None:
             raise outcome
-        return {"VersionId": self.objects[key].version_id}
+        return {"ETag": self.objects[key].etag}
 
     def head_object(self, **kwargs: object) -> Mapping[str, object]:
         self.head_calls.append(dict(kwargs))
         key = cast(str, kwargs["Key"])
         stored = self.objects.get(key)
         if stored is None:
-            raise _client_error(404)
-        requested_version = kwargs.get("VersionId")
-        if requested_version is not None and requested_version != stored.version_id:
             raise _client_error(404)
         return self._identity(stored)
 
@@ -147,17 +143,21 @@ class _FakeS3Client:
         self.get_calls.append(dict(kwargs))
         key = cast(str, kwargs["Key"])
         stored = self.objects.get(key)
-        if stored is None or kwargs.get("VersionId") != stored.version_id:
+        if stored is None:
             raise _client_error(404)
+        if self.replace_before_get:
+            stored.etag = '"' + "f" * 32 + '"'
+        if kwargs.get("IfMatch") not in (None, stored.etag):
+            raise _client_error(412)
         body = self.download_body or io.BytesIO(stored.content)
         return {**self._identity(stored), "Body": body}
 
     def _identity(self, stored: _StoredObject) -> dict[str, object]:
         return {
             "ContentLength": len(stored.content),
+            # R2 sends no ChecksumType or VersionId for single-part objects.
             "ChecksumSHA256": self.override_head_checksum or stored.checksum,
-            "ChecksumType": "FULL_OBJECT",
-            "VersionId": stored.version_id,
+            "ETag": stored.etag,
             "LastModified": self._last_modified(),
         }
 
@@ -177,14 +177,13 @@ class _InterruptingBody:
         raise RuntimeError("injected stream cleanup failure")
 
 
-def test_publish_uses_conditional_single_part_put_and_versioned_head(
+def test_publish_uses_conditional_single_part_put_and_checksum_head(
     tmp_path: Path,
 ) -> None:
     client = _FakeS3Client()
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         clock_ms=_clock_ms,
     )
     store = ControlStore.open(tmp_path / "control.sqlite3")
@@ -196,7 +195,6 @@ def test_publish_uses_conditional_single_part_put_and_versioned_head(
         ) as image:
             published = remote.publish(image)
 
-        assert published.version_id == "version-1"
         assert client.put_calls == [
             {
                 "Bucket": _BUCKET,
@@ -207,7 +205,6 @@ def test_publish_uses_conditional_single_part_put_and_versioned_head(
                     bytes.fromhex(published.sha256)
                 ).decode("ascii"),
                 "IfNoneMatch": "*",
-                "ExpectedBucketOwner": _OWNER,
             }
         ]
         assert client.head_calls == [
@@ -215,21 +212,19 @@ def test_publish_uses_conditional_single_part_put_and_versioned_head(
                 "Bucket": _BUCKET,
                 "Key": published.key,
                 "ChecksumMode": "ENABLED",
-                "ExpectedBucketOwner": _OWNER,
             }
         ]
     finally:
         store.close()
 
 
-def test_published_recovery_image_round_trips_by_exact_version(
+def test_published_recovery_image_round_trips_by_key_and_checksum(
     tmp_path: Path,
 ) -> None:
     client = _FakeS3Client()
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         clock_ms=_clock_ms,
     )
     store = ControlStore.open(tmp_path / "control.sqlite3")
@@ -242,7 +237,7 @@ def test_published_recovery_image_round_trips_by_exact_version(
             published = remote.publish(image)
 
         with remote.download_published_verified(published, staging) as verified:
-            assert verified.candidate.version_id == published.version_id
+            assert verified.candidate.sha256 == published.sha256
             assert verified.candidate.metadata == published.metadata
             assert verified.path.is_file()
 
@@ -258,7 +253,6 @@ def test_recovery_probe_round_trip_uses_expiring_probe_namespace(
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         clock_ms=_clock_ms,
     )
     store = ControlStore.open(tmp_path / "control.sqlite3")
@@ -287,7 +281,6 @@ def test_publish_reuses_412_and_retries_only_bounded_409_conflicts(
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         maximum_conflict_attempts=3,
         conflict_delay_seconds=0.25,
         clock_ms=_clock_ms,
@@ -319,7 +312,6 @@ def test_publish_fails_closed_on_conflict_checksum_and_ambiguous_timeout(
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         maximum_conflict_attempts=2,
         conflict_delay_seconds=0,
         clock_ms=_clock_ms,
@@ -369,7 +361,7 @@ def test_listing_is_paginated_bounded_and_rejects_repeated_tokens(
         store.close()
 
 
-def test_download_is_version_pinned_and_rejects_version_or_checksum_change(
+def test_download_is_etag_pinned_and_rejects_replacement_or_checksum_change(
     tmp_path: Path,
 ) -> None:
     client, remote, store, staging = _archive_two_images(tmp_path)
@@ -378,12 +370,14 @@ def test_download_is_version_pinned_and_rejects_version_or_checksum_change(
         with remote.download_verified(listed, staging) as downloaded:
             assert downloaded.path.exists()
             selected = downloaded.candidate
-        assert client.get_calls[-1]["VersionId"] == selected.version_id
+        assert client.get_calls[-1]["IfMatch"] == client.objects[selected.key].etag
 
-        client.objects[selected.key].version_id = "replacement"
-        with pytest.raises(RecoveryStorageError, match="verification request"):
+        # An object replaced between HEAD and GET never reaches the staging file.
+        client.replace_before_get = True
+        with pytest.raises(RecoveryStorageError, match="ETag-pinned"):
             with remote.download_verified(selected, staging):
                 pass
+        client.replace_before_get = False
 
         current = remote.list_images("daily", maximum_objects=2)[0]
         client.override_head_checksum = base64.b64encode(b"z" * 32).decode("ascii")
@@ -401,7 +395,6 @@ def test_selection_uses_revision_time_class_rank_and_sha_deterministically(
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         clock_ms=_clock_ms,
     )
     store = ControlStore.open(tmp_path / "control.sqlite3")
@@ -429,7 +422,7 @@ def test_selection_uses_revision_time_class_rank_and_sha_deterministically(
             newer = remote.publish(image)
         selected = remote.select_newest(bounds, staging, page_size=1)
         assert selected.key == newer.key
-        assert all("VersionId" in call for call in client.get_calls)
+        assert all("IfMatch" in call for call in client.get_calls)
     finally:
         store.close()
 
@@ -444,7 +437,7 @@ def test_recovery_receipt_requires_run_metadata() -> None:
         None,
         None,
     )
-    published = PublishedRecoveryImage("key", "version", "b" * 64, 1, metadata)
+    published = PublishedRecoveryImage("key", "b" * 64, 1, metadata)
     with pytest.raises(RecoveryVerificationError, match="run image"):
         _ = recovery_receipt(published)
 
@@ -461,7 +454,6 @@ def test_selection_enforces_object_request_and_time_budgets(tmp_path: Path) -> N
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         clock_ms=_clock_ms,
     )
     with pytest.raises(RecoveryStorageError, match="object bound"):
@@ -477,7 +469,6 @@ def test_selection_enforces_object_request_and_time_budgets(tmp_path: Path) -> N
     request_bounded = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         maximum_selection_requests=1,
         clock_ms=_clock_ms,
     )
@@ -488,7 +479,6 @@ def test_selection_enforces_object_request_and_time_budgets(tmp_path: Path) -> N
     time_bounded = S3RecoveryStore(
         _FakeS3Client(),
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         selection_timeout_seconds=0.5,
         clock_ms=_clock_ms,
         monotonic=lambda: next(monotonic_values),
@@ -524,7 +514,6 @@ def test_s3_timestamps_are_checked_at_list_head_and_publish(tmp_path: Path) -> N
         late_remote = S3RecoveryStore(
             client,
             bucket=_BUCKET,
-            expected_bucket_owner=_OWNER,
             clock_ms=lambda: _CREATED_AT_MS + 20 * 60 * 1000,
         )
         with staging.create(
@@ -559,7 +548,6 @@ def _archive_two_images(
     remote = S3RecoveryStore(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         clock_ms=_clock_ms,
     )
     store = ControlStore.open(tmp_path / "control.sqlite3")

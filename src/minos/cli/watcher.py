@@ -10,7 +10,7 @@ from typing import ClassVar, Literal, Protocol, cast, final
 
 import httpx
 from loguru import logger
-from pydantic import AliasChoices, Field, ValidationError
+from pydantic import Field, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from minos.ingest.watchers.archive import (
@@ -133,11 +133,7 @@ class WatcherRuntimeSettings(BaseSettings):
         le=1024 * 1024 * 1024 * 1024,
     )
     s3_bucket: str | None = None
-    s3_expected_bucket_owner: str | None = None
-    aws_region: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("AWS_REGION", "AWS_DEFAULT_REGION"),
-    )
+    s3_endpoint: str | None = None
     aws_shared_credentials_file: Path | None = Field(
         default=None,
         validation_alias="AWS_SHARED_CREDENTIALS_FILE",
@@ -623,8 +619,7 @@ def create_watcher_command(
             value is not None
             for value in (
                 settings.s3_bucket,
-                settings.s3_expected_bucket_owner,
-                settings.aws_region,
+                settings.s3_endpoint,
                 settings.aws_shared_credentials_file,
             )
         ):
@@ -666,11 +661,7 @@ def _create_s3_watcher_command(
     collectors: CollectorRegistry,
 ) -> WatcherCommand:
     bucket = _required_setting(settings.s3_bucket, "S3 bucket")
-    region = _required_setting(settings.aws_region, "AWS region")
-    owner = _required_setting(
-        settings.s3_expected_bucket_owner,
-        "expected S3 bucket owner",
-    )
+    endpoint = _required_setting(settings.s3_endpoint, "R2 endpoint")
     credential_file = _required_path(
         settings.aws_shared_credentials_file,
         "AWS credential file",
@@ -678,16 +669,8 @@ def _create_s3_watcher_command(
     target_file = settings.uptime_kuma_targets_file
     if settings.uptime_kuma_required and target_file is None:
         raise WatcherRuntimeError("required Uptime Kuma target file is not configured")
-    archive = S3BlobArchive.create(
-        bucket=bucket,
-        region=region,
-        expected_bucket_owner=owner,
-    )
-    recovery_store = S3RecoveryStore.create(
-        bucket=bucket,
-        region=region,
-        expected_bucket_owner=owner,
-    )
+    archive = S3BlobArchive.create(bucket=bucket, endpoint=endpoint)
+    recovery_store = S3RecoveryStore.create(bucket=bucket, endpoint=endpoint)
     _prepare_private_directory(paths.database.parent)
     recovery_staging = RecoveryImageStagingArea(
         paths.recovery_staging_directory,
@@ -711,8 +694,7 @@ def _create_s3_watcher_command(
                 paths=paths,
                 limits=limits,
                 bucket=bucket,
-                region=region,
-                owner=owner,
+                endpoint=endpoint,
                 credential_file=credential_file,
                 target_file=target_file,
                 recovery_staging=recovery_staging,
@@ -802,8 +784,7 @@ def _create_production_preflight(
     paths: WatcherPaths,
     limits: CapacityLimits,
     bucket: str,
-    region: str,
-    owner: str,
+    endpoint: str,
     credential_file: Path,
     target_file: Path | None,
     recovery_staging: RecoveryImageStagingArea,
@@ -841,8 +822,7 @@ def _create_production_preflight(
         ),
         s3_checksum=S3ChecksumProbe.create(
             bucket=bucket,
-            region=region,
-            expected_bucket_owner=owner,
+            endpoint=endpoint,
         ),
         recovery_round_trip=RecoveryRoundTripProbe(
             paths.recovery_staging_directory,

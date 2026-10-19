@@ -98,7 +98,7 @@ same generated database.
 
 The watcher container runs APScheduler and a separate mutable control SQLite
 database. It stores exact raw bytes and revisioned control-database recovery
-images in private versioned S3. GitHub-hosted Actions build and test the images
+images in a private Cloudflare R2 bucket (#200). GitHub-hosted Actions build and test the images
 but do not run production schedules. Collectors in issues #6-#8 emit change
 records. Reviewed updates use the guarded validation-deploy tool. Unattended
 selection, activation and detailed incident delivery are deferred in #141;
@@ -154,7 +154,7 @@ separate review gates.
 The deployed validation Compose stack serves the API and web edge through
 Cloudflare Tunnel alongside the watchers and Uptime Kuma. The watcher foundation
 includes an executable
-UTC scheduler, fenced SQLite control transactions, local and S3 archives,
+UTC scheduler, fenced SQLite control transactions, local and R2 archives,
 revisioned recovery images, signed trusted-recovery inventories, a read-only
 watcher status command, preflight commands, a hardened watcher image, bounded
 local Docker logs, and local Compose. The RSK collector is registered in the
@@ -187,13 +187,10 @@ network or host ports. The watcher stack, DNS status route, watcher push
 delivery, full host-loss recovery, representative load, and public browser
 verification remain pending.
 
-The real-AWS acceptance harness under `infra/terraform/watcher-acceptance` is
-opt-in and creates only randomized, tagged disposable resources in the built-in
-repository account. It requires a dedicated non-default profile, exact
-same-account and production confirmations, reviewed plan digests, and separate
-apply, writer-revocation, and destroy approvals. The operator must be an exact
-preconfigured least-privilege IAM principal. Production Terraform apply,
-Mikr.us activation, and restore drills remain explicit operator approval gates.
+Object storage is one EU-jurisdiction Cloudflare R2 bucket whose lock rules
+refuse overwrites and deletes; the AWS stacks and their acceptance harness were
+retired in #200. Mikr.us activation and restore drills remain explicit operator
+approval gates.
 
 ## Data
 

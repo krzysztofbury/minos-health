@@ -26,7 +26,6 @@ _TEMPORARY_NAME = re.compile(
 _MAX_CREATE_ATTEMPTS = 10
 _MAX_STALE_FILES = 16
 _MAX_LISTING_KEY_NODES = 3
-_FILESYSTEM_VERSION_ID = "filesystem-v1"
 
 
 @final
@@ -95,7 +94,6 @@ class FilesystemRecoveryStore:
             )
         return PublishedRecoveryImage(
             key,
-            _FILESYSTEM_VERSION_ID,
             image.sha256,
             image.size_bytes,
             image.metadata,

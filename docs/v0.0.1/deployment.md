@@ -10,7 +10,7 @@ records isolation, public checks and rollback.
 This document describes the target full-product release contract. The current
 [validation update path](../validation/validation-deploy.md) mounts a separate
 verified read-only data bundle. Independent signatures and complete compatible
-release receipts (#41), hosted archive-reader acceptance (#19), recovery/AWS
+release receipts (#41), hosted archive-reader acceptance (#19), recovery/R2
 drills (#49), representative capacity (#42) and full deployment acceptance (#27)
 remain open. Startup warm-up timeout is tracked in #157. Unattended activation
 is deferred in #141, not a prerequisite for reviewed validation updates.
@@ -26,7 +26,7 @@ The delivery system must:
 - build checksummed standalone CLI and data-bundle artifacts;
 - promote already tested digests rather than rebuild for release;
 - keep CI separate from the production host and its secrets;
-- make the host replaceable from Git, GHCR digests, S3 recovery images, and a
+- make the host replaceable from Git, GHCR digests, R2 recovery images, and a
   runbook;
 - support bounded rollback without following mutable image tags;
 - remain inexpensive and understandable for one operator.
@@ -50,7 +50,7 @@ Status-page browser
 Watcher container
   -> APScheduler
   -> mutable control SQLite on a persistent volume
-  -> private versioned S3 snapshot bucket
+  -> private R2 snapshot bucket (SHA-256 keys, bucket lock)
   -> dedicated local public-projection volume
   -> best-effort terminal up/down push to Uptime Kuma
 
@@ -105,8 +105,8 @@ different systems:
 The watcher is not included in the API image. The edge image contains no Python
 runtime, private source snapshots, credentials, or generated medical database.
 It mounts only the dedicated public-projection root read-only. It cannot access
-watcher control SQLite, private filesystem or S3 archive data, staging, AWS
-credentials, S3 URLs, or presigned URLs.
+watcher control SQLite, private filesystem or R2 archive data, staging, R2
+credentials, object-store URLs, or presigned URLs.
 
 ## Artifact Lifecycle
 
@@ -140,7 +140,7 @@ The target lifecycle is:
    private GitHub Release asset after repository immutable releases are enabled
    and verified. The operator verifies them and the signed tag, signs the
    manifest with an independent off-host key, and conditionally copies the
-   manifest and signature to an operator-only S3 release prefix. The signed S3
+   manifest and signature to an operator-only R2 release prefix. The signed R2
    copy remains the recovery authority and binds the tag, source commit,
    artifact digests, compatibility, and manifest digest.
 7. The operator quiesces watcher dispatch, reconciles any `committed` or
@@ -148,7 +148,7 @@ The target lifecycle is:
    and records the current and candidate release manifests.
 8. A scheduler-paused candidate watcher validates a disposable database copy.
    Supported v1 and v2 copies are migrated to the exact candidate schema before
-   integrity, migration-checksum, identity, volume, secret, S3 checksum,
+   integrity, migration-checksum, identity, volume, secret, R2 checksum,
    and recovery-image checks. The original live database is not changed. The
    copy is limited to 2 GiB and a 240-second deadline, with a
    300-second outer timeout. A missing database on an initial empty host remains
@@ -184,7 +184,7 @@ The target lifecycle is:
     preflight services remain scheduler-paused and cannot report active
     readiness.
 13. Success writes a signed append-only deployment receipt to an operator-only
-    S3 prefix. Before the canary commits, failure restores the complete previous
+    R2 prefix. Before the canary commits, failure restores the complete previous
     release and may restore the pre-deploy recovery image only if the live schema
     was not migrated. After migration, explicit recovery retains the promoted
     candidate and current live state; an older database image or writer must not
@@ -206,20 +206,22 @@ the production scheduler and no self-hosted Actions runner runs on Mikr.us.
 
 Pull requests use committed fixtures and receive neither production secrets nor
 raw-source access. The current baseline checks repository hygiene, Ruff,
-BasedPyright, mypy, pytest, Bandit, Gitleaks, dependency policy, Terraform, and
-the built wheel. Planned checks add fixture ingestion, deterministic artifact
+BasedPyright, mypy, pytest, Bandit, Gitleaks, dependency policy, and the built
+wheel. Planned checks add fixture ingestion, deterministic artifact
 builds, container scans, Compose integration, and real browser smoke tests.
 
-The `main` workflow may use short-lived AWS OIDC credentials when it needs
-read-only access to reviewed source snapshots for a full artifact build. It
-publishes only to private GHCR and GitHub release storage. It does not connect
+GitHub Actions holds no object-store credential; artifact builds that need
+archived snapshots run on the operator machine with the read-only selection
+(`minos data build --archive-s3-selection`). CI publishes only to private GHCR
+and GitHub release storage. It does not connect
 to the production host during ordinary builds.
 
 The issue #21 processing handoff is a separate trusted workflow from the
 protected default branch. Automatic selection supplies one verified recovery-image identity
-and bounded change-record identity, uses the read-only OIDC role, verifies both,
-and exports only the selected normalized proposal. Pull-request jobs receive no
-archive role, and the production watcher receives no GitHub credential.
+and bounded change-record identity, uses a read-only archive credential, verifies
+both, and exports only the selected normalized proposal. Pull-request jobs
+receive no archive credential, and the production watcher receives no GitHub
+credential.
 
 The 2026-10-05 owner policy requires automatic activation of passing routine
 data-only updates, with no per-update manual dispatch, merge or deployment gate.
@@ -261,7 +263,7 @@ three control-database sizes plus the maximum download size to remain free.
 Crossing the configured `2 GiB` control database ceiling blocks new runs and
 raises an incident rather than filling the host. API and edge services receive
 only bounded tmpfs mounts when a demonstrated runtime path needs temporary
-writes. Exact raw bytes are uploaded to S3 and are not retained as the only copy
+writes. Exact raw bytes are uploaded to R2 and are not retained as the only copy
 on the host. Logs use Docker's bounded `local` driver rather than an unbounded
 JSON log file.
 
@@ -347,7 +349,7 @@ For each raw object, the watcher derives the requested key from its local
 SHA-256 and uses single-part `PutObject` with exact `ContentLength`, the
 Base64-encoded whole-object SHA-256 in `ChecksumSHA256`, and
 `If-None-Match: *`. Multipart upload is prohibited for watcher objects; source
-and control-database limits remain below the S3 single-part limit. It then uses
+and control-database limits remain below the R2 single-part limit. It then uses
 `HeadObject` with checksum mode enabled against that same requested key. Both a
 successful create and `412 Precondition Failed` must return the expected byte
 count and native checksum; mismatch is a hard incident. `409 Conflict` receives
@@ -382,56 +384,52 @@ one claimant. Restart reconstruction uses the same persisted state, so an
 exhausted daily, catch-up, or weekly collection is delayed rather than lost or
 immediately busy-looped.
 
-There is no atomic transaction across local SQLite and S3. A complete host loss
+There is no atomic transaction across local SQLite and R2. A complete host loss
 after local commit but before recovery-image upload can lose that unacknowledged
 observation relationship even when its raw blob survived. This narrow window is
 an accepted residual risk; the run was never reported successful and must be
 retried or investigated.
 
-## AWS Scope
+## Object Storage
 
-AWS is not an application runtime. It owns only:
+Cloudflare R2 is the only object store and is not an application runtime
+(#200). One private EU-jurisdiction bucket, `minos-archive`, holds
+content-addressed raw bytes, immutable control-database recovery images,
+checksum probes, trusted recovery copies and inventories, signed release
+manifests, and deployment receipts under separate prefixes.
 
-- the existing private versioned Terraform state bucket;
-- one private versioned S3 snapshot bucket for content-addressed raw bytes,
-  immutable control-database recovery images, signed release manifests, and
-  deployment receipts under separately authorized prefixes;
-- narrowly scoped IAM identities for the Mikr.us watcher and GitHub OIDC reads;
-- project budget notifications.
+R2 has no object versions, so immutability comes from three layers: keys embed
+the SHA-256 of their bytes; every write is create-once (`If-None-Match: *`) with
+`x-amz-checksum-sha256`; and bucket lock rules refuse overwrites and deletes.
 
-The snapshot bucket uses SSE-S3, public-access blocks, versioning, and enforced
-conditional writes under immutable prefixes. The watcher can write only raw
-blobs, recovery images, and checksum probes. Probe objects use a dedicated
-`probes/<UTC-date>/<random>/<sha256>` prefix, become current-expiration eligible
-after seven days, and have noncurrent versions removed after one additional day.
-Release manifests, trusted recovery copies and inventories, and deployment
-receipts require the operator identity and an independent signing key kept
-off-host. Raw objects have no automatic expiry. Multipart upload is prohibited
-for watcher writes; a seven-day incomplete-upload abort remains defense in depth
-for operator tooling.
+| Prefix | Bucket lock | Lifecycle deletion |
+| --- | --- | --- |
+| `blobs/` | indefinite | never |
+| `control-recovery/run/` | 30 days | 30 days |
+| `control-recovery/daily/` | 31 days | 31 days |
+| `control-recovery/weekly/` | 91 days | 91 days |
+| `control-recovery/monthly/` | 400 days | 400 days |
+| `trusted-recovery/` | 400 days | 400 days |
+| `recovery-inventories/` | indefinite | never |
+| `release-manifests/`, `deployment-receipts/` | indefinite | never |
+| `probes/` | none | 7 days |
 
-The Mikr.us watcher uses one narrowly scoped IAM access key because AWS workload
-identity is unavailable on that host. Terraform creates the identity and policy
-but never creates or stores the access-key secret. The operator creates and
-rotates the key manually, stores the recovery copy in the password manager, and
-installs it as a service-restricted host file mounted read-only into the watcher.
-The identity cannot delete objects, alter bucket policy, read Terraform state,
-or access unrelated AWS resources.
+Incomplete multipart uploads are aborted after seven days as defense in depth;
+watcher writes never use multipart upload. Every read verifies SHA-256 and byte
+count, and a recovery download is pinned with `If-Match` on the ETag that HEAD
+verified. R2 answers `501` to `x-amz-expected-bucket-owner`, so the account is
+pinned by configuration: only an R2 account S3 endpoint is accepted.
 
-There is no ECR, Lambda, Function URL, CloudFront, frontend S3 bucket, ACM
-certificate, or CloudWatch application-log stack in the accepted architecture.
+The Mikr.us watcher uses the bucket-scoped token `minos-r2-watcher`
+(Object Read & Write). The bucket lock, not the token, provides the no-delete
+guarantee, and the token cannot change lock or lifecycle rules. The operator
+token `minos-r2-operator` is separate. Both secrets live in the MinosHealth
+vault; the watcher's is installed as a service-restricted host file. Release
+manifests, trusted recovery copies and inventories, and deployment receipts
+require an independent signing key kept off-host.
 
-## Terraform State
-
-`infra/bootstrap` owns the existing dedicated S3 state bucket through its
-separate one-time bootstrap state. The `watcher` root initializes against its
-own remote-state key and owns the snapshot bucket, IAM policy, GitHub OIDC read
-role, budget notification, and Mikr.us watcher identity.
-
-The state bucket and snapshot bucket remain separate. Production state is never
-stored in a GitHub artifact or committed to Git. Any apply requires review of
-the exact plan, including public exposure, IAM scope, replacement, and retention
-changes.
+There is no ECR, Lambda, CloudFront, frontend bucket, or managed log stack, and
+Minos keeps no Terraform state.
 
 ## Cloudflare And Domains
 
@@ -458,13 +456,14 @@ contain medical queries.
 Production images pin numeric service UIDs and GIDs in the release contract.
 Ansible creates each secret directory as `root:<service-gid>` mode `0750` and
 each file as `root:<service-gid>` mode `0440`; Compose adds only that group and
-mounts only the required file read-only. The watcher reads AWS credentials from
-`AWS_SHARED_CREDENTIALS_FILE`. `cloudflared` receives its supported credentials
+mounts only the required file read-only. The watcher reads its R2 key from the
+S3-compatible credential file at `AWS_SHARED_CREDENTIALS_FILE` and the endpoint
+from `MINOS_WATCHER_S3_ENDPOINT`. `cloudflared` receives its supported credentials
 file and configuration, not an environment token. A preflight tests traversal
 and reads using every exact image digest. Secret files include:
 
 - the Cloudflare Tunnel credential;
-- the narrowly scoped S3 access key;
+- the bucket-scoped R2 access key;
 - the Uptime Kuma watcher target document, installed for the watcher only.
 
 The target document has the exact schema
@@ -494,18 +493,18 @@ operator tooling uses OpenSSH signatures with domain-separated
 `minos-release`, `minos-deployment`, and `minos-recovery` namespaces. The public
 verification key is committed and included in the recovery kit. The private key
 stays in the password manager or supported hardware and never enters Mikr.us,
-GitHub Actions, AWS credentials, Terraform state, or container storage.
+GitHub Actions, object-store credentials, or container storage.
 
-Secrets never enter Git, `.env`, Compose YAML, Terraform variables or state,
-container images, logs, or GitHub Actions. Operator, SSH, registrar, and recovery
-credentials stay in the password manager. Ordinary endpoints, regions, bucket
-names, timeouts, and release digests are configuration rather than secrets.
+Secrets never enter Git, `.env`, Compose YAML, container images, logs, or GitHub
+Actions. Operator, SSH, registrar, and recovery credentials stay in the password
+manager. Ordinary endpoints, bucket names, timeouts, and release digests are
+configuration rather than secrets.
 
 ## Promotion Evidence
 
 After repository immutable releases are enabled and verified, a signed release
 manifest is stored as a private GitHub Release asset and as the conditional
-single-object envelope `release-manifests/<tag>.json` in operator-only S3. A
+single-object envelope `release-manifests/<tag>.json` in the operator R2 prefix. A
 signed append-only receipt under
 `deployment-receipts/<20-digit-sequence>.json` identifies its prior receipt
 digest, release-manifest digest, operator, host, timestamp, pre-deploy recovery

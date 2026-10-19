@@ -94,12 +94,6 @@ repos:
         language: system
         pass_filenames: false
         files: ^(?:pyproject\.toml$|uv\.lock$)
-      - id: terraform-fmt
-        name: terraform fmt
-        entry: terraform fmt -check -recursive infra
-        language: system
-        pass_filenames: false
-        files: ^infra/.*\.(?:tf|tfvars)$
       - id: zizmor
         name: zizmor
         entry: uv run zizmor --pedantic .github/workflows

@@ -616,8 +616,7 @@ def test_production_factory_wires_s3_recovery_and_local_heartbeat(
     environment = {
         "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
         "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
-        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
-        "AWS_REGION": "eu-central-1",
+        "MINOS_WATCHER_S3_ENDPOINT": "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com",
         "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
     }
     for name, value in environment.items():
@@ -708,8 +707,7 @@ def test_production_factory_wires_s3_recovery_and_local_heartbeat(
 
     expected = {
         "bucket": "minos-test-bucket",
-        "region": "eu-central-1",
-        "expected_bucket_owner": "123456789012",
+        "endpoint": "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com",
     }
     assert archive_calls == [expected]
     assert recovery_calls == [expected]
@@ -717,7 +715,7 @@ def test_production_factory_wires_s3_recovery_and_local_heartbeat(
     assert len(heartbeat_instances) == 1
 
 
-def test_production_preflight_uses_only_aws_credential_secret(
+def test_production_preflight_uses_only_r2_credential_secret(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -727,10 +725,9 @@ def test_production_preflight_uses_only_aws_credential_secret(
     environment = {
         "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
         "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
-        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
+        "MINOS_WATCHER_S3_ENDPOINT": "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com",
         "MINOS_WATCHER_IMAGE_DIGEST": digest,
         "MINOS_WATCHER_RUNTIME_IMAGE_DIGEST": digest,
-        "AWS_REGION": "eu-central-1",
         "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
     }
     for name, value in environment.items():
@@ -801,11 +798,10 @@ def test_production_preflight_includes_configured_uptime_kuma_secret(
     environment = {
         "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
         "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
-        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
+        "MINOS_WATCHER_S3_ENDPOINT": "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com",
         "MINOS_WATCHER_IMAGE_DIGEST": digest,
         "MINOS_WATCHER_RUNTIME_IMAGE_DIGEST": digest,
         "MINOS_WATCHER_UPTIME_KUMA_TARGETS_FILE": str(target_file),
-        "AWS_REGION": "eu-central-1",
         "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
     }
     for name, value in environment.items():
@@ -898,9 +894,8 @@ def test_required_uptime_kuma_requires_target_file_for_s3(
     environment = {
         "MINOS_WATCHER_ARCHIVE_BACKEND": "s3",
         "MINOS_WATCHER_S3_BUCKET": "minos-test-bucket",
-        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER": "123456789012",
+        "MINOS_WATCHER_S3_ENDPOINT": "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com",
         "MINOS_WATCHER_UPTIME_KUMA_REQUIRED": "true",
-        "AWS_REGION": "eu-central-1",
         "AWS_SHARED_CREDENTIALS_FILE": str(credential_file),
     }
     for name, value in environment.items():

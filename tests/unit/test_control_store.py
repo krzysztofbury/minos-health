@@ -2132,7 +2132,6 @@ def _recovery_receipt(
         archive_key=(
             f"control-recovery/run/{image_state_revision:020d}/{digest}.sqlite3"
         ),
-        version_id="recovery-version-1",
         verified_sha256=digest,
         verified_size_bytes=4096,
     )

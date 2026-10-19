@@ -291,7 +291,6 @@ class _RecoveryPublisher:
                 "control-recovery/run/"
                 f"{run.committed_state_revision:020d}/{digest}.sqlite3"
             ),
-            "runtime-version-1",
             digest,
             4096,
         )
@@ -323,7 +322,6 @@ class _PeriodicRecoveryStore:
     def publish(self, image: StagedRecoveryImage) -> PublishedRecoveryImage:
         published = PublishedRecoveryImage(
             recovery_key(image.metadata, image.sha256),
-            f"version-{len(self.published) + 1}",
             image.sha256,
             image.size_bytes,
             image.metadata,
@@ -2054,27 +2052,23 @@ class _ChecksumProbeClient:
 
     def put_object(self, **kwargs: object) -> Mapping[str, object]:
         self.put_call = dict(kwargs)
-        return {"VersionId": "probe-version"}
+        return {}
 
     def head_object(self, **_kwargs: object) -> Mapping[str, object]:
         payload = cast(bytes, self.put_call["Body"])
         return {
             "ContentLength": len(payload),
+            # R2 returns the SHA-256 without ChecksumType for single-part objects.
             "ChecksumSHA256": base64.b64encode(hashlib.sha256(payload).digest()).decode(
                 "ascii"
             ),
-            "ChecksumType": "FULL_OBJECT",
         }
 
 
 def test_s3_checksum_probe_uses_conditional_full_object_checksum() -> None:
     client = _ChecksumProbeClient()
 
-    S3ChecksumProbe(
-        client,
-        bucket="minos-test-bucket",
-        expected_bucket_owner="123456789012",
-    ).check()
+    S3ChecksumProbe(client, bucket="minos-test-bucket").check()
 
     key = cast(str, client.put_call["Key"])
     match = re.fullmatch(
@@ -2090,7 +2084,8 @@ def test_s3_checksum_probe_uses_conditional_full_object_checksum() -> None:
     assert len(key) == 115
     assert client.put_call["IfNoneMatch"] == "*"
     assert client.put_call["ChecksumAlgorithm"] == "SHA256"
-    assert client.put_call["ExpectedBucketOwner"] == "123456789012"
+    # R2 answers 501 to x-amz-expected-bucket-owner, so it is never sent.
+    assert "ExpectedBucketOwner" not in client.put_call
 
 
 def _query(database_path: Path, sql: str) -> list[tuple[object, ...]]:

@@ -1,5 +1,5 @@
 # pyright: reportMissingTypeStubs=false
-"""Version-pinned read-only S3 materialization for the existing local builder."""
+"""Checksum-pinned read-only R2 materialization for the existing local builder."""
 
 import base64
 import hashlib
@@ -18,10 +18,11 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
     BotoCoreError,
     ClientError,
 )
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from minos.domain.reference import SourceError
 from minos.ingest.manifest_types import Digest
+from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
 from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.artifact import dataset_identity
 
@@ -35,15 +36,10 @@ class ArchiveObject(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid", strict=True, frozen=True
     )
+    # The key embeds the SHA-256 and R2 refuses overwrites under blobs/, so
+    # checksum and size are the complete pin (see minos.ingest.object_storage).
     sha256: Digest
     size_bytes: int = Field(ge=1, le=64 * 1024 * 1024)
-    version_id: Annotated[str, Field(pattern=r"^[!-~]{1,1024}$")]
-
-    @model_validator(mode="after")
-    def require_versioned_object(self) -> Self:
-        if self.version_id == "null":
-            raise ValueError("unversioned archive object is not supported")
-        return self
 
 
 class ArchiveSelection(BaseModel):
@@ -52,13 +48,10 @@ class ArchiveSelection(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid", strict=True, frozen=True
     )
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     dataset_id: Digest
     bucket: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$")]
-    region: Annotated[
-        str, Field(pattern=r"^[a-z]{2}(?:-[a-z]+){1,2}-[1-9][0-9]?$", max_length=32)
-    ]
-    expected_bucket_owner: Annotated[str, Field(pattern=r"^[0-9]{12}$")]
+    endpoint: Annotated[str, AfterValidator(validate_r2_endpoint)]
     objects: Annotated[
         tuple[ArchiveObject, ...], Field(min_length=1, max_length=MAX_ARCHIVE_OBJECTS)
     ]
@@ -118,7 +111,12 @@ class ArchiveS3Client(Protocol):
 
 class _Boto3(Protocol):
     def client(
-        self, service_name: str, *, region_name: str, config: object
+        self,
+        service_name: str,
+        *,
+        region_name: str,
+        endpoint_url: str,
+        config: object,
     ) -> object: ...
 
 
@@ -142,7 +140,8 @@ class S3ArchiveReader:
                 ArchiveS3Client,
                 boto3_api.client(
                     "s3",
-                    region_name=selection.region,
+                    region_name=R2_REGION,
+                    endpoint_url=selection.endpoint,
                     config=Config(
                         connect_timeout=10,
                         read_timeout=30,
@@ -169,7 +168,7 @@ class S3ArchiveReader:
     def materialize(
         self, manifest: DatasetManifest, *, staging_directory: Path
     ) -> Generator[Path]:
-        """Offer no local archive until all pinned versions have been verified."""
+        """Offer no local archive until every pinned object has been verified."""
         self._selection.require_dataset(manifest)
         deadline = time.monotonic() + MAX_TRANSFER_SECONDS
         try:
@@ -191,12 +190,10 @@ class S3ArchiveReader:
             response = self._client.get_object(
                 Bucket=self._selection.bucket,
                 Key=f"blobs/sha256/{item.sha256}",
-                VersionId=item.version_id,
                 ChecksumMode="ENABLED",
-                ExpectedBucketOwner=self._selection.expected_bucket_owner,
             )
         except BotoCoreError, ClientError:
-            raise SourceError("version-pinned archive read failed") from None
+            raise SourceError("checksum-pinned archive read failed") from None
         with _response_stream(response) as stream:
             _check_deadline(deadline)
             _require_response_identity(response, item)
@@ -216,12 +213,11 @@ def _require_response_identity(
         not isinstance(length, int)
         or isinstance(length, bool)
         or length != item.size_bytes
-        or response.get("VersionId") != item.version_id
         or response.get("ChecksumSHA256") != checksum
-        or response.get("ChecksumType") != "FULL_OBJECT"
-        or response.get("DeleteMarker", False) is not False
+        # R2 omits ChecksumType for a single-part object; never accept composite.
+        or response.get("ChecksumType") not in (None, "FULL_OBJECT")
     ):
-        raise SourceError("archive response differs from pinned version identity")
+        raise SourceError("archive response differs from pinned identity")
 
 
 @contextmanager

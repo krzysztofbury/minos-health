@@ -831,7 +831,6 @@ class _RecoveryPublisher:
                 "control-recovery/run/"
                 f"{run.committed_state_revision:020d}/{digest}.sqlite3"
             ),
-            "test-version-1",
             digest,
             4096,
         )

@@ -66,7 +66,6 @@ def main(output: Path, image: str) -> None:
             digest,
             4096,
             f"control-recovery/run/{run.committed_state_revision:020d}/{digest}.sqlite3",
-            "synthetic-recovery",
             digest,
             4096,
         )

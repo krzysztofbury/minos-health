@@ -26,10 +26,9 @@ def mapping(value: object) -> dict[str, object]:
 def rendered_production_compose_source() -> str:
     rendered = source("infra/ansible/templates/minos-compose.yml.j2")
     replacements = {
-        "{{ watcher_aws_region }}": "eu-central-1",
         "{{ watcher_archive_backend }}": "s3",
         "{{ watcher_s3_bucket }}": "minos-test-bucket",
-        "{{ watcher_s3_expected_bucket_owner }}": "123456789012",
+        "{{ watcher_s3_endpoint }}": "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com",
         "{{ watcher_image_repository }}": "ghcr.io/example/minos-watcher",
         "{{ watcher_expected_image_digest }}": f"sha256:{'a' * 64}",
         "{{ watcher_runtime_image_digest }}": f"sha256:{'a' * 64}",
@@ -333,8 +332,6 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
 
     environment = mapping(watcher["environment"])
     assert set(environment) == {
-        "AWS_DEFAULT_REGION",
-        "AWS_REGION",
         "AWS_SHARED_CREDENTIALS_FILE",
         "MINOS_WATCHER_ARCHIVE_BACKEND",
         "MINOS_WATCHER_ARCHIVE_DIRECTORY",
@@ -345,7 +342,7 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
         "MINOS_WATCHER_READINESS_FILE",
         "MINOS_WATCHER_RUNTIME_IMAGE_DIGEST",
         "MINOS_WATCHER_S3_BUCKET",
-        "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER",
+        "MINOS_WATCHER_S3_ENDPOINT",
         "MINOS_WATCHER_SCHEDULER_PAUSED",
         "MINOS_WATCHER_STAGING_DIRECTORY",
         "MINOS_WATCHER_UPTIME_KUMA_REQUIRED",
@@ -586,10 +583,10 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     )
     assert "watcher_archive_backend | default('') == 's3'" in playbook
     assert "watcher_s3_bucket | default('')" in playbook
-    assert "watcher_s3_expected_bucket_owner | default('')" in playbook
+    assert "watcher_s3_endpoint | default('')" in playbook
     assert "watcher_expected_image_digest | default('')" in playbook
     assert "watcher_source_revision | default('')" in playbook
-    assert "Require the exact AWS watcher credential schema" in playbook
+    assert "Require the exact R2 watcher credential schema" in playbook
     assert "Require the exact Uptime Kuma watcher target document schema" in playbook
     assert (
         "watcher_uptime_kuma_targets_candidate_document.sources | length <= 128"
@@ -659,7 +656,7 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
         assert removed_healthchecks_value not in playbook
 
     validate_aws_secret = playbook.index(
-        "Require the exact AWS watcher credential schema"
+        "Require the exact R2 watcher credential schema"
     )
     validate_uptime_kuma_secret = playbook.index(
         "Require the exact Uptime Kuma watcher target document schema"
@@ -885,8 +882,9 @@ def test_no_secret_value_or_mutable_watcher_tag_is_committed() -> None:
     assert "hc-ping.com/" not in runtime_sources
     assert "healthchecks" not in runtime_sources.lower()
     assert "watcher_healthchecks" not in playbook
-    assert "AKIA[A-Z0-9]{16}" in playbook
-    assert "[A-Za-z0-9/+=]{40}" in playbook
+    # R2 S3 keys: a 32-hex access key ID and a 64-hex secret.
+    assert "aws_access_key_id[ \\t]*=[ \\t]*[0-9a-f]{32}" in playbook
+    assert "aws_secret_access_key[ \\t]*=[ \\t]*[0-9a-f]{64}" in playbook
     assert "minos-health-watcher:latest" not in runtime_sources
     assert "watchtower" not in runtime_sources.lower()
 
@@ -934,11 +932,7 @@ def _assert_cli_runtime_settings_parse(
     settings = WatcherRuntimeSettings.model_validate({})
     assert settings.archive_backend == "s3"
     assert settings.s3_bucket == environment["MINOS_WATCHER_S3_BUCKET"]
-    assert (
-        settings.s3_expected_bucket_owner
-        == (environment["MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER"])
-    )
-    assert settings.aws_region == environment["AWS_REGION"]
+    assert settings.s3_endpoint == environment["MINOS_WATCHER_S3_ENDPOINT"]
     assert settings.scheduler_paused is False
     assert settings.image_digest == environment["MINOS_WATCHER_IMAGE_DIGEST"]
     assert (

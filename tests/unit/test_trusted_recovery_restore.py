@@ -120,7 +120,6 @@ def test_restore_downloads_version_pinned_image_and_preserves_old_artifacts(
     assert downloader.identities == [
         TrustedObjectIdentity(
             inventory.trusted_object_key,
-            inventory.trusted_object_version_id,
             inventory.trusted_object_checksum_sha256,
             inventory.trusted_object_size_bytes,
             inventory.trusted_object_last_modified_ms,
@@ -452,7 +451,6 @@ def _recovery_fixture(tmp_path: Path) -> tuple[bytes, RecoveryInventory]:
                 sequence=1,
                 prior_inventory_sha256=None,
                 trusted_object_key=trusted_recovery_key(1, image.sha256),
-                trusted_object_version_id="trusted-version-1",
                 trusted_object_checksum_sha256=image.sha256,
                 trusted_object_revision=image.metadata.state_revision,
                 trusted_object_size_bytes=image.size_bytes,

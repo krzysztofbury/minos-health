@@ -63,7 +63,6 @@ class RecoveryInventory(BaseModel):
     sequence: int = Field(ge=1, le=_MAX_SEQUENCE)
     prior_inventory_sha256: str | None
     trusted_object_key: str = Field(min_length=1, max_length=128)
-    trusted_object_version_id: str = Field(min_length=1, max_length=1024)
     trusted_object_checksum_sha256: str = Field(min_length=64, max_length=64)
     trusted_object_revision: int = Field(ge=0, le=_MAX_SEQUENCE)
     trusted_object_size_bytes: int = Field(ge=1, le=MAX_RECOVERY_OBJECT_BYTES)
@@ -84,7 +83,6 @@ class RecoveryInventory(BaseModel):
             raise ValueError("first inventory cannot have a predecessor")
         if self.sequence > 1 and self.prior_inventory_sha256 is None:
             raise ValueError("later inventory requires a predecessor")
-        _validate_version_id(self.trusted_object_version_id)
         return self
 
 
@@ -102,7 +100,6 @@ class BoundedInventoryListing:
 @dataclass(frozen=True, slots=True)
 class VerifiedRecoverySource:
     key: str
-    version_id: str
     sha256: str
     size_bytes: int
     state_revision: int
@@ -117,7 +114,6 @@ class TrustedCopyRequest:
 @dataclass(frozen=True, slots=True)
 class TrustedObjectIdentity:
     key: str
-    version_id: str
     sha256: str
     size_bytes: int
     last_modified_ms: int
@@ -367,7 +363,6 @@ def _unsigned_inventory(
         sequence=sequence,
         prior_inventory_sha256=head.sha256 if head is not None else None,
         trusted_object_key=trusted.key,
-        trusted_object_version_id=trusted.version_id,
         trusted_object_checksum_sha256=trusted.sha256,
         trusted_object_revision=state_revision,
         trusted_object_size_bytes=trusted.size_bytes,
@@ -379,7 +374,6 @@ def _unsigned_inventory(
 def _validate_source(source: VerifiedRecoverySource) -> None:
     try:
         _validate_sha256(source.sha256)
-        _validate_version_id(source.version_id)
         parsed = parse_recovery_key(source.key)
     except ValueError, RecoveryInventoryFormatError, RecoveryVerificationError:
         raise RecoveryInventoryFormatError(
@@ -404,7 +398,6 @@ def _verify_trusted_identity(
 ) -> None:
     try:
         parsed = parse_trusted_recovery_key(trusted.key)
-        _validate_version_id(trusted.version_id)
         _validate_sha256(trusted.sha256)
     except TrustedRecoveryKeyError, ValueError, RecoveryInventoryFormatError:
         raise RecoveryInventoryStorageError(
@@ -527,13 +520,6 @@ def _validate_sha256(value: str) -> None:
         character not in _SHA256_CHARACTERS for character in value
     ):
         raise RecoveryInventoryFormatError("recovery inventory checksum is invalid")
-
-
-def _validate_version_id(value: str) -> None:
-    if len(value) < 1 or len(value) > 1024:
-        raise RecoveryInventoryFormatError("trusted recovery version is invalid")
-    if any(ord(character) < 0x21 or ord(character) > 0x7E for character in value):
-        raise RecoveryInventoryFormatError("trusted recovery version is invalid")
 
 
 def _validate_object_bound(maximum_objects: object) -> None:

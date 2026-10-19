@@ -154,7 +154,6 @@ def install_trusted_recovery(
 def _trusted_identity(inventory: RecoveryInventory) -> TrustedObjectIdentity:
     return TrustedObjectIdentity(
         inventory.trusted_object_key,
-        inventory.trusted_object_version_id,
         inventory.trusted_object_checksum_sha256,
         inventory.trusted_object_size_bytes,
         inventory.trusted_object_last_modified_ms,
