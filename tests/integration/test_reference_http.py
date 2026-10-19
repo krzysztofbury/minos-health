@@ -1,3 +1,4 @@
+import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -136,10 +137,20 @@ def test_http_never_logs_queries_bodies_or_complete_urls(
     )
 
 
-def test_http_missing_or_altered_data_fails_closed(tmp_path: Path) -> None:
+def test_http_missing_or_altered_data_fails_closed(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     with pytest.raises(ArtifactError):
         with TestClient(create_app(tmp_path / "missing")):
             pytest.fail("missing data started the HTTP service")
+    # The failure class survives the image's critical-only Uvicorn logging
+    # (#198); the message and path do not.
+    assert [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == "minos.http.startup"
+    ] == [{"event": "api_startup_failed", "error_class": "ArtifactError"}]
+    assert str(tmp_path) not in caplog.text
     path = bundle(tmp_path)
     with pytest.raises(ArtifactError, match="selected deployment"):
         with TestClient(create_app(path, expected_database_sha256="0" * 64)):

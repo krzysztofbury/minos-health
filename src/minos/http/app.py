@@ -364,57 +364,71 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
-        started = time.monotonic()
-        pool = await run_in_threadpool(ReferencePool, bundle)
-        pool_ms = round((time.monotonic() - started) * 1000)
-        if (
-            required_search_profile is not None
-            and pool.manifest.dataset.search_profile != required_search_profile
-        ):
-            pool.close()
-            raise ArtifactError("reference bundle lacks the required search profile")
-        if (
-            expected_database_sha256 is not None
-            and pool.manifest.database_sha256 != expected_database_sha256
-        ):
-            pool.close()
-            raise ArtifactError(
-                "reference dataset is not the selected deployment artifact"
-            )
-        _app.state.pool = pool
-        try:
-            _app.state.trees = await run_in_threadpool(load_trees, pool)
-        except BaseException:
-            pool.close()
-            raise
-        # Fixed fields only: host activation timing evidence for #189.
-        STARTUP_LOGGER.info(
-            json.dumps(
-                {
-                    "event": "api_startup",
-                    "pool_ms": pool_ms,
-                    "trees_ms": round((time.monotonic() - started) * 1000) - pool_ms,
-                }
-            )
-        )
-        # Readiness never waits for grouping inputs; they warm in the background.
         warmup: threading.Thread | None = None
         warmup_stop = threading.Event()
-        prepared = cast(
-            PreparedSources | None, getattr(_app.state, "grouping_prepared", None)
-        )
-        if (
-            prepared is not None
-            and pool.manifest.dataset.characteristics
-            and pool.manifest.dataset.komunikaty
-        ):
-            warmup = threading.Thread(
-                target=warm_grouping,
-                args=(pool, prepared, warmup_stop),
-                name="grouping-warmup",
-                daemon=True,
+        try:
+            started = time.monotonic()
+            pool = await run_in_threadpool(ReferencePool, bundle)
+            pool_ms = round((time.monotonic() - started) * 1000)
+            if (
+                required_search_profile is not None
+                and pool.manifest.dataset.search_profile != required_search_profile
+            ):
+                pool.close()
+                raise ArtifactError(
+                    "reference bundle lacks the required search profile"
+                )
+            if (
+                expected_database_sha256 is not None
+                and pool.manifest.database_sha256 != expected_database_sha256
+            ):
+                pool.close()
+                raise ArtifactError(
+                    "reference dataset is not the selected deployment artifact"
+                )
+            _app.state.pool = pool
+            try:
+                _app.state.trees = await run_in_threadpool(load_trees, pool)
+            except BaseException:
+                pool.close()
+                raise
+            # Fixed fields only: host activation timing evidence for #189.
+            STARTUP_LOGGER.info(
+                json.dumps(
+                    {
+                        "event": "api_startup",
+                        "pool_ms": pool_ms,
+                        "trees_ms": round((time.monotonic() - started) * 1000)
+                        - pool_ms,
+                    }
+                )
             )
-            warmup.start()
+            # Readiness never waits for grouping inputs; they warm in the background.
+            prepared = cast(
+                PreparedSources | None, getattr(_app.state, "grouping_prepared", None)
+            )
+            if (
+                prepared is not None
+                and pool.manifest.dataset.characteristics
+                and pool.manifest.dataset.komunikaty
+            ):
+                warmup = threading.Thread(
+                    target=warm_grouping,
+                    args=(pool, prepared, warmup_stop),
+                    name="grouping-warmup",
+                    daemon=True,
+                )
+                warmup.start()
+        except BaseException as error:
+            # Uvicorn logs startup failures only at error level, which the image
+            # suppresses; the class name alone survives for #198. Never the
+            # message or traceback, which can carry paths.
+            STARTUP_LOGGER.error(
+                json.dumps(
+                    {"event": "api_startup_failed", "error_class": type(error).__name__}
+                )
+            )
+            raise
         try:
             yield
         finally:

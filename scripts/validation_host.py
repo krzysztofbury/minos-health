@@ -72,6 +72,9 @@ PULL_TIMEOUT_S = 900
 UP_WAIT_TIMEOUT_S = 300
 COMPOSE_TIMEOUT_S = 300
 DOCKER_TIMEOUT_S = 60
+DIAGNOSTIC_TIMEOUT_S = 10
+ERROR_CLASS = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,79}")
+MEMORY_EVENTS = ("max", "oom", "oom_kill")
 MAX_COMMAND_OUTPUT = 256 * 1024
 # Compose files owned by the watcher and maintenance procedures; their images
 # and bundles are never pruned by validation updates.
@@ -539,10 +542,75 @@ def check_startup(
             {
                 "status": "startup_process_failed",
                 "failure_classes": ["process_failure"],
+                "candidate": {
+                    "running": state.running,
+                    "oom_killed": state.oom_killed,
+                    "restarts": state.restarts,
+                },
+                # Consumed before the record is written; see candidate_diagnostics.
+                "candidate_id": state.identifier,
             },
         )
     require(state.health != "none", "startup healthcheck is missing")
     return state
+
+
+def startup_error_class(logs: str) -> str | None:
+    """The last `api_startup_failed` class in fixed-field JSON log lines."""
+    found: str | None = None
+    for line in logs.splitlines():
+        try:
+            record = cast(object, json.loads(line))
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
+            continue
+        fields = cast(dict[str, object], record)
+        if fields.get("event") == "api_startup_failed":
+            value = fields.get("error_class")
+            found = (
+                value
+                if isinstance(value, str) and ERROR_CLASS.fullmatch(value)
+                else None
+            )
+    return found
+
+
+def memory_events(text: str) -> dict[str, int] | None:
+    """The cgroup v2 limit and OOM counters, or None for an unexpected file."""
+    values: dict[str, int] = {}
+    for line in text.splitlines():
+        key, _, count = line.partition(" ")
+        if key in MEMORY_EVENTS:
+            if not count.isdigit():
+                return None
+            values[key] = int(count)
+    return values if set(values) == set(MEMORY_EVENTS) else None
+
+
+def candidate_diagnostics(identifier: str) -> dict[str, object]:
+    """Evidence about a failed start, read before rollback removes it (#198).
+
+    Best effort with its own bound: a missing log or cgroup file leaves None
+    and never changes the failure outcome. Only a validated exception class
+    name leaves the logs, never messages or tracebacks.
+    """
+    diagnostics: dict[str, object] = {"error_class": None, "memory_events": None}
+    try:
+        logs = run(
+            ["docker", "logs", "--tail", "200", identifier], DIAGNOSTIC_TIMEOUT_S
+        )
+        diagnostics["error_class"] = startup_error_class(logs)
+    except HostError:
+        pass
+    events = Path(
+        f"/sys/fs/cgroup/system.slice/docker-{identifier}.scope/memory.events"
+    )
+    try:
+        diagnostics["memory_events"] = memory_events(events.read_text())
+    except (OSError, ValueError):
+        pass
+    return diagnostics
 
 
 def retire_superseded(layout: Layout, api: str, deadline: float) -> list[str]:
@@ -680,8 +748,14 @@ def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]
         return result({"status": "completed", "exit_code": 0, "failure_classes": []})
     except (HostError, OSError, ValueError) as error:
         details: dict[str, object] = (
-            error.details if isinstance(error, HostError) else {}
+            dict(error.details) if isinstance(error, HostError) else {}
         )
+        identifier = details.pop("candidate_id", None)
+        if isinstance(identifier, str):
+            details["candidate"] = {
+                **cast(dict[str, object], details["candidate"]),
+                **candidate_diagnostics(identifier),
+            }
         if time.monotonic() >= deadline and phase != "retire":
             details = {"status": "startup_deadline", "failure_classes": ["timeout"]}
         return result(
