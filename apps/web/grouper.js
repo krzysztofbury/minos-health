@@ -496,19 +496,18 @@
     sections.push(px);
     sections.push(declared.length ? [el("p", "Potwierdzone modyfikatory: " + declared.join(", "), "case-muted")] : []);
     summary.replaceChildren();
+    // Progress belongs to the stepper; the card lists only what was entered.
     sections.forEach(function (content, index) {
-      var done = index <= reached && index !== current;
-      var li = el("li", undefined, "case-section" + (index === current ? " is-current" : done ? " is-done" : ""));
-      var head = el("div", undefined, "case-head"), marker = el("span", done ? "✓" : String(index + 1), "case-marker"); marker.setAttribute("aria-hidden", "true");
-      head.append(marker, el("h3", NAMES[index]));
-      if (done) { var change = button(head, "Zmień", "link-button", function () { showStep(index, true); }); change.setAttribute("aria-label", "Zmień: " + NAMES[index]); }
-      li.append(head);
+      if (!content.length) return;
+      var li = el("li", undefined, "case-section"), head = el("div", undefined, "case-head");
+      head.append(el("h3", NAMES[index]));
+      if (index <= reached && index !== current) { var change = button(head, "Zmień", "link-button", function () { showStep(index, true); }); change.setAttribute("aria-label", "Zmień: " + NAMES[index]); }
       var body = el("div", undefined, "case-body");
-      if (content.length) content.forEach(function (node) { body.append(node); });
-      else if (index !== RESULT) body.append(el("p", index === current ? "Uzupełniasz teraz" : "Do uzupełnienia", "is-empty"));
-      if (body.childNodes.length) li.append(body);
+      content.forEach(function (node) { body.append(node); });
+      li.append(head, body);
       summary.append(li);
     });
+    if (!summary.childNodes.length) summary.append(el("li", "Tu pojawią się wpisane dane.", "case-section is-empty"));
   }
 
   /* Plain-language reading of one consulted condition, in catalog vernacular. */
@@ -761,7 +760,12 @@
     var available = data.grouping && data.grouping.available;
     fields.disabled = !available;
     if (available) loadDictionaries();
-    byId("group-availability").className = available ? "group-help" : "group-notice";
-    byId("group-availability").textContent = available ? "Ocena obejmuje zatwierdzony podzbiór reguł. Warunki spoza niego pozostają nierozstrzygnięte." : "Ten zestaw danych nie zawiera źródeł wymaganych do grupowania.";
+    // The scope decides whether a result can be trusted, so it is shown above the
+    // form and repeated with the result.
+    var scope = "Ocena obejmuje zatwierdzony podzbiór reguł. Warunki spoza niego pozostają nierozstrzygnięte.";
+    byId("group-availability").className = available ? "group-callout" : "group-notice";
+    byId("group-availability").textContent = available ? scope : "Ten zestaw danych nie zawiera źródeł wymaganych do grupowania.";
+    byId("result-scope").textContent = scope;
+    byId("result-scope").hidden = !available;
   }).catch(function () { byId("group-availability").textContent = "Nie udało się pobrać zestawu reguł. Odśwież stronę, aby spróbować ponownie."; });
 })();

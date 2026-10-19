@@ -379,7 +379,32 @@ waits 10 seconds before serving and polls edge readiness every 100 ms. On
 retired after the new edge was healthy, and the partial-rollback recovery passed
 with both colours. Production overlap costs one extra API (memory limit 512 MiB)
 on the one-CPU host while the candidate starts, so responses may slow but not
-fail. A production activation has not yet been measured.
+fail.
+
+The first production activation (`2b6e26b`, 2026-10-19) kept the API startup
+outage-free: Uptime Kuma (60-second interval) recorded no down beat, and the
+whole transition took 107.4 seconds. An external probe at one request per second
+saw about 24 seconds of 502 during the edge recreation, against 87 to 270 seconds
+before #192 and 0.5 seconds in the local smoke. The owner accepted this short
+edge window as a known limit; no edge overlap is planned. `b0dee0d` activated
+the same way the same day.
+
+### Failed-start Diagnostics (#198)
+
+Two of the first four colour activations rolled back because the new API exited
+during startup (2026-10-16 `2b6e26b` and 2026-10-19 `b0dee0d`). The second exited
+with code 3, Uvicorn's lifespan failure, 72 seconds in, during the reference
+pool load, without an OOM kill; the retry succeeded both times. The cause is
+unknown: the `local` log driver deletes logs with the container that rollback
+removes, and Uvicorn runs at `--log-level critical`.
+
+The API now logs `{"event": "api_startup_failed", "error_class": ...}` on a
+startup exception, the class name only and never the message or traceback. When a
+candidate fails the startup check, the host reads its last 200 log lines and its
+cgroup `memory.events` under a separate 10-second bound before rollback, and
+keeps `candidate`: running, OOM flag, restarts, the validated `error_class`, and
+the `max`, `oom` and `oom_kill` counters. A missing log or cgroup file leaves
+`null` and never changes the outcome. Raw log lines are not kept.
 
 ### Retention
 

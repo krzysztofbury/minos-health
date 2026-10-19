@@ -74,13 +74,15 @@
             <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" aria-describedby="search-note search-feedback" placeholder="np. ICD10, 46/2026, załącznik 9"><button id="reset-search" class="button button-quiet" type="button">Wyczyść</button></div>
           </div>
           <p id="search-note" class="search-note">Filtr działa na nazwach, numerach i nazwach plików. Nie przeszukuje treści plików ani kodów.</p>
+          <details id="catalog-more" class="catalog-more">
+          <summary>Więcej filtrów</summary>
           <div class="catalog-facets">
             <label for="catalog-publisher">Wydawca<select id="catalog-publisher"><option value="all">Wszyscy wydawcy</option></select></label>
             <label for="catalog-format">Format pliku (także w historii)<select id="catalog-format"><option value="all">Wszystkie formaty</option></select></label>
             <label for="catalog-sort">Kolejność<select id="catalog-sort"><option value="relevance">Dopasowanie / kolejność katalogu</option><option value="title">Nazwa A-Z</option><option value="observed">Ostatnio sprawdzono</option></select></label>
           </div>
+          </details>
           <div class="catalog-actions"><button id="reset-catalog" class="button button-quiet" type="button">Resetuj filtry</button><a id="share-catalog" class="card-link" href="/zrodla">Link do tego widoku</a></div>
-          <p class="search-note">Link zachowuje źródło, wydawcę, format i kolejność. Wpisany tekst nie trafia do linku; strona wyników jest zachowywana tylko bez tekstu filtra.</p>
           <p id="search-feedback" class="search-note" role="status" aria-live="polite"></p>
           <div id="search-suggestions" class="search-suggestions" aria-live="polite"></div>
         </div>

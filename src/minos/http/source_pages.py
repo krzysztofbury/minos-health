@@ -14,6 +14,7 @@ from minos.http.pages import (
     _json_ld,  # pyright: ignore[reportPrivateUsage]
     _page,  # pyright: ignore[reportPrivateUsage]
     _shell,  # pyright: ignore[reportPrivateUsage]
+    display_date,
 )
 from minos.http.source_reader import (
     IDENTITY,
@@ -113,7 +114,7 @@ def _facts(row: dict[str, object], *, detailed: bool) -> str:
     return (
         '<dl class="card-facts">'
         + "".join(
-            f"<div><dt>{_e(label)}</dt><dd>{_e(row[key]) if row[key] is not None else 'Nie podano'}</dd></div>"
+            f"<div><dt>{_e(label)}</dt><dd>{_e(display_date(row[key])) if row[key] is not None else 'Nie podano'}</dd></div>"
             for key, label in fields.items()
             if key in row
         )

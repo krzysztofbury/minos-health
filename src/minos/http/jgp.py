@@ -27,6 +27,7 @@ from minos.domain.reference import ArtifactError, QueryLimitError, QueryTimeoutE
 from minos.domain.search import SearchInputError
 from minos.http.jgp_comparison_pages import comparison_link
 from minos.http.jgp_pages import error_page, group_page, index_page
+from minos.http.pages import display_date
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.jgp_catalog import GROUP_CODE_REGEX
 from minos.store.artifact import dataset_identity
@@ -210,10 +211,11 @@ def verified_neighbours(
     window = cast(dict[str, object], group["applicability"])
     end = cast(str | None, window["service_to"])
     start = date.fromisoformat(cast(str, window["service_from"]))
-    candidates = [(f"Zobacz {start - timedelta(days=1)}", start - timedelta(days=1))]
+    before = start - timedelta(days=1)
+    candidates = [(f"Zobacz {display_date(before.isoformat())}", before)]
     if end is not None:
         after = date.fromisoformat(end) + timedelta(days=1)
-        candidates.insert(0, (f"Zobacz od {after}", after))
+        candidates.insert(0, (f"Zobacz od {display_date(after.isoformat())}", after))
     links: list[tuple[str, str]] = []
     for label, day in candidates:
         if not SERVICE_DATE.fullmatch(day.isoformat()):

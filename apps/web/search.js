@@ -106,6 +106,12 @@
       box.disabled = !releases[box.value];
       box.checked = !box.disabled && preferredSystems.indexOf(box.value) >= 0;
     });
+    syncReset();
+  }
+
+  // Reset only offers something while an available source is switched off.
+  function syncReset() {
+    resetFilters.hidden = boxes.every(function (box) { return box.disabled || box.checked; });
   }
 
   function filtersChanged() {
@@ -116,6 +122,12 @@
   }
 
   restorePreference();
+
+  // Visible dates read DD.MM.RRRR; requests and links keep ISO.
+  function plDate(value) {
+    var match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+    return match ? match[3] + "." + match[2] + "." + match[1] : value;
+  }
 
   function element(name, className, text) {
     var node = document.createElement(name);
@@ -277,7 +289,7 @@
       if (system === "jgp") meta.append(element("span", "badge badge-muted", hit.catalog), element("span", "", hit.act_number));
       if (hit.jgp_membership && hit.jgp_membership.group_count) {
         var membership = element("span", "badge badge-muted", "występuje w " + hit.jgp_membership.group_count + " " + plural(hit.jgp_membership.group_count, "grupie", "grupach", "grupach") + " JGP");
-        membership.title = "Obecność na jawnych listach załącznika 9 na " + hit.jgp_membership.service_date + "; nie oznacza kwalifikacji ani typowego leczenia";
+        membership.title = "Obecność na jawnych listach załącznika 9 na " + plDate(hit.jgp_membership.service_date) + "; nie oznacza kwalifikacji ani typowego leczenia";
         meta.append(membership);
       }
       if (badge) {
@@ -314,12 +326,12 @@
     var shown = answer.results.length;
     group.foot.replaceChildren();
     if (system === "jgp") {
-      group.title.textContent = SYSTEMS[system].group + " - stan na " + answer.service_date;
+      group.title.textContent = SYSTEMS[system].group + " - stan na " + plDate(answer.service_date);
       var advanced = element("a", "button button-quiet", "Więcej opcji");
       advanced.href = "/jgp/" + encodeURIComponent(answer.service_date);
       group.foot.append(advanced);
       if (answer.ruleset && answer.ruleset.service_date_after_knowledge) {
-        group.foot.append(element("p", "group-message", "Według źródeł sprawdzonych do " + answer.ruleset.knowledge_as_of + "."));
+        group.foot.append(element("p", "group-message", "Według źródeł sprawdzonych do " + plDate(answer.ruleset.knowledge_as_of) + "."));
       }
     }
     if (shown === 0) {
@@ -343,7 +355,7 @@
     }
     renderHits(system, answer, group.body);
     var datedMembership = answer.results.find(function (hit) { return hit.jgp_membership && hit.jgp_membership.group_count; });
-    if (datedMembership) group.foot.append(element("p", "group-message", "Obecność na listach załącznika 9 na " + datedMembership.jgp_membership.service_date + ". Nie oznacza typowego leczenia ani kwalifikacji hospitalizacji."));
+    if (datedMembership) group.foot.append(element("p", "group-message", "Obecność na listach załącznika 9 na " + plDate(datedMembership.jgp_membership.service_date) + ". Nie oznacza typowego leczenia ani kwalifikacji hospitalizacji."));
     group.count.textContent = answer.truncated
       ? shown + " najlepszych dopasowań"
       : shown + " " + plural(shown, "wynik", "wyniki", "wyników");
@@ -498,12 +510,17 @@
         return candidate && (candidate.disabled ? preferredSystems.indexOf(system) >= 0 : candidate.checked);
       });
       savePreference();
+      syncReset();
       filtersChanged();
     });
   });
   resetFilters.addEventListener("click", function () {
+    var focused = document.activeElement === resetFilters;
     preferredSystems = ORDER.slice();
     applyPreference();
+    // The button hides itself; keep keyboard focus on the restored filters.
+    var first = boxes.find(function (box) { return !box.disabled; });
+    if (focused && first) first.focus();
     var removed = removePreference();
     filtersChanged();
     if (removed) preferenceStatus.textContent = "Przywrócono wszystkie dostępne filtry i usunięto zapamiętany wybór.";

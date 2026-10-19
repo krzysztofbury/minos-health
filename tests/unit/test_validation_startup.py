@@ -33,6 +33,19 @@ class Startup:
         self.retired: list[float] = []
         self.retire_bounds: list[float] = []
         self.retire_cost = 0.0
+        self.log_reads: list[list[str]] = []
+
+    def run(self, arguments: list[str], timeout_s: float) -> str:
+        # Only the failed-candidate log read reaches run(); inspection is faked.
+        assert timeout_s <= host.DIAGNOSTIC_TIMEOUT_S
+        self.log_reads.append(arguments)
+        return "\n".join(
+            [
+                '{"event": "comparison_preload", "status": "completed"}',
+                "Traceback (most recent call last): PRIVATE_PATH=/opt/minos/reference",
+                '{"event": "api_startup_failed", "error_class": "MemoryError"}',
+            ]
+        )
 
     def retire(self, _layout: host.Layout, api: str, deadline: float) -> list[str]:
         assert api == "reference-api"
@@ -110,6 +123,7 @@ def startup(monkeypatch: pytest.MonkeyPatch) -> Startup:
     monkeypatch.setattr(host, "bounded_command", scenario.command)
     monkeypatch.setattr(host, "startup_state", scenario.inspect)
     monkeypatch.setattr(host, "retire_superseded", scenario.retire)
+    monkeypatch.setattr(host, "run", scenario.run)
     return scenario
 
 
@@ -184,6 +198,67 @@ def test_process_or_ambiguous_state_fails_without_waiting_out_grace(
     assert startup.retired == []
     assert startup.clock.now < 4
     assert "PRIVATE_INSPECTION_OUTPUT" not in str(result)
+
+
+@pytest.mark.parametrize(
+    ("fault", "running", "oom_killed", "restarts"),
+    [("exit", False, False, 0), ("oom", True, True, 0), ("restart", True, False, 1)],
+)
+def test_failed_start_keeps_candidate_evidence_without_raw_logs(
+    startup: Startup,
+    tmp_path: Path,
+    fault: str,
+    running: bool,
+    oom_killed: bool,
+    restarts: int,
+) -> None:
+    startup.fault = fault
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "startup_process_failed"
+    # The cgroup file of a synthetic container does not exist: None, not failure.
+    assert result["candidate"] == {
+        "running": running,
+        "oom_killed": oom_killed,
+        "restarts": restarts,
+        "error_class": "MemoryError",
+        "memory_events": None,
+    }
+    assert startup.log_reads == [
+        ["docker", "logs", "--tail", "200", "reference-api-new"]
+    ]
+    assert "candidate_id" not in result
+    assert "PRIVATE_PATH" not in json.dumps(result)
+
+
+def test_startup_error_class_takes_only_a_valid_class_name() -> None:
+    assert host.startup_error_class("") is None
+    assert (
+        host.startup_error_class(
+            "\n".join(
+                [
+                    '{"event": "api_startup_failed", "error_class": "ArtifactError"}',
+                    "not json",
+                    '{"event": "api_startup_failed", "error_class": "OSError"}',
+                ]
+            )
+        )
+        == "OSError"
+    )
+    assert (
+        host.startup_error_class(
+            '{"event": "api_startup_failed", "error_class": "/opt/minos/x y"}'
+        )
+        is None
+    )
+
+
+def test_memory_events_requires_the_counters() -> None:
+    text = "low 0\nhigh 0\nmax 102\noom 1\noom_kill 1\n"
+    assert host.memory_events(text) == {"max": 102, "oom": 1, "oom_kill": 1}
+    assert host.memory_events("max 102\n") is None
+    assert host.memory_events("max x\noom 0\noom_kill 0\n") is None
 
 
 def test_api_must_stay_ready_while_edge_starts(

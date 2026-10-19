@@ -3,7 +3,8 @@
 Acceptance of every public page family on 2026-10-13/14, against production
 `f9a0a72` and a local stack built from this change, plus an owner-approved
 Cloudflare zone audit for `minoshealth.pl` and `minoshealth.com`. Search Console
-and field performance still need the owner (see Open).
+was checked on 2026-10-14 and 2026-10-19 (see Indexing); field performance moved
+to #42.
 
 ## Method
 
@@ -91,11 +92,20 @@ approved by the owner and checked live afterwards.
   so these Free-plan zones keep only Cloudflare's default security-event window.
 - Other zones in the account were not read or changed.
 
+## Indexing
+
+The domain property `sc-domain:minoshealth.pl` is new. On 2026-10-14 the
+homepage was indexed, and the sitemap index had never been submitted; the owner
+approved submitting `https://minoshealth.pl/sitemap.xml`. On 2026-10-19 it read
+Success with 22,556 URLs discovered: exactly 5 pages, 12,371 ICD-10 and 10,180
+ICD-9 URLs, so all three child sitemaps were read. The Pages report was still
+processing, which is normal for a new property. Indexing proceeds on Google's
+side; no site change is pending.
+
 ## Open
 
-- Indexing: Search Console coverage for the sitemaps. A third-party `site:`
-  search returned nothing, which proves nothing either way.
 - Field performance: the keyless PageSpeed Insights quota was exhausted, and the
   origin is unlikely to have CrUX data yet. Search Console Core Web Vitals or a
-  CrUX key is needed.
-- Practitioner (#158) and legal evidence remain outside this audit.
+  CrUX key is needed (#42).
+- Practitioner (#158, #126, #25) and legal evidence (#3) remain outside this
+  audit.

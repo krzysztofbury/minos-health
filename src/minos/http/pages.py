@@ -62,6 +62,23 @@ def _e(value: object) -> str:
     return html.escape(" ".join(str(value).split()))
 
 
+DATE_ATTRIBUTES = frozenset({"data_od", "data_do"})
+
+
+def display_date(value: object) -> str:
+    """Visible ISO dates and months in the Polish DD.MM.RRRR / MM.RRRR form.
+
+    URLs, attributes and machine-readable values keep ISO; anything that is
+    not exactly an ISO date or month is returned unchanged.
+    """
+    text = str(value)
+    if match := re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", text):
+        return f"{match[3]}.{match[2]}.{match[1]}"
+    if match := re.fullmatch(r"(\d{4})-(\d{2})", text):
+        return f"{match[2]}.{match[1]}"
+    return text
+
+
 def _json_ld(value: object) -> str:
     text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     return (
@@ -127,7 +144,10 @@ def _rank_section(evidence: dict[str, object]) -> list[str]:
         )
     values = [
         ("Algorytm", evidence["algorithm_version"]),
-        ("Pierwszy okres sprawozdawczy wersji", evidence["first_reporting_month"]),
+        (
+            "Pierwszy okres sprawozdawczy wersji",
+            display_date(evidence["first_reporting_month"]),
+        ),
         ("Wydanie dowodu", evidence["algorithm_release_id"]),
     ]
     if evidence["status"] == "recorded":
@@ -214,7 +234,7 @@ def code_page(
     parts.append("      </div>")
     parts.append('      <div class="shell code-page">')
     facts = [
-        f"<div><dt>{_e(item['name'])}</dt><dd>{_e(item['value'])}</dd></div>"
+        f"<div><dt>{_e(item['name'])}</dt><dd>{_e(display_date(item['value']) if item['key'] in DATE_ATTRIBUTES else item['value'])}</dd></div>"
         for item in attributes
         if item["key"] != "evidence_kind" and item["value"].strip()
     ]

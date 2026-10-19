@@ -2480,7 +2480,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function formatDate(value) {
     if (value === null) return "Nie podano";
-    return new Intl.DateTimeFormat("pl-PL", { dateStyle: "medium", timeZone: "Europe/Warsaw" }).format(new Date(value.length === 10 ? value + "T12:00:00Z" : value));
+    return new Intl.DateTimeFormat("pl-PL", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Europe/Warsaw" }).format(new Date(value.length === 10 ? value + "T12:00:00Z" : value));
   }
   function formatSize(value) {
     if (value === null) return "Nie podano";
@@ -2798,6 +2798,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       button.tabIndex = selected ? 0 : -1;
     });
     ["publisher", "format", "sort"].forEach(function (name) { document.getElementById("catalog-" + name).value = state[name]; });
+    // A shared link with non-default facets must show them; never close it for the user.
+    if (state.publisher !== "all" || state.format !== "all" || state.sort !== "relevance") document.getElementById("catalog-more").open = true;
     document.getElementById("catalog-results").setAttribute("aria-labelledby", "tab-" + state.source);
     var fragment = selectionHash(state);
     document.getElementById("share-catalog").href = location.pathname + fragment;

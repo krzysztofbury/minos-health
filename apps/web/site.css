@@ -163,13 +163,9 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .case-sections { margin: 0.75rem 0 1rem; padding: 0; list-style: none; }
 .case-section { padding: 0.65rem 0.6rem; border-radius: var(--radius); }
 .case-section + .case-section { margin-top: 0.2rem; }
-.case-section.is-current { background: var(--accent-tint); }
-.case-head { display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; }
+.case-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.5rem; }
 .case-head h3 { font-size: var(--text-sm); }
-.case-marker { display: inline-grid; place-items: center; width: 1.4rem; height: 1.4rem; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); font-size: 0.75rem; font-weight: 700; }
-.case-section.is-done .case-marker { border-color: var(--accent); color: var(--accent); }
-.case-section.is-current .case-marker { border-color: var(--accent); color: #fff; background: var(--accent); }
-.case-body { margin: 0.3rem 0 0 2rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.case-body { margin: 0.3rem 0 0; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .case-body p + p { margin-top: 0.3rem; }
 .case-code { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.5rem; }
 .case-code .code-chip { min-width: 0; }
@@ -179,6 +175,7 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .case-card .is-empty { color: var(--muted); font-style: italic; }
 .case-card .link-button { min-height: 32px; padding: 0; font-size: var(--text-xs); }
 .group-help { margin-block: 0.6rem; color: var(--muted); font-size: var(--text-sm); }
+.group-callout { margin-block: 0.75rem; padding: 0.8rem 1rem; border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink); background: var(--accent-tint); font-size: var(--text-sm); }
 .group-notice { margin-block: 0.75rem; padding: 0.8rem; border-left: 3px solid var(--warn); background: var(--warn-bg); font-size: var(--text-sm); }
 #group-status { margin-block: 0.5rem 1rem; color: var(--ink-soft); }
 /* Result: qualifying groups first, then why, then everything else. */
@@ -371,10 +368,11 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .group-message.is-error { color: var(--bad); }
 .start { padding-top: 1.5rem; }
 .start-title { margin-bottom: 0.75rem; color: var(--ink-soft); font-size: var(--text-md); }
-.start-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
+.start-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin: 0; padding: 0; list-style: none; }
 .start-link { display: flex; flex-direction: column; gap: 0.2rem; height: 100%; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); color: var(--ink); background: var(--surface); text-decoration: none; }
 .start-link:hover { border-color: var(--accent); color: var(--ink); text-decoration: none; }
 .start-link span { color: var(--muted); font-size: var(--text-sm); }
+@media (min-width: 48rem) { .start-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 40rem) {
   .result { grid-template-columns: 1fr; gap: 0.3rem; }
   .result-meta, .result-why { grid-column: 1; }
@@ -489,7 +487,10 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .source-tabs button[aria-selected="true"] { border-color: var(--accent); color: #fff; background: var(--accent); }
 .search-field label { display: block; margin-bottom: 0.3rem; font-size: var(--text-sm); font-weight: 600; }
 .controls > * { min-width: 0; }
-.catalog-facets { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 0.75rem; }
+.catalog-more { grid-column: 1 / -1; }
+.catalog-more summary { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.catalog-more[open] summary { margin-bottom: 0.5rem; }
+.catalog-facets { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 0.75rem; }
 .catalog-facets label { min-width: 0; font-size: var(--text-sm); font-weight: 600; }
 .catalog-facets select { display: block; width: 100%; min-width: 0; min-height: 44px; margin-top: 0.3rem; padding: 0.5rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); }
 .catalog-actions { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; margin-block: 0.5rem; }
