@@ -42,13 +42,13 @@ These remaining gates stay open.
 - [x] Deliver NFZ/CZS/AOTMiT publication metadata (#92) through #167/#168,
       with guarded watcher activation and desktop/mobile `/zrodla` acceptance.
       See [publication evidence](docs/validation/nfz-publication-metadata.md).
-- [ ] Complete source-page discovery/citation improvements (#80). Historical
-      downloads remain rights-gated (#84). No-JS RSK/BAW catalogs and durable
-      citations are deployed through #171/#172 at `088f190`; production recovery
-      and public/browser acceptance passed. Facets, sorting and shareable state
-      are deployed through #185 at `736ba9f`. The 102-check site audit passes
-      locally; Cloudflare obfuscation and `www` redirects are fixed in the zones.
-      Indexing, field performance, practitioner and legal evidence remain open. See [the evidence](docs/validation/source-citations.md) and
+- [x] Complete source-page discovery/citation improvements (#80, closed
+      2026-10-19). Historical downloads remain rights-gated (#84). No-JS RSK/BAW
+      catalogs and durable citations are deployed through #171/#172 at `088f190`;
+      facets, sorting and shareable state through #185 at `736ba9f`. Production
+      passed all 102 site-audit checks at `fda0788`, and Search Console read all
+      22,556 sitemap URLs. Field performance moved to #42, practitioner evidence
+      to #158/#126/#25 and legal review to #3. See [the evidence](docs/validation/source-citations.md) and
       [the site audit](docs/validation/site-audit.md).
 - [ ] Reduce redundant Actions work against measured CI budgets (#174).
       #178 scopes documentation checks and cancels superseded PR validation;
@@ -58,11 +58,20 @@ These remaining gates stay open.
       now costs 14 rounded minutes instead of about 25. The monthly budget awaits
       owner review. See
       [CI scope and budget](docs/validation/ci-budget.md).
-- [ ] Activate API releases without downtime (#192): blue/green API colours
-      with retirement after real API and edge health; the disposable smoke kept
-      readiness within 0.5 seconds of interruption while a 10-second candidate
-      started. Production activation evidence is pending. See
+- [x] Activate API releases without downtime (#192, at `2b6e26b`): blue/green
+      API colours with retirement after real API and edge health. Production
+      recorded no Uptime Kuma down beat; the ~24-second edge recreation window is
+      an accepted known limit. See
       [colour activation](docs/validation/validation-deploy.md#colour-activation-without-downtime-192).
+- [ ] Explain intermittent API startup exits during colour activation (#198):
+      two of four activations rolled back and succeeded on retry. A failed
+      candidate now keeps its state, startup error class and cgroup memory
+      counters; the next failure decides the fix. See
+      [failed-start diagnostics](docs/validation/validation-deploy.md#failed-start-diagnostics-198).
+- [x] Apply the 2026-10-19 design critique (#196): scope callout on the Gruper
+      and its result, case card as an entry summary, DD.MM.RRRR in visible dates,
+      lighter source filters and home polish. Secondary text already measured at
+      least 14px and 4.5:1, so it is unchanged.
 - [x] Recover API startup headroom (#189, delivered through #190 at `f9a0a72`):
       the database is hashed once per process and evidence lookup is linear.
       The host transition fell from 267.6 to 120.5 of 300 seconds (cache possibly

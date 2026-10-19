@@ -161,6 +161,17 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Design critique (#196): the Gruper shows its rule-scope limit as a callout
+  above the form and again with the result; the case card lists only the facts
+  entered, leaving progress to the stepper. Visible dates read DD.MM.RRRR (or
+  MM.RRRR) on JGP, dictionary, search and source pages, while URLs and
+  attributes keep ISO. The source catalog keeps its tabs and text filter and
+  moves publisher, format and order behind "Więcej filtrów". On the home page,
+  "Przywróć wszystkie filtry" appears only while a source is switched off, the
+  placeholder fits a phone, and shortcuts sit 4 across or 2×2.
+- A failed API start keeps its evidence before rollback (#198): the API logs the
+  startup exception class only, and the host records the candidate's running,
+  OOM and restart state, that class and its cgroup memory counters.
 - The validation edge image moved to the upstream NGINX 1.31.7 / Alpine 3.24.2
   rebuild, which fixes `CVE-2026-77214` (libexpat 2.9.0-r0) and
   `CVE-2026-88806` (libx11 1.8.14-r0) found by the image scan, and ships
@@ -170,7 +181,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   `reference-api-green`) beside the live one and retire the old colour only
   after the new API and edge are healthy (#192). The API startup (87 to 270
   seconds on the host) no longer returns 502; only the edge swap remains, about
-  0.5 seconds in the disposable container smoke. Rollback reuses a still-running
+  0.5 seconds in the disposable container smoke and about 24 seconds in
+  production (2026-10-19, accepted as a known limit). Rollback reuses a still-running
   previous colour. The public-edge Kuma monitor now retries 3 times at 20-second
   intervals before alerting, so one failed check no longer pages.
 - Cloudflare zones (#28, #80, owner-approved 2026-10-14): Email Address

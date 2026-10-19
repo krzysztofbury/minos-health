@@ -24,14 +24,16 @@ pre-screen was performed on 2026-08-06 (see
    with points, source-linked traces and bounded near misses. Unsupported rules
    remain undetermined rather than being guessed into an answer.
 
-## Delivery Status (2026-10-14)
+## Delivery Status (2026-10-19)
 
 The public validation site serves terminology/JGP search, dated group and code
 pages, and the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper).
-The latest recorded verified validation deployment is `fda0788` (activated
-2026-10-14T07:20:30Z, bundle `5cea0d5d` unchanged) with the no-JS builder and
-long source-card link fixes (#191); production then passed all 102
-[site audit](docs/validation/site-audit.md) checks. `f9a0a72` added MODTAR
+The latest recorded verified validation deployment is `b0dee0d` (activated
+2026-10-19T11:42:10Z, bundle `5cea0d5d` unchanged) with the patched NGINX 1.31.7
+edge base (#197). `2b6e26b` activated blue/green API colours earlier that day
+(#192): no Uptime Kuma down beat, with an accepted ~24-second edge window. Both
+needed one retry after a rolled-back startup exit (#198). `fda0788` (#191) passed
+all 102 [site audit](docs/validation/site-audit.md) checks. `f9a0a72` added MODTAR
 generation 103, the 2026-10-13 knowledge horizon (#184) and faster API startup
 (#189); `736ba9f` added source filters,
 sharing and bounded startup readiness, and #171/#172 (`088f190`) initial source
