@@ -178,13 +178,20 @@ def test_local_and_s3_adapters_share_receipt_and_reuse_contract(
     assert receipts[0] == receipts[1]
 
 
-def test_s3_archive_verifies_reuse_after_precondition_failure(tmp_path: Path) -> None:
+# R2 checks bucket lock rules before If-None-Match: an existing locked object
+# answers 409 ObjectLockedByBucketPolicy instead of 412.
+@pytest.mark.parametrize(
+    ("status", "code"), [(412, None), (409, "ObjectLockedByBucketPolicy")]
+)
+def test_s3_archive_verifies_reuse_after_precondition_failure(
+    tmp_path: Path, status: int, code: str | None
+) -> None:
     content = b"existing"
     checksum = base64.b64encode(hashlib.sha256(content).digest()).decode("ascii")
     client = _FakeS3Client()
     client.object_bytes = content
     client.object_checksum = checksum
-    client.put_outcomes = [_client_error(412)]
+    client.put_outcomes = [_client_error(status, code=code)]
     archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:

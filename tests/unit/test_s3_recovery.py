@@ -273,7 +273,7 @@ def test_recovery_probe_round_trip_uses_expiring_probe_namespace(
         store.close()
 
 
-def test_publish_reuses_412_and_retries_only_bounded_409_conflicts(
+def test_publish_reuses_existing_and_retries_only_bounded_409_conflicts(
     tmp_path: Path,
 ) -> None:
     client = _FakeS3Client()
@@ -295,10 +295,16 @@ def test_publish_reuses_412_and_retries_only_bounded_409_conflicts(
         ) as image:
             first = remote.publish(image)
             repeated = remote.publish(image)
+            # A bucket lock answers an existing key before If-None-Match does.
+            client.put_outcomes = [
+                _client_error(409, code="ObjectLockedByBucketPolicy")
+            ]
+            locked = remote.publish(image)
             client.objects.clear()
             client.put_outcomes = [_client_error(409), _client_error(409), None]
             retried = remote.publish(image)
         assert repeated == first
+        assert locked == first
         assert retried.sha256 == first.sha256
         assert delays == [0.25, 0.25]
     finally:
@@ -561,10 +567,10 @@ def _archive_two_images(
     return client, remote, store, staging
 
 
-def _client_error(status: int) -> ClientError:
+def _client_error(status: int, *, code: str | None = None) -> ClientError:
     return ClientError(
         {
-            "Error": {"Code": str(status), "Message": "injected"},
+            "Error": {"Code": code or str(status), "Message": "injected"},
             "ResponseMetadata": {"HTTPStatusCode": status},
         },
         "S3Operation",

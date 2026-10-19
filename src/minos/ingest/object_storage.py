@@ -19,3 +19,14 @@ def validate_r2_endpoint(value: str) -> str:
     if _R2_ENDPOINT.fullmatch(value) is None:
         raise ValueError("R2 endpoint must be an account S3 API endpoint")
     return value
+
+
+def found_existing_object(status: int | None, code: str | None) -> bool:
+    """Whether a create-once write was refused because its key already exists.
+
+    R2 evaluates bucket lock rules before `If-None-Match`, so an existing object
+    under a locked prefix answers `409 ObjectLockedByBucketPolicy`, not `412`.
+    Nothing is written either way; callers verify the stored object's SHA-256
+    and size before trusting it.
+    """
+    return status == 412 or (status == 409 and code == "ObjectLockedByBucketPolicy")

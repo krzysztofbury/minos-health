@@ -321,9 +321,10 @@ UI remain the baseline.
       secrets, preflight and the RSK/BAW/NFZ watchers are delivered. The AWS
       acceptance harness and budget alert were retired with AWS (#200).
 - [ ] Move the archive to Cloudflare R2 and retire Minos AWS (#200): code,
-      docs, EU bucket with lock and lifecycle rules, vault tokens and the
-      verified copy (549 objects, 0 failures) are done; the watcher cutover,
-      post-cutover delta copy and AWS teardown remain. See
+      docs, EU bucket with lock and lifecycle rules, vault tokens, the
+      verified copy (549 objects, 0 failures) and the watcher cutover
+      (`36402de`, 2026-10-19) are done; the lock-answer fix release, the first
+      R2 watcher run, the post-cutover delta copy and AWS teardown remain. See
       [the migration evidence](docs/validation/r2-migration.md).
 - [x] Add the issue #6 private capture gate: fixed anonymous endpoints, bounded
       exact-byte staging, semantic `00CD10` XML selection, rotation quarantine,

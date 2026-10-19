@@ -172,7 +172,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
   upload, because R2 `CopyObject` ignores `If-None-Match`. `deploy_watcher`
   gains a rollback-safe one-time storage migration and accepts dispatch-run
   main CI (#174). The AWS Terraform stacks, operator scripts, real-AWS harness
-  and their tests are removed; CI no longer installs Terraform.
+  and their tests are removed; CI no longer installs Terraform. R2 checks bucket
+  lock rules before `If-None-Match`, so every create-once writer now treats
+  `409 ObjectLockedByBucketPolicy` for an existing key like `412` and verifies
+  the stored SHA-256 and size; before this, a watcher run re-archiving unchanged
+  metadata would have failed. The watcher moved to R2 at `36402de` on 2026-10-19.
 - Design critique (#196): the Gruper shows its rule-scope limit as a callout
   above the form and again with the result; the case card lists only the facts
   entered, leaving progress to the stepper. Visible dates read DD.MM.RRRR (or

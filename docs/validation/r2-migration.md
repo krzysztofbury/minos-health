@@ -1,7 +1,7 @@
 # R2 Migration Evidence (#200)
 
-Status: code, docs and the archive copy are complete on the migration branch;
-the production cutover and AWS retirement are recorded below as they happen.
+Status: the watcher writes to R2 since 2026-10-19; AWS retirement is recorded
+on #200.
 The decision is in [decisions.md](../v0.0.1/decisions.md#object-storage-on-cloudflare-r2-200-2026-10-19).
 
 ## Bucket
@@ -45,11 +45,20 @@ deleted afterwards.
 | `x-amz-expected-bucket-owner` | `501 Not Implemented` |
 | `CopyObject` with `If-None-Match` onto an existing key | overwrote it (ignored) and dropped the SHA-256 |
 | Object versions | none returned by HEAD/GET |
+| `PutObject` with `If-None-Match: *` onto an existing key under a lock rule | `409 ObjectLockedByBucketPolicy`; object unchanged |
 
 The code therefore never sends the bucket-owner header, accepts a missing
 `ChecksumType` but never a composite one, pins recovery downloads with
 `If-Match`, and implements the trusted copy as a verified download plus a
 create-once upload.
+
+The lock row was measured after the lock rules existed (2026-10-19, after the
+first capability check): R2 evaluates the lock before `If-None-Match`, so an
+existing locked key never answers `412`. Every create-once writer therefore
+treats that exact `409` like `412` and then verifies the stored SHA-256 and size;
+any other `409` is still a bounded retry. Re-archiving an existing 173-byte blob
+through `S3BlobArchive` against the real bucket returned a verified receipt and
+left the object's ETag and `LastModified` unchanged.
 
 ## Archive Copy (2026-10-19)
 
@@ -96,4 +105,18 @@ swap also reaches R2 before AWS is retired.
 
 ## Production Evidence
 
-Pending cutover.
+Cutover on 2026-10-19 at `36402de` (#201), watcher image
+`sha256:fcd0ebd396eec89a6793df6eb038ea4f9c33ed5b92e6bf4a44ead462378f544d` from
+publish run 39312453776, after main CI passed:
+
+- `plan` recorded the live Compose digest and the R2 key digest.
+- `stage` accepted the uploaded key and passed the isolated preflight with the
+  new image against R2: the checksum probe and the recovery round trip.
+- `activate` swapped the key and the R2 environment with the Compose and
+  reported `healthy: true` and `watcher_image_matches: true`.
+- The post-cutover copy found all 549 `blobs/` and `control-recovery/` objects
+  from S3 already present in R2 with matching SHA-256 and size: 0 copied,
+  0 failures. The first rerun stopped on the bucket lock's `409`, which led to
+  the lock-answer fix above.
+
+The first scheduled R2 run (03:00 UTC) and AWS retirement are recorded on #200.

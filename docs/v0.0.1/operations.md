@@ -252,8 +252,9 @@ retention and do not require a currently committed run. Each image:
    `control-recovery/weekly/<YYYY-Www>/<revision>/<sha256>.sqlite3`, or
    `control-recovery/monthly/<YYYY-MM>/<revision>/<sha256>.sqlite3`.
 7. Performs `HeadObject` with checksum mode enabled against the derived requested
-   key and compares byte count and native checksum after either create or `412`;
-   a `409` retries the bounded conditional operation. Multipart upload is
+   key and compares byte count and native checksum after create, `412` or
+   `409 ObjectLockedByBucketPolicy` (an existing locked key); any other `409`
+   retries the bounded conditional operation. Multipart upload is
    prohibited for watcher-created recovery images.
 8. For a run image, records `heartbeat_pending`, publishes the fenced sanitized
    public projection, and marks the run successful only after durable local
@@ -288,9 +289,10 @@ It then signs an inventory containing that key, checksum, revision, R2
 `LastModified`, sequence, and prior-inventory digest, and writes it
 conditionally to `recovery-inventories/<20-digit-sequence>.json`. The command
 derives the next sequence from the fully verified unique inventory head, creates
-the sequence-only key with `If-None-Match: *`, accepts `412` only for an exact
-idempotent byte match, then relists and rejects gaps, duplicate sequences, bad
-links, or multiple heads. An unused concurrent trusted copy is an orphan and is
+the sequence-only key with `If-None-Match: *`, accepts `412` (or the bucket
+lock's `409 ObjectLockedByBucketPolicy`) only for an exact idempotent byte
+match, then relists and rejects gaps, duplicate sequences, bad links, or
+multiple heads. An unused concurrent trusted copy is an orphan and is
 never selected. R2 `CopyObject` ignores `If-None-Match`, so the copy is a
 download pinned to the source ETag and verified against its SHA-256, then a
 create-once upload with that checksum. Trusted database copies are locked and
