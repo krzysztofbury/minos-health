@@ -285,7 +285,7 @@ try {
   assert.equal(metadataSearch.reversed, metadataSearch.first);
   assert.match(metadataSearch.evidence, /Załącznik 9.xlsx/);
   assert.match(metadataSearch.evidence, /Tekst po zmianach/);
-  assert.match(metadataSearch.evidence, /23 lip 2026/);
+  assert.match(metadataSearch.evidence, /23\.07\.2026/);
   assert.equal(metadataSearch.numericMiss, 0);
   assert.equal(metadataSearch.correctedHits, 0);
   assert.match(metadataSearch.labelled, /Czy chodziło o/);

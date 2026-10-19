@@ -84,7 +84,8 @@ try {
     await key("Enter", 13);
     await wait('document.querySelector("#group-jgp") && document.querySelector("#group-jgp").textContent.includes("stan na") && !document.querySelector("#search-submit").disabled');
     const heading = await evaluate('document.querySelector("#group-jgp").textContent');
-    const day = heading.match(/stan na (20\d\d-\d\d-\d\d)/)[1];
+    const [, dd, mm, yyyy] = heading.match(/stan na (\d\d)\.(\d\d)\.(20\d\d)/);
+    const day = `${yyyy}-${mm}-${dd}`;
     assert.equal(await evaluate('document.querySelector(".result").getAttribute("href")'), `/jgp/${day}/H21`);
     assert.ok(await evaluate('document.querySelector(".result-meta").textContent.includes("1a") && document.querySelector(".result-meta").textContent.includes("DSOZ")'));
     assert.equal(await evaluate('document.querySelector(".result-group-foot a").getAttribute("href")'), `/jgp/${day}`);

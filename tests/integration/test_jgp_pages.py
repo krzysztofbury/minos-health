@@ -125,14 +125,14 @@ def test_group_page_quotes_source_headers_and_keeps_absent_values(
     assert "Grupa zabiegowa (*)" in page
     assert 'href="/jgp/2026-07-10#k-1a-1"' in page
     # The day before is governed by the original act, which has PZD02 too.
-    assert 'href="/jgp/2026-06-30/PZD02">Zobacz 2026-06-30' in page
+    assert 'href="/jgp/2026-06-30/PZD02">Zobacz 30.06.2026' in page
     # Quick dates come from the bundle: release starts and the 2027 row switch.
     assert re.findall(
-        r'<a class="dictionary-tab" href="/jgp/([0-9-]+)/PZD02">\1</a>', page
+        r'<a class="dictionary-tab" href="/jgp/([0-9-]+)/PZD02">([0-9.]+)</a>', page
     ) == [
-        "2026-05-01",
-        "2026-07-01",
-        "2027-01-01",
+        ("2026-05-01", "01.05.2026"),
+        ("2026-07-01", "01.07.2026"),
+        ("2027-01-01", "01.01.2027"),
     ]
     assert 'min="2026-05-01"' in page
 
@@ -140,13 +140,13 @@ def test_group_page_quotes_source_headers_and_keeps_absent_values(
 def test_group_page_links_across_the_2027_row_switch(client: TestClient) -> None:
     before = client.get("/jgp/2026-12-31/H21").text
     after = client.get("/jgp/2027-01-01/H21").text
-    assert 'href="/jgp/2027-01-01/H21">Zobacz od 2027-01-01' in before
-    assert "do 2026-12-31" in before and "chirurgia ogólna" in before
+    assert 'href="/jgp/2027-01-01/H21">Zobacz od 01.01.2027' in before
+    assert "do 31.12.2026" in before and "chirurgia ogólna" in before
     assert "Synthetic § 4 ust. 5." in after
-    assert 'href="/jgp/2026-12-31/H21">Zobacz 2026-12-31' in after
+    assert 'href="/jgp/2026-12-31/H21">Zobacz 31.12.2026' in after
     # The original act has no H21, so June gets no link: only verified days.
     july = client.get("/jgp/2026-07-10/H21").text
-    assert "Zobacz 2026-06-30" not in july
+    assert "Zobacz 30.06.2026" not in july
 
 
 @pytest.mark.parametrize(

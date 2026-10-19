@@ -4,7 +4,7 @@ from typing import cast
 
 from minos.domain import jgp_conditions as c
 from minos.domain.reference import ArtifactError
-from minos.http.pages import _e  # pyright: ignore[reportPrivateUsage]
+from minos.http.pages import _e, display_date  # pyright: ignore[reportPrivateUsage]
 from minos.ingest.jgp_conditions_codec import decode_condition
 
 type Json = dict[str, object]
@@ -346,7 +346,7 @@ def shared_procedure_section(answers: list[Json]) -> str:
 def membership_section(answers: list[Json], *, slug: str, code: str, day: str) -> str:
     parts = [
         '<section class="code-children jgp-memberships"><h2>Występuje w grupach</h2>',
-        f"<p>Dzień świadczenia: {_e(day)}. Dowód obecności w jawnych listach załącznika 9, nie kwalifikacja przypadku. Brak pozycji nie dowodzi wykluczenia.</p>",
+        f"<p>Dzień świadczenia: {_e(display_date(day))}. Dowód obecności w jawnych listach załącznika 9, nie kwalifikacja przypadku. Brak pozycji nie dowodzi wykluczenia.</p>",
     ]
     if slug == "icd-10":
         # Procedure-led groups (for example hernia repair) often have no

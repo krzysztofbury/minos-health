@@ -13,7 +13,7 @@ from minos.http.jgp_pages import (
     points_pl,
     provenance,
 )
-from minos.http.pages import _e  # pyright: ignore[reportPrivateUsage]
+from minos.http.pages import _e, display_date  # pyright: ignore[reportPrivateUsage]
 from minos.store.comparison_snapshot import Entry, GroupKey
 from minos.store.jgp_comparison import (
     CatalogComparison,
@@ -78,7 +78,7 @@ def _definition(entry: Entry | None) -> str:
         f"<p>Rozdział: {_e(definition.chapter)}. Oznaczenie zabiegowe: {'tak' if definition.procedural else 'nie'}.</p>"
         f"<p>Zakresy wg oznaczeń źródłowych: {_e(scopes) if scopes else 'brak oznaczeń'}</p>"
         f"<p>Uwagi katalogu: {_e(definition.notes) if definition.notes else 'brak'}</p>"
-        f"<p>Obowiązuje od {_e(window.service_from)} do {_e(window.service_to or 'bez określonego końca')}."
+        f"<p>Obowiązuje od {_e(display_date(window.service_from))} do {_e(display_date(window.service_to) if window.service_to else 'bez określonego końca')}."
         f" Podstawa: {_e(window.evidence)}</p>"
     )
 
@@ -129,7 +129,7 @@ def _group(
         str(comparison.after["service_date"]),
     )
     columns = "".join(
-        f"<section><h3>{title}: {_e(day)}</h3>{_definition(entry)}"
+        f"<section><h3>{title}: {_e(display_date(day))}</h3>{_definition(entry)}"
         + (
             f'<a href="{_e(side["document_url"])}">Wybrane wydanie w BAW NFZ</a>'
             if entry
@@ -267,7 +267,7 @@ def comparison_page(
         )
         + '<details class="compare-provenance"><summary>Źródła obu stron i tożsamość porównania</summary><div class="compare-sides">'
         + "".join(
-            f"<section><h2>{title}: {_e(side['service_date'])}</h2><p>Stan na dzień publikacji: {_e(side['known_on'])}</p>{provenance(side, heading='h3')}<p>Wydanie: <code>{_e(side['release_id'])}</code></p></section>"
+            f"<section><h2>{title}: {_e(display_date(side['service_date']))}</h2><p>Stan na dzień publikacji: {_e(display_date(side['known_on']))}</p>{provenance(side, heading='h3')}<p>Wydanie: <code>{_e(side['release_id'])}</code></p></section>"
             for title, side in (("Przed", comparison.before), ("Po", comparison.after))
         )
         + f"</div><p>Zbiór: <code>{dataset}</code>. Link zachowuje obie daty, wydania i filtry oraz tę tożsamość zbioru. "

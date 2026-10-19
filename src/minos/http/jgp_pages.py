@@ -15,7 +15,11 @@ from minos.http.jgp_condition_pages import (
     source_facts,
     source_positions,
 )
-from minos.http.pages import _e, _page  # pyright: ignore[reportPrivateUsage]
+from minos.http.pages import (
+    _e,  # pyright: ignore[reportPrivateUsage]
+    _page,  # pyright: ignore[reportPrivateUsage]
+    display_date,
+)
 from minos.ingest.jgp_catalog_layout import (
     LEGEND,
     NFZ_1A_74_2026,
@@ -106,7 +110,7 @@ def date_bar(
     first is the earliest covered service date.
     """
     links = "".join(
-        f'<li><a class="dictionary-tab" href="{_e(prefix)}{_e(day)}{_e(suffix)}">{_e(day)}</a></li>'
+        f'<li><a class="dictionary-tab" href="{_e(prefix)}{_e(day)}{_e(suffix)}">{_e(display_date(day))}</a></li>'
         for day in calendar
         if day != service_date
     )
@@ -135,8 +139,8 @@ def provenance(ruleset: dict[str, object], *, heading: str = "h2") -> str:
     )
     facts = [
         ("Zarządzenie Prezesa NFZ", ruleset["act_number"]),
-        ("Opublikowano", ruleset["published_on"]),
-        ("Stosuje się do świadczeń od", ruleset["service_from"]),
+        ("Opublikowano", display_date(ruleset["published_on"])),
+        ("Stosuje się do świadczeń od", display_date(ruleset["service_from"])),
         ("Podstawa", ruleset["service_evidence"]),
         ("SHA-256 skoroszytu", ruleset["workbook_sha256"]),
         ("Modyfikatory", modifier_status),
@@ -186,9 +190,9 @@ def index_page(
     suffix = f"/zakres/{scope['position']}" if scope else ""
     crumbs = [
         '<a href="/jgp">Grupy JGP</a>',
-        f'<a href="/jgp/{service_date}">{service_date}</a>'
+        f'<a href="/jgp/{service_date}">{display_date(service_date)}</a>'
         if scope
-        else f'<span aria-current="page">{service_date}</span>',
+        else f'<span aria-current="page">{display_date(service_date)}</span>',
     ]
     if scope:
         crumbs.append(f'<span aria-current="page">{_e(scope["label"])}</span>')
@@ -241,10 +245,10 @@ def index_page(
         + "        </div>\n"
         + "      </div>"
     )
-    title = f"Katalog grup JGP na {service_date} - Minos Health"
+    title = f"Katalog grup JGP na {display_date(service_date)} - Minos Health"
     return _jgp_page(
         title=title,
-        description=f"Grupy JGP i punkty bazowe wg katalogu, bez modyfikatorów, dla świadczeń z {service_date}.",
+        description=f"Grupy JGP i punkty bazowe wg katalogu, bez modyfikatorów, dla świadczeń z {display_date(service_date)}.",
         path=f"/jgp/{service_date}{suffix}",
         content="".join(parts),
     )
@@ -356,7 +360,7 @@ def group_page(
     catalog = cast(str, group["catalog"])
     crumbs = [
         '<a href="/jgp">Grupy JGP</a>',
-        f'<a href="/jgp/{service_date}">{service_date}</a>',
+        f'<a href="/jgp/{service_date}">{display_date(service_date)}</a>',
         f'<span aria-current="page">{_e(code)}</span>',
     ]
     badges = [
@@ -380,7 +384,7 @@ def group_page(
         "        </div>\n",
         '        <p class="code-actions">'
         + f'<a class="button" href="/jgp/{service_date}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">Pokaż w katalogu</a>'
-        + f'<a class="button button-quiet" href="/jgp/{service_date}">Wszystkie grupy na {service_date}</a></p>\n',
+        + f'<a class="button button-quiet" href="/jgp/{service_date}">Wszystkie grupy na {display_date(service_date)}</a></p>\n',
         "      </div>\n",
         '      <div class="shell code-page jgp-group">\n',
         _values(answer, catalog),
@@ -395,8 +399,8 @@ def group_page(
         "      </div>",
     ]
     return _jgp_page(
-        title=f"{code} {group['name']} - grupa JGP na {service_date} - Minos Health",
-        description=f"Grupa JGP {code}: punkty bazowe wg katalogu, bez modyfikatorów, dla świadczeń z {service_date}.",
+        title=f"{code} {group['name']} - grupa JGP na {display_date(service_date)} - Minos Health",
+        description=f"Grupa JGP {code}: punkty bazowe wg katalogu, bez modyfikatorów, dla świadczeń z {display_date(service_date)}.",
         path=f"/jgp/{service_date}/{code}",
         content="".join(parts),
     )
@@ -436,8 +440,8 @@ def _row_window(
     start = cast(str, window["service_from"])
     end = cast(str | None, window["service_to"])
     text = (
-        f"Wiersz Lp. {_e(group['ordinal'])} katalogu stosuje się do świadczeń od {_e(start)}"
-        + (f" do {_e(end)}" if end else "")
+        f"Wiersz Lp. {_e(group['ordinal'])} katalogu stosuje się do świadczeń od {_e(display_date(start))}"
+        + (f" do {_e(display_date(end))}" if end else "")
         + "."
     )
     links = "".join(
@@ -515,11 +519,11 @@ def directional_list_page(answer: dict[str, object]) -> str:
         _head(
             [
                 '<a href="/jgp">Grupy JGP</a>',
-                f'<a href="/jgp/{day}">{day}</a>',
+                f'<a href="/jgp/{day}">{display_date(day)}</a>',
                 '<span aria-current="page">Lista źródłowa</span>',
             ]
         )
-        + f'<h1>{title}</h1><p class="page-lead">Dzień świadczenia: {_e(day)}. '
+        + f'<h1>{title}</h1><p class="page-lead">Dzień świadczenia: {_e(display_date(day))}. '
         + f"{_e(source_positions(cast(int, answer['total_occurrences'])))}, strona {page}.</p></div>"
         + f'<div class="shell code-page"><section class="code-children"><ul class="code-list">{rows}</ul></section>'
         + "<p>Powtórzenia i oznaczenia pozostają dowodami źródłowymi, nie dodatkowym zliczeniem procedur. "
@@ -529,8 +533,8 @@ def directional_list_page(answer: dict[str, object]) -> str:
         + "</div>"
     )
     return _jgp_page(
-        title=f"Lista {answer['label']} na {day} - Minos Health",
-        description=f"Jawna lista załącznika 9 dla świadczeń z {day}.",
+        title=f"Lista {answer['label']} na {display_date(day)} - Minos Health",
+        description=f"Jawna lista załącznika 9 dla świadczeń z {display_date(day)}.",
         path=f"/jgp/{day}/listy/{catalog}/{identity}/{page}",
         content=content,
     )
@@ -592,7 +596,7 @@ def error_page(
     if service_date and code == "group_not_on_date":
         actions.insert(
             0,
-            f'<a class="button" href="/jgp/{_e(service_date)}">Katalog na {_e(service_date)}</a>',
+            f'<a class="button" href="/jgp/{_e(service_date)}">Katalog na {_e(display_date(service_date))}</a>',
         )
     content = (
         '      <div class="shell page-head not-found">\n'
