@@ -577,8 +577,9 @@ retain the last good release and produce an actionable Telegram alert.
    single-part conditional `PutObject` with exact `ContentLength` and the
    Base64-encoded whole-object SHA-256 in `ChecksumSHA256`; R2 bucket lock rules
    refuse overwrite and deletion under blob prefixes. Derive the requested key from the
-   local digest; after create or `412`, verify checksum and byte count with
-   checksum-enabled `HeadObject`. Retry `409` conflicts within the bounded
+   local digest; after create, `412` or `409 ObjectLockedByBucketPolicy` (an
+   existing key under a lock rule), verify checksum and byte count with
+   checksum-enabled `HeadObject`. Retry other `409` conflicts within the bounded
    operation. Content addressing, create-once writes and the bucket lock enforce
    the application-level write-once rule. Filenames and mutable URLs are metadata,
    not identity.

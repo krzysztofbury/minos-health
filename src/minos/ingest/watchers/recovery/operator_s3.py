@@ -20,7 +20,11 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
     ClientError,
 )
 
-from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
+from minos.ingest.object_storage import (
+    R2_REGION,
+    found_existing_object,
+    validate_r2_endpoint,
+)
 from minos.ingest.watchers.recovery.inventory import (
     MAX_INVENTORY_BYTES,
     MAX_INVENTORY_OBJECTS,
@@ -233,7 +237,9 @@ class S3OperatorRecoveryStorage:
                     Body=staged,
                 )
             except ClientError as error:
-                if _client_error_status(error) != 412:
+                if not found_existing_object(
+                    _client_error_status(error), _client_error_code(error)
+                ):
                     raise RecoveryInventoryStorageError(
                         "S3 trusted recovery copy failed"
                     ) from None
@@ -285,7 +291,9 @@ class S3OperatorRecoveryStorage:
                 Body=content,
             )
         except ClientError as error:
-            if _client_error_status(error) != 412:
+            if not found_existing_object(
+                _client_error_status(error), _client_error_code(error)
+            ):
                 raise RecoveryInventoryStorageError(
                     "S3 recovery inventory write failed"
                 ) from None
@@ -736,6 +744,15 @@ def _client_error_status(error: ClientError) -> int | None:
         return None
     status = cast(Mapping[str, object], metadata).get("HTTPStatusCode")
     return status if _is_strict_integer(status) else None
+
+
+def _client_error_code(error: ClientError) -> str | None:
+    response = cast(_ClientErrorLike, cast(object, error)).response
+    details = response.get("Error")
+    if not isinstance(details, Mapping):
+        return None
+    code = cast(Mapping[str, object], details).get("Code")
+    return code if isinstance(code, str) else None
 
 
 def _is_strict_integer(value: object) -> TypeIs[int]:

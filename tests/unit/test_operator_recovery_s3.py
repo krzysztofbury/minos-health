@@ -105,6 +105,7 @@ class _FakeS3Client:
         self.override_get_body: object | None = None
         self.checksum_type: str | None = None
         self.put_error_after_store = False
+        self.lock_existing = False
 
     def add(self, key: str, content: bytes) -> _Stored:
         stored = _Stored(content, _LAST_MODIFIED + timedelta(seconds=len(self.objects)))
@@ -119,7 +120,12 @@ class _FakeS3Client:
         assert kwargs["IfNoneMatch"] == "*"
         key = cast(str, kwargs["Key"])
         if key in self.objects:
-            raise _client_error(412)
+            # R2 checks bucket lock rules before If-None-Match.
+            raise (
+                _client_error(409, code="ObjectLockedByBucketPolicy")
+                if self.lock_existing
+                else _client_error(412)
+            )
         body = kwargs["Body"]
         content = body if isinstance(body, bytes) else cast(_Readable, body).read()
         assert len(content) == kwargs["ContentLength"]
@@ -237,8 +243,12 @@ def test_operator_store_copies_etag_pinned_source_and_appends_inventory() -> Non
     )
 
 
-def test_conditional_copy_and_put_accept_only_exact_existing_bytes() -> None:
+@pytest.mark.parametrize("lock_existing", [False, True])
+def test_conditional_copy_and_put_accept_only_exact_existing_bytes(
+    lock_existing: bool,
+) -> None:
     client = _FakeS3Client()
+    client.lock_existing = lock_existing
     content = b"source"
     sha256 = hashlib.sha256(content).hexdigest()
     source = VerifiedRecoverySource(
@@ -474,10 +484,10 @@ def _checksum(content: bytes) -> str:
     return base64.b64encode(hashlib.sha256(content).digest()).decode("ascii")
 
 
-def _client_error(status: int) -> ClientError:
+def _client_error(status: int, *, code: str | None = None) -> ClientError:
     return ClientError(
         {
-            "Error": {"Code": str(status), "Message": "injected"},
+            "Error": {"Code": code or str(status), "Message": "injected"},
             "ResponseMetadata": {"HTTPStatusCode": status},
         },
         "S3Operation",

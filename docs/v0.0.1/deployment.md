@@ -351,9 +351,11 @@ Base64-encoded whole-object SHA-256 in `ChecksumSHA256`, and
 `If-None-Match: *`. Multipart upload is prohibited for watcher objects; source
 and control-database limits remain below the R2 single-part limit. It then uses
 `HeadObject` with checksum mode enabled against that same requested key. Both a
-successful create and `412 Precondition Failed` must return the expected byte
-count and native checksum; mismatch is a hard incident. `409 Conflict` receives
-a bounded retry of the conditional operation. The watcher then commits the
+successful create and an existing key must return the expected byte count and
+native checksum; mismatch is a hard incident. R2 checks bucket lock rules before
+`If-None-Match`, so an existing key answers `412 Precondition Failed`, or
+`409 ObjectLockedByBucketPolicy` under a locked prefix. Any other
+`409 Conflict` receives a bounded retry of the conditional operation. The watcher then commits the
 related observation, blob reference, and source cursor in one local SQLite
 transaction. A post-upload crash can leave an unreferenced immutable object; a
 retry reuses it only after the same verification.

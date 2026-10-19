@@ -24,7 +24,11 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
     ReadTimeoutError,
 )
 
-from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
+from minos.ingest.object_storage import (
+    R2_REGION,
+    found_existing_object,
+    validate_r2_endpoint,
+)
 from minos.ingest.watchers.control import RecoveryReceipt
 from minos.ingest.watchers.recovery.image import (
     RecoveryImageStagingArea,
@@ -269,7 +273,7 @@ class S3RecoveryStore:
                             "S3 rejected the recovery image checksum"
                         ) from error
                     status = _client_error_status(error)
-                    if status == 412:
+                    if found_existing_object(status, _client_error_code(error)):
                         break
                     if status != 409:
                         raise RecoveryStorageError(
