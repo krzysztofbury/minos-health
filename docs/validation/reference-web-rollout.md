@@ -207,6 +207,14 @@ The validation edge moved to the upstream rebuild
 (NGINX 1.31.6, Alpine 3.24.2), which ships pcre2 10.49-r0, so the earlier
 pcre2 pin was dropped; tiff 4.7.2-r0 is pinned until upstream rebuilds.
 
+On 2026-10-19 the gate found fixable `CVE-2026-77214` (libexpat 2.8.5-r0) and
+`CVE-2026-88806` (libx11 1.8.13-r0). The validation edge moved to the upstream
+NGINX 1.31.7 Alpine 3.24.2 `linux/amd64` rebuild
+`sha256:c3bcf3d1a53a027bfa515b9fe4fbbe7bf6b791476a5af853de439ad494b145bd`,
+which ships libexpat 2.9.0-r0, libx11 1.8.14-r0 and tiff 4.7.2-r0, so the tiff
+pin was dropped. A local Trivy 0.70.0 scan of that base found no fixable high
+or critical vulnerabilities.
+
 Host pre-cutover canaries stopped promotion when ordinary cold searches returned
 HTTP 429. Profiling isolated 320 ms in the first native dictionary construction
 inside the 250 ms request budget; later searches in that same process took

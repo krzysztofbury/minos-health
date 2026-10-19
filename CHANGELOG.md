@@ -161,6 +161,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The validation edge image moved to the upstream NGINX 1.31.7 / Alpine 3.24.2
+  rebuild, which fixes `CVE-2026-77214` (libexpat 2.9.0-r0) and
+  `CVE-2026-88806` (libx11 1.8.14-r0) found by the image scan, and ships
+  tiff 4.7.2-r0, so the extra tiff layer is gone. FastAPI 0.143.2 and the
+  Terraform AWS provider 6.69.1 are included.
 - Validation releases start the new API colour (`reference-api-blue` or
   `reference-api-green`) beside the live one and retire the old colour only
   after the new API and edge are healthy (#192). The API startup (87 to 270
