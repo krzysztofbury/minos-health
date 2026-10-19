@@ -208,14 +208,3 @@ def test_validation_promotion_uses_only_its_verified_immutable_artifact() -> Non
         "path": "${{ runner.temp }}/tested-images",
         "digest-mismatch": "error",
     }
-
-
-def test_trivy_exception_is_narrow_and_expires() -> None:
-    exception = (ROOT / ".trivyignore.yaml").read_text()
-    assert "id: AVD-AWS-0132" in exception
-    assert "- bootstrap/encryption.tf" in exception
-    assert "expired_at: 2027-03-17" in exception
-
-    encryption = (ROOT / "infra" / "bootstrap" / "encryption.tf").read_text()
-    assert encryption.count('resource "') == 1
-    assert encryption.count('sse_algorithm = "AES256"') == 1

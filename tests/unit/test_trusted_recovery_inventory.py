@@ -106,7 +106,6 @@ class _FakeStorage:
         sequence = parse_trusted_recovery_key(request.destination_key).sequence
         self.trusted[request.destination_key] = TrustedObjectIdentity(
             request.destination_key,
-            f"trusted-version-{sequence}",
             source.sha256,
             source.size_bytes,
             _CREATED_AT_MS + sequence,
@@ -220,9 +219,6 @@ def test_append_copies_signs_writes_and_reverifies_contiguous_chain() -> None:
         first.inventories[0].sha256
     )
     assert second.inventories[1].inventory.trusted_object_revision == 12
-    assert second.inventories[1].inventory.trusted_object_version_id == (
-        "trusted-version-2"
-    )
     assert verify_inventory_chain(storage, verifier, maximum_objects=4) == second
 
 
@@ -293,7 +289,6 @@ def test_exact_412_is_idempotent_but_concurrent_conflict_fails_closed() -> None:
     destination = trusted_recovery_key(1, _SHA256_A)
     wrong_copy.trusted[destination] = TrustedObjectIdentity(
         destination,
-        "wrong-version",
         _SHA256_A,
         999,
         _CREATED_AT_MS,
@@ -446,27 +441,25 @@ def test_canonical_inventory_wire_payload_and_hash_vectors_are_frozen() -> None:
         b'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","trusted_object_key":"trusted-recovery/'
         b"00000000000000000001/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         b'aaaaaaaaaaaaaaaa.sqlite3","trusted_object_last_modified_ms":1758225600000,'
-        b'"trusted_object_revision":42,"trusted_object_size_bytes":4096,'
-        b'"trusted_object_version_id":"version-1"}'
+        b'"trusted_object_revision":42,"trusted_object_size_bytes":4096}'
     )
     assert hashlib.sha256(payload).hexdigest() == (
-        "040d749854d1c4e8154bf3ac2506219069ed9cb17eff6f7613b4a704ca771133"
+        "c1a662f82234cf4b60a47c5a5fdee397cf9da81cddf8b4442780179b7cd0ba94"
     )
     assert inventory.signature == (
-        "test-signature:040d749854d1c4e8154bf3ac2506219069ed9cb17eff6f7613b4a704ca771133"
+        "test-signature:c1a662f82234cf4b60a47c5a5fdee397cf9da81cddf8b4442780179b7cd0ba94"
     )
     assert wire == (
         b'{"prior_inventory_sha256":null,"sequence":1,"signature":'
-        b'"test-signature:040d749854d1c4e8154bf3ac2506219069ed9cb17eff6f7613b4a704ca771133",'
+        b'"test-signature:c1a662f82234cf4b60a47c5a5fdee397cf9da81cddf8b4442780179b7cd0ba94",'
         b'"trusted_object_checksum_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
         b'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","trusted_object_key":"trusted-recovery/'
         b"00000000000000000001/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         b'aaaaaaaaaaaaaaaa.sqlite3","trusted_object_last_modified_ms":1758225600000,'
-        b'"trusted_object_revision":42,"trusted_object_size_bytes":4096,'
-        b'"trusted_object_version_id":"version-1"}'
+        b'"trusted_object_revision":42,"trusted_object_size_bytes":4096}'
     )
     assert hashlib.sha256(wire).hexdigest() == (
-        "8ce334bd0c1d55802f636f216e903dc0367ce4f4ac63f4ac4caf48c94b1071ab"
+        "4d95d2c79f568b484dc6cbc0c50ff5e853efef9c62126a4ddf3f4a91463585e6"
     )
 
 
@@ -516,7 +509,6 @@ def test_pinned_ssh_keygen_round_trip_uses_ed25519_and_dedicated_namespace(
 def _source(sha256: str, *, revision: int) -> VerifiedRecoverySource:
     return VerifiedRecoverySource(
         f"control-recovery/daily/2025-09-18/{revision:020d}/{sha256}.sqlite3",
-        f"source-version-{revision}",
         sha256,
         4096,
         revision,
@@ -535,7 +527,6 @@ def _signed_inventory(
         sequence=sequence,
         prior_inventory_sha256=prior_sha256,
         trusted_object_key=trusted_recovery_key(sequence, object_sha256),
-        trusted_object_version_id=f"version-{sequence}",
         trusted_object_checksum_sha256=object_sha256,
         trusted_object_revision=sequence if revision is None else revision,
         trusted_object_size_bytes=4096,

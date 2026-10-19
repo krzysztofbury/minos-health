@@ -135,7 +135,6 @@ class RecoveryReceipt:
     sha256: str
     size_bytes: int
     archive_key: str
-    version_id: str
     verified_sha256: str
     verified_size_bytes: int
 

@@ -43,8 +43,7 @@ from minos.ingest.watchers.recovery.trusted_keys import (
 )
 
 _BUCKET = "minos-recovery-test"
-_OWNER = "123456789012"
-_REGION = "eu-central-1"
+_ENDPOINT = "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com"
 _CREATED_AT_MS = 1_758_225_600_000
 _SHA256_A = "a" * 64
 _SHA256_B = "b" * 64
@@ -89,7 +88,6 @@ class _MemoryStorage:
         sequence = parse_trusted_recovery_key(request.destination_key).sequence
         self.trusted[request.destination_key] = TrustedObjectIdentity(
             request.destination_key,
-            f"trusted-version-{sequence}",
             request.source.sha256,
             request.source.size_bytes,
             _CREATED_AT_MS + sequence,
@@ -173,7 +171,7 @@ class _Dependencies(RecoveryCommandDependencies):
         self.selector = _Selector(candidate)
         self.tmp_path = tmp_path
         self.signer_paths: list[Path] = []
-        self.operator_configurations: list[tuple[str, str, str]] = []
+        self.operator_configurations: list[tuple[str, str]] = []
         self.installed: list[tuple[RecoveryInventory, Path]] = []
         self.lock_paths: list[Path] = []
         self.lock_active = False
@@ -184,10 +182,9 @@ class _Dependencies(RecoveryCommandDependencies):
         self,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
     ) -> _MemoryStorage:
-        self.operator_configurations.append((bucket, region, expected_bucket_owner))
+        self.operator_configurations.append((bucket, endpoint))
         return self.storage
 
     @override
@@ -195,10 +192,9 @@ class _Dependencies(RecoveryCommandDependencies):
         self,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
     ) -> _Selector:
-        assert (bucket, region, expected_bucket_owner) == (_BUCKET, _REGION, _OWNER)
+        assert (bucket, endpoint) == (_BUCKET, _ENDPOINT)
         return self.selector
 
     @override
@@ -259,7 +255,6 @@ def test_verify_and_select_do_not_require_or_construct_signing_key(
         "sequence": 2,
         "sha256": _SHA256_B,
         "state_revision": 20,
-        "version_id": "version-2",
     }
 
     main(
@@ -395,13 +390,11 @@ def test_environment_file_configuration_and_allowed_signer_are_supported(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     bucket_file = tmp_path / "bucket"
-    owner_file = tmp_path / "owner"
-    region_file = tmp_path / "region"
+    endpoint_file = tmp_path / "endpoint"
     maximum_file = tmp_path / "maximum"
     allowed_file = tmp_path / "allowed-signers"
     _ = bucket_file.write_text(_BUCKET, encoding="utf-8")
-    _ = owner_file.write_text(_OWNER, encoding="utf-8")
-    _ = region_file.write_text(_REGION, encoding="utf-8")
+    _ = endpoint_file.write_text(_ENDPOINT, encoding="utf-8")
     _ = maximum_file.write_text("8", encoding="ascii")
     _ = allowed_file.write_text(
         'minos-recovery-operator namespaces="minos-health-recovery-inventory-v1" '
@@ -409,8 +402,7 @@ def test_environment_file_configuration_and_allowed_signer_are_supported(
         encoding="ascii",
     )
     monkeypatch.setenv("MINOS_RECOVERY_S3_BUCKET_FILE", str(bucket_file))
-    monkeypatch.setenv("MINOS_RECOVERY_EXPECTED_BUCKET_OWNER_FILE", str(owner_file))
-    monkeypatch.setenv("MINOS_RECOVERY_AWS_REGION_FILE", str(region_file))
+    monkeypatch.setenv("MINOS_RECOVERY_S3_ENDPOINT_FILE", str(endpoint_file))
     monkeypatch.setenv("MINOS_RECOVERY_MAXIMUM_INVENTORIES_FILE", str(maximum_file))
     monkeypatch.setenv("MINOS_RECOVERY_ALLOWED_SIGNERS_FILE", str(allowed_file))
     dependencies = _dependencies(_storage_with_chain(), tmp_path)
@@ -422,7 +414,7 @@ def test_environment_file_configuration_and_allowed_signer_are_supported(
 
     result = _json_output(capsys)
     assert result["inventory_count"] == 2
-    assert dependencies.operator_configurations == [(_BUCKET, _REGION, _OWNER)]
+    assert dependencies.operator_configurations == [(_BUCKET, _ENDPOINT)]
 
 
 @pytest.mark.parametrize(
@@ -513,10 +505,8 @@ def test_invalid_file_encoding_fails_without_disclosure(
                 "recovery",
                 "inventory",
                 "verify",
-                "--expected-bucket-owner",
-                _OWNER,
-                "--region",
-                _REGION,
+                "--endpoint",
+                _ENDPOINT,
                 "--maximum-inventories",
                 "8",
                 "--public-key-file",
@@ -642,7 +632,6 @@ def _dependencies(storage: _MemoryStorage, tmp_path: Path) -> _Dependencies:
     )
     candidate = VerifiedRecoveryCandidate(
         f"control-recovery/daily/2025-09-18/{7:020d}/{_SHA256_A}.sqlite3",
-        "source-version",
         _SHA256_A,
         4096,
         _CREATED_AT_MS,
@@ -659,10 +648,8 @@ def _common_configuration() -> list[str]:
     return [
         "--bucket",
         _BUCKET,
-        "--expected-bucket-owner",
-        _OWNER,
-        "--region",
-        _REGION,
+        "--endpoint",
+        _ENDPOINT,
         "--maximum-inventories",
         "8",
     ]
@@ -705,7 +692,6 @@ def _signed_inventory(
         sequence=sequence,
         prior_inventory_sha256=prior_sha256,
         trusted_object_key=trusted_recovery_key(sequence, sha256),
-        trusted_object_version_id=f"version-{sequence}",
         trusted_object_checksum_sha256=sha256,
         trusted_object_revision=revision,
         trusted_object_size_bytes=4096,

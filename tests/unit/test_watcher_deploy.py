@@ -67,10 +67,14 @@ def staged(site: tuple[Path, Path, Path]) -> tuple[Path, Path, Path]:
     return site
 
 
-def call(site: tuple[Path, Path, Path], command: str) -> dict[str, object]:
+def call(
+    site: tuple[Path, Path, Path],
+    command: str,
+    params: dict[str, object] | None = None,
+) -> dict[str, object]:
     root, _, base = site
     payload = base64.urlsafe_b64encode(
-        json.dumps({"revision": NEW_REVISION, "root": str(root)}).encode()
+        json.dumps(params or {"revision": NEW_REVISION, "root": str(root)}).encode()
     ).decode()
     result = subprocess.run(
         [sys.executable, "-", command, payload],
@@ -161,7 +165,9 @@ def test_unrelated_compose_and_changed_preserved_service_cannot_claim_recovery(
         _ = call(staged, "rollback")
 
 
-@pytest.mark.parametrize("changed", ["none", "main", "publication", "ci", "digest"])
+@pytest.mark.parametrize(
+    "changed", ["none", "dispatch", "main", "publication", "ci", "digest"]
+)
 def test_release_gate_binds_successful_main_build_to_artifact(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, changed: str
 ) -> None:
@@ -193,7 +199,10 @@ def test_release_gate_binds_successful_main_build_to_artifact(
                 [
                     {
                         "conclusion": "failure" if changed == "ci" else "success",
-                        "event": "push",
+                        # Main CI runs by dispatch since #174.
+                        "event": "workflow_dispatch"
+                        if changed == "dispatch"
+                        else "push",
                     }
                 ]
             )
@@ -211,7 +220,7 @@ def test_release_gate_binds_successful_main_build_to_artifact(
         return ""
 
     monkeypatch.setattr(deploy_watcher, "run", run)
-    if changed == "none":
+    if changed in ("none", "dispatch"):
         deploy_watcher.reviewed(plan)
     else:
         with pytest.raises(DeployError):
@@ -249,3 +258,155 @@ def test_watcher_baseline_preserves_exactly_one_api_colour(
     else:
         with pytest.raises(validation_host.HostError, match="unexpected live"):
             _ = watcher_host.baseline(layout)
+
+
+_R2_STORAGE = {
+    "bucket": "minos-archive",
+    "endpoint": "https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com",
+}
+_AWS_KEY = (
+    b"[default]\naws_access_key_id = AKIA"
+    + b"A" * 16
+    + b"\naws_secret_access_key = "
+    + b"a" * 40
+    + b"\n"
+)
+_R2_KEY = (
+    b"[default]\naws_access_key_id = "
+    + b"1" * 32
+    + b"\naws_secret_access_key = "
+    + b"2" * 64
+    + b"\n"
+)
+
+
+def _storage_site(staged: tuple[Path, Path, Path]) -> dict[str, object]:
+    """The live AWS layout (#200): S3 environment and a mounted key file."""
+    root = staged[0]
+    credentials = root / "watcher-aws-credentials"
+    _ = credentials.write_bytes(_AWS_KEY)
+    credentials.chmod(0o440)
+    _, document = validation_host.load_compose(root / "compose.yaml")
+    watcher = watcher_host.service(document)
+    environment = cast(dict[str, str], watcher["environment"])
+    environment.update(
+        AWS_DEFAULT_REGION="eu-central-1",
+        AWS_REGION="eu-central-1",
+        AWS_SHARED_CREDENTIALS_FILE="/run/secrets/aws-credentials",
+        MINOS_WATCHER_ARCHIVE_BACKEND="s3",
+        MINOS_WATCHER_S3_BUCKET="minos-health-snapshots",
+        MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER="123456789012",
+    )
+    watcher["volumes"] = [
+        {
+            "type": "bind",
+            "source": str(credentials),
+            "target": "/run/secrets/aws-credentials",
+            "read_only": True,
+        }
+    ]
+    content = validation_host.canonical(document)
+    _ = (root / "compose.yaml").write_bytes(content)
+    storage = {
+        **_R2_STORAGE,
+        "credentials_sha256": validation_host.sha256_bytes(_R2_KEY),
+    }
+    directory = root / "watcher-stage" / NEW_REVISION
+    _ = (directory / "previous.json").write_bytes(content)
+    _ = (directory / "candidate.json").write_bytes(
+        validation_host.canonical(watcher_host.render(document, STALE_WATCHER, storage))
+    )
+    _ = (directory / "storage-credentials").write_bytes(_R2_KEY)
+    params: dict[str, object] = {
+        "revision": NEW_REVISION,
+        "root": str(root),
+        "storage": storage,
+    }
+    _ = (directory / "prepared.json").write_text(json.dumps(params))
+    return params
+
+
+def test_storage_render_moves_aws_environment_to_r2_exactly_once(
+    staged: tuple[Path, Path, Path],
+) -> None:
+    params = _storage_site(staged)
+    _, document = validation_host.load_compose(staged[0] / "compose.yaml")
+    storage = cast(dict[str, str], params["storage"])
+
+    environment = cast(
+        dict[str, str],
+        watcher_host.service(watcher_host.render(document, STALE_WATCHER, storage))[
+            "environment"
+        ],
+    )
+
+    assert not {"AWS_REGION", "AWS_DEFAULT_REGION"} & set(environment)
+    assert "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER" not in environment
+    assert environment["MINOS_WATCHER_S3_BUCKET"] == "minos-archive"
+    assert environment["MINOS_WATCHER_S3_ENDPOINT"] == storage["endpoint"]
+    migrated = watcher_host.render(document, STALE_WATCHER, storage)
+    with pytest.raises(validation_host.HostError, match="not the AWS S3 layout"):
+        _ = watcher_host.render(migrated, STALE_WATCHER, storage)
+
+
+def test_storage_activation_swaps_key_with_compose_and_rollback_restores_both(
+    staged: tuple[Path, Path, Path],
+) -> None:
+    params = _storage_site(staged)
+    credentials = staged[0] / "watcher-aws-credentials"
+    original = (staged[0] / "compose.yaml").read_bytes()
+
+    assert call(staged, "activate", params)["event"] == "watcher_activated"
+    assert credentials.read_bytes() == _R2_KEY
+    assert oct(credentials.stat().st_mode & 0o777) == "0o440"
+    live = watcher_host.service(
+        validation_host.load_compose(staged[0] / "compose.yaml")[1]
+    )
+    assert "MINOS_WATCHER_S3_ENDPOINT" in cast(dict[str, str], live["environment"])
+
+    assert call(staged, "rollback", params)["event"] == "watcher_rolled_back"
+    assert credentials.read_bytes() == _AWS_KEY
+    assert (staged[0] / "compose.yaml").read_bytes() == original
+
+
+def test_failed_storage_activation_restores_the_previous_key(
+    staged: tuple[Path, Path, Path],
+) -> None:
+    params = _storage_site(staged)
+    state = docker_state(staged)
+    state["fail_after_watcher"] = True
+    _ = (staged[2] / "docker-state.json").write_text(json.dumps(state))
+
+    with pytest.raises(DeployError, match="activation failed"):
+        _ = call(staged, "activate", params)
+
+    assert (staged[0] / "watcher-aws-credentials").read_bytes() == _AWS_KEY
+
+
+@pytest.mark.parametrize("fault", ["none", "mode", "digest", "schema"])
+def test_storage_key_upload_must_be_private_planned_and_r2_shaped(
+    staged: tuple[Path, Path, Path], fault: str
+) -> None:
+    params = _storage_site(staged)
+    root = staged[0]
+    target = root / "watcher-stage" / NEW_REVISION
+    (target / "storage-credentials").unlink()
+    _, document = validation_host.load_compose(root / "compose.yaml")
+    migration = cast(dict[str, str], params["storage"])
+    upload = root / "upload"
+    content = _AWS_KEY if fault == "schema" else _R2_KEY
+    _ = upload.write_bytes(content)
+    upload.chmod(0o644 if fault == "mode" else 0o600)
+    if fault == "digest":
+        migration = {**migration, "credentials_sha256": "0" * 64}
+
+    if fault == "none":
+        staged_key = watcher_host.stage_credentials(upload, target, document, migration)
+        assert staged_key.read_bytes() == _R2_KEY
+        assert oct(staged_key.stat().st_mode & 0o777) == "0o440"
+    else:
+        with pytest.raises(validation_host.HostError):
+            _ = watcher_host.stage_credentials(upload, target, document, migration)
+        assert not (target / "storage-credentials").exists()
+    # The upload never outlives staging, accepted or refused.
+    assert not upload.exists()

@@ -74,7 +74,6 @@ strict = true
 testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
-  "aws: explicit opt-in tests against tagged disposable resources in the built-in AWS account",
   "rsk_live: explicit opt-in compatibility test for an ignored private RSK capture",
   "icd9_live: explicit opt-in compatibility test for privately archived pinned NFZ ICD-9 evidence",
   "jgp_live: explicit opt-in compatibility test for privately archived pinned NFZ JGP catalog workbooks",

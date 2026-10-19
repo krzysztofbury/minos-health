@@ -1,8 +1,0 @@
-misconfigurations:
-  - id: AVD-AWS-0132
-    paths:
-      - bootstrap/encryption.tf
-    expired_at: 2027-03-17
-    statement: >-
-      The bootstrap state bucket uses SSE-S3 so disaster recovery does not
-      depend on a separately managed KMS key and key policy.

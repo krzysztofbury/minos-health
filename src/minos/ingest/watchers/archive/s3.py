@@ -19,6 +19,7 @@ from botocore.exceptions import (  # type: ignore[import-untyped]
     ReadTimeoutError,
 )
 
+from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
 from minos.ingest.watchers.archive.files import open_verified_staged_blob
 from minos.ingest.watchers.archive.models import (
     BlobArchiveConflictError,
@@ -29,7 +30,6 @@ from minos.ingest.watchers.archive.models import (
 )
 from minos.ingest.watchers.control import BlobReceipt
 
-_AWS_ACCOUNT_ID = re.compile(r"[0-9]{12}")
 _S3_BUCKET = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
 
 
@@ -48,6 +48,7 @@ class _Boto3(Protocol):
         service_name: str,
         *,
         region_name: str,
+        endpoint_url: str,
         config: object,
     ) -> object: ...
 
@@ -73,7 +74,6 @@ class S3BlobArchive:
         client: _S3Client,
         *,
         bucket: str,
-        expected_bucket_owner: str,
         maximum_conflict_attempts: int = 3,
         conflict_delay_seconds: float = 0.05,
         sleep: Callable[[float], None] = time.sleep,
@@ -85,10 +85,6 @@ class S3BlobArchive:
             or "-." in bucket
         ):
             raise BlobArchiveStorageError("S3 bucket name is unsupported")
-        if _AWS_ACCOUNT_ID.fullmatch(expected_bucket_owner) is None:
-            raise BlobArchiveStorageError(
-                "expected S3 bucket owner must be an account ID"
-            )
         if (
             not _is_strict_integer(maximum_conflict_attempts)
             or maximum_conflict_attempts < 1
@@ -105,7 +101,6 @@ class S3BlobArchive:
         _validate_client_retry_configuration(client)
         self._client = client
         self._bucket = bucket
-        self._expected_bucket_owner = expected_bucket_owner
         self._maximum_conflict_attempts = maximum_conflict_attempts
         self._conflict_delay_seconds = conflict_delay_seconds
         self._sleep = sleep
@@ -115,15 +110,16 @@ class S3BlobArchive:
         cls,
         *,
         bucket: str,
-        region: str,
-        expected_bucket_owner: str,
+        endpoint: str,
         maximum_conflict_attempts: int = 3,
         conflict_delay_seconds: float = 0.05,
         connect_timeout_seconds: float = 10,
         read_timeout_seconds: float = 60,
     ) -> Self:
-        if not region or len(region) > 64:
-            raise BlobArchiveStorageError("S3 region is unsupported")
+        try:
+            endpoint = validate_r2_endpoint(endpoint)
+        except ValueError as error:
+            raise BlobArchiveStorageError(str(error)) from None
         _validate_timeout(connect_timeout_seconds, "S3 connect timeout")
         _validate_timeout(read_timeout_seconds, "S3 read timeout")
         boto3_api = cast(_Boto3, boto3)  # pyright: ignore[reportInvalidCast]
@@ -132,7 +128,8 @@ class S3BlobArchive:
                 _S3Client,
                 boto3_api.client(
                     "s3",
-                    region_name=region,
+                    region_name=R2_REGION,
+                    endpoint_url=endpoint,
                     config=Config(
                         connect_timeout=connect_timeout_seconds,
                         read_timeout=read_timeout_seconds,
@@ -145,7 +142,6 @@ class S3BlobArchive:
         return cls(
             client,
             bucket=bucket,
-            expected_bucket_owner=expected_bucket_owner,
             maximum_conflict_attempts=maximum_conflict_attempts,
             conflict_delay_seconds=conflict_delay_seconds,
         )
@@ -209,7 +205,6 @@ class S3BlobArchive:
             "ChecksumAlgorithm": "SHA256",
             "ChecksumSHA256": checksum_base64,
             "IfNoneMatch": "*",
-            "ExpectedBucketOwner": self._expected_bucket_owner,
             "Body": body,
         }
         if blob.media_type is not None:
@@ -222,7 +217,6 @@ class S3BlobArchive:
                 Bucket=self._bucket,
                 Key=key,
                 ChecksumMode="ENABLED",
-                ExpectedBucketOwner=self._expected_bucket_owner,
             )
         except (BotoCoreError, ClientError) as error:
             raise BlobArchiveStorageError(
@@ -235,7 +229,8 @@ class S3BlobArchive:
             not isinstance(verified_size_bytes, int)
             or isinstance(verified_size_bytes, bool)
             or not isinstance(checksum_base64, str)
-            or checksum_type != "FULL_OBJECT"
+            # R2 omits ChecksumType for a single-part object; never composite.
+            or checksum_type not in (None, "FULL_OBJECT")
         ):
             raise BlobArchiveVerificationError(
                 "S3 blob verification response is incomplete"

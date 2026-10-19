@@ -309,8 +309,7 @@ def _add_watcher_paths(parser: ArgumentParser) -> None:
 
 def _add_recovery_common_arguments(parser: ArgumentParser) -> None:
     _ = parser.add_argument("--bucket")
-    _ = parser.add_argument("--expected-bucket-owner")
-    _ = parser.add_argument("--region")
+    _ = parser.add_argument("--endpoint")
     _ = parser.add_argument("--maximum-inventories")
     verification = parser.add_mutually_exclusive_group()
     _ = verification.add_argument("--public-key-file", type=Path)
@@ -426,8 +425,7 @@ def _read_recovery_arguments(
         values[name] = value
     string_names = (
         "bucket",
-        "expected_bucket_owner",
-        "region",
+        "endpoint",
         "maximum_inventories",
         "signer_identity",
         "maximum_run_images",
@@ -448,8 +446,7 @@ def _read_recovery_arguments(
     return RecoveryCommandArguments(
         action=action,
         bucket=cast(str | None, values["bucket"]),
-        expected_bucket_owner=cast(str | None, values["expected_bucket_owner"]),
-        region=cast(str | None, values["region"]),
+        endpoint=cast(str | None, values["endpoint"]),
         maximum_inventories=cast(str | None, values["maximum_inventories"]),
         public_key_file=cast(Path | None, values["public_key_file"]),
         allowed_signers_file=cast(Path | None, values["allowed_signers_file"]),

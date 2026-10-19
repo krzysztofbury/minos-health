@@ -26,7 +26,6 @@ from minos.ingest.watchers.archive import (
 from minos.ingest.watchers.control import BlobReceipt
 
 _BUCKET = "minos-test-archive"
-_OWNER = "123456789012"
 
 
 class _Readable(Protocol):
@@ -62,7 +61,8 @@ class _FakeS3Client:
         self.head_outcomes: list[BaseException] = []
         self.store_before_error = False
         self.body_initial_positions: list[int] = []
-        self.checksum_type: object = "FULL_OBJECT"
+        # R2 omits ChecksumType for single-part objects.
+        self.checksum_type: object = None
         self.before_body_read: Callable[[], None] | None = None
         self.omitted_head_fields: set[str] = set()
         self.wrap_body_errors = False
@@ -123,7 +123,7 @@ def test_s3_archive_uses_single_part_conditional_write_and_head(
     tmp_path: Path,
 ) -> None:
     client = _FakeS3Client()
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
     staging = BlobStagingArea(tmp_path / "staging")
 
     with staging.stage() as writer:
@@ -140,7 +140,6 @@ def test_s3_archive_uses_single_part_conditional_write_and_head(
             "ChecksumAlgorithm": "SHA256",
             "ChecksumSHA256": checksum,
             "IfNoneMatch": "*",
-            "ExpectedBucketOwner": _OWNER,
             "ContentType": "application/json",
         }
     ]
@@ -149,7 +148,6 @@ def test_s3_archive_uses_single_part_conditional_write_and_head(
             "Bucket": _BUCKET,
             "Key": receipt.archive_key,
             "ChecksumMode": "ENABLED",
-            "ExpectedBucketOwner": _OWNER,
         }
     ]
     assert receipt.verified_sha256 == receipt.sha256
@@ -162,7 +160,7 @@ def test_local_and_s3_adapters_share_receipt_and_reuse_contract(
     client = _FakeS3Client()
     archives: tuple[BlobArchive, ...] = (
         FilesystemBlobArchive(tmp_path / "archive"),
-        S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER),
+        S3BlobArchive(client, bucket=_BUCKET),
     )
     receipts: list[BlobReceipt] = []
 
@@ -187,7 +185,7 @@ def test_s3_archive_verifies_reuse_after_precondition_failure(tmp_path: Path) ->
     client.object_bytes = content
     client.object_checksum = checksum
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(content)
@@ -205,7 +203,6 @@ def test_s3_archive_retries_only_bounded_conflicts(tmp_path: Path) -> None:
     archive = S3BlobArchive(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         maximum_conflict_attempts=3,
         conflict_delay_seconds=0.25,
         sleep=delays.append,
@@ -226,7 +223,6 @@ def test_s3_archive_fails_after_conflict_bound(tmp_path: Path) -> None:
     archive = S3BlobArchive(
         client,
         bucket=_BUCKET,
-        expected_bucket_owner=_OWNER,
         maximum_conflict_attempts=2,
         conflict_delay_seconds=0,
     )
@@ -244,7 +240,7 @@ def test_s3_archive_resolves_post_upload_timeout_with_head(tmp_path: Path) -> No
     client = _FakeS3Client()
     client.put_outcomes = [ReadTimeoutError(endpoint_url="https://s3.test")]
     client.store_before_error = True
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"uploaded")
@@ -257,7 +253,7 @@ def test_s3_archive_resolves_post_upload_timeout_with_head(tmp_path: Path) -> No
 def test_s3_archive_rejects_unresolved_timeout(tmp_path: Path) -> None:
     client = _FakeS3Client()
     client.put_outcomes = [ReadTimeoutError(endpoint_url="https://s3.test")]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"missing")
@@ -270,7 +266,7 @@ def test_s3_archive_rejects_head_checksum_mismatch(tmp_path: Path) -> None:
     client.object_bytes = b"same-size"
     client.object_checksum = base64.b64encode(b"x" * 32).decode("ascii")
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"same-size")
@@ -286,7 +282,7 @@ def test_s3_archive_requires_full_object_checksum(tmp_path: Path) -> None:
     ).decode("ascii")
     client.checksum_type = "COMPOSITE"
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"composite")
@@ -299,7 +295,7 @@ def test_s3_archive_does_not_resolve_local_botocore_failure_with_head(
 ) -> None:
     client = _FakeS3Client()
     client.put_outcomes = [ParamValidationError(report="injected")]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"invalid")
@@ -312,7 +308,7 @@ def test_s3_archive_does_not_resolve_local_botocore_failure_with_head(
 def test_s3_archive_does_not_retry_permission_failure(tmp_path: Path) -> None:
     client = _FakeS3Client()
     client.put_outcomes = [_client_error(403)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"denied")
@@ -328,7 +324,7 @@ def test_s3_archive_does_not_resolve_preconnection_failure_with_head(
 ) -> None:
     client = _FakeS3Client()
     client.put_outcomes = [EndpointConnectionError(endpoint_url="https://s3.test")]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"unreachable")
@@ -342,7 +338,7 @@ def test_s3_archive_resolves_closed_connection_with_head(tmp_path: Path) -> None
     client = _FakeS3Client()
     client.put_outcomes = [ConnectionClosedError(endpoint_url="https://s3.test")]
     client.store_before_error = True
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"uploaded")
@@ -357,7 +353,7 @@ def test_s3_archive_rejects_malformed_head_checksum(tmp_path: Path) -> None:
     client.object_bytes = b"malformed"
     client.object_checksum = "not-base64"
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"malformed")
@@ -373,7 +369,7 @@ def test_s3_archive_rejects_head_size_mismatch(tmp_path: Path) -> None:
         "ascii"
     )
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(content)
@@ -389,7 +385,7 @@ def test_s3_archive_rejects_head_failure_after_reuse(tmp_path: Path) -> None:
     ).decode("ascii")
     client.put_outcomes = [_client_error(412)]
     client.head_outcomes = [_client_error(403)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"existing")
@@ -402,12 +398,12 @@ def test_s3_archive_rejects_client_retries() -> None:
     client.meta.config.retries = {"total_max_attempts": 2, "mode": "standard"}
 
     with pytest.raises(BlobArchiveStorageError, match="retries must be disabled"):
-        _ = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+        _ = S3BlobArchive(client, bucket=_BUCKET)
 
 
 def test_s3_archive_bounds_body_if_staged_file_grows(tmp_path: Path) -> None:
     client = _FakeS3Client()
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"bounded")
@@ -429,7 +425,7 @@ def test_s3_archive_rejects_staged_file_truncation_during_upload(
 ) -> None:
     client = _FakeS3Client()
     client.wrap_body_errors = True
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"complete")
@@ -449,7 +445,7 @@ def test_s3_archive_rejects_staged_file_truncation_during_upload(
 def test_s3_archive_classifies_native_checksum_rejection(tmp_path: Path) -> None:
     client = _FakeS3Client()
     client.put_outcomes = [_client_error(400, code="BadDigest")]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"checksum")
@@ -459,11 +455,10 @@ def test_s3_archive_classifies_native_checksum_rejection(tmp_path: Path) -> None
     assert client.head_calls == []
 
 
-@pytest.mark.parametrize("field", ["ChecksumSHA256", "ChecksumType"])
-def test_s3_archive_rejects_missing_head_checksum_field(
-    tmp_path: Path,
-    field: str,
-) -> None:
+def test_s3_archive_rejects_missing_head_checksum(tmp_path: Path) -> None:
+    # A missing ChecksumType is R2's normal single-part answer; a missing
+    # SHA-256 never is.
+    field = "ChecksumSHA256"
     content = b"missing-field"
     client = _FakeS3Client()
     client.object_bytes = content
@@ -472,7 +467,7 @@ def test_s3_archive_rejects_missing_head_checksum_field(
     )
     client.omitted_head_fields = {field}
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(content)
@@ -489,7 +484,7 @@ def test_s3_archive_rejects_wrongly_typed_head_checksum(tmp_path: Path) -> None:
     )
     client.checksum_type = 1
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(content)
@@ -503,7 +498,7 @@ def test_s3_archive_rejects_non_sha256_head_checksum(tmp_path: Path) -> None:
     client.object_bytes = content
     client.object_checksum = base64.b64encode(b"x" * 31).decode("ascii")
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(content)
@@ -522,7 +517,7 @@ def test_s3_archive_rejects_noncanonical_head_checksum(tmp_path: Path) -> None:
     client.object_bytes = content
     client.object_checksum = noncanonical
     client.put_outcomes = [_client_error(412)]
-    archive = S3BlobArchive(client, bucket=_BUCKET, expected_bucket_owner=_OWNER)
+    archive = S3BlobArchive(client, bucket=_BUCKET)
 
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(content)
