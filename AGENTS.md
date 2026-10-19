@@ -61,19 +61,18 @@ performance regression for developer convenience.
   substitutes for evidence at the changed boundary.
 - Integration tests exercise real component boundaries with bounded fixtures.
 - Docker Compose exercises the same application artifacts and commands used on
-  the Mikr.us production host. S3-specific semantics still require a disposable
-  AWS integration test.
+  the Mikr.us production host. R2 object-store semantics (create-once writes,
+  SHA-256 checksums, bucket locks) need evidence against a real R2 bucket.
 
 ## Security And Privacy
 
-- Never commit credentials, `.env` files, Terraform state, raw source data, or
-  licensed generated artifacts.
+- Never commit credentials, `.env` files, raw source data, or licensed
+  generated artifacts.
 - Local application secrets come from ignored `.env` files. Local cloud
   credentials stay in external profiles or keychains. Production secrets are
   host-managed files restricted to root and the required service UID or GID;
-  recovery copies stay in the password manager. GitHub authenticates to AWS
-  through OIDC. The scoped external-host watcher key never enters GitHub,
-  `.env`, Terraform state, or an image.
+  recovery copies stay in the password manager. The bucket-scoped R2 watcher
+  key never enters GitHub, `.env`, Git, or an image.
 - Logs and error reports must not include raw medical queries, encounter data,
   credentials, signed URLs, headers, cookies, or local paths.
 - Issue #6 downloads only explicitly allowlisted RSK bytes, initially the

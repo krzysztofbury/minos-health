@@ -161,6 +161,18 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The archive moved from AWS S3 to one EU-jurisdiction Cloudflare R2 bucket
+  (#200). R2 has no object versions, so integrity rests on SHA-256 keys,
+  create-once writes with native checksums, bucket lock rules against overwrite
+  and delete, and ETag-pinned recovery downloads. `MINOS_WATCHER_S3_ENDPOINT`
+  (an R2 account endpoint only) replaces `AWS_REGION` and the bucket-owner
+  setting, which R2 answers with `501`. The archive selection is schema 2
+  (endpoint, no version IDs) and the signed recovery inventory drops its version
+  field. The trusted recovery copy is a verified download plus a create-once
+  upload, because R2 `CopyObject` ignores `If-None-Match`. `deploy_watcher`
+  gains a rollback-safe one-time storage migration and accepts dispatch-run
+  main CI (#174). The AWS Terraform stacks, operator scripts, real-AWS harness
+  and their tests are removed; CI no longer installs Terraform.
 - Design critique (#196): the Gruper shows its rule-scope limit as a callout
   above the form and again with the result; the case card lists only the facts
   entered, leaving progress to the stepper. Visible dates read DD.MM.RRRR (or

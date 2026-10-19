@@ -735,16 +735,16 @@ asset, without a CDN or frontend framework. See [catalog-search.md](catalog-sear
 Watchers-first. A dedicated watcher container on Mikr.us uses APScheduler and a
 mutable control SQLite database to poll upstream sources, archive scoped raw
 files immediately, and emit change records or incidents. Exact bytes live in
-private versioned S3; source configuration, schedules, runs, observations,
-artifact references, source cursors, state revisions, and audit records live in
-SQLite. S3 is not a database and contains no mutable watcher-state object or
-provenance sidecars. Immutable control-database recovery images are distinct
+a private R2 bucket under SHA-256 keys; source configuration, schedules, runs,
+observations, artifact references, source cursors, state revisions, and audit
+records live in SQLite. The object store is not a database and contains no
+mutable watcher-state object or provenance sidecars. Immutable control-database recovery images are distinct
 from source cursors.
 
 Issue #21 turns verified change records into pinned manifest changes, logical
 diffs and immutable artifacts. Automatic selection runs downstream of the
-watcher through the scoped read-only GitHub OIDC archive role; the watcher
-receives no GitHub credential. The "CI never follows latest" rule is unchanged.
+watcher with a read-only archive credential that the watcher does not hold; the
+watcher receives no GitHub credential. The "CI never follows latest" rule is unchanged.
 Details in [data-sources.md](data-sources.md).
 
 ### Automatic Routine Data Activation And Failure Alerts (2026-10-05)
@@ -860,18 +860,44 @@ private GHCR digests, and no application port is published publicly.
 This accepts host patching and recovery responsibility in exchange for one
 small fixed annual cost and a much simpler system than separate Lambda,
 CloudFront, ECR, S3 frontend, and watcher-control services. The host is not a
-backup: mutable control SQLite is backed up consistently to S3, raw bytes are
-stored directly in versioned S3, and complete empty-host recovery is tested.
+backup: mutable control SQLite is backed up consistently to R2, raw bytes are
+stored directly in R2, and complete empty-host recovery is tested.
 
-AWS remains only for the snapshot bucket, narrow IAM, budget notification, and
-Terraform state. A managed application runtime can be reconsidered only if
-measured availability, capacity, or operational burden exceeds recorded limits.
+A managed application runtime can be reconsidered only if measured
+availability, capacity, or operational burden exceeds recorded limits.
+
+### Object Storage On Cloudflare R2 (#200, 2026-10-19)
+
+The owner moved the archive from AWS S3 to one EU-jurisdiction Cloudflare R2
+bucket and retired Minos's AWS account resources. Five Terraform stacks, several
+IAM roles and permission boundaries, an unused GitHub OIDC role, SNS, a budget
+and a state bucket carried a 1.31 GB archive; Cloudflare already ran DNS, the
+tunnel and the edge. This supersedes the AWS parts of this document.
+
+Integrity no longer rests on S3 versions, which R2 does not have:
+
+- keys embed the SHA-256 of their bytes, as they already did on S3;
+- writes are create-once (`If-None-Match: *`, atomic on R2) and carry
+  `x-amz-checksum-sha256`; a wrong checksum is refused;
+- bucket lock rules refuse overwrites and deletes: 365 days for `blobs/` and
+  daily, weekly and monthly recovery images, 30 days for run images, which a
+  31-day lifecycle rule then expires;
+- every read verifies SHA-256 and size; a recovery download is pinned with
+  `If-Match` on the ETag that HEAD verified.
+
+R2 `CopyObject` ignores `If-None-Match` and drops the checksum, so the trusted
+recovery copy is a pinned, verified download plus a create-once upload. R2
+answers `501` to `x-amz-expected-bucket-owner`, so the account is pinned by the
+endpoint instead: configuration accepts only an R2 account S3 endpoint. Tokens
+are bucket-scoped read/write: the bucket lock, not the token, provides the
+no-delete guarantee that the AWS put-only policy gave. CI holds no object-store
+credential. The capability evidence is in #200.
 
 ## Infrastructure Ownership
 
-- Terraform/OpenTofu owns stable AWS and Cloudflare resources, including the
-  snapshot bucket, watcher IAM policy, OIDC read role, budget, DNS, and tunnel
-  routing where supported.
+- The Cloudflare dashboard and API own the zones, tunnel routing and the R2
+  bucket with its lock and lifecycle rules; changes are owner-approved and
+  recorded in issues. Minos keeps no Terraform state.
 - Ansible owns the Mikr.us host configuration.
 - Docker Compose owns local and Mikr.us process topology.
 - GitHub-hosted Actions own tests, builds, scans, attestations, and GHCR
@@ -943,10 +969,9 @@ Local application secrets live only in ignored `.env` files; local cloud
 credentials stay in external profiles or keychains. Production secrets are
 host-managed files restricted to root and the pinned numeric UID or GID of only
 the required service, then mounted read-only into that container. Recovery
-copies stay in the password manager. GitHub authenticates to AWS through OIDC
-and never stores long-lived AWS access keys. The narrowly scoped watcher access
-key is an explicit external-host exception and never enters Git, `.env`, GitHub,
-Terraform state, or an image.
+copies stay in the password manager. GitHub stores no object-store credential.
+The bucket-scoped R2 watcher key is an explicit external-host secret and never
+enters Git, `.env`, GitHub, or an image.
 
 ## Open Gates
 

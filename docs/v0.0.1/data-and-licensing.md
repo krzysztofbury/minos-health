@@ -153,7 +153,7 @@ follow a `latest` link or replace a pinned source automatically.
 ## Import Pipeline
 
 1. Resolve every pinned source from the manifest.
-2. Fetch from the archive (S3), not live upstream; live fetch happens only in
+2. Fetch from the archive (R2), not live upstream; live fetch happens only in
    watchers, which archive immediately.
 3. Verify byte count and checksum against the manifest before parsing.
 4. Parse with hardened parsers: XML (no DTDs or external entities; bounded
@@ -227,28 +227,26 @@ Raw and generated data are absent from Git.
 | Material | Canonical storage | Notes |
 | --- | --- | --- |
 | Source manifest | Git | No source bytes or credentials |
-| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private versioned S3 | Content-addressed, conditional creates, no watcher overwrite/delete permission; accepted sole raw-snapshot provider |
-| Watcher control recovery images | Private versioned S3 | Immutable revisioned SQLite images with bounded deletion-eligibility rules and restore drills |
+| Raw upstream snapshots (RSK, NFZ, AOTMiT) | Private EU-jurisdiction R2 bucket | Content-addressed, create-once writes, bucket lock refuses overwrite/delete; accepted sole raw-snapshot provider |
+| Watcher control recovery images | Private EU-jurisdiction R2 bucket | Locked revisioned SQLite images with bounded deletion-eligibility rules and restore drills |
 | Generated database | Private artifact storage and runtime image | Immutable by checksum |
 | Runtime image | Private GHCR | Canonical digest used for releases |
 | Small fixtures | Git | Synthetic or separately redistributable |
 
-The watcher identity can conditionally create content-addressed objects but
-cannot overwrite or delete them. Provenance, observations, schedules, and source
-cursors live in the control SQLite database rather than S3 sidecars or mutable
-state objects. S3 versioning provides recovery from ordinary operational
-mistakes. The accepted design has no independent second storage provider, so
-complete AWS account compromise remains a documented residual risk.
+The watcher token can conditionally create content-addressed objects; R2 bucket
+lock rules refuse overwriting or deleting them (#200). Provenance, observations,
+schedules, and source cursors live in the control SQLite database rather than
+object-store sidecars or mutable state objects. The accepted design has no
+independent second storage provider, so complete Cloudflare account compromise
+remains a documented residual risk.
 
 Raw snapshot objects do not expire. Immutable control recovery images use
-class-specific `run`, `daily`, `weekly`, and `monthly` prefixes. Current versions
-become expiration-eligible after 30, 31, 91, and 400 days respectively;
-noncurrent versions become deletion-eligible one day after current expiration,
-and expired delete markers are removed. Lifecycle processing is asynchronous.
-Independently signed operator inventory objects never expire, preserving their
-digest chain from sequence one. Their trusted recovery-image copies become
-expiration-eligible after 400 days under a separate operator-only prefix. S3
-provides no guaranteed physical deletion deadline. A seven-day incomplete-
+class-specific `run`, `daily`, `weekly`, and `monthly` prefixes, locked and then
+deleted after 30, 31, 91, and 400 days respectively. Lifecycle processing is
+asynchronous. Independently signed operator inventory objects are locked and
+never expire, preserving their digest chain from sequence one. Their trusted
+recovery-image copies are locked and deleted after 400 days under a separate
+operator prefix. R2 provides no guaranteed physical deletion deadline. A seven-day incomplete-
 multipart abort is defense in depth because watcher uploads are single-part. A
 current upstream URL is not a backup; upstream may remove its own history.
 

@@ -5,13 +5,13 @@
 One dedicated Mikr.us `3.0` host runs the public edge, API, watchers, scheduler,
 self-hosted Uptime Kuma, and Cloudflare Tunnel through Docker Compose. The host
 is replaceable, but it is not stateless: the watcher control SQLite database is
-mutable and therefore receives consistent, tested S3 recovery images. Kuma also
+mutable and therefore receives consistent, tested R2 recovery images. Kuma also
 has mutable `/app/data` and requires a separate stopped encrypted off-host
 backup.
 
 The target full-product system of record is Git, reviewed manifests, pinned
-image digests, versioned S3 source snapshots, revision-numbered control-database recovery
-images, signed release and deployment records, and Terraform state. A run is
+image digests, SHA-256-keyed R2 source snapshots, revision-numbered
+control-database recovery images, and signed release and deployment records. A run is
 not acknowledged as successful while the Mikr.us disk is the only copy of its
 control metadata. As reconciled on 2026-10-11, the validation deployment records
 exact API/edge/bundle identities and local/host activation receipts, but the
@@ -144,26 +144,24 @@ do not match the reviewed digest. There is no unfenced or implicit downgrade.
 | Asset | Primary location | Recovery protection |
 | --- | --- | --- |
 | Source and manifests | Private GitHub repository | Git history and remote |
-| Raw source snapshots | Private versioned S3 bucket | Content addressing, conditional writes, no watcher delete permission |
-| Watcher control database | Mikr.us persistent volume | Immutable revisioned S3 recovery images and restore drills |
+| Raw source snapshots | Private EU-jurisdiction R2 bucket `minos-archive` | SHA-256 keys, create-once writes, bucket lock refuses overwrite and delete for 365 days |
+| Watcher control database | Mikr.us persistent volume | Locked revisioned R2 recovery images and restore drills |
 | Sanitized public provenance | Dedicated host directory, watcher RW and edge RO | Current plus two prior immutable filesystem generations |
 | Generated reference database | Private API image and data artifact | GHCR digest, checksum, reproducible build |
 | Static web artifact | Private edge image and build artifact | GHCR digest, checksum, reproducible build |
 | Watcher runtime | Private watcher image | GHCR digest and bounded release retention |
 | Uptime Kuma state | `/var/lib/minos/uptime-kuma`, mounted as `/app/data` | Complete stopped encrypted off-host backup; restore same pinned version first |
-| Terraform state | Private S3 state bucket | Versioning, encryption, locking, recovery copy |
 | Domain | Registrar | Lock, 2FA, auto-renewal, recovery codes |
 | DNS and ingress | Cloudflare | Configuration record and recovery credentials |
 | Host configuration | Git and Ansible | Reprovisioning test |
 | Operator credentials | Password manager | Off-host recovery access |
-| Release manifests | Private GitHub Releases and operator-only S3 prefix | Independent signature and immutable digest |
-| Deployment receipts | Operator-only S3 prefix | Signed append-only chain with prior receipt |
-| Trusted recovery inventories | Operator-only S3 prefix and off-host recovery kit | Non-expiring signed chain and verification key |
-| Trusted recovery copies | Operator-only S3 prefix | Independently selected; 400-day expiration eligibility |
+| Release manifests | Private GitHub Releases and operator-only R2 prefix | Independent signature and immutable digest |
+| Deployment receipts | Operator-only R2 prefix | Signed append-only chain with prior receipt |
+| Trusted recovery inventories | `recovery-inventories/` R2 prefix and off-host recovery kit | Non-expiring signed chain and verification key |
+| Trusted recovery copies | `trusted-recovery/` R2 prefix | Independently selected; bucket lock refuses overwrite and delete |
 
-S3 source data and Terraform state use separate buckets and policies. The
-Mikr.us watcher identity cannot read or modify Terraform state and cannot delete
-snapshot objects or versions.
+R2 tokens are bucket-scoped read/write, so deletion protection comes from the
+bucket lock rules, not the token (#200). Minos keeps no Terraform state.
 
 ## Deployment
 
@@ -181,7 +179,7 @@ disabled against a disposable database copy. It then verifies:
 6. Mobile and desktop browser flows render and perform a real search.
 7. The pinned watcher UID/GID can access its volume and mounted secret files.
 8. A disposable control-database copy upgrades supported older schemas to the
-   candidate schema, then migration compatibility, an S3 native-checksum probe,
+   candidate schema, then migration compatibility, an R2 native-checksum probe,
    and a recovery-image round trip succeed while dispatch remains paused.
 9. The previous watcher stops. The candidate captures preactivation evidence,
    promotes the reviewed runtime, and applies the same tested migration to the
@@ -262,14 +260,14 @@ retention and do not require a currently committed run. Each image:
    finalization succeeds.
 9. Removes the temporary local copy.
 
-Current recovery images become expiration-eligible after 30 days for `run`, 31
-days for `daily`, 91 days for `weekly`, and 400 days for `monthly`. After current
-expiration creates a delete marker, noncurrent versions become deletion-eligible
-after one additional day; expired delete markers are removed. S3 lifecycle is
-asynchronous and provides no guaranteed physical deletion deadline, so these are
-deletion-eligibility thresholds rather than hard maximum retention bounds. A
-seven-day incomplete-multipart abort remains defense in depth for operator
-tooling. Raw source blobs never expire. Recovery images contain no credentials,
+R2 lifecycle rules delete recovery images after 30 days for `run`, 31 days for
+`daily`, 91 days for `weekly`, and 400 days for `monthly`; R2 bucket lock rules
+with the same ages refuse any earlier overwrite or delete, so every image is
+immutable for its whole retained life. Lifecycle deletion is asynchronous and
+has no guaranteed physical deadline, so these are deletion-eligibility
+thresholds rather than hard maximum retention bounds. A seven-day
+incomplete-multipart abort remains defense in depth for operator tooling. Raw
+source blobs never expire and are locked indefinitely. Recovery images contain no credentials,
 signed URLs, medical queries, encounter payloads, or patient data.
 
 Recovery paginates the class prefixes within configured maximum object counts
@@ -277,7 +275,7 @@ derived from schedule frequency and retention; exceeding a bound stops automatic
 selection for operator investigation rather than truncating candidates. It sorts
 valid candidates by embedded `(state_revision, created_at, class_rank, sha256)`,
 where `run > daily > weekly > monthly`, then
-verifies key grammar, native S3 checksum, byte count, embedded metadata, complete
+verifies key grammar, native R2 SHA-256, byte count, embedded metadata, complete
 migration checksums, and SQLite integrity in descending order. A successfully
 uploaded object is the completion record; partial PUTs never become visible.
 
@@ -286,16 +284,19 @@ wrote honest state. At least weekly, and also at deployment, key rotation, and
 recovery drills, an operator command selects one verified recovery image, copies
 it conditionally with the operator identity to
 `trusted-recovery/<20-digit-sequence>/<sha256>.sqlite3`, and verifies the copy.
-It then signs an inventory containing that key, S3 version ID, checksum,
-revision, S3 `LastModified`, sequence, and prior-inventory digest, and writes it
+It then signs an inventory containing that key, checksum, revision, R2
+`LastModified`, sequence, and prior-inventory digest, and writes it
 conditionally to `recovery-inventories/<20-digit-sequence>.json`. The command
 derives the next sequence from the fully verified unique inventory head, creates
 the sequence-only key with `If-None-Match: *`, accepts `412` only for an exact
 idempotent byte match, then relists and rejects gaps, duplicate sequences, bad
 links, or multiple heads. An unused concurrent trusted copy is an orphan and is
-never selected. Trusted database copies become expiration-eligible after 400
-days, with noncurrent versions eligible one day later. The small signed inventory
-objects never expire, so their chain remains verifiable from sequence one. The
+never selected. R2 `CopyObject` ignores `If-None-Match`, so the copy is a
+download pinned to the source ETag and verified against its SHA-256, then a
+create-once upload with that checksum. Trusted database copies are locked and
+then deleted after 400 days. The small signed inventory objects are locked
+indefinitely and never expire, so their chain remains verifiable from sequence
+one. The
 public verification key and latest trusted inventory also belong in the off-host
 recovery kit; the signing key never enters Mikr.us. Operators detect a missed
 weekly cadence from the read-only watcher status during routine review.
@@ -317,7 +318,7 @@ sequence, prior receipt digest, release-manifest digest, pre-deploy recovery
 image, operator, host, time, rollback compatibility, and verification evidence.
 The operator creates both conditionally; the watcher cannot access these
 prefixes. Repository immutable releases must be enabled and verified, but the
-signed S3 manifest is the recovery authority.
+signed R2 manifest is the recovery authority.
 
 Each receipt writer derives the next sequence from the verified unique head and
 uses `If-None-Match: *` on that sequence-only key. A `412` is an idempotent retry
@@ -332,7 +333,7 @@ conflicting sequence fail closed immediately. Receipt objects do not expire.
 
 1. Obtain a replacement dedicated Mikr.us `3.0` host.
 2. Verify SSH host identity and apply the reviewed Ansible configuration.
-3. Install fresh service-restricted Cloudflare and AWS secret files plus the
+3. Install fresh service-restricted Cloudflare and R2 secret files plus the
    root-owned GHCR Docker credential.
 4. Verify the unique signed deployment-receipt chain head and its signed release
    manifest, then pull the exact current API, edge, watcher, and `cloudflared`
@@ -340,7 +341,7 @@ conflicting sequence fail closed immediately. Receipt objects do not expire.
 5. Select the newest valid control-database recovery image under the ordinary or
    suspected-compromise rules above with the operator identity, not the watcher
    key.
-6. Verify its signature coverage when required, S3 version, checksum, embedded
+6. Verify its signature coverage when required, ETag-pinned bytes, checksum, embedded
    revision and migration set, and integrity before placing it on the persistent
    volume with the pinned watcher ownership and modes.
 7. Start Compose without public ingress and verify internal readiness, source
@@ -362,10 +363,11 @@ upstream response for an earlier observation.
 
 ### Raw Snapshot Loss
 
-Recover a prior S3 object version by key and checksum. The accepted design uses
-S3 as the only raw-snapshot provider, so complete AWS account compromise remains
-a documented residual risk. The watcher has no delete permission, and ordinary
-host compromise must not grant access to Terraform state or bucket policy.
+R2 has no object versions; bucket lock rules refuse overwriting or deleting a
+raw blob, and every read verifies the SHA-256 in its key. The watcher token is
+bucket-scoped read/write but cannot change lock or lifecycle rules, which need a
+Cloudflare account administrator. R2 is the only raw-snapshot provider, so a
+complete Cloudflare account compromise remains a documented residual risk.
 
 ### GHCR Loss
 
@@ -411,8 +413,7 @@ replace the pending complete empty-host Mikr.us recovery drill.
 
 Before `v0.0.1`, perform and time at least:
 
-- restoration of a prior Terraform state version in an isolated test;
-- restoration and integrity verification of a control-database S3 recovery
+- restoration and integrity verification of a control-database R2 recovery
   image, including the suspected-compromise signed-inventory path;
 - reconstruction of a generated database from pinned raw snapshots;
 - complete Compose deployment to an empty `linux/amd64` host;
@@ -420,7 +421,7 @@ Before `v0.0.1`, perform and time at least:
   Uptime Kuma and dataset digest set;
 - restore of a complete encrypted Uptime Kuma `/app/data` backup against the
   same pinned image before testing any migration;
-- recovery of registrar, Cloudflare, GHCR, AWS, and SSH access without relying
+- recovery of registrar, Cloudflare, GHCR, and SSH access without relying
   on an active developer laptop.
 
 Documentation alone is not a tested backup. Record observed recovery time and
@@ -499,7 +500,7 @@ UID or GID of the required service. Ansible creates service-specific directories
 and Compose mounts each file read-only into only that container:
 
 - Cloudflare Tunnel credential for `cloudflared`;
-- narrowly scoped AWS access key for the watcher;
+- bucket-scoped R2 access key for the watcher (S3-compatible credential file);
 - Uptime Kuma target JSON for the watcher, containing only version, source IDs,
   and 32-character alphanumeric push tokens.
 
@@ -516,13 +517,14 @@ store for image pulls and is not mounted into a container.
 
 The recovery copies, SSH material, registrar credentials, and emergency access
 stay in the password manager. Secret values never enter `.env`, GitHub Actions,
-Terraform input or state, Compose YAML, images, or logs. Non-secret endpoints,
-regions, bucket names, timeouts, and release digests remain normal configuration.
+Compose YAML, images, or logs. Non-secret endpoints, bucket names, timeouts, and
+release digests remain normal configuration.
 
-GitHub Actions uses OIDC for AWS reads and stores no long-lived AWS key. The
-Mikr.us key is an explicit external-host exception: it is limited to the data
-bucket, cannot delete, is installed outside the repository, and is rotated
-immediately after any suspected exposure.
+GitHub Actions stores no object-store credential. The Mikr.us R2 key
+(`minos-r2-watcher` in the MinosHealth vault) is limited to the `minos-archive`
+bucket, relies on bucket lock rules for no-delete, is installed outside the
+repository, and is rotated immediately after any suspected exposure. Operator
+work uses the separate `minos-r2-operator` key.
 
 ## Metrics And Alerts
 
@@ -537,7 +539,7 @@ Initial operational signals are:
 - per-source observation age;
 - watcher due, running, failed, stale, and disabled status;
 - backup age and last restore-test date;
-- S3 spend and forecast.
+- R2 storage and operation counts against the free tier.
 
 SQLite incidents and `minos watcher status [SOURCE_ID] --json` are the watcher
 status authority. Docker's bounded local logs provide process detail. The
@@ -590,7 +592,7 @@ quiet window is not representative verification.
 - Do not mount the Docker socket into Watchtower or application containers.
 - Keep the registry, source bucket, recovery images, and control database
   private.
-- Review Terraform plans for replacement, public exposure, IAM, and retention.
+- Review R2 lock, lifecycle and token-scope changes before applying them.
 - Scan images and exercise the actual runtime after formatter or autofix passes.
 - Report vulnerabilities through GitHub private vulnerability reporting.
 
@@ -606,12 +608,12 @@ automatically after all reviewed gates pass. Capture alone is not promotion.
 The #21 pipeline is still unimplemented; current validation deployments remain
 explicit operator actions until that separately tested boundary is delivered.
 
-1. The watcher detects a source change and archives exact raw bytes to S3.
+1. The watcher detects a source change and archives exact raw bytes to R2.
 2. It commits the observation, artifact references, source cursor, and bounded
    change or incident record to the control database.
 3. #21 automatically selects an exact recovery image and change record. Its
-   protected processing workflow uses the read-only GitHub OIDC archive role to
-   verify key, version, checksum, revision and observation identity, then emits
+   protected processing workflow uses a read-only archive credential to
+   verify key, checksum, revision and observation identity, then emits
    a pinned manifest proposal with provenance and a logical diff. The watcher
    receives no GitHub token. Manual dispatch is a recovery path, not a routine gate.
 4. Apply the reviewed significance policy to source terms, structure, dates,

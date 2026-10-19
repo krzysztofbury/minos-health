@@ -18,22 +18,20 @@ minos data build --manifest dataset.json \
 
 `--archive-root` remains the local alternative. Exactly one archive input is
 required. The standalone reference distribution continues to accept local
-archives only and does not import the S3 adapter or watcher runtime.
+archives only and does not import the R2 adapter or watcher runtime.
 
 The selection is transport provenance, not another dataset/artifact manifest:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "dataset_id": "<canonical DatasetManifest SHA-256>",
-  "bucket": "<reviewed snapshot bucket>",
-  "region": "eu-central-1",
-  "expected_bucket_owner": "<12-digit AWS account ID>",
+  "bucket": "minos-archive",
+  "endpoint": "https://<account-id>.eu.r2.cloudflarestorage.com",
   "objects": [
     {
       "sha256": "<pinned source SHA-256>",
-      "size_bytes": 1234,
-      "version_id": "<exact non-null S3 version ID>"
+      "size_bytes": 1234
     }
   ]
 }
@@ -47,9 +45,11 @@ source manifest is read once and the verified model is passed to the builder;
 rotating its path during transfer cannot change the build's meaning.
 
 Object keys are derived as `blobs/sha256/<digest>`. The caller cannot submit a
-key, URL, endpoint, source payload, command or Git ref. Every GET requests the
-exact version with `ExpectedBucketOwner` and `ChecksumMode=ENABLED`. Response
-version, full-object native SHA-256 and byte count must match the pins, and streamed
+key, URL, source payload, command or Git ref; the endpoint must be an R2
+account S3 endpoint. Schema 1 pinned S3 version IDs; R2 has no versions, and
+the bucket lock refuses overwrites under `blobs/`, so the SHA-256 and size are
+the complete pin (#200). Every GET uses `ChecksumMode=ENABLED`. The native
+SHA-256 (never a composite checksum) and byte count must match the pins, and streamed
 bytes are independently hashed and counted before the local archive is offered
 to any parser. There is no mutable-current fallback or upstream fetch.
 
@@ -72,10 +72,9 @@ processing must retain that selection alongside its candidate audit record.
 It is not embedded in the reference database or a new artifact manifest.
 
 SDK assertions and synthetic multi-source build/open/double-build tests cover
-local behavior. Eight disposable real-S3 tests additionally verify pinned CLI
-builds, owner/native checksum/version refusals and a session-scoped read-only
-boundary; see [evidence](../validation/archive-freshness.md). Protected-ref OIDC
-and hosted full real-selection repeated builds remain #19 gates. Do not
+local behavior. The disposable real-S3 tests that verified the schema 1 version
+pins were retired with AWS (#200); R2 behavior evidence is in #200. Hosted full
+real-selection repeated builds remain #19 gates. Do not
 upload private raw bytes or source-bearing diffs merely to obtain CI evidence.
 
 ## Deferred Target (#21/#141)
@@ -89,13 +88,13 @@ Resume only after the owner prioritizes automation based on validation evidence.
 2. Persist candidate state, retry/coalescing/fencing and typed incidents with
    durable notification intent. Do not modify the live watcher control database
    from downstream processing or give the watcher GitHub credentials.
-3. Generate pinned proposals and S3 transport selections, build/diff candidates,
+3. Generate pinned proposals and R2 transport selections, build/diff candidates,
    and check source-specific interpretation, correspondence, applicability,
    licensing, compatibility and representative resource evidence. Review explicit
    routine/significant-change criteria before enabling promotion. A selected-scope
    #20 diff is not a complete candidate audit.
-4. Wire automatic protected-default-branch processing with the scoped OIDC
-   archive reader. PR jobs receive neither archive nor production credentials.
+4. Wire automatic protected-default-branch processing with a scoped read-only
+   archive credential. PR jobs receive neither archive nor production credentials.
    A manual retry remains an investigation tool, not the normal update trigger.
 5. Promote the exact tested compatible set through the signed/provenance release
    contract, verify actual application changes and historical dates, and restore

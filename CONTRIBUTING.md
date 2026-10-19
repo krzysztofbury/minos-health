@@ -57,8 +57,8 @@ and full jitter for idempotent source reads; retry classification, `Retry-After`
 handling, and streaming rollback remain explicit in Minos code. APScheduler
 (MIT) parses five-field cron expressions and calculates UTC fire times; Minos
 retains ownership of durable schedule cursors, claims, and transaction fencing.
-Boto3 and Botocore (Apache-2.0) provide direct S3 API calls and modeled AWS error
-classification. Minos owns content addressing, single-part conditional-write
+Boto3 and Botocore (Apache-2.0) provide direct S3 API calls to Cloudflare R2 and
+modeled error classification. Minos owns content addressing, single-part conditional-write
 policy, bounded conflict handling, and native checksum verification; transfer
 manager helpers are not used.
 
@@ -76,7 +76,7 @@ PyYAML (MIT) for workflow policy tests. Zizmor (MIT) audits GitHub Actions for
 unsafe triggers, permissions, and expression use; types-PyYAML (Apache-2.0)
 supplies static-analysis metadata. Hatchling (MIT) is the pinned build backend.
 These tools do not enter production artifacts. CI uses checkout (MIT), setup-uv
-(MIT), setup-terraform (MPL-2.0), and Trivy (Apache-2.0); every action reference
+(MIT), and Trivy (Apache-2.0); every action reference
 is pinned to a full commit SHA.
 
 ### Local And Cloud Parity
@@ -84,28 +84,27 @@ is pinned to a full commit SHA.
 Root Docker and Compose definitions now execute the same watcher entry point used
 by the Mikr.us candidate stack. Local Compose uses persistent control, archive,
 and disk-backed staging volumes with the filesystem archive backend. Production
-uses the S3 backend and service-restricted secret files. Source-specific
+uses the R2 backend and service-restricted secret files. Source-specific
 collectors remain separate and are registered by their own issues; a runtime
 without a collector fails closed before claiming a configured source.
 
-Tests may use temporary directories for isolated operations. Real AWS behavior
-is tested only through the explicitly opted-in disposable harness; ordinary CI
-must never create cloud resources.
+Tests may use temporary directories for isolated operations. Ordinary CI must
+never touch cloud resources. Unit fakes model R2's observed behavior (no
+versions, no `ChecksumType` for single-part objects, `501` for bucket-owner
+headers); a behavior change there needs fresh evidence against a real bucket
+under `probes/`, recorded in the issue.
 
-The local filesystem and production S3 archive adapters must pass the same
-contract tests. A local AWS emulator may accelerate development, but it does
-not replace a disposable real-AWS integration test for versioning, conditional
-writes, and IAM behavior. Mutable watcher state belongs in SQLite, not S3.
+The local filesystem and production R2 archive adapters must pass the same
+contract tests. Mutable watcher state belongs in SQLite, not the object store.
 
 `.env.example` documents active RSK and local watcher settings plus commented
 production identifiers. Copy it to an ignored `.env` only for direct Python
 development. Local application secrets belong only in `.env`; local cloud
 credentials stay in an external profile or keychain.
 Production secrets are host-managed files restricted to root and the required
-service UID or GID; recovery copies stay in the password manager. GitHub uses
-AWS OIDC and must not store long-lived AWS access keys. The narrow S3 key
-required by the external watcher host never enters GitHub, `.env`, Terraform
-state, Compose YAML, or an image.
+service UID or GID; recovery copies stay in the password manager. GitHub holds
+no object-store credential. The bucket-scoped R2 key on the watcher host never
+enters GitHub, `.env`, Compose YAML, or an image.
 
 Install and enable the repository hooks:
 
@@ -152,7 +151,7 @@ rather than allowing implementation details to override them silently.
 - Use short, imperative commit subjects.
 - Explain the user-visible behavior and important tradeoffs in the pull request.
 - Do not commit upstream source data (RSK, NFZ, AOTMiT), generated databases,
-  credentials, Terraform state, secret values, machine-local configuration, or
+  credentials, secret values, machine-local configuration, or
   personal data.
 - Reviewed declarative production infrastructure belongs in Git; its secrets and
   state do not.
