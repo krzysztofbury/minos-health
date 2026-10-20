@@ -36,6 +36,7 @@ from minos.ingest.watchers.protocols import (
     CollectedRun,
     CollectionContext,
     CollectorRegistry,
+    FailureCategory,
     RetryableWatcherError,
     SourceDriftWatcherError,
     WatcherRuntimeError,
@@ -860,8 +861,8 @@ class _Heartbeat:
     def success(self, source_id: str) -> None:
         _ = source_id
 
-    def failure(self, source_id: str) -> None:
-        _ = source_id
+    def failure(self, source_id: str, category: FailureCategory) -> None:
+        _ = source_id, category
 
 
 def test_one_off_metadata_rotation_restarts_complete_collection_and_succeeds(

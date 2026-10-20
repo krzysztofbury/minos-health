@@ -50,6 +50,8 @@ Two interfaces share the same domain behaviour:
   Owner scope revision, 2026-10-06: unattended activation is deferred in #141,
   not a prerequisite for current client validation. Continue reviewed updates;
   preserve the automatic-update safety contract for any later resumption.
+  Owner revision, 2026-10-20: #141 resumes as host-side, data-only activation,
+  ICD-10/ICD-9 first and JGP after shadow evidence; see the decision record.
 
 ### Included In v0.0.1
 
@@ -298,6 +300,8 @@ The 2026-10-06 owner decision parks implementation in #141 while retaining the
 useful #19 pinned archive build path. Practitioner relevance and complete workflow
 speed now take priority. Reviewed validation updates remain explicit operator
 actions; this scope change does not waive source, privacy or rollback checks.
+The 2026-10-20 owner decision resumes #141 in phases; reviewed updates remain
+the path until activation is enabled per source class.
 
 ## Search Behaviour
 

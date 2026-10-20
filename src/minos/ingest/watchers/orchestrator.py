@@ -31,6 +31,7 @@ from minos.ingest.watchers.protocols import (
     CollectionContext,
     CollectorNotRegisteredError,
     CollectorRegistry,
+    FailureCategory,
     HeartbeatClient,
     NoopPublicProjectionPublisher,
     PublicProjectionPublisher,
@@ -320,6 +321,7 @@ class WatcherOrchestrator:
                         "failure",
                         claim.identity.source_id,
                         claim.identity.run_id,
+                        category=_failure_category(phase, error),
                     )
                 else:
                     self._abort_running_claim(claim, phase, error)
@@ -353,7 +355,12 @@ class WatcherOrchestrator:
                         "reconcile",
                         persisted=False,
                     )
-                    self._deliver_monitor_event("failure", run.source_id, run.run_id)
+                    self._deliver_monitor_event(
+                        "failure",
+                        run.source_id,
+                        run.run_id,
+                        category="reconciliation_failure",
+                    )
                 else:
                     self._record_reconciliation_failure(run, "reconcile", error)
                 raise
@@ -426,6 +433,7 @@ class WatcherOrchestrator:
             "failure",
             claim.identity.source_id,
             claim.identity.run_id,
+            category=category,
         )
 
     def _record_reconciliation_failure(
@@ -451,7 +459,12 @@ class WatcherOrchestrator:
                 f"reconciliation incident also failed: {type(incident_error).__name__}"
             )
         self._log_reconciliation_failure(run, phase, persisted=persisted)
-        self._deliver_monitor_event("failure", run.source_id, run.run_id)
+        self._deliver_monitor_event(
+            "failure",
+            run.source_id,
+            run.run_id,
+            category="reconciliation_failure",
+        )
 
     def _log_unpersisted_run_failure(
         self,
@@ -490,20 +503,25 @@ class WatcherOrchestrator:
         monitor_event: Literal["start", "success", "failure"],
         source_id: str,
         run_id: str,
+        *,
+        category: FailureCategory | None = None,
     ) -> None:
         try:
             if monitor_event == "start":
                 self._heartbeat.start(source_id)
             elif monitor_event == "success":
                 self._heartbeat.success(source_id)
+            elif category is None:
+                raise WatcherRuntimeError("monitor failure has no category")
             else:
-                self._heartbeat.failure(source_id)
+                self._heartbeat.failure(source_id, category)
         except BaseException:
             logger.bind(
                 event="watcher_monitor_delivery_failed",
                 source_id=source_id,
                 run_id=run_id,
                 monitor_event=monitor_event,
+                category=category,
             ).warning("Watcher monitor delivery failed")
 
 
@@ -584,14 +602,14 @@ def _validate_count(count: int, minimum: int, maximum: int, label: str) -> None:
         raise WatcherRuntimeError(f"{label} count is outside the supported range")
 
 
-def _failure_category(phase: str, error: BaseException) -> str:
+def _failure_category(phase: str, error: BaseException) -> FailureCategory:
     if isinstance(error, BlobArchiveError):
         return "archive_failure"
     if isinstance(error, SourceDriftWatcherError):
         return "source_drift"
     if isinstance(error, CollectorNotRegisteredError):
         return "collector_unavailable"
-    categories = {
+    categories: dict[str, FailureCategory] = {
         "load_state": "control_state_failure",
         "collector_dispatch": "collector_unavailable",
         "retry_deadline": "claim_deadline",

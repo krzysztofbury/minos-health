@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Protocol, final
+from typing import Literal, Protocol, final, get_args
 
 from minos.ingest.watchers.archive import BlobArchive
 from minos.ingest.watchers.control import (
@@ -20,6 +20,21 @@ from minos.ingest.watchers.control import (
 from minos.ingest.watchers.recovery import PublishedRecoveryImage, RecoveryClass
 
 _MAX_COLLECTORS = 64
+
+# Fixed, content-free run failure classes. They reach Telegram through Uptime
+# Kuma, so they must never carry source text, URLs or exception messages.
+FailureCategory = Literal[
+    "archive_failure",
+    "claim_deadline",
+    "collection_failure",
+    "collector_unavailable",
+    "control_commit_failure",
+    "control_state_failure",
+    "reconciliation_failure",
+    "source_drift",
+    "watcher_runtime_failure",
+]
+FAILURE_CATEGORIES: frozenset[str] = frozenset(get_args(FailureCategory))
 
 
 class WatcherRuntimeError(RuntimeError):
@@ -122,7 +137,7 @@ class HeartbeatClient(Protocol):
 
     def success(self, source_id: str) -> None: ...
 
-    def failure(self, source_id: str) -> None: ...
+    def failure(self, source_id: str, category: FailureCategory) -> None: ...
 
 
 class CapacityGate(Protocol):

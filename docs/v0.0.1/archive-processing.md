@@ -2,9 +2,11 @@
 
 Status: useful #19 build work retained on `feat/validation-archive-build`,
 2026-10-06. The remaining #140 automation work is preserved on
-`feat/archive-application-freshness` and parked in #141. Automatic selection,
-promotion, activation and detailed Telegram delivery are not enabled. Reviewed
-updates continue; automation is not a prerequisite for client validation.
+`feat/archive-application-freshness`. The owner resumed #141 on 2026-10-20
+(see [the decision](decisions.md#unattended-data-activation-resumed-2026-10-20)):
+host-side, data-only activation in phases. Automatic selection, promotion,
+activation and detailed Telegram delivery are not enabled yet; reviewed updates
+continue until activation is enabled per source class.
 
 ## Archive Build Boundary (#19)
 
@@ -79,8 +81,9 @@ upload private raw bytes or source-bearing diffs merely to obtain CI evidence.
 
 ## Deferred Target (#21/#141)
 
-The following is future acceptance scope, not the next execution checklist.
-Resume only after the owner prioritizes automation based on validation evidence.
+The following is the acceptance scope resumed on 2026-10-20. It runs in a
+host-side processor container, not GitHub Actions, so step 4's protected-branch
+workflow is replaced by that container with its own read-only R2 key.
 
 1. Verify bounded control recovery images and select exact `source_changes`
    rows with source/run/observation/revision identity assertions. Keep capture
@@ -108,9 +111,9 @@ Resume only after the owner prioritizes automation based on validation evidence.
 
 #41 is still open: the current validation deployment has exact digest identities
 and compatible rollback, but lacks the independently signed complete release
-manifest and off-host receipt chain. #21 explicitly requires that trusted
-contract and must not silently substitute the manual validation exception.
-Implement/review the needed release boundary before enabling unattended
-activation. Existing source/policy/legal gates are not waived by a successful
-archive build. No production configuration or notification secret changes are
-part of the first chunk.
+manifest and off-host receipt chain. On 2026-10-20 the owner accepted data-only
+activation without #41: data bundles activate with R2 `deployment-receipts/` and
+the existing checksums, while code images stay owner-deployed under #41.
+Existing source/policy/legal gates are not waived by a successful archive build.
+No production configuration or notification secret changes are part of the
+first chunk.

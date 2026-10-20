@@ -415,14 +415,24 @@ UI remain the baseline.
       non-expiring chained inventory off-host, with ordinary-loss and
       suspected-compromise restore commands.
 - [ ] Execute ordinary-loss and suspected-compromise empty-host restore drills.
-- [ ] Deferred in #141 (#21 closed as superseded): automatic verified change
-      selection through scoped OIDC,
-      pinned proposals/logical diffs and policy-qualified routine data activation.
-      Failed or significant candidates retain/restore the last good release and
-      send detailed privacy-safe Telegram alerts. Never give the watcher a GitHub
-      token; only the trusted promotion boundary may merge eligible data changes.
-- [ ] Alert on watcher failure and on upstream schema drift (new załącznik
-      names, changed file formats).
+- [ ] Unattended data activation (#141, resumed by the owner 2026-10-20; #21
+      closed as superseded). A file that parses and passes every criterion goes
+      live without manual work; failures keep the last good release and alert.
+      Host-side processor container with its own read-only R2 key, data-only
+      without #41; see [the decision](docs/v0.0.1/decisions.md#unattended-data-activation-resumed-2026-10-20).
+  - [x] Phase A: watcher down pushes name a fixed failure category
+        (`failed: source_drift`, `failed: archive_failure`, ...).
+  - [ ] Phase A: owner re-enables Kuma Telegram delivery and confirms push
+        monitors for `rsk`, `baw` and `nfz`, each with a heartbeat interval
+        longer than its schedule so a silent watcher also alerts.
+  - [ ] Phase B: shadow candidate builder evaluates bytes, parse, build,
+        regression, history and licence criteria and reports to Telegram
+        without activating.
+  - [ ] Phase C: activate ICD-10/ICD-9, then JGP after shadow evidence, with
+        automatic rollback and R2 deployment receipts.
+- [x] Alert on watcher failure and on upstream schema drift (new załącznik
+      names, changed file formats): drift fails the run, and its down push
+      names `source_drift`. Delivery depends on the Phase A Kuma item.
 - [x] Bootstrap Uptime Kuma privately on Mikr.us from the pinned rootless image,
       with no host port or public route. Create the admin and 2FA, HTTP monitor,
       paused RSK push monitor, and status page domain mapping. Remove the

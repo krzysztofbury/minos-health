@@ -17,6 +17,7 @@ from minos.ingest.watchers.control import (
     SourceConfiguration,
 )
 from minos.ingest.watchers.orchestrator import WatcherOrchestrator
+from minos.ingest.watchers.protocols import FailureCategory
 from minos.ingest.watchers.publication import (
     ImmutableGenerationPublisher,
     PublicPublicationError,
@@ -74,8 +75,8 @@ class _Heartbeat:
     def success(self, source_id: str) -> None:
         assert source_id == "rsk"
 
-    def failure(self, source_id: str) -> None:
-        raise AssertionError(f"unexpected failure heartbeat for {source_id}")
+    def failure(self, source_id: str, category: FailureCategory) -> None:
+        raise AssertionError(f"unexpected {category} heartbeat for {source_id}")
 
 
 def test_rsk_collector_commits_one_atomic_all_hcd_observation(tmp_path: Path) -> None:

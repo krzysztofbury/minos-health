@@ -111,8 +111,12 @@ If interruption occurs after the symlink switch, the new generation may already
 be active, but the run remains retryable until local finalization completes.
 `heartbeat_pending` is retained as a compatibility name for this durable local
 phase. It does not represent a monitoring request. After durable terminal
-completion, the watcher makes a best-effort Uptime Kuma up or down push. Push
-failure never blocks or changes the watcher result.
+completion, the watcher makes a best-effort Uptime Kuma up or down push. A down
+push carries only `failed: <category>`, one of the fixed run failure classes
+(for example `source_drift`, `archive_failure`, `collection_failure`), so the
+Telegram alert distinguishes upstream drift from storage or network failure
+without source text, URLs or exception messages. Push failure never blocks or
+changes the watcher result.
 
 Startup first restores a missing or stale projection from the latest committed
 RSK revision and then reconciles pending runs. A restored older control database

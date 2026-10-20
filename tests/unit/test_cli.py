@@ -31,7 +31,7 @@ from minos.ingest.watchers.control.migrations import (
     rollback_control_migrations_for_testing,
 )
 from minos.ingest.watchers.preflight import CapacityLimits
-from minos.ingest.watchers.protocols import WatcherRuntimeError
+from minos.ingest.watchers.protocols import FailureCategory, WatcherRuntimeError
 from minos.ingest.watchers.service import WatcherReadiness, WatcherService
 from minos.ingest.watchers.uptime_kuma import UptimeKumaError
 
@@ -603,7 +603,7 @@ class _FactoryHeartbeat:
     def success(self, _source_id: str) -> None:
         pass
 
-    def failure(self, _source_id: str) -> None:
+    def failure(self, _source_id: str, _category: FailureCategory) -> None:
         pass
 
 
@@ -850,8 +850,8 @@ def test_production_preflight_includes_configured_uptime_kuma_secret(
         def success(self, source_id: str) -> None:
             _ = source_id
 
-        def failure(self, source_id: str) -> None:
-            _ = source_id
+        def failure(self, source_id: str, category: FailureCategory) -> None:
+            _ = source_id, category
 
         def close(self) -> None:
             self.closed = True

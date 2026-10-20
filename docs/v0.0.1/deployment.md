@@ -52,7 +52,7 @@ Watcher container
   -> mutable control SQLite on a persistent volume
   -> private R2 snapshot bucket (SHA-256 keys, bucket lock)
   -> dedicated local public-projection volume
-  -> best-effort terminal up/down push to Uptime Kuma
+  -> best-effort terminal up/down push to Uptime Kuma (down names the failure category)
 
 Uptime Kuma container
   -> private monitoring network

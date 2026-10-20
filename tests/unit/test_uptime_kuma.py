@@ -1,9 +1,11 @@
 import json
 from pathlib import Path
+from typing import cast
 
 import httpx
 import pytest
 
+from minos.ingest.watchers.protocols import FailureCategory
 from minos.ingest.watchers.uptime_kuma import (
     UptimeKumaClient,
     UptimeKumaError,
@@ -34,7 +36,7 @@ def test_uptime_kuma_sends_exact_up_and_down_queries_and_start_is_noop(
     ) as client:
         client.start("rsk")
         client.success("rsk")
-        client.failure("rsk")
+        client.failure("rsk", "source_drift")
 
     assert [request.method for request in requests] == ["GET", "GET"]
     assert [request.url.scheme for request in requests] == ["http", "http"]
@@ -49,8 +51,33 @@ def test_uptime_kuma_sends_exact_up_and_down_queries_and_start_is_noop(
     ]
     assert [request.url.query for request in requests] == [
         b"status=up&msg=completed&ping=",
-        b"status=down&msg=failed&ping=",
+        b"status=down&msg=failed%3A+source_drift&ping=",
     ]
+
+
+@pytest.mark.parametrize(
+    "unknown",
+    ["schema at https://source.invalid/x?q=1", "SOURCE_DRIFT", "source_drift ", ""],
+)
+def test_uptime_kuma_refuses_unknown_failure_category_before_any_request(
+    tmp_path: Path,
+    unknown: str,
+) -> None:
+    targets = _write_targets(tmp_path / "targets.json", {"rsk": _TOKEN})
+    requests: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"ok": True})
+
+    with UptimeKumaClient(
+        targets,
+        transport=httpx.MockTransport(handle),
+    ) as client:
+        with pytest.raises(UptimeKumaError, match="category is unsupported"):
+            client.failure("rsk", cast(FailureCategory, unknown))
+
+    assert requests == []
 
 
 def test_optional_partial_uptime_kuma_targets_are_noop_for_missing_source(
@@ -69,7 +96,7 @@ def test_optional_partial_uptime_kuma_targets_are_noop_for_missing_source(
     ) as client:
         client.start("rsk")
         client.success("rsk")
-        client.failure("rsk")
+        client.failure("rsk", "collection_failure")
 
     assert requests == []
     with pytest.raises(UptimeKumaError, match="required"):
@@ -120,7 +147,7 @@ def test_uptime_kuma_timeout_is_privacy_safe(tmp_path: Path) -> None:
         transport=httpx.MockTransport(timeout),
     ) as client:
         with pytest.raises(UptimeKumaError, match="request failed") as captured:
-            client.failure("rsk")
+            client.failure("rsk", "collection_failure")
 
     assert _TOKEN not in repr(captured.value)
     assert "uptime-kuma" not in repr(captured.value)

@@ -161,6 +161,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Watcher down pushes to Uptime Kuma now read `failed: <category>`, one of the
+  fixed run failure classes such as `source_drift` or `archive_failure`, so the
+  Telegram alert tells upstream drift from storage or network failure. The
+  client refuses any other text before sending (#141 phase A).
+- The owner resumed unattended data activation (#141, 2026-10-20): host-side,
+  data-only, ICD-10/ICD-9 first and JGP after shadow evidence. It is not
+  enabled yet; see [the decision](docs/v0.0.1/decisions.md#unattended-data-activation-resumed-2026-10-20).
 - The archive moved from AWS S3 to one EU-jurisdiction Cloudflare R2 bucket
   (#200). R2 has no object versions, so integrity rests on SHA-256 keys,
   create-once writes with native checksums, bucket lock rules against overwrite

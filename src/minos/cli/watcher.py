@@ -54,6 +54,7 @@ from minos.ingest.watchers.preflight import (
 )
 from minos.ingest.watchers.protocols import (
     CollectorRegistry,
+    FailureCategory,
     HeartbeatClient,
     RecoveryPublisher,
     SourcePublicProjectionPublisher,
@@ -230,8 +231,8 @@ class _UnavailableHeartbeat:
         _ = source_id
         raise WatcherRuntimeError("heartbeat client is not configured")
 
-    def failure(self, source_id: str) -> None:
-        _ = source_id
+    def failure(self, source_id: str, category: FailureCategory) -> None:
+        _ = source_id, category
 
 
 @final
@@ -242,8 +243,8 @@ class _LocalHeartbeat:
     def success(self, source_id: str) -> None:
         _ = source_id
 
-    def failure(self, source_id: str) -> None:
-        _ = source_id
+    def failure(self, source_id: str, category: FailureCategory) -> None:
+        _ = source_id, category
 
 
 @final

@@ -34,6 +34,7 @@ from minos.ingest.watchers.nfz.publication import NfzPublicProjectionPublisher
 from minos.ingest.watchers.orchestrator import WatcherOrchestrator
 from minos.ingest.watchers.protocols import (
     CollectorRegistry,
+    FailureCategory,
     SourceDriftWatcherError,
     SourcePublicProjectionPublisher,
     WatcherRuntimeError,
@@ -84,7 +85,8 @@ class _Heartbeat:
     def success(self, source_id: str) -> None:
         assert source_id in ("baw", "nfz")
 
-    def failure(self, source_id: str) -> None:
+    def failure(self, source_id: str, category: FailureCategory) -> None:
+        _ = category
         assert source_id in ("baw", "nfz")
 
 

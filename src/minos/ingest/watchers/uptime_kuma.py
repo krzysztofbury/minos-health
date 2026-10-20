@@ -10,6 +10,8 @@ from urllib.parse import quote
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from minos.ingest.watchers.protocols import FAILURE_CATEGORIES, FailureCategory
+
 _BASE_URL = "http://uptime-kuma:3001"
 _MAX_TARGET_FILE_BYTES = 65_536
 _MAX_RESPONSE_BYTES = 4096
@@ -140,15 +142,19 @@ class UptimeKumaClient:
     def success(self, source_id: str) -> None:
         self._push(source_id, status="up", message="completed")
 
-    def failure(self, source_id: str) -> None:
-        self._push(source_id, status="down", message="failed")
+    def failure(self, source_id: str, category: FailureCategory) -> None:
+        # Kuma forwards the push message into Telegram, so only the fixed
+        # category may follow the constant prefix.
+        if category not in FAILURE_CATEGORIES:
+            raise UptimeKumaError("Uptime Kuma failure category is unsupported")
+        self._push(source_id, status="down", message=f"failed: {category}")
 
     def _push(
         self,
         source_id: str,
         *,
         status: Literal["up", "down"],
-        message: Literal["completed", "failed"],
+        message: str,
     ) -> None:
         token = self._targets.token(source_id)
         if token is None:
