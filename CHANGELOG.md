@@ -161,6 +161,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The Kuma login and admin paths on `status.minoshealth.pl` now require
+  Cloudflare Access for the owner. The tunnel route covered the whole host, so
+  `/dashboard` and `/socket.io` had been reachable from the internet behind the
+  Kuma password and 2FA; the public status page is unchanged.
 - Watcher down pushes to Uptime Kuma now read `failed: <category>`, one of the
   fixed run failure classes such as `source_drift` or `archive_failure`, so the
   Telegram alert tells upstream drift from storage or network failure. The

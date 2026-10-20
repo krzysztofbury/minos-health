@@ -980,8 +980,11 @@ network, and persistent `/app/data` at `/var/lib/minos/uptime-kuma`. The
 Cloudflare route defaults off until private setup and access controls are
 complete.
 
-`status.minoshealth.pl` publishes coarse service state only. Detailed watcher
-state remains private, and issue #54 remains the future private detailed admin
+`status.minoshealth.pl` publishes coarse service state only. The Kuma login and
+administration paths on that host sit behind Cloudflare Access for the owner
+(2026-10-20), because the tunnel route covers the whole host; see
+[deployment](deployment.md#cloudflare-and-domains). Detailed watcher state
+remains private, and issue #54 remains the future private detailed admin
 portal. Since Kuma shares the host, it cannot detect or notify for a total
 Mikr.us host, network, or power outage. This limitation is accepted for now.
 Docker logs are bounded locally. CloudWatch is not part of the runtime.

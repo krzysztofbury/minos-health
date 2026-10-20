@@ -422,9 +422,10 @@ UI remain the baseline.
       without #41; see [the decision](docs/v0.0.1/decisions.md#unattended-data-activation-resumed-2026-10-20).
   - [x] Phase A: watcher down pushes name a fixed failure category
         (`failed: source_drift`, `failed: archive_failure`, ...).
-  - [ ] Phase A: owner re-enables Kuma Telegram delivery and confirms push
-        monitors for `rsk`, `baw` and `nfz`, each with a heartbeat interval
-        longer than its schedule so a silent watcher also alerts.
+  - [ ] Phase A: confirm each `rsk`, `baw` and `nfz` push monitor has a
+        heartbeat interval longer than its schedule, so a silent watcher also
+        alerts. Telegram delivery was re-enabled and all three monitors exist
+        on the status page (2026-10-20).
   - [ ] Phase B: shadow candidate builder evaluates bytes, parse, build,
         regression, history and licence criteria and reports to Telegram
         without activating.
@@ -446,6 +447,14 @@ UI remain the baseline.
 - [x] Restore the stopped 1Password Kuma backup to a disposable isolated Docker
       volume and start the same pinned rootless image as UID `10003`. Confirm
       health and the status page, then remove the test volume and container.
+- [x] Guard the Kuma login and admin paths on `status.minoshealth.pl` with
+      Cloudflare Access (owner email only, 2026-10-20). The tunnel route covered
+      the whole host, so `/dashboard` and `/socket.io` had been reachable from the
+      internet behind the Kuma password and 2FA. Verified: 13 admin paths
+      redirect to Access, 7 public paths return 200 and the page renders.
+- [ ] Move the Kuma admin to its own Access-protected hostname and restrict the
+      `status.minoshealth.pl` tunnel route to the public status-page paths, so
+      the guard lives in Git rather than only in Cloudflare (#28).
 - [ ] Include restored Kuma state in a complete empty-host Mikr.us recovery drill
       before an image upgrade; never copy its live SQLite database.
 - [x] Configure a dedicated Telegram bot and test delivery through Kuma. Attach

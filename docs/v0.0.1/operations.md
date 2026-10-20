@@ -201,6 +201,9 @@ disabled against a disposable database copy. It then verifies:
 12. Uptime Kuma has no host port or Docker socket, the public status route was
     enabled only after private admin and 2FA setup, HTTP and RSK push monitors
     use reviewed notifications, and the public page contains coarse state only.
+    From outside, every Kuma admin path on `status.minoshealth.pl` (`/socket.io`,
+    `/dashboard`, `/setup`, `/api/push`, `/api/badge`, `/metrics`) redirects to
+    Cloudflare Access, while `/` and the status-page reads return 200.
 
 The first production deployments are explicit operator actions. Automation may
 later execute the same bounded procedure over restricted SSH, but it must not
