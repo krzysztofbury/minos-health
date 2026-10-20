@@ -15,6 +15,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- `minos data candidate-icd10` (operational CLI) judges one archived RSK
+  ICD-10 release against the live bundle without activating it: the release is
+  added beside the previous one, built twice, bounded against removed codes
+  and checked for unchanged history, with the owner's class-level licence
+  approval in `manifests/policy/rsk-icd10-automatic.json` (#141 phase B1).
+  Unscoped terminology synonyms now need their wording in every release.
 - A read-only site audit (`tests/browser/site-audit-browser.mjs`) of every
   public page family: no-JS at three widths, 200% text, clipping, console errors
   and script origins (#80). Release verification now refuses a homepage the

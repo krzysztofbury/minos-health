@@ -426,9 +426,20 @@ UI remain the baseline.
         heartbeat interval longer than its schedule, so a silent watcher also
         alerts. Telegram delivery was re-enabled and all three monitors exist
         on the status page (2026-10-20).
-  - [ ] Phase B: shadow candidate builder evaluates bytes, parse, build,
-        regression, history and licence criteria and reports to Telegram
-        without activating.
+  - [x] Phase B1: `minos data candidate-icd10` judges one archived RSK
+        ICD-10 release against the live bundle (bytes, parse, build twice,
+        regression bounds, unchanged history, licence) and prints a report.
+        Real-data run: `would_activate`, 276 s, 207 MiB peak RSS. See
+        [the shadow candidate](docs/v0.0.1/archive-processing.md#shadow-icd-10-candidate-141-phase-b1).
+  - [ ] Phase B2: the same for ICD-9 (CZS with its NFZ workbook companion),
+        then BAW/JGP catalogs.
+  - [ ] Phase B3: host processor container runs B1/B2 on watcher change
+        records, reads R2 with its own read-only key and reports to Telegram
+        through a separate data-update push monitor. Measure host build
+        memory first.
+  - [ ] Before Phase C: raise the reference build page cap (494.7 of 512 MiB
+        with two ICD-10 releases) with API memory evidence, and list the
+        release valid today first in `/api/v1/releases`.
   - [ ] Phase C: activate ICD-10/ICD-9, then JGP after shadow evidence, with
         automatic rollback and R2 deployment receipts.
 - [x] Alert on watcher failure and on upstream schema drift (new załącznik

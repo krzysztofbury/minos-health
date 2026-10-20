@@ -175,6 +175,13 @@ def main(
     parser = build_parser()
     raw_arguments = cast(dict[str, object], vars(parser.parse_args(argv)))
     top_level_command = raw_arguments.get("command")
+    if raw_arguments.get("data_command") == "candidate-icd10":
+        from minos.cli.candidate import execute_icd10_candidate
+
+        code = execute_icd10_candidate(raw_arguments)
+        if code:
+            parser.exit(code)
+        return
     if raw_arguments.get("archive_s3_selection") is not None:
         from minos.cli.archive_build import execute_archive_build
 

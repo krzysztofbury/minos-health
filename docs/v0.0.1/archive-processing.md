@@ -79,6 +79,61 @@ pins were retired with AWS (#200); R2 behavior evidence is in #200. Hosted full
 real-selection repeated builds remain #19 gates. Do not
 upload private raw bytes or source-bearing diffs merely to obtain CI evidence.
 
+## Shadow ICD-10 Candidate (#141 Phase B1)
+
+The operational CLI judges one archived RSK ICD-10 release against the live
+bundle without activating anything:
+
+```sh
+minos data candidate-icd10 --live-bundle <live bundle> \
+  --archive-root <archive> --product-sha256 <digest> \
+  --basic-info-sha256 <digest> --fetched-at <observation time> \
+  --policy manifests/policy/rsk-icd10-automatic.json --work <new directory>
+```
+
+The digests come from the watcher's `rsk_source_change` record and the archived
+`00CD10` basic-info. The candidate is the live dataset plus the new release:
+
+- the previous open RSK release is closed at the new `validDateFrom`, so earlier
+  service dates keep answering from it, and each JGP catalog keeps the
+  terminology release it was built with;
+- the new entry takes its version, validity, file identity and creation time
+  from RSK basic-info, and its licence and notices from the owner policy;
+- ICD-10 synonyms pinned to the previous release become unscoped. The build
+  accepts an unscoped terminology synonym only if its reviewed wording exists
+  in every release of its system.
+
+`manifests/policy/rsk-icd10-automatic.json` is the owner's class-level approval
+(2026-10-20). It pins the SHA-256 of the RSK description, which carries the
+licence statement, and the publisher; any change refuses the release. It also
+bounds removed codes (1%) and the concept count change (5%).
+
+The command prints one JSON report with no paths or source text and exits 0
+for `would_activate`, 9 for a refusal that names its criterion (`bytes`,
+`parse`, `build`, `regression`, `history`, `licence`) and code, and 3 for a
+data or input error. Evaluation builds the candidate twice and requires equal
+database SHA-256s, keeps only the first bundle, requires every live release's
+rows to be byte-identical and every catalog, condition and dictionary table to
+keep its live row count, then counts added, removed and redescribed codes.
+
+Real-data evidence (2026-10-20, workstation): against the live bundle
+(`1fbca86f`, schema 10) with a stand-in `014` derived from `013` by one changed
+description, the report was `would_activate` with 12,371 concepts on both
+sides, 0 added, 0 removed and 1 changed. Two builds took 276 seconds with a
+207 MiB peak RSS. The API served both releases, each with its own wording, and
+`/readyz` reported the candidate dataset. Two limits follow:
+
+- The database reached 494.7 MiB of the build's 512 MiB page cap
+  (`max_page_count` 131,072). One extra ICD-10 release fits; the next one, or
+  a larger JGP update, does not. Raising the cap needs a reviewed change with
+  API memory evidence before Phase C.
+- `/api/v1/releases` lists sources in manifest order and the web takes the
+  first release per system, so public search stays on the previous release.
+  Phase C must list the release valid today first.
+
+Phase B1 reads a local archive root. The host processor (B3) will read the
+same digests from R2 through the existing archive selection.
+
 ## Deferred Target (#21/#141)
 
 The following is the acceptance scope resumed on 2026-10-20. It runs in a

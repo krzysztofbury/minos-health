@@ -36,6 +36,7 @@ from minos.store.search import search_reference
 from scripts.evaluate_search import EvaluationError, GoldSet, evaluate
 from scripts.evaluate_search_safety import SafetySet
 from scripts.evaluate_search_safety import evaluate as evaluate_safety
+from tests.integration.test_reference_artifact import stage_source
 
 ROOT = Path(__file__).parents[2]
 
@@ -298,6 +299,50 @@ def test_reviewed_synonym_refuses_wording_outside_its_pinned_dictionary(
     with pytest.raises(ArtifactError, match="absent from its pinned dictionary"):
         _ = build_reference_artifact(manifest, tmp_path, tmp_path / "invalid-bundle")
     assert not (tmp_path / "invalid-bundle").exists()
+
+
+@pytest.mark.parametrize("wording_in_every_release", [True, False])
+def test_unscoped_terminology_synonym_requires_wording_in_every_release(
+    tmp_path: Path, search_source: DatasetManifest, wording_in_every_release: bool
+) -> None:
+    from minos.domain.reference import ArtifactError
+
+    entry = SearchSynonym.model_validate_json(
+        json.dumps(
+            {
+                "id": "synthetic-alias",
+                "version": 1,
+                "system": "icd10-pl",
+                "term": "syntetyczny odpowiednik",
+                "source_wording": "bez powikłań",
+                "source_url": "https://example.org/synthetic-dictionary",
+                "evidence": "Synthetic source wording contract.",
+                "status": "reviewed",
+                "reviewer": "Synthetic reviewer",
+                "reviewed_on": "2026-10-04",
+            }
+        )
+    )
+    # minimal.xml lacks the reviewed wording that search.xml contains.
+    other = (
+        search_source.sources[0]
+        if wording_in_every_release
+        else stage_source(tmp_path).sources[0]
+    ).model_copy(update={"release_id": "icd10-synthetic-v2"})
+    manifest = search_source.model_copy(
+        update={
+            "sources": (*search_source.sources, other),
+            "search_profile": "polish-folded-1",
+            "search_synonyms": (entry,),
+        }
+    )
+    bundle = tmp_path / "unscoped"
+    if wording_in_every_release:
+        _ = build_reference_artifact(manifest, tmp_path, bundle)
+        return
+    with pytest.raises(ArtifactError, match="absent from its pinned dictionary"):
+        _ = build_reference_artifact(manifest, tmp_path, bundle)
+    assert not bundle.exists()
 
 
 def test_synonym_release_pin_isolated_and_old_entry_serialization_preserved(

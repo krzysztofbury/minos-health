@@ -146,6 +146,20 @@ def add_reference_commands(
     _ = build.add_argument("--output", type=Path, required=True)
     _ = build.add_argument("--previous-bundle", type=Path)
     _ = build.add_argument("--json", action="store_true", dest="output_json")
+    if allow_s3_archive:
+        candidate = data_commands.add_parser(
+            "candidate-icd10",
+            help="Build and judge a shadow candidate for one archived RSK ICD-10 release.",
+        )
+        _ = candidate.add_argument("--live-bundle", type=Path, required=True)
+        _ = candidate.add_argument("--archive-root", type=Path, required=True)
+        _ = candidate.add_argument("--product-sha256", required=True)
+        _ = candidate.add_argument("--basic-info-sha256", required=True)
+        _ = candidate.add_argument(
+            "--fetched-at", required=True, help="Watcher observation time, ISO 8601."
+        )
+        _ = candidate.add_argument("--policy", type=Path, required=True)
+        _ = candidate.add_argument("--work", type=Path, required=True)
 
 
 def reference_main(argv: Sequence[str] | None = None) -> None:

@@ -2,12 +2,14 @@
 
 import hashlib
 import os
+import re
 import stat
 import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Self
 
 from minos.domain.reference import SourceError
 from minos.ingest.grouping_dictionaries_manifest import LegalActFile
@@ -18,6 +20,30 @@ from minos.ingest.jgp_modifiers_manifest import DisplayFile, ModifierFile
 from minos.ingest.komunikat_manifest import KomunikatFile
 from minos.ingest.product_catalogs_manifest import ProductCatalogFile
 from minos.ingest.reference_manifest import SourceManifest
+
+_DIGEST = re.compile(r"[0-9a-f]{64}")
+
+
+@dataclass(frozen=True)
+class ArchivedBlob:
+    """A content-addressed archive object that no manifest pins yet."""
+
+    sha256: str
+    size_bytes: int
+
+    @classmethod
+    def at(cls, archive_root: Path, sha256: str) -> Self:
+        # The size only bounds the snapshot; verified_source still proves the
+        # digest before any parser sees the bytes.
+        if _DIGEST.fullmatch(sha256) is None:
+            raise SourceError("archive object digest is invalid")
+        try:
+            details = (archive_root / "blobs" / "sha256" / sha256).lstat()
+        except OSError as error:
+            raise SourceError("archive object is missing") from error
+        if not stat.S_ISREG(details.st_mode) or details.st_size < 1:
+            raise SourceError("archive object is not a nonempty regular file")
+        return cls(sha256, details.st_size)
 
 
 @contextmanager
@@ -31,7 +57,8 @@ def verified_source(
     | DisplayFile
     | LegalOverlayFile
     | LegalActFile
-    | ProductCatalogFile,
+    | ProductCatalogFile
+    | ArchivedBlob,
     *,
     staging_directory: Path,
 ) -> Generator[BinaryIO]:
