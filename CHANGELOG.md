@@ -176,7 +176,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   lock rules before `If-None-Match`, so every create-once writer now treats
   `409 ObjectLockedByBucketPolicy` for an existing key like `412` and verifies
   the stored SHA-256 and size; before this, a watcher run re-archiving unchanged
-  metadata would have failed. The watcher moved to R2 at `36402de` on 2026-10-19.
+  metadata would have failed. The watcher moved to R2 at `36402de` on 2026-10-19
+  and Minos's AWS resources were retired on 2026-10-20.
 - Design critique (#196): the Gruper shows its rule-scope limit as a callout
   above the form and again with the result; the case card lists only the facts
   entered, leaving progress to the stepper. Visible dates read DD.MM.RRRR (or

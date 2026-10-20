@@ -320,11 +320,10 @@ UI remain the baseline.
       and representative host overlap/load evidence. Production provisioning,
       secrets, preflight and the RSK/BAW/NFZ watchers are delivered. The AWS
       acceptance harness and budget alert were retired with AWS (#200).
-- [ ] Move the archive to Cloudflare R2 and retire Minos AWS (#200): code,
-      docs, EU bucket with lock and lifecycle rules, vault tokens, the
-      verified copy (549 objects, 0 failures) and the watcher cutover
-      (`36402de`, 2026-10-19) are done; the lock-answer fix release, the first
-      R2 watcher run, the post-cutover delta copy and AWS teardown remain. See
+- [x] Move the archive to Cloudflare R2 and retire Minos AWS (#200): EU
+      bucket with lock and lifecycle rules, verified copy (549 objects, 0
+      failures), watcher cutover (`36402de`) and lock-answer fix (`39d0cf6`) on
+      2026-10-19, first scheduled R2 runs and AWS retirement on 2026-10-20. See
       [the migration evidence](docs/validation/r2-migration.md).
 - [x] Add the issue #6 private capture gate: fixed anonymous endpoints, bounded
       exact-byte staging, semantic `00CD10` XML selection, rotation quarantine,
@@ -663,10 +662,11 @@ UI remain the baseline.
 - [ ] Retain enough GHCR releases for rollback within GitHub Free storage
       limits.
 
-## Mikr.us, AWS, And Cloudflare
+## Mikr.us, AWS (Retired), And Cloudflare
 
-- [ ] Reuse and recovery-test the watcher private versioned S3 Terraform state
-      bucket with native locking.
+- [x] Retire the watcher Terraform state bucket and the `infra` Terraform
+      roots with AWS (#200); the R2 bucket, lock and lifecycle rules are
+      dashboard-managed and recorded in [the R2 migration](docs/validation/r2-migration.md).
 - [x] Purchase the dedicated Mikr.us `3.0` host; pin its SSH host key, rotate the
       console password, install a dedicated 1Password-backed operator key, and
       apply an idempotent Ansible baseline for key-only SSH, exact UFW rules,
@@ -686,8 +686,9 @@ UI remain the baseline.
       tests carry over to #49.
 - [x] Install host GHCR authentication for private exact-digest pulls, using
       the required package-read-only credential boundary.
-- [ ] Verify actual hosted archive-reader OIDC/IAM acceptance (#19); the custom
-      subject rehearsal does not prove the current AWS trust accepts it.
+- [x] Drop the hosted archive-reader OIDC/IAM acceptance: the role and the
+      GitHub OIDC provider were deleted with AWS (#200). #19's hosted build
+      evidence would now use a read-only R2 credential.
 - [x] Create the Cloudflare Tunnel, back up its scoped credential in 1Password,
       install it as a service-restricted host secret for the pinned
       `cloudflared` GID, and publish no application port directly from Mikr.us.
@@ -706,7 +707,7 @@ UI remain the baseline.
       compatible release manifest; do not deploy mutable tags or use Watchtower.
 - [ ] Quiesce watcher dispatch, verify a pre-deploy recovery image, test
       migrations on a disposable copy, and run scheduler-paused volume, secret,
-      S3, and recovery-image preflights before activation.
+      R2, and recovery-image preflights before activation.
 - [ ] Stop the prior watcher, start the exact candidate digest paused on the live
       volume, apply the tested migration, verify live revision/WAL/secrets and a
       post-migration recovery image, then activate one bounded canary.
@@ -730,9 +731,9 @@ UI remain the baseline.
       readiness and known-search checks. Accept that these local signals do not
       detect a complete Mikr.us host, network, or power outage from outside its
       fault domain.
-- [ ] Test recovery from Git, signed release and deployment records, versioned
-      S3 snapshots and control recovery images, GHCR digests, and Terraform
-      state onto an empty host.
+- [ ] Test recovery from Git, signed release and deployment records, R2
+      archive blobs and control recovery images, and GHCR digests onto an
+      empty host.
 
 ## Later
 

@@ -1,7 +1,7 @@
 # R2 Migration Evidence (#200)
 
-Status: the watcher writes to R2 since 2026-10-19; AWS retirement is recorded
-on #200.
+Status: complete. The watcher writes to R2 since 2026-10-19 and Minos's AWS
+resources were retired on 2026-10-20 (#200, closed).
 The decision is in [decisions.md](../v0.0.1/decisions.md#object-storage-on-cloudflare-r2-200-2026-10-19).
 
 ## Bucket
@@ -119,4 +119,35 @@ publish run 39312453776, after main CI passed:
   0 failures. The first rerun stopped on the bucket lock's `409`, which led to
   the lock-answer fix above.
 
-The first scheduled R2 run (03:00 UTC) and AWS retirement are recorded on #200.
+The lock-answer fix (#203) was released at `39d0cf6` the same evening with image
+`sha256:7020a074104cc3d08a11ecc3508fd7b5ce7f19e33c7079099a7ebfe3952be174`
+(publish run 39318981851): stage preflight passed, activate reported
+`healthy: true` and `watcher_image_matches: true`.
+
+First scheduled runs on R2, 2026-10-20 (UTC), from the bucket listing:
+
+| Time | Run | Written to R2 |
+| --- | --- | --- |
+| 00:15 | daily recovery image | `control-recovery/daily/` |
+| 03:00 | RSK | run recovery image; no new blobs, so unchanged objects were re-archived through the lock answer |
+| 04:00 | NFZ | run recovery image and new blobs |
+| 05:00 | BAW | run recovery image and new blobs |
+
+NFZ and BAW added 15 blobs in total.
+
+## AWS Retirement (2026-10-20)
+
+Owner-approved, exact names, in account 218375352108; the account's unrelated
+`data-craze` resources were not touched.
+
+- S3: the snapshots bucket (553 versions), the Terraform state bucket (38
+  versions, 27 delete markers) and the empty acceptance bucket, emptied and
+  deleted.
+- IAM: five `minos-health-watcher-*` roles, the `minos-health-watcher` user with
+  the old production access key, seven customer policies and the GitHub OIDC
+  provider, which only the archive-reader role trusted.
+- The `minos-health-watcher-monthly` budget and its SNS topic.
+- IAM Identity Center: the `MinosAdministrator` assignment and permission set;
+  the owner then removed the Minos SSO user and the instance.
+- Secrets: the three AWS vault items archived, not deleted; the retired AWS key
+  copy removed from the host, which keeps only its live R2 key.
