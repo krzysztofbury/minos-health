@@ -68,6 +68,9 @@ jobs:
             -e watcher_s3_endpoint=https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com \
             -e watcher_expected_image_digest=sha256:${SYNTHETIC_DIGEST_HEX} \
             -e watcher_source_revision=${GITHUB_SHA}
+          uvx --from ansible-core==2.21.4 ansible-playbook \
+            infra/ansible/processor.yml --syntax-check \
+            -e expected_hostname=minos-ci
         env:
           ANSIBLE_CONFIG: infra/ansible/ansible.cfg
           SYNTHETIC_DIGEST_HEX: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef

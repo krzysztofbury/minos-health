@@ -171,7 +171,8 @@ def propose_icd9_release(
         raise CandidateRejected("history", "retroactive_amendment_exceeds_bound")
     valid_from = _polish_midnight(effective)
     if previous.valid_from is not None and valid_from <= previous.valid_from:
-        raise CandidateRejected("history", "not_newer_than_live_release")
+        # Replacing the live generation over its own period needs the owner.
+        raise CandidateRejected("history", "effective_day_not_after_live_release")
     try:
         release = provisional.model_copy(
             update={"valid_from": valid_from, "expected": counts}

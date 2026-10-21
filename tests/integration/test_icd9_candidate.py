@@ -122,6 +122,8 @@ def _case(name: str) -> bytes:
         return _generation(version='symbol="6.01" edycja="6"')
     if name == "new_version_without_workbook":
         return _generation(version='symbol="5.91" edycja="5"')
+    if name == "starts_before_live":
+        return _generation()
     return b"<komunikat"
 
 
@@ -129,6 +131,7 @@ def _case(name: str) -> bytes:
     "name,criterion,code",
     [
         ("backdated_beyond_bound", "history", "retroactive_amendment_exceeds_bound"),
+        ("starts_before_live", "history", "effective_day_not_after_live_release"),
         ("older_generation", "history", "not_newer_than_live_release"),
         ("republished_unchanged", "history", "release_content_unchanged"),
         ("new_edition", "licence", "edition_changed"),
@@ -140,6 +143,15 @@ def test_proposal_names_the_failed_criterion(
     tmp_path: Path, name: str, criterion: str, code: str
 ) -> None:
     base = canonical_manifest(tmp_path)
+    if name == "starts_before_live":
+        # The 2026-09-24 change is within the bound but inside the period of
+        # a generation 93 that governs from 2026-10-01.
+        live = base.sources[1].model_copy(
+            update={"valid_from": datetime(2026, 9, 30, 22, tzinfo=UTC)}
+        )
+        base = base.model_copy(
+            update={"sources": (base.sources[0], live, *base.sources[2:])}
+        )
 
     with pytest.raises(CandidateRejected) as refused:
         _ = propose_icd9_release(

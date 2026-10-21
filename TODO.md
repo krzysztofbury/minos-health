@@ -437,12 +437,21 @@ UI remain the baseline.
         stand-in: `would_activate`, 269 s, 207 MiB. See
         [the ICD-9 candidate](docs/v0.0.1/archive-processing.md#shadow-icd-9-candidate-141-phase-b2).
   - [ ] Owner review: the CZS effective-date rule and the 92-day backdating
-        bound in `manifests/policy/czs-icd9-automatic.json`.
+        bound in `manifests/policy/czs-icd9-automatic.json` (advisor review
+        2026-10-21: keep both; the operative bound is the smaller of 92 days
+        and the time since the live generation started). Revisit the bound
+        after the processor has reported several real generations.
   - [ ] Phase B2 (JGP): BAW catalog candidates under the same criteria.
-  - [ ] Phase B3: host processor container runs B1/B2 on watcher change
-        records, reads R2 with its own read-only key and reports to Telegram
-        through a separate data-update push monitor. Measure host build
-        memory first.
+  - [x] Phase B3: `minos processor run` judges new RSK/NFZ inputs from the
+        public projections every six hours in a 384 MiB/0.5 CPU container
+        from the live API image, with its own read-only R2 key, and reports to
+        the `data-update` Kuma monitor. See
+        [the host processor](docs/v0.0.1/archive-processing.md#host-processor-141-phase-b3).
+  - [ ] Phase B3 owner steps: R2 read-only token and `data-update` push
+        monitor (28800 s) as vault documents, an API release with the
+        processor, then `infra/ansible/processor.yml`; the first run shows
+        whether every live input is in R2. See
+        [the setup](docs/v0.0.1/operations.md#data-update-processor-setup).
   - [x] Before Phase C: the database bound is 1 GiB, with the search
         attribution budget per release; a 10-source 915.9 MiB bundle kept the
         API at 264 MiB anonymous memory under 1 CPU/512 MiB (live bundle: 258).

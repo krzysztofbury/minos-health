@@ -216,3 +216,42 @@ def test_uptime_kuma_target_file_rejects_duplicate_keys(tmp_path: Path) -> None:
 
     with pytest.raises(UptimeKumaError, match="target file is invalid"):
         _ = UptimeKumaTargets.load(path)
+
+
+@pytest.mark.parametrize(
+    "message,sent",
+    [
+        ("idle", True),
+        ("failed: fetch", True),
+        ("would_activate icd9-czs-5-90-gen-94-0a1b2c3d4e5f", True),
+        (
+            "rejected icd9-pl history/retroactive_amendment_exceeds_bound; "
+            + "would_activate icd10-rsk-014-0a1b2c3d4e5f",
+            True,
+        ),
+        ("rejected icd9-pl history/x at /var/lib/minos/work", False),
+        ("would_activate https://source.invalid/x?q=1", False),
+        ("failed: fetch\nToken: secret", False),
+        ("rejected jgp history/x", False),
+        ("", False),
+    ],
+)
+def test_data_update_report_sends_only_fixed_verdict_shapes(
+    tmp_path: Path, message: str, sent: bool
+) -> None:
+    targets = _write_targets(tmp_path / "targets.json", {"data-update": _TOKEN})
+    queries: list[bytes] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.query)
+        return httpx.Response(200, json={"ok": True})
+
+    with UptimeKumaClient(targets, transport=httpx.MockTransport(handle)) as client:
+        if sent:
+            client.report("data-update", up=False, message=message)
+        else:
+            with pytest.raises(UptimeKumaError, match="report message is unsupported"):
+                client.report("data-update", up=True, message=message)
+
+    expected = httpx.QueryParams({"status": "down", "msg": message, "ping": ""})
+    assert queries == ([str(expected).encode()] if sent else [])

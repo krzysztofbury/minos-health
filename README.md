@@ -104,6 +104,9 @@ records. Reviewed updates use the guarded validation-deploy tool. Unattended
 selection, activation and detailed incident delivery resumed in #141 on
 2026-10-20 and are not yet enabled; #21 is closed as superseded, not delivered.
 Watcher failure pushes name a fixed failure category, such as `source_drift`.
+A host processor judges each new RSK ICD-10 or CZS ICD-9 file against the live
+bundle every six hours and reports the verdict to a separate Kuma monitor; it
+activates nothing yet.
 
 Offline `minos data diff` compares explicitly pinned terminology, catalog and
 conditions releases in verified bundle directories, with bounded Markdown/JSON

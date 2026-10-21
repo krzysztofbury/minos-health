@@ -511,7 +511,10 @@ and Compose mounts each file read-only into only that container:
 - Cloudflare Tunnel credential for `cloudflared`;
 - bucket-scoped R2 access key for the watcher (S3-compatible credential file);
 - Uptime Kuma target JSON for the watcher, containing only version, source IDs,
-  and 32-character alphanumeric push tokens.
+  and 32-character alphanumeric push tokens;
+- a separate read-only, bucket-scoped R2 key and a `data-update`-only Kuma
+  target for the data-update processor, in `/etc/minos/processor`, mode `0440`
+  root:`minos-processor` (see [the processor setup](#data-update-processor-setup)).
 
 The production target schema is exactly
 `{"version":1,"sources":{"rsk":"<32-character-alphanumeric-token>"}}`.
@@ -685,6 +688,52 @@ delivery intent pending on send failure and expose its separate incident for
 operator retry. A send failure cannot mark processing successful, undo a valid
 activation, advance the activation cursor or erase the original failure.
 Verify actual private delivery and redaction before enabling #21 automation.
+
+### Data-Update Processor Setup
+
+The [host processor](archive-processing.md#host-processor-141-phase-b3) runs in
+the reference API image, so it starts working after the API release that ships
+`minos processor run`. Owner steps:
+
+1. Create a Cloudflare R2 API token with Object Read only on `minos-archive`.
+   Store it in the MinosHealth vault as the document
+   `minos-production-processor-r2-credentials`, in the watcher key's format:
+   `[default]`, `aws_access_key_id = <32 hex>`,
+   `aws_secret_access_key = <64 hex>`.
+2. In Kuma, create a push monitor named `data-update` with a heartbeat interval
+   of 28800 seconds (six-hour timer, jitter and the 75-minute run cap) and the
+   Telegram notification. Store
+   `{"version":1,"sources":{"data-update":"<push token>"}}` as the document
+   `minos-production-processor-kuma-target`.
+3. After the API release, install the processor:
+
+   ```sh
+   set -euo pipefail
+   umask 077
+   secrets="$(mktemp -d)"
+   trap 'rm -rf -- "$secrets"' EXIT
+   op document get minos-production-processor-r2-credentials \
+     --vault MinosHealth --out "$secrets/r2"
+   op document get minos-production-processor-kuma-target \
+     --vault MinosHealth --out "$secrets/kuma.json"
+   ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
+     uvx --from ansible-core==2.21.4 ansible-playbook \
+     infra/ansible/processor.yml --diff \
+     -e processor_r2_credentials_source="$secrets/r2" \
+     -e processor_uptime_kuma_targets_source="$secrets/kuma.json"
+   ```
+
+4. Start one run and read its two journal lines:
+   `systemctl start minos-processor.service` and
+   `journalctl -u minos-processor.service -n 5 --no-pager`. Expect
+   `{"processor_host": "completed"}` and a verdict line, or `failed: fetch` if
+   a live input is missing from R2. This first run also confirms the
+   `minos_monitoring` network name, the runner-created
+   `minos-processor-egress` bridge under the host firewall and the host build
+   time. After a failure, `docker logs minos-processor` shows the run.
+
+Later applies may omit both sources; the installed files are kept and
+re-checked. `processor.yml` never touches the `minos` Compose project.
 
 ## Mutable Product Data Gate
 

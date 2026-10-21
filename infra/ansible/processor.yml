@@ -1,0 +1,185 @@
+---
+# Data-update processor (#141 phase B3), kept apart from site.yml so it never
+# enters the watcher candidate preflight or the runtime rollback. It installs
+# the identity, directories, read-only archive key, Kuma target, host runner
+# and timer. The processor runs in the live reference API image, so apply it
+# after an API release that ships `minos processor run`.
+- name: Install the Minos data-update processor
+  hosts: minos-production
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    processor_uid: 10005
+    processor_gid: 10005
+
+  pre_tasks:
+    - name: Require the reviewed production host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == "Ubuntu"
+          - ansible_facts.distribution_release == "noble"
+          - ansible_facts.virtualization_type == "lxc"
+          - ansible_facts.user_id == "root"
+          - ansible_facts.hostname == expected_hostname
+        fail_msg: Refusing to install the processor on an unexpected host.
+
+    - name: Inspect the installed processor secrets
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/minos/processor/r2/credentials
+        - /etc/minos/processor/uptime-kuma/targets.json
+      register: processor_installed_secrets
+      no_log: true
+
+    - name: Require a supplied or installed processor secret
+      ansible.builtin.assert:
+        that:
+          - >-
+            processor_installed_secrets.results[0].stat.exists or
+            processor_r2_credentials_source is defined
+          - >-
+            processor_installed_secrets.results[1].stat.exists or
+            processor_uptime_kuma_targets_source is defined
+        fail_msg: >-
+          Supply processor_r2_credentials_source and
+          processor_uptime_kuma_targets_source on the first apply.
+
+    - name: Read the supplied processor R2 credential
+      ansible.builtin.slurp:
+        src: "{{ processor_r2_credentials_source }}"
+      delegate_to: localhost
+      register: processor_r2_payload
+      when: processor_r2_credentials_source is defined
+      no_log: true
+
+    - name: Require the read-only R2 credential schema
+      ansible.builtin.assert:
+        that:
+          - >-
+            processor_r2_payload.content | b64decode is match(
+              '^\[default\]\naws_access_key_id[ \t]*=[ \t]*[0-9a-f]{32}\naws_secret_access_key[ \t]*=[ \t]*[0-9a-f]{64}\n?$'
+            )
+        fail_msg: The processor R2 credential has an invalid schema.
+      when: processor_r2_credentials_source is defined
+      no_log: true
+
+    - name: Read the supplied processor Kuma target
+      ansible.builtin.slurp:
+        src: "{{ processor_uptime_kuma_targets_source }}"
+      delegate_to: localhost
+      register: processor_kuma_payload
+      when: processor_uptime_kuma_targets_source is defined
+      no_log: true
+
+    - name: Require exactly the data-update Kuma target
+      ansible.builtin.assert:
+        that:
+          - (processor_kuma_payload.content | b64decode | from_json).version == 1
+          - (processor_kuma_payload.content | b64decode | from_json).sources.keys() | list == ['data-update']
+          - >-
+            (processor_kuma_payload.content | b64decode | from_json).sources['data-update']
+            is match('^[A-Za-z0-9]{32}$')
+        fail_msg: The processor Kuma target must name only the data-update push monitor.
+      when: processor_uptime_kuma_targets_source is defined
+      no_log: true
+
+  tasks:
+    - name: Create the pinned processor group
+      ansible.builtin.group:
+        name: minos-processor
+        gid: "{{ processor_gid }}"
+        system: true
+        state: present
+
+    - name: Create the pinned processor identity
+      ansible.builtin.user:
+        name: minos-processor
+        uid: "{{ processor_uid }}"
+        group: minos-processor
+        groups: ""
+        append: false
+        create_home: false
+        home: /nonexistent
+        shell: /usr/sbin/nologin
+        system: true
+        state: present
+
+    - name: Create the processor directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: directory
+        owner: "{{ item.owner }}"
+        group: "{{ item.group }}"
+        mode: "{{ item.mode }}"
+      loop:
+        - {path: /opt/minos/bin, owner: root, group: root, mode: "0755"}
+        - {path: /etc/minos/processor, owner: root, group: minos-processor, mode: "0750"}
+        - {path: /etc/minos/processor/r2, owner: root, group: minos-processor, mode: "0750"}
+        - {path: /etc/minos/processor/uptime-kuma, owner: root, group: minos-processor, mode: "0750"}
+        - {path: /var/lib/minos/processor, owner: root, group: minos-processor, mode: "0750"}
+        - {path: /var/lib/minos/processor/work, owner: minos-processor, group: minos-processor, mode: "0700"}
+        - {path: /var/lib/minos/processor/state, owner: minos-processor, group: minos-processor, mode: "0700"}
+
+    - name: Install the processor R2 credential
+      ansible.builtin.copy:
+        content: "{{ processor_r2_payload.content | b64decode }}"
+        dest: /etc/minos/processor/r2/credentials
+        owner: root
+        group: minos-processor
+        mode: "0440"
+      when: processor_r2_credentials_source is defined
+      no_log: true
+
+    - name: Install the processor Kuma target
+      ansible.builtin.copy:
+        content: "{{ processor_kuma_payload.content | b64decode }}"
+        dest: /etc/minos/processor/uptime-kuma/targets.json
+        owner: root
+        group: minos-processor
+        mode: "0440"
+      when: processor_uptime_kuma_targets_source is defined
+      no_log: true
+
+    - name: Inspect the processor secrets after installation
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - /etc/minos/processor/r2/credentials
+        - /etc/minos/processor/uptime-kuma/targets.json
+      register: processor_secrets
+      no_log: true
+
+    - name: Require the processor secret boundary
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists and item.stat.isreg
+          - item.stat.uid == 0 and item.stat.gid == processor_gid
+          - item.stat.mode == '0440'
+          - item.stat.size in range(2, 4097)
+        fail_msg: A processor secret has an unreviewed owner, mode or size.
+      loop: "{{ processor_secrets.results }}"
+      loop_control:
+        label: secret
+      no_log: true
+
+    - name: Install the processor host runner and units
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: root
+        group: root
+        mode: "{{ item.mode }}"
+      loop:
+        - {src: "{{ playbook_dir }}/../../scripts/processor_host.py", dest: /opt/minos/bin/processor_host.py, mode: "0755"}
+        - {src: minos-processor.service, dest: /etc/systemd/system/minos-processor.service, mode: "0644"}
+        - {src: minos-processor.timer, dest: /etc/systemd/system/minos-processor.timer, mode: "0644"}
+
+    - name: Enable the processor timer
+      ansible.builtin.systemd_service:
+        name: minos-processor.timer
+        enabled: true
+        state: started
+        daemon_reload: true

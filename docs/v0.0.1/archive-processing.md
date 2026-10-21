@@ -168,8 +168,8 @@ dated 2031-06-01 from `018`; in Chromium the grouper suggested the `018`
 wording for a June 2031 discharge, while search and the dictionary page stayed
 on `013`.
 
-Phase B1 reads a local archive root. The host processor (B3) will read the
-same digests from R2 through the existing archive selection.
+Phase B1 reads a local archive root. The host processor (B3) fetches the
+same digests from R2 with its own read-only key.
 
 ## Shadow ICD-9 Candidate (#141 Phase B2)
 
@@ -196,8 +196,9 @@ generation and a same-version NFZ workbook beside the previous pair:
   status or annotation change. The previous generation closes at that Polish
   midnight, so earlier service dates keep it.
 - Refusals: backdating beyond `max_backdating_days` (92, owner policy; history
-  `retroactive_amendment_exceeds_bound`), a generation not newer than the live
-  one, a republication with identical entries (`release_content_unchanged`,
+  `retroactive_amendment_exceeds_bound`), a generation number not newer than
+  the live one, an effective day not after the live generation's start
+  (`effective_day_not_after_live_release`), a republication with identical entries (`release_content_unchanged`,
   which B3 treats as nothing to do rather than a failure), an edition other
   than the policy's, and every B1 bytes, parse, build, regression and history
   check.
@@ -214,6 +215,83 @@ API the new generation was listed first and in force, a search dated 2026-09-15
 answered from generation 93 with the old title, one dated 2026-10-01 from 94
 with the new one, and the tree, the added code's page and the ICD-9 sitemap
 came from generation 94 with the reused workbook hierarchy.
+
+## Host Processor (#141 Phase B3)
+
+`minos-processor.timer` starts `/opt/minos/bin/processor_host.py` as root every
+six hours (01:30, 07:30, 13:30 and 19:30 with up to 10 minutes of jitter). The
+runner takes the shared validation deployment lock, reads the live Compose
+model for the reference API bundle, its image and the archive bucket, and runs
+one container, `minos processor run`, from that API image. The Alpine watcher
+image cannot build a bundle: it has neither the workbook reader nor the
+lemmatizer. The container is outside the `minos` Compose project, so watcher
+and validation transitions never see it. A deployment started during a run
+fails fast with the existing lock message, and a run that finds the lock busy
+is skipped.
+
+The container runs as `minos-processor` (UID/GID 10005) with the watcher's
+hardening: read-only root, no capabilities, `no-new-privileges`, init, 0.5 CPU,
+384 MiB without swap, 64 PIDs and a 16 MiB `/tmp`. Temporary files go to the
+on-disk work directory (`TMPDIR`), because tmpfs pages count against the memory
+limit. It mounts the public projections, the live bundle, the R2 key and the
+Kuma target read-only; only `/var/lib/minos/processor/{work,state}` are
+writable. It joins `minos_monitoring` for Kuma and a separate
+`minos-processor-egress` bridge for R2. The runner refuses to start below
+4 GiB free disk, kills a run after 75 minutes and empties the work directory
+on every exit.
+
+One run:
+
+1. Reads the RSK and NFZ projections through their `current` generation and
+   checks each file against the digest in the generation name. The processor
+   never opens the watcher control database. The current archived `00CD10`
+   product and its basic-info observation are the ICD-10 input (fetch time:
+   the entry's first observation). The CZS `ICD9` dictionary and, when its
+   digest is not live, the same-version companion workbook are the ICD-9
+   input (fetch time: the CZS observation).
+2. Skips an input whose digest is already a live source. A verdict is keyed by
+   the input digests, the live database digest and the policy file digest, so
+   each input is judged once per live bundle and policy.
+3. For a new key, pins every live input and the new blobs (a HEAD supplies
+   the size, bounded at 64 MiB and 1 MiB for basic-info), downloads them with
+   checksum mode, and runs the B1 or B2 proposal and evaluation.
+4. Stores the reports in `state/verdicts.json` (current keys only) and pushes
+   the `data-update` monitor: up with `idle` or `would_activate <release_id>`,
+   down with `rejected <system> <criterion>/<code>` or `failed: <step>`. The
+   push accepts only those shapes, so no path, URL, digest or source text can
+   reach Telegram. A failed step stores nothing and is retried next run.
+
+It activates nothing. Every live input must be in R2: release bundles are built
+on the workstation from `data/archive`, and no committed selection proves
+that each curated workbook is in the bucket. A missing blob reports
+`failed: fetch`, the cue to copy it with the operator key.
+
+Container evidence (2026-10-21, workstation, API image from the tree, the
+production limits, network off). A stand-in generation 94 (generation 93
+with one `data_do` added) against the live bundle was `would_activate` twice,
+with the same database digest: two builds took 678 and 613 seconds (the first
+overlapped a full test run) and wrote a 496.0 MiB database. Cgroup memory
+reached the 384 MiB limit, filled by page cache from the writes: anonymous
+memory peaked at 159 MiB and file cache at 242 MiB, with about 33,000 reclaim
+events and no OOM. The work directory peaked at 992 MiB. A bundle near the
+1 GiB bound roughly doubles both. Host timing is not measured yet: the host
+CPU is slower by an unknown factor, so the first production run is the
+evidence for the 75-minute cap. A failed run keeps its container for
+`docker logs minos-processor` until the next run. In a stand-in network with a fake Kuma, the processor read the
+projection as UID 10005, loaded `/app/policy`, pushed `failed: fetch`
+(no egress), then `idle` for the live generation, and left the work directory
+empty. The watcher image refused the same candidate in 6 seconds for lack of
+the workbook reader.
+
+Known limits, before Phase C: Kuma notifies only on a status change, so a
+second refusal while the monitor is already down does not reach Telegram
+(the durable per-candidate delivery in
+[failed data updates](operations.md#failed-data-updates-and-telegram) is still
+open). The 92-day ICD-9 bound is usually not the operative one: a generation
+whose effective day is not after the live generation's start is refused
+(`effective_day_not_after_live_release`), so the effective bound is the
+smaller of 92 days and the time since the live generation started. The
+processor's reports are the evidence for revisiting it.
 
 ## Deferred Target (#21/#141)
 
