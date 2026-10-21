@@ -77,14 +77,19 @@ def validate_search_synonyms(
                     "reviewed group wording is absent from its pinned catalog"
                 )
             continue
-        # An unscoped terminology synonym applies to every release of its
-        # system, so each release must contain the reviewed wording.
+        # An unscoped terminology synonym applies to every searchable release
+        # of its system, so each must contain the reviewed wording. Supporting
+        # workbooks are never searched.
         releases = [
             release
             for (release,) in cast(
                 list[tuple[str]],
                 connection.execute(
-                    "SELECT id FROM source_release WHERE system=? AND (? IS NULL OR id=?) ORDER BY id LIMIT 17",
+                    """SELECT id FROM source_release WHERE system=? AND (? IS NULL OR id=?)
+                    AND id NOT IN (SELECT key FROM json_each(coalesce(
+                        (SELECT value FROM build_metadata WHERE key='supporting_sources'),
+                        '{}')))
+                    ORDER BY id LIMIT 17""",
                     (entry.system, entry.release_id, entry.release_id),
                 ).fetchall(),
             )

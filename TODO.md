@@ -431,8 +431,14 @@ UI remain the baseline.
         regression bounds, unchanged history, licence) and prints a report.
         Real-data run: `would_activate`, 276 s, 207 MiB peak RSS. See
         [the shadow candidate](docs/v0.0.1/archive-processing.md#shadow-icd-10-candidate-141-phase-b1).
-  - [ ] Phase B2: the same for ICD-9 (CZS with its NFZ workbook companion),
-        then BAW/JGP catalogs.
+  - [x] Phase B2 (ICD-9): `minos data candidate-icd9` judges one archived CZS
+        generation with its same-version workbook; the generation governs from
+        its earliest changed code date, backdating at most 92 days. Real-data
+        stand-in: `would_activate`, 269 s, 207 MiB. See
+        [the ICD-9 candidate](docs/v0.0.1/archive-processing.md#shadow-icd-9-candidate-141-phase-b2).
+  - [ ] Owner review: the CZS effective-date rule and the 92-day backdating
+        bound in `manifests/policy/czs-icd9-automatic.json`.
+  - [ ] Phase B2 (JGP): BAW catalog candidates under the same criteria.
   - [ ] Phase B3: host processor container runs B1/B2 on watcher change
         records, reads R2 with its own read-only key and reports to Telegram
         through a separate data-update push monitor. Measure host build

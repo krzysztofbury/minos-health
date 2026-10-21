@@ -175,10 +175,10 @@ def main(
     parser = build_parser()
     raw_arguments = cast(dict[str, object], vars(parser.parse_args(argv)))
     top_level_command = raw_arguments.get("command")
-    if raw_arguments.get("data_command") == "candidate-icd10":
-        from minos.cli.candidate import execute_icd10_candidate
+    if raw_arguments.get("data_command") in ("candidate-icd10", "candidate-icd9"):
+        from minos.cli.candidate import execute_candidate
 
-        code = execute_icd10_candidate(raw_arguments)
+        code = execute_candidate(raw_arguments)
         if code:
             parser.exit(code)
         return

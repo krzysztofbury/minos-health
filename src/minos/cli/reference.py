@@ -160,6 +160,23 @@ def add_reference_commands(
         )
         _ = candidate.add_argument("--policy", type=Path, required=True)
         _ = candidate.add_argument("--work", type=Path, required=True)
+        icd9 = data_commands.add_parser(
+            "candidate-icd9",
+            help="Build and judge a shadow candidate for one archived CZS ICD-9 generation.",
+        )
+        _ = icd9.add_argument("--live-bundle", type=Path, required=True)
+        _ = icd9.add_argument("--archive-root", type=Path, required=True)
+        _ = icd9.add_argument("--czs-sha256", required=True)
+        _ = icd9.add_argument(
+            "--workbook-sha256",
+            help="Archived same-version NFZ workbook; required when the version changes.",
+        )
+        _ = icd9.add_argument("--workbook-url")
+        _ = icd9.add_argument(
+            "--fetched-at", required=True, help="Watcher observation time, ISO 8601."
+        )
+        _ = icd9.add_argument("--policy", type=Path, required=True)
+        _ = icd9.add_argument("--work", type=Path, required=True)
 
 
 def reference_main(argv: Sequence[str] | None = None) -> None:

@@ -10,12 +10,12 @@ import shutil
 import sqlite3
 from contextlib import closing
 from pathlib import Path
-from typing import ClassVar, Literal, cast
+from typing import ClassVar, Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict
 
 from minos.domain.reference import ArtifactError, SourceError
-from minos.ingest.icd10_candidate import CandidateRejected, Criterion, RskIcd10Policy
+from minos.ingest.icd10_candidate import CandidateRejected, Criterion
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.artifact import (
@@ -57,6 +57,13 @@ _RELEASE_ROWS = (
 )
 
 
+class RegressionBounds(Protocol):
+    @property
+    def max_removed_code_ratio(self) -> float: ...
+    @property
+    def max_concept_count_change_ratio(self) -> float: ...
+
+
 class CandidateReport(BaseModel):
     """Privacy-safe outcome of one candidate; it carries no paths or source text."""
 
@@ -84,19 +91,23 @@ def rejected(error: CandidateRejected) -> CandidateReport:
     )
 
 
-def evaluate_icd10_candidate(
+def evaluate_candidate(
     candidate: DatasetManifest,
     *,
+    terminology: tuple[str, str],
     live_bundle: Path,
     archive_root: Path,
     work: Path,
-    policy: RskIcd10Policy,
+    policy: RegressionBounds,
 ) -> CandidateReport:
-    """Build the candidate twice in ``work`` and judge it against the live bundle."""
+    """Build the candidate twice in ``work`` and judge it against the live bundle.
+
+    ``terminology`` is the (system, origin) of the one new canonical release.
+    """
     live = ArtifactManifest.model_validate_json(
         (live_bundle / ARTIFACT_MANIFEST_NAME).read_bytes()
     )
-    previous_id, release_id = _release_pair(live.dataset, candidate)
+    previous_id, release_id = _release_pair(live.dataset, candidate, terminology)
     first = _build(candidate, archive_root, work / "first")
     second = _build(candidate, archive_root, work / "second")
     # Only the first bundle is kept; the second exists to prove determinism.
@@ -138,16 +149,31 @@ def evaluate_icd10_candidate(
     )
 
 
-def _release_pair(live: DatasetManifest, candidate: DatasetManifest) -> tuple[str, str]:
+def _release_pair(
+    live: DatasetManifest, candidate: DatasetManifest, terminology: tuple[str, str]
+) -> tuple[str, str]:
     live_ids = {source.release_id for source in live.sources}
-    new = [source for source in candidate.sources if source.release_id not in live_ids]
-    if len(new) != 1 or (new[0].system, new[0].origin) != ("icd10-pl", "rsk"):
-        raise CandidateRejected("history", "candidate_is_not_one_new_icd10_release")
+    added = [
+        source for source in candidate.sources if source.release_id not in live_ids
+    ]
+    new = [source for source in added if source.context_for is None]
+    # Only the new release's own supporting workbook may arrive beside it.
+    if (
+        len(new) != 1
+        or (new[0].system, new[0].origin) != terminology
+        or any(
+            source.context_for != new[0].release_id
+            for source in added
+            if source is not new[0]
+        )
+    ):
+        raise CandidateRejected("history", "candidate_is_not_one_new_release")
     closed = [
         source
         for source in candidate.sources
         if source.release_id in live_ids
-        and (source.system, source.origin) == ("icd10-pl", "rsk")
+        and (source.system, source.origin) == terminology
+        and source.context_for is None
         and source.valid_to == new[0].valid_from
     ]
     if len(closed) != 1:

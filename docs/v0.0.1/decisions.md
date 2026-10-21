@@ -824,7 +824,10 @@ closes at the new validity start, so earlier service dates keep their release.
 Licence approval is per source class: the reviewed policy file pins the
 publisher's licence statement, and a reworded statement goes to the owner.
 Users get the latest release unless a question carries a date; a dated
-question uses the release in force on that day (owner, 2026-10-21). Criteria and phases are recorded in
+question uses the release in force on that day (owner, 2026-10-21). A CZS
+ICD-9 generation governs from its earliest changed procedure date, never later
+than its publication day, with backdating bounded by the policy (proposed 92
+days, pending owner review). Criteria and phases are recorded in
 [#141](https://github.com/krzysztofbury/minos-health/issues/141#issuecomment-6298146114).
 
 The owner already applied the custom GitHub OIDC subject template. Hosted

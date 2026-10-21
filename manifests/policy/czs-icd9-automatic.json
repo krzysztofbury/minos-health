@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "source_class": "czs-icd9",
+  "approved_on": "2026-10-20",
+  "approval": "Owner decision 2026-10-20 (#141): a parseable CZS ICD-9 generation that passes every activation criterion goes live without manual review.",
+  "publisher": "Narodowy Fundusz Zdrowia",
+  "edition": "5",
+  "worksheet": "ICD-9_PL ",
+  "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+  "czs_notices": [
+    "Source: NFZ Centralne Zasoby Slownikowe, ICD-9 PL {version}, generation {generation}. Historical pinned capture, not a latest-version selector.",
+    "The fetch timestamp is the archived watcher observation timestamp; source publication and generation timestamps have no stated timezone and are retained in the source header.",
+    "CZS is the single canonical ICD-9 catalog. Exact source codes, titles, statuses, procedure date bounds and annotations are preserved. The XML supplies no hierarchy; no parent or billability inference is made.",
+    "Same-version workbook hierarchy is separately attributed supporting evidence joined only by exact lookup code. Workbook-only codes and conflicting workbook titles do not extend or override the canonical catalog.",
+    "This generation governs from its earliest changed procedure date, never later than its publication day; earlier service dates keep the previous generation.",
+    "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+    "The owner authorized noncommercial public reference search on 2026-10-01 and automatic activation of CZS ICD-9 PL generations on 2026-10-20 (#141). Official raw download links point upstream; the Minos private archive is not exposed. This is not commercial redistribution clearance."
+  ],
+  "workbook_notices": [
+    "Source: NFZ ICD-9 PL {version} companion workbook, supporting hierarchy only, not a separately selectable catalog.",
+    "The exact selected table is ICD-9_PL followed by one space. The distinct ICD-9_PL table without that space is not merged or silently substituted.",
+    "This workbook is linked to CZS generation {generation}, SHA-256 {czs_sha256}, by the same ICD-9 PL version. Exact-code links expose workbook ancestors separately, never as CZS-supplied facts.",
+    "The workbook supplies explicit column levels and containment, not procedure status, applicability dates, synonyms or billability. Canonical CZS titles and status/date evidence always remain authoritative.",
+    "Raw code/title cells, conflicting title/code-form evidence, inclusion/exclusion text and notes remain in this immutable source graph. Workbook-only codes and workbook annotations are not canonical search matches. No leading zeros or absent parents are invented.",
+    "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision.",
+    "The owner authorized noncommercial public reference search on 2026-10-01. Official raw download links point upstream; the Minos private archive is not exposed. This is not commercial redistribution clearance."
+  ],
+  "max_backdating_days": 92,
+  "max_removed_code_ratio": 0.01,
+  "max_concept_count_change_ratio": 0.05
+}

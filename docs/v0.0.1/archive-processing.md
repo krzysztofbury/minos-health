@@ -171,6 +171,50 @@ on `013`.
 Phase B1 reads a local archive root. The host processor (B3) will read the
 same digests from R2 through the existing archive selection.
 
+## Shadow ICD-9 Candidate (#141 Phase B2)
+
+```sh
+minos data candidate-icd9 --live-bundle <live bundle> \
+  --archive-root <archive> --czs-sha256 <digest> \
+  [--workbook-sha256 <digest> --workbook-url <NFZ XLSX URL>] \
+  --fetched-at <observation time> \
+  --policy manifests/policy/czs-icd9-automatic.json --work <new directory>
+```
+
+The CZS digest comes from the watcher's `czs_dictionary` record. Evaluation,
+the report and the exit codes are those of B1. The candidate adds the new CZS
+generation and a same-version NFZ workbook beside the previous pair:
+
+- An unchanged version (`symbol`) reuses the live workbook bytes under a new
+  release identity bound to the new generation. A changed version needs the
+  archived workbook for that version (`workbook_companion_missing` otherwise).
+- CZS has no dictionary-level validity, only a publication time and per-code
+  procedure dates, and NFZ backdates some codes (generation 93, published
+  2026-09-24, has codes starting 2026-09-01). The new generation therefore
+  governs from its earliest changed date: an added code's `data_od`, either
+  side of a changed `data_od` or `data_do`, and the publication day for a title,
+  status or annotation change. The previous generation closes at that Polish
+  midnight, so earlier service dates keep it.
+- Refusals: backdating beyond `max_backdating_days` (92, owner policy; history
+  `retroactive_amendment_exceeds_bound`), a generation not newer than the live
+  one, a republication with identical entries (`release_content_unchanged`,
+  which B3 treats as nothing to do rather than a failure), an edition other
+  than the policy's, and every B1 bytes, parse, build, regression and history
+  check.
+- ICD-9 synonyms pinned to the previous generation become unscoped. An unscoped
+  terminology synonym is checked against every searchable release of its
+  system; supporting workbooks are never searched, so they are excluded.
+
+Real-data evidence (2026-10-21, workstation): against the live bundle with a
+stand-in generation 94 derived from 93 (published 2026-10-15, one title
+changed, one code added from 2026-10-01), the report was `would_activate` with
+10,179 and 10,180 concepts, 1 added, 0 removed and 1 changed. Two builds took
+269 seconds with a 207 MiB peak RSS; the database was 496.0 MiB. Through the
+API the new generation was listed first and in force, a search dated 2026-09-15
+answered from generation 93 with the old title, one dated 2026-10-01 from 94
+with the new one, and the tree, the added code's page and the ICD-9 sitemap
+came from generation 94 with the reused workbook hierarchy.
+
 ## Deferred Target (#21/#141)
 
 The following is the acceptance scope resumed on 2026-10-20. It runs in a

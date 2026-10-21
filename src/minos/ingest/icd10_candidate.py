@@ -9,9 +9,10 @@ candidate; every refusal names the activation criterion that failed.
 import hashlib
 import json
 import tempfile
+from collections.abc import Callable, Iterable
 from datetime import date
 from pathlib import Path
-from typing import Annotated, ClassVar, Literal, Self
+from typing import Annotated, BinaryIO, ClassVar, Literal, Self
 
 from pydantic import (
     AwareDatetime,
@@ -24,7 +25,7 @@ from pydantic import (
 
 from minos.domain.reference import ReferenceNode, ReferenceRelation, SourceError
 from minos.ingest.archive_source import ArchivedBlob, verified_source
-from minos.ingest.icd10 import parse_icd10
+from minos.ingest.icd10 import ReferenceEvent, parse_icd10
 from minos.ingest.manifest_types import Digest, SourceText
 from minos.ingest.reference_manifest import (
     DatasetManifest,
@@ -210,13 +211,24 @@ def _read_basic_info(archive_root: Path, sha256: str) -> RskBasicInfo:
 
 
 def _count_release(archive_root: Path, product: ArchivedBlob) -> ExpectedCounts:
+    return count_release(archive_root, product, parse_icd10)
+
+
+def count_release(
+    archive_root: Path,
+    product: ArchivedBlob,
+    parse: Callable[[BinaryIO], Iterable[ReferenceEvent]],
+    *,
+    code: str = "product_rejected_by_parser",
+) -> ExpectedCounts:
+    """Count one archived release through its parser, or refuse it as unparseable."""
     nodes = relations = concepts = descriptions = 0
     try:
         with tempfile.TemporaryDirectory(prefix=".minos-candidate-") as staging:
             with verified_source(
                 archive_root, product, staging_directory=Path(staging)
             ) as snapshot:
-                for event in parse_icd10(snapshot):
+                for event in parse(snapshot):
                     if isinstance(event, ReferenceRelation):
                         relations += 1
                     elif isinstance(event, ReferenceNode):
@@ -231,7 +243,7 @@ def _count_release(archive_root: Path, product: ArchivedBlob) -> ExpectedCounts:
             descriptions=descriptions,
         )
     except SourceError:
-        raise CandidateRejected("parse", "product_rejected_by_parser") from None
+        raise CandidateRejected("parse", code) from None
     except ValidationError:
         raise CandidateRejected("parse", "product_counts_out_of_bounds") from None
 
