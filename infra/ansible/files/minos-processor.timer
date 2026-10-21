@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Minos data-update processor every six hours
+
+[Timer]
+OnCalendar=*-*-* 01,07,13,19:30:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -20,6 +20,12 @@ _READ_CHUNK_BYTES = 4096
 _SOURCE_ID = re.compile(r"[a-z][a-z0-9_-]{0,63}")
 # Uptime Kuma 2.5.5 generates push tokens with genSecret(32).
 _PUSH_TOKEN = re.compile(r"[A-Za-z0-9]{32}")
+# Data-update verdicts (#141 B3) reach Telegram, so only release identifiers,
+# fixed criteria and refusal codes may appear in them.
+_VERDICT = r"would_activate [a-z0-9][a-z0-9-]{0,95}|rejected icd(?:10|9)-pl [a-z]{1,16}/[a-z0-9_]{1,64}"
+_REPORT = re.compile(
+    rf"idle|failed: [a-z_]{{1,32}}|(?:{_VERDICT})(?:; (?:{_VERDICT})){{0,7}}"
+)
 
 
 class UptimeKumaError(RuntimeError):
@@ -148,6 +154,11 @@ class UptimeKumaClient:
         if category not in FAILURE_CATEGORIES:
             raise UptimeKumaError("Uptime Kuma failure category is unsupported")
         self._push(source_id, status="down", message=f"failed: {category}")
+
+    def report(self, source_id: str, *, up: bool, message: str) -> None:
+        if _REPORT.fullmatch(message) is None:
+            raise UptimeKumaError("Uptime Kuma report message is unsupported")
+        self._push(source_id, status="up" if up else "down", message=message)
 
     def _push(
         self,

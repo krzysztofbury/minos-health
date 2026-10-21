@@ -4,10 +4,11 @@
 import base64
 import hashlib
 import os
+import re
 import sys
 import tempfile
 import time
-from collections.abc import Generator, Iterator, Mapping
+from collections.abc import Generator, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, Protocol, Self, cast, final
@@ -30,6 +31,8 @@ MAX_ARCHIVE_OBJECTS = 128
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_TRANSFER_SECONDS = 600
 STREAM_CHUNK_BYTES = 64 * 1024
+_BUCKET = re.compile(r"[a-z0-9][a-z0-9-]{1,61}[a-z0-9]")
+_DIGEST = re.compile(r"[0-9a-f]{64}")
 
 
 class ArchiveObject(BaseModel):
@@ -68,7 +71,7 @@ class ArchiveSelection(BaseModel):
         if self.dataset_id != dataset_identity(manifest):
             raise SourceError("archive selection belongs to another dataset")
         expected: dict[str, int] = {}
-        for item in _source_files(manifest):
+        for item in source_files(manifest):
             if item.sha256 in expected and expected[item.sha256] != item.size_bytes:
                 raise SourceError("source manifest has conflicting blob sizes")
             expected[item.sha256] = item.size_bytes
@@ -77,7 +80,7 @@ class ArchiveSelection(BaseModel):
             raise SourceError("archive selection does not exactly cover pinned inputs")
 
 
-class _BlobIdentity(Protocol):
+class BlobIdentity(Protocol):
     @property
     def sha256(self) -> str: ...
 
@@ -85,7 +88,7 @@ class _BlobIdentity(Protocol):
     def size_bytes(self) -> int: ...
 
 
-def _source_files(manifest: DatasetManifest) -> Iterator[_BlobIdentity]:
+def source_files(manifest: DatasetManifest) -> Iterator[BlobIdentity]:
     yield from manifest.sources
     for notice in manifest.komunikaty:
         yield notice.algorithm
@@ -107,6 +110,10 @@ class ArchiveS3Client(Protocol):
     def get_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
     def close(self) -> None: ...
+
+
+class BlobS3Client(ArchiveS3Client, Protocol):
+    def head_object(self, **kwargs: object) -> Mapping[str, object]: ...
 
 
 class _Boto3(Protocol):
@@ -134,35 +141,11 @@ class S3ArchiveReader:
 
     @classmethod
     def create(cls, selection: ArchiveSelection) -> Self:
-        boto3_api = cast(_Boto3, boto3)  # pyright: ignore[reportInvalidCast]
-        try:
-            client = cast(
-                ArchiveS3Client,
-                boto3_api.client(
-                    "s3",
-                    region_name=R2_REGION,
-                    endpoint_url=selection.endpoint,
-                    config=Config(
-                        connect_timeout=10,
-                        read_timeout=30,
-                        retries={"total_max_attempts": 1, "mode": "standard"},
-                        ignore_configured_endpoint_urls=True,
-                    ),
-                ),
-            )
-        except BotoCoreError, ClientError:
-            raise SourceError("archive read client could not be created") from None
-        return cls(client, selection)
+        return cls(_create_client(selection.endpoint), selection)
 
     def close(self) -> None:
         """The caller that creates the SDK client owns its connection pool."""
-        primary_error = sys.exception()
-        try:
-            self._client.close()
-        except BotoCoreError, OSError:
-            if primary_error is None:
-                raise SourceError("archive client cleanup failed") from None
-            primary_error.add_note("archive client cleanup also failed")
+        _close_client(self._client)
 
     @contextmanager
     def materialize(
@@ -179,29 +162,143 @@ class S3ArchiveReader:
                 target = archive / "blobs" / "sha256"
                 target.mkdir(parents=True, mode=0o700)
                 for item in sorted(self._selection.objects, key=lambda pin: pin.sha256):
-                    self._download(item, target / item.sha256, deadline)
+                    _download(
+                        self._client,
+                        self._selection.bucket,
+                        item,
+                        target / item.sha256,
+                        deadline,
+                    )
                 yield archive
         except OSError:
             raise SourceError("archive materialization or cleanup failed") from None
 
-    def _download(self, item: ArchiveObject, output: Path, deadline: float) -> None:
-        _check_deadline(deadline)
+
+@final
+class R2BlobReader:
+    """Read archive blobs named only by digest, with the same verified writes.
+
+    Public projections carry digests but not every size (#141 B3). A HEAD
+    answer bounded by the caller supplies the size; the download then pins
+    both, and the body digest must still equal the key.
+    """
+
+    def __init__(self, client: BlobS3Client, bucket: str) -> None:
+        if _BUCKET.fullmatch(bucket) is None:
+            raise SourceError("archive bucket name is unsupported")
+        self._client = client
+        self._bucket = bucket
+
+    @classmethod
+    def create(cls, *, bucket: str, endpoint: str) -> Self:
         try:
-            response = self._client.get_object(
-                Bucket=self._selection.bucket,
-                Key=f"blobs/sha256/{item.sha256}",
+            endpoint = validate_r2_endpoint(endpoint)
+        except ValueError:
+            raise SourceError("archive endpoint is unsupported") from None
+        return cls(cast(BlobS3Client, _create_client(endpoint)), bucket)
+
+    def close(self) -> None:
+        _close_client(self._client)
+
+    def pin(self, sha256: str, *, max_bytes: int) -> ArchiveObject:
+        if _DIGEST.fullmatch(sha256) is None:
+            raise SourceError("archive digest is invalid")
+        try:
+            response = self._client.head_object(
+                Bucket=self._bucket,
+                Key=f"blobs/sha256/{sha256}",
                 ChecksumMode="ENABLED",
             )
         except BotoCoreError, ClientError:
-            raise SourceError("checksum-pinned archive read failed") from None
-        with _response_stream(response) as stream:
-            _check_deadline(deadline)
-            _require_response_identity(response, item)
-            descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(descriptor, "wb") as target:
-                _copy_verified(stream, target, item, deadline)
-                target.flush()
-                os.fsync(target.fileno())
+            raise SourceError("archive object metadata read failed") from None
+        length = response.get("ContentLength")
+        checksum = response.get("ChecksumSHA256")
+        if (
+            not isinstance(length, int)
+            or isinstance(length, bool)
+            or not 1 <= length <= max_bytes
+            or (
+                checksum is not None
+                and checksum != base64.b64encode(bytes.fromhex(sha256)).decode()
+            )
+        ):
+            raise SourceError("archive object metadata differs from its bound")
+        try:
+            return ArchiveObject(sha256=sha256, size_bytes=length)
+        except ValueError:
+            raise SourceError(
+                "archive object metadata differs from its bound"
+            ) from None
+
+    def download(self, objects: Iterable[ArchiveObject], archive: Path) -> None:
+        """Write each blob under ``archive``; an existing file is never replaced."""
+        deadline = time.monotonic() + MAX_TRANSFER_SECONDS
+        target = archive / "blobs" / "sha256"
+        try:
+            target.mkdir(parents=True, exist_ok=True, mode=0o700)
+            for item in sorted(objects, key=lambda pin: pin.sha256):
+                _download(
+                    self._client, self._bucket, item, target / item.sha256, deadline
+                )
+        except OSError:
+            raise SourceError("archive blob write failed") from None
+
+
+def _create_client(endpoint: str) -> ArchiveS3Client:
+    boto3_api = cast(_Boto3, boto3)  # pyright: ignore[reportInvalidCast]
+    try:
+        return cast(
+            ArchiveS3Client,
+            boto3_api.client(
+                "s3",
+                region_name=R2_REGION,
+                endpoint_url=endpoint,
+                config=Config(
+                    connect_timeout=10,
+                    read_timeout=30,
+                    retries={"total_max_attempts": 1, "mode": "standard"},
+                    ignore_configured_endpoint_urls=True,
+                ),
+            ),
+        )
+    except BotoCoreError, ClientError:
+        raise SourceError("archive read client could not be created") from None
+
+
+def _close_client(client: ArchiveS3Client) -> None:
+    primary_error = sys.exception()
+    try:
+        client.close()
+    except BotoCoreError, OSError:
+        if primary_error is None:
+            raise SourceError("archive client cleanup failed") from None
+        primary_error.add_note("archive client cleanup also failed")
+
+
+def _download(
+    client: ArchiveS3Client,
+    bucket: str,
+    item: ArchiveObject,
+    output: Path,
+    deadline: float,
+) -> None:
+    _check_deadline(deadline)
+    try:
+        response = client.get_object(
+            Bucket=bucket,
+            Key=f"blobs/sha256/{item.sha256}",
+            ChecksumMode="ENABLED",
+        )
+    except BotoCoreError, ClientError:
+        raise SourceError("checksum-pinned archive read failed") from None
+    with _response_stream(response) as stream:
+        _check_deadline(deadline)
+        _require_response_identity(response, item)
+        descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as target:
+            _copy_verified(stream, target, item, deadline)
+            target.flush()
+            os.fsync(target.fileno())
 
 
 def _require_response_identity(

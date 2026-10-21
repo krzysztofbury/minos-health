@@ -1,0 +1,11 @@
+[Unit]
+Description=Minos data-update processor (shadow candidates, #141)
+Requires=docker.service
+After=docker.service minos-compose.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/minos/bin/processor_host.py
+# The host runner kills the processor container after 75 minutes.
+TimeoutStartSec=85min
+Nice=10

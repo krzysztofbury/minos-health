@@ -25,6 +25,9 @@ RUN apt-get update && \
       "libpcre2-8-0=10.42-1+deb12u2" "perl-base=5.36.0-7+deb12u4" && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/.venv /build/.venv
+# The host processor (#141 B3) judges candidates in this image under these
+# owner-approved activation policies; they carry no source data or secrets.
+COPY manifests/policy /app/policy
 # A validation deployment mounts one pinned, read-only bundle. No raw sources,
 # credentials, source archive, compiler or package manager enter this image.
 RUN mkdir -p /app/data && \

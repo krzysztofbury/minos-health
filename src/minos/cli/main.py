@@ -125,6 +125,26 @@ def build_parser() -> ArgumentParser:
         rebuild_public_rsk,
     ):
         _add_watcher_paths(command)
+    processor = commands.add_parser(
+        "processor", help="Judge newly archived source files (shadow only)."
+    )
+    processor_commands = processor.add_subparsers(
+        dest="processor_command", required=True
+    )
+    processor_run = processor_commands.add_parser(
+        "run", help="Judge new inputs once and report to Uptime Kuma."
+    )
+    for option in (
+        "--public-directory",
+        "--live-bundle",
+        "--policy-directory",
+        "--work",
+        "--state",
+        "--uptime-kuma-targets",
+    ):
+        _ = processor_run.add_argument(option, type=Path, required=True)
+    _ = processor_run.add_argument("--archive-bucket", required=True)
+    _ = processor_run.add_argument("--archive-endpoint", required=True)
     recovery = commands.add_parser("recovery", help="Operate trusted recovery data.")
     recovery_commands = recovery.add_subparsers(dest="recovery_command", required=True)
     inventory = recovery_commands.add_parser(
@@ -193,6 +213,13 @@ def main(
         from minos.cli.reference import execute_reference
 
         code = execute_reference(raw_arguments)
+        if code:
+            parser.exit(code)
+        return
+    if top_level_command == "processor":
+        from minos.cli.processor import execute_processor
+
+        code = execute_processor(raw_arguments)
         if code:
             parser.exit(code)
         return

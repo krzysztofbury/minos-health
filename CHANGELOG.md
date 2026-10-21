@@ -26,6 +26,15 @@ signed-release and deployment-acceptance gates remain #41/#27.
   The generation governs from its earliest changed procedure date, and
   backdating beyond the owner's 92-day bound is refused
   (`manifests/policy/czs-icd9-automatic.json`, #141 phase B2).
+- `minos processor run` and `minos-processor.timer` (#141 phase B3): every six
+  hours a hardened container from the live reference API image reads the
+  watcher's public RSK and NFZ projections, fetches new inputs and the live
+  ones from R2 with its own read-only key, judges each new input once with
+  the B1/B2 candidates and reports `idle`, `would_activate <release>`,
+  `rejected <system> <criterion>/<code>` or `failed: <step>` to a separate
+  `data-update` Kuma monitor. It activates nothing and holds the deployment
+  lock while it runs. `infra/ansible/processor.yml` installs it; the API image
+  now carries the activation policies in `/app/policy`.
 - `/api/v1/releases` marks each release's `valid_from`, `valid_to` and
   `in_force` and lists the release in force today first; a search may carry a
   `service_date` instead of a release and is answered from the release in force
@@ -177,6 +186,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- A CZS generation whose effective day is not after the live generation's
+  start is refused as `effective_day_not_after_live_release`, apart from an
+  older generation number (`not_newer_than_live_release`), so the alert names
+  the check (#141).
 - certifi 2026.10.19 in `uv.lock` (was 2026.7.22) for PYSEC-2026-4320, which
   `pip-audit` reported on 2026-10-21.
 - The reference database bound is 1 GiB (was 512 MiB), and the search
