@@ -696,31 +696,38 @@ the reference API image, so it starts working after the API release that ships
 `minos processor run`. Owner steps:
 
 1. Create a Cloudflare R2 API token with Object Read only on `minos-archive`.
-   Store it in the MinosHealth vault as the document
-   `minos-production-processor-r2-credentials`, in the watcher key's format:
-   `[default]`, `aws_access_key_id = <32 hex>`,
-   `aws_secret_access_key = <64 hex>`.
+   It lives in the MinosHealth vault as the login item
+   `minos-production-processor-r2-credentials` (ID
+   `3lapt4pwp43x2rojdjzccsumhi`; its title starts with a space, so use the ID)
+   with the fields `access key id` (32 hex) and `secret access key` (64 hex).
 2. In Kuma, create a push monitor named `data-update` with a heartbeat interval
    of 28800 seconds (six-hour timer, jitter and the 75-minute run cap) and the
-   Telegram notification. Store
-   `{"version":1,"sources":{"data-update":"<push token>"}}` as the document
-   `minos-production-processor-kuma-target`.
-3. After the API release, install the processor:
+   Telegram notification. Its push token (the 32 characters after
+   `/api/push/`) is the `data_update` field of the `MinosHealth Uptime Kuma`
+   item (ID `clb4foeld7unl27zh7o6ainxja`), beside the watcher tokens.
+3. After the API release, install the processor. The subshell builds the
+   credential file and the Kuma target in a private temporary directory and
+   removes it on exit:
 
    ```sh
-   set -euo pipefail
-   umask 077
-   secrets="$(mktemp -d)"
-   trap 'rm -rf -- "$secrets"' EXIT
-   op document get minos-production-processor-r2-credentials \
-     --vault MinosHealth --out "$secrets/r2"
-   op document get minos-production-processor-kuma-target \
-     --vault MinosHealth --out "$secrets/kuma.json"
-   ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
-     uvx --from ansible-core==2.21.4 ansible-playbook \
-     infra/ansible/processor.yml --diff \
-     -e processor_r2_credentials_source="$secrets/r2" \
-     -e processor_uptime_kuma_targets_source="$secrets/kuma.json"
+   (
+     set -euo pipefail
+     umask 077
+     secrets="$(mktemp -d)"
+     trap 'rm -rf -- "$secrets"' EXIT INT TERM HUP
+     printf '[default]\naws_access_key_id = %s\naws_secret_access_key = %s\n' \
+       "$(op read 'op://MinosHealth/3lapt4pwp43x2rojdjzccsumhi/access key id')" \
+       "$(op read 'op://MinosHealth/3lapt4pwp43x2rojdjzccsumhi/secret access key')" \
+       > "$secrets/r2"
+     printf '{"version":1,"sources":{"data-update":"%s"}}\n' \
+       "$(op read 'op://MinosHealth/clb4foeld7unl27zh7o6ainxja/data_update')" \
+       > "$secrets/kuma.json"
+     ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
+       uvx --from ansible-core==2.21.4 ansible-playbook \
+       infra/ansible/processor.yml \
+       -e processor_r2_credentials_source="$secrets/r2" \
+       -e processor_uptime_kuma_targets_source="$secrets/kuma.json"
+   )
    ```
 
 4. Start one run and read its two journal lines:

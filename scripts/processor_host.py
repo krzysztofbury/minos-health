@@ -66,7 +66,7 @@ def read_plan(root: Path) -> Plan:
         if len(content) > MAX_COMPOSE_BYTES:
             raise HostError("compose model exceeds its bound")
         services = cast(dict[str, dict[str, object]], json.loads(content)["services"])
-    except OSError, ValueError, KeyError, TypeError:
+    except (OSError, ValueError, KeyError, TypeError):
         raise HostError("live compose model is unreadable") from None
     apis = [services[name] for name in API_SERVICES if name in services]
     if len(apis) != 1:
