@@ -177,6 +177,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- certifi 2026.10.19 in `uv.lock` (was 2026.7.22) for PYSEC-2026-4320, which
+  `pip-audit` reported on 2026-10-21.
 - The reference database bound is 1 GiB (was 512 MiB), and the search
   attribution budget is per release, so terminology history can accumulate.
   A 915.9 MiB 10-source bundle kept the API at 264 MiB anonymous memory under
