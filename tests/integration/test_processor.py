@@ -115,7 +115,16 @@ def _nfz(public: Path, czs: bytes) -> None:
 
 @final
 class _Run:
-    def __init__(self, root: Path, bundle: Path, policies: Path = _POLICIES) -> None:
+    def __init__(
+        self,
+        root: Path,
+        bundle: Path,
+        policies: Path = _POLICIES,
+        acceptance: Path | None = None,
+    ) -> None:
+        self.acceptance = acceptance
+        self.accepted = root / "accepted"
+        self.accepted.mkdir()
         self.root = root
         self.bundle = bundle
         self.policies = policies
@@ -154,6 +163,8 @@ class _Run:
                 "uptime_kuma_targets": self.targets,
                 "archive_bucket": _BUCKET,
                 "archive_endpoint": "https://synthetic.invalid",
+                "acceptance_directory": self.acceptance,
+                "accepted": self.accepted if self.acceptance else None,
             },
             reader_factory=reader,
             kuma_factory=kuma,
@@ -164,10 +175,10 @@ class _Run:
         return code, cast(object, json.loads(output))
 
 
-def _icd9_run(root: Path, czs: bytes) -> _Run:
+def _icd9_run(root: Path, czs: bytes, acceptance: Path | None = None) -> _Run:
     _, bundle = icd9._live(root)  # pyright: ignore[reportPrivateUsage]
     _ = icd9._archive(root, czs)  # pyright: ignore[reportPrivateUsage]
-    run = _Run(root, bundle)
+    run = _Run(root, bundle, acceptance=acceptance)
     _nfz(run.public, czs)
     return run
 
@@ -362,3 +373,105 @@ def test_new_rsk_product_is_judged_from_its_projection_entry(
     }
     assert (code, summary) == (0, {"version": 1, "verdicts": [verdict]})
     assert run.pushes == [("up", f"would_activate {release_id}")]
+
+
+def _acceptance(root: Path) -> Path:
+    """One search gold case and one real grouping case, as shipped in the image."""
+    directory = root / "acceptance"
+    directory.mkdir()
+    gold = {
+        "cases": [
+            {
+                "id": "moczu",
+                "system": "icd9-pl",
+                "query": "badanie moczu",
+                "codes": ["A01"],
+            }
+        ]
+    }
+    _ = (directory / "search-gold-v1.json").write_text(json.dumps(gold))
+    shipped = cast(
+        dict[str, list[dict[str, object]]],
+        json.loads(
+            (Path(__file__).parents[1] / "golden/grouping-cases.json").read_text()
+        ),
+    )
+    real = [case for case in shipped["cases"] if case["bundle"] == "real"][:1]
+    _ = (directory / "grouping-cases.json").write_text(json.dumps({"cases": real}))
+    return directory
+
+
+def test_accepted_bundle_is_handed_over_with_its_request(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run = _icd9_run(
+        tmp_path,
+        icd9._generation(),  # pyright: ignore[reportPrivateUsage]
+        _acceptance(tmp_path),
+    )
+
+    code, summary = run(capsys)
+
+    assert code == 0
+    [verdict] = cast(
+        list[dict[str, object]], cast(dict[str, object], summary)["verdicts"]
+    )
+    assert verdict["decision"] == "would_activate"
+    request = cast(
+        dict[str, str], json.loads((run.accepted / "request.json").read_text())
+    )
+    bundle = run.accepted / request["database_sha256"]
+    assert (request["system"], request["release_id"]) == (
+        "icd9-pl",
+        verdict["release_id"],
+    )
+    assert sorted(path.name for path in bundle.iterdir()) == [
+        "manifest.json",
+        "minos.db",
+        "review.txt",
+    ]
+    assert (
+        hashlib.sha256((bundle / "minos.db").read_bytes()).hexdigest()
+        == (request["database_sha256"])
+    )
+
+
+def test_a_lost_search_gold_case_refuses_the_candidate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    renamed = icd9._generation(closes=None).replace(  # pyright: ignore[reportPrivateUsage]
+        b'nazwa="  Badanie moczu  "', b'nazwa="Synthetic renamed"'
+    )
+    run = _icd9_run(tmp_path, renamed, _acceptance(tmp_path))
+
+    code, summary = run(capsys)
+
+    assert code == 0
+    assert cast(dict[str, object], summary)["verdicts"] == [
+        {
+            "system": "icd9-pl",
+            "decision": "rejected",
+            "criterion": "regression",
+            "code": "search_gold_case_lost",
+        }
+    ]
+    assert list(run.accepted.iterdir()) == []
+
+
+def test_an_accepted_bundle_without_an_accepting_verdict_is_dropped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run = _icd9_run(
+        tmp_path,
+        icd9._generation(start="2026-01-01"),  # pyright: ignore[reportPrivateUsage]
+        _acceptance(tmp_path),
+    )
+    stale = run.accepted / ("c" * 64)
+    stale.mkdir()
+    request = {"version": 1, "database_sha256": "c" * 64}
+    _ = (run.accepted / "request.json").write_text(json.dumps(request))
+
+    code, _ = run(capsys)
+
+    assert code == 0
+    assert list(run.accepted.iterdir()) == []

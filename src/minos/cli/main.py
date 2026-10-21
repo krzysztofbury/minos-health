@@ -143,8 +143,16 @@ def build_parser() -> ArgumentParser:
         "--uptime-kuma-targets",
     ):
         _ = processor_run.add_argument(option, type=Path, required=True)
-    _ = processor_run.add_argument("--archive-bucket", required=True)
-    _ = processor_run.add_argument("--archive-endpoint", required=True)
+    _ = processor_run.add_argument("--acceptance-directory", type=Path)
+    _ = processor_run.add_argument("--accepted", type=Path)
+    finalize = processor_commands.add_parser(
+        "finalize", help="Record an activation receipt and report its outcome."
+    )
+    _ = finalize.add_argument("--outcome", type=Path, required=True)
+    _ = finalize.add_argument("--uptime-kuma-targets", type=Path, required=True)
+    for command in (processor_run, finalize):
+        _ = command.add_argument("--archive-bucket", required=True)
+        _ = command.add_argument("--archive-endpoint", required=True)
     recovery = commands.add_parser("recovery", help="Operate trusted recovery data.")
     recovery_commands = recovery.add_subparsers(dest="recovery_command", required=True)
     inventory = recovery_commands.add_parser(
@@ -217,9 +225,13 @@ def main(
             parser.exit(code)
         return
     if top_level_command == "processor":
-        from minos.cli.processor import execute_processor
+        from minos.cli.processor import execute_finalize, execute_processor
 
-        code = execute_processor(raw_arguments)
+        code = (
+            execute_finalize(raw_arguments)
+            if raw_arguments.get("processor_command") == "finalize"
+            else execute_processor(raw_arguments)
+        )
         if code:
             parser.exit(code)
         return

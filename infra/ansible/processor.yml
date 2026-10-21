@@ -3,7 +3,9 @@
 # enters the watcher candidate preflight or the runtime rollback. It installs
 # the identity, directories, read-only archive key, Kuma target, host runner
 # and timer. The processor runs in the live reference API image, so apply it
-# after an API release that ships `minos processor run`.
+# after an API release that ships `minos processor run`. Automatic activation
+# (#141 phase C) is limited to `processor_activation_classes`, empty unless
+# the owner lists icd10-pl or icd9-pl.
 - name: Install the Minos data-update processor
   hosts: minos-production
   gather_facts: true
@@ -13,6 +15,7 @@
   vars:
     processor_uid: 10005
     processor_gid: 10005
+    processor_activation_classes: []
 
   pre_tasks:
     - name: Require the reviewed production host
@@ -33,6 +36,14 @@
         - /etc/minos/processor/uptime-kuma/targets.json
       register: processor_installed_secrets
       no_log: true
+
+    - name: Require a reviewed activation allowlist
+      ansible.builtin.assert:
+        that:
+          - processor_activation_classes is sequence
+          - processor_activation_classes is not string
+          - processor_activation_classes | difference(['icd10-pl', 'icd9-pl']) | length == 0
+        fail_msg: Automatic activation may name only icd10-pl and icd9-pl.
 
     - name: Require a supplied or installed processor secret
       ansible.builtin.assert:
@@ -74,15 +85,17 @@
       when: processor_uptime_kuma_targets_source is defined
       no_log: true
 
-    - name: Require exactly the data-update Kuma target
+    - name: Require only the data-update and data-activation Kuma targets
       ansible.builtin.assert:
         that:
           - (processor_kuma_payload.content | b64decode | from_json).version == 1
-          - (processor_kuma_payload.content | b64decode | from_json).sources.keys() | list == ['data-update']
           - >-
-            (processor_kuma_payload.content | b64decode | from_json).sources['data-update']
-            is match('^[A-Za-z0-9]{32}$')
-        fail_msg: The processor Kuma target must name only the data-update push monitor.
+            (processor_kuma_payload.content | b64decode | from_json).sources.keys() | sort
+            in [['data-update'], ['data-activation', 'data-update']]
+          - >-
+            (processor_kuma_payload.content | b64decode | from_json).sources.values()
+            | reject('match', '^[A-Za-z0-9]{32}$') | list | length == 0
+        fail_msg: The processor Kuma target may name only the data-update and data-activation push monitors.
       when: processor_uptime_kuma_targets_source is defined
       no_log: true
 
@@ -122,6 +135,9 @@
         - {path: /var/lib/minos/processor, owner: root, group: minos-processor, mode: "0750"}
         - {path: /var/lib/minos/processor/work, owner: minos-processor, group: minos-processor, mode: "0700"}
         - {path: /var/lib/minos/processor/state, owner: minos-processor, group: minos-processor, mode: "0700"}
+        - {path: /var/lib/minos/processor/accepted, owner: minos-processor, group: minos-processor, mode: "0700"}
+        # Root writes the activation outcome; the processor may only read it.
+        - {path: /var/lib/minos/processor/activation, owner: root, group: minos-processor, mode: "0750"}
 
     - name: Install the processor R2 credential
       ansible.builtin.copy:
@@ -174,8 +190,17 @@
         mode: "{{ item.mode }}"
       loop:
         - {src: "{{ playbook_dir }}/../../scripts/processor_host.py", dest: /opt/minos/bin/processor_host.py, mode: "0755"}
+        - {src: "{{ playbook_dir }}/../../scripts/validation_host.py", dest: /opt/minos/bin/validation_host.py, mode: "0644"}
         - {src: minos-processor.service, dest: /etc/systemd/system/minos-processor.service, mode: "0644"}
         - {src: minos-processor.timer, dest: /etc/systemd/system/minos-processor.timer, mode: "0644"}
+
+    - name: Install the activation allowlist
+      ansible.builtin.copy:
+        content: "{{ {'version': 1, 'classes': processor_activation_classes} | to_json }}\n"
+        dest: /etc/minos/processor/activation.json
+        owner: root
+        group: root
+        mode: "0644"
 
     - name: Enable the processor timer
       ansible.builtin.systemd_service:

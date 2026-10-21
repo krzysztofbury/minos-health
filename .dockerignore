@@ -3,7 +3,13 @@
 .venv
 docs
 infra
-tests
+tests/*
+!tests/evaluation/
+tests/evaluation/*
+!tests/evaluation/search-gold-v1.json
+!tests/golden/
+tests/golden/*
+!tests/golden/grouping-cases.json
 __pycache__
 *.py[cod]
 .mypy_cache

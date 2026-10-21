@@ -26,6 +26,16 @@ signed-release and deployment-acceptance gates remain #41/#27.
   The generation governs from its earliest changed procedure date, and
   backdating beyond the owner's 92-day bound is refused
   (`manifests/policy/czs-icd9-automatic.json`, #141 phase B2).
+- Data-only activation (#141 phase C). A `would_activate` candidate must also
+  keep the reviewed search gold and golden grouping answers (criterion 4,
+  cases shipped as `/app/acceptance`), then the host runner activates it
+  through `validation_host`'s new `stage-data` and the existing transition,
+  with one retry, a public readiness check, rollback, an R2
+  `deployment-receipts/` chain entry and a `data-activation` Kuma report.
+  Only source classes in `/etc/minos/processor/activation.json` activate;
+  the list starts empty. `deploy_validation plan` refuses a bundle that drops
+  a release the live bundle serves, and the processor container's limit is
+  512 MiB.
 - `minos processor run` and `minos-processor.timer` (#141 phase B3): every six
   hours a hardened container from the live reference API image reads the
   watcher's public RSK and NFZ projections, fetches new inputs and the live

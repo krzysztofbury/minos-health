@@ -827,7 +827,12 @@ Users get the latest release unless a question carries a date; a dated
 question uses the release in force on that day (owner, 2026-10-21). A CZS
 ICD-9 generation governs from its earliest changed procedure date, never later
 than its publication day, with backdating bounded by the policy (92
-days, owner-confirmed 2026-10-21). Criteria and phases are recorded in
+days, owner-confirmed 2026-10-21). For phase C (owner, 2026-10-21) the
+processor's R2 key is read-write and also writes the receipts, activation
+outcomes use a second `data-activation` Kuma monitor, the live bundle's
+manifest is authoritative (a reviewed release may not drop a live release),
+and activation is enabled per source class through a host allowlist that
+starts empty. A failed start is retried once. Criteria and phases are recorded in
 [#141](https://github.com/krzysztofbury/minos-health/issues/141#issuecomment-6298146114).
 
 The owner already applied the custom GitHub OIDC subject template. Hosted

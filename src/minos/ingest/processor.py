@@ -16,11 +16,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, ClassVar, Literal, Protocol
+from typing import Annotated, ClassVar, Literal, Protocol, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from minos.domain.jgp_ruleset import polish_date
 from minos.domain.reference import ReferenceError
+from minos.ingest.acceptance import AcceptanceUnavailable, accept_candidate
 from minos.ingest.archive_build import ArchiveObject, source_files
 from minos.ingest.candidate_evaluation import (
     CandidateReport,
@@ -39,7 +41,11 @@ from minos.ingest.watchers.rsk.public_models import (
     MAX_PUBLIC_JSON_BYTES,
     RskProvenanceProjection,
 )
-from minos.store.artifact import ARTIFACT_MANIFEST_NAME, ArtifactManifest
+from minos.store.artifact import (
+    ARTIFACT_MANIFEST_NAME,
+    ArtifactManifest,
+    dataset_identity,
+)
 
 ICD10_POLICY = "rsk-icd10-automatic.json"
 ICD9_POLICY = "czs-icd9-automatic.json"
@@ -80,6 +86,10 @@ class ProcessorPaths:
     policy_directory: Path
     work: Path
     state: Path
+    # Reviewed acceptance cases (criterion 4) and the hand-over directory for
+    # an accepted bundle; both are optional so the shadow mode stays possible.
+    acceptance_directory: Path | None = None
+    accepted: Path | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +151,34 @@ def run_processor(
     # Only verdicts for the current inputs are kept, so the file stays bounded.
     if current != state.verdicts:
         _write_state(paths.state, _State(verdicts=current))
+    _drop_stale_acceptance(paths, current)
     return tuple(current.values())
+
+
+def _drop_stale_acceptance(paths: ProcessorPaths, current: dict[str, Verdict]) -> None:
+    """An accepted bundle lives only while a current verdict still accepts it."""
+    if paths.accepted is None:
+        return
+    accepted = {
+        verdict.report.database_sha256
+        for verdict in current.values()
+        if verdict.report.decision == "would_activate"
+    }
+    try:
+        request = cast(
+            object, json.loads(_read_bounded(paths.accepted / "request.json", 4096))
+        )
+        database = (
+            cast(dict[str, object], request).get("database_sha256")
+            if isinstance(request, dict)
+            else None
+        )
+    except FileNotFoundError:
+        return
+    except ValueError, OSError:
+        database = None
+    if database not in accepted:
+        _clear(paths.accepted)
 
 
 def _judge(
@@ -159,7 +196,7 @@ def _judge(
         work.mkdir(mode=0o700)
         try:
             candidate = _propose(item, live, archive, policy)
-            return evaluate_candidate(
+            report = evaluate_candidate(
                 candidate,
                 terminology=(
                     item.system,
@@ -170,12 +207,51 @@ def _judge(
                 work=work,
                 policy=policy,
             )
+            if report.decision == "would_activate":
+                _accept(item.system, report, paths, work / "first")
+            return report
         except CandidateRejected as error:
             return rejected(error)
-        except ReferenceError, ValidationError, OSError:
+        except ReferenceError, ValidationError, OSError, AcceptanceUnavailable:
             raise ProcessorError("build") from None
     finally:
         _clear(paths.work)
+
+
+def _accept(
+    system: str, report: CandidateReport, paths: ProcessorPaths, bundle: Path
+) -> None:
+    """Run criterion 4, then hand the first build to the host runner."""
+    if paths.acceptance_directory is None or paths.accepted is None:
+        return
+    built = ArtifactManifest.model_validate_json(
+        _read_bounded(bundle / ARTIFACT_MANIFEST_NAME, MAX_PUBLIC_JSON_BYTES)
+    )
+    [release] = [
+        source
+        for source in built.dataset.sources
+        if source.release_id == report.release_id
+    ]
+    if release.valid_from is None or report.database_sha256 != built.database_sha256:
+        raise CandidateRejected("build", "accepted_bundle_identity_differs")
+    accept_candidate(
+        paths.live_bundle,
+        bundle,
+        system=system,
+        effective=polish_date(release.valid_from),
+        cases=paths.acceptance_directory,
+    )
+    # One accepted bundle at a time; a newer verdict replaces the older one.
+    _clear(paths.accepted)
+    os.rename(bundle, paths.accepted / built.database_sha256)
+    request = {
+        "version": 1,
+        "system": system,
+        "release_id": report.release_id,
+        "database_sha256": built.database_sha256,
+        "dataset_id": dataset_identity(built.dataset),
+    }
+    _write_private(paths.accepted / "request.json", json.dumps(request).encode())
 
 
 def _propose(
@@ -360,16 +436,20 @@ def _read_state(path: Path) -> _State:
 
 
 def _write_state(path: Path, state: _State) -> None:
-    temporary = path.with_name(f".{path.name}.partial")
     try:
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, "wb") as target:
-            _ = target.write(state.model_dump_json(exclude_none=True).encode())
-            target.flush()
-            os.fsync(target.fileno())
-        os.replace(temporary, path)
+        _write_private(path, state.model_dump_json(exclude_none=True).encode())
     except OSError:
         raise ProcessorError("state") from None
+
+
+def _write_private(path: Path, content: bytes) -> None:
+    temporary = path.with_name(f".{path.name}.partial")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, "wb") as target:
+        _ = target.write(content)
+        target.flush()
+        os.fsync(target.fileno())
+    os.replace(temporary, path)
 
 
 def _read_bounded(path: Path, limit: int) -> bytes:
