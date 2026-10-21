@@ -186,6 +186,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The data-update processor's host runner parses on the host's Python 3.12:
+  Ruff had rewritten one `except` clause into the unparenthesized 3.14 form,
+  so the first production run stopped with a `SyntaxError`. The runner now has
+  the `py312` Ruff target and the host-grammar test of the other host scripts.
 - A CZS generation whose effective day is not after the live generation's
   start is refused as `effective_day_not_after_live_release`, apart from an
   older generation number (`not_newer_than_live_release`), so the alert names

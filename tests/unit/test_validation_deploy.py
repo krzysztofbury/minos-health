@@ -580,7 +580,14 @@ def test_host_refusal_and_empty_answers_surface_as_errors() -> None:
         _ = parse_host_answer("\n", "stage")
 
 
-@pytest.mark.parametrize("program", [HOST_PROGRAM, ROOT / "scripts/watcher_host.py"])
+@pytest.mark.parametrize(
+    "program",
+    [
+        HOST_PROGRAM,
+        ROOT / "scripts/watcher_host.py",
+        ROOT / "scripts/processor_host.py",
+    ],
+)
 def test_host_program_parses_as_host_python(program: Path) -> None:
     # The production host runs Ubuntu 24.04's Python 3.12.
     _ = ast.parse(program.read_text(), feature_version=(3, 12))

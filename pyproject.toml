@@ -82,7 +82,7 @@ markers = [
 [tool.ruff]
 target-version = "py314"
 # Runs on the production host's system Python, not the project runtime.
-per-file-target-version = { "scripts/validation_host.py" = "py312", "scripts/watcher_host.py" = "py312", "scripts/measure_reference_host.py" = "py312" }
+per-file-target-version = { "scripts/validation_host.py" = "py312", "scripts/watcher_host.py" = "py312", "scripts/measure_reference_host.py" = "py312", "scripts/processor_host.py" = "py312" }
 
 [tool.ruff.lint]
 select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
