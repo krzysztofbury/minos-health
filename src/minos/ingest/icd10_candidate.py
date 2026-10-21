@@ -23,7 +23,12 @@ from pydantic import (
     model_validator,
 )
 
-from minos.domain.reference import ReferenceNode, ReferenceRelation, SourceError
+from minos.domain.reference import (
+    ReferenceNode,
+    ReferenceRelation,
+    SourceError,
+    SourceHeader,
+)
 from minos.ingest.archive_source import ArchivedBlob, verified_source
 from minos.ingest.icd10 import ReferenceEvent, parse_icd10
 from minos.ingest.manifest_types import Digest, SourceText
@@ -150,6 +155,13 @@ def propose_icd10_release(
         raise CandidateRejected("history", "release_already_closed")
     if previous.valid_from is None:
         raise CandidateRejected("history", "live_release_has_no_validity_start")
+    if (info.version, info.valid_from) == (
+        previous.source_version,
+        previous.valid_from,
+    ) and _same_classification(archive_root, product, previous):
+        # A same-version re-export with identical classification events (#184:
+        # RSK moved its export namespace) changes no answer; the pin stays.
+        raise CandidateRejected("history", "release_content_unchanged")
     if info.valid_from <= previous.valid_from:
         # A correction or backdated release changes answers for past service
         # dates, so it always goes to the owner.
@@ -212,6 +224,34 @@ def _read_basic_info(archive_root: Path, sha256: str) -> RskBasicInfo:
 
 def _count_release(archive_root: Path, product: ArchivedBlob) -> ExpectedCounts:
     return count_release(archive_root, product, parse_icd10)
+
+
+def _same_classification(
+    archive_root: Path, product: ArchivedBlob, previous: SourceManifest
+) -> bool:
+    """Whether both files yield the same nodes and relations; headers may differ."""
+    try:
+        live = ArchivedBlob.at(archive_root, previous.sha256)
+    except SourceError:
+        return False
+    return _classification_digest(archive_root, product) == _classification_digest(
+        archive_root, live
+    )
+
+
+def _classification_digest(archive_root: Path, blob: ArchivedBlob) -> str:
+    digest = hashlib.sha256()
+    try:
+        with tempfile.TemporaryDirectory(prefix=".minos-candidate-") as staging:
+            with verified_source(
+                archive_root, blob, staging_directory=Path(staging)
+            ) as snapshot:
+                for event in parse_icd10(snapshot):
+                    if not isinstance(event, SourceHeader):
+                        digest.update(repr(event).encode())
+    except SourceError:
+        raise CandidateRejected("parse", "product_rejected_by_parser") from None
+    return digest.hexdigest()
 
 
 def count_release(

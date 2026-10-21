@@ -103,6 +103,13 @@ The digests come from the watcher's `rsk_source_change` record and the archived
   accepts an unscoped terminology synonym only if its reviewed wording exists
   in every release of its system.
 
+A file with the live release's version and `validDateFrom` whose nodes and
+relations parse identically is `release_content_unchanged` (history), not a
+correction: RSK's 2026-09-22 re-export of `013` differs from the pin only in
+its namespace, root `version` attribute and export link (#184). Any other file
+not newer than the live release is `not_newer_than_live_release` and goes to
+the owner.
+
 `manifests/policy/rsk-icd10-automatic.json` is the owner's class-level approval
 (2026-10-20). It pins the SHA-256 of the RSK description, which carries the
 licence statement, and the publisher; any change refuses the release. It also
@@ -250,16 +257,19 @@ One run:
    digest is not live, the same-version companion workbook are the ICD-9
    input (fetch time: the CZS observation).
 2. Skips an input whose digest is already a live source. A verdict is keyed by
-   the input digests, the live database digest and the policy file digest, so
+   the input digests, the live database digest, the policy file digest and
+   the processor's rules version, so
    each input is judged once per live bundle and policy.
 3. For a new key, pins every live input and the new blobs (a HEAD supplies
    the size, bounded at 64 MiB and 1 MiB for basic-info), downloads them with
    checksum mode, and runs the B1 or B2 proposal and evaluation.
 4. Stores the reports in `state/verdicts.json` (current keys only) and pushes
    the `data-update` monitor: up with `idle` or `would_activate <release_id>`,
-   down with `rejected <system> <criterion>/<code>` or `failed: <step>`. The
-   push accepts only those shapes, so no path, URL, digest or source text can
-   reach Telegram. A failed step stores nothing and is retried next run.
+   down with `rejected <system> <criterion>/<code>` or `failed: <step>`.
+   `release_content_unchanged` is reported as `idle`: a red monitor would hide
+   the next real alert. The push accepts only those shapes, so no path, URL,
+   digest or source text can reach Telegram. A failed step stores nothing and
+   is retried next run.
 
 It activates nothing. Every live input must be in R2: release bundles are built
 on the workstation from `data/archive`, and no committed selection proves
@@ -282,6 +292,19 @@ projection as UID 10005, loaded `/app/policy`, pushed `failed: fetch`
 (no egress), then `idle` for the live generation, and left the work directory
 empty. The watcher image refused the same candidate in 6 seconds for lack of
 the workbook reader.
+
+First production runs (2026-10-21, after the c0e564b API release and
+`processor.yml`): the first stopped on Python 3.12 syntax in the runner (fixed
+in #206). The second reported `failed: fetch`: 17 of the 23 needed blobs were
+in R2, and six live inputs (three MODTAR display pages, the generation 100
+MODTAR XML, the modifier binding overlay and the live ICD-10 `013` file) had
+only ever been in the workstation archive. They were copied create-once with
+the operator key and verified by checksum and size. The third run completed in
+29 seconds with `rejected icd10-pl history/not_newer_than_live_release` for
+the RSK re-export of `013`, which this change reports as unchanged instead.
+The runner, the `minos_monitoring` network, the egress bridge, the read-only
+key and the Kuma push all worked on the host. No host build has run yet, so
+host build time is still unmeasured.
 
 Known limits, before Phase C: Kuma notifies only on a status change, so a
 second refusal while the monitor is already down does not reach Telegram

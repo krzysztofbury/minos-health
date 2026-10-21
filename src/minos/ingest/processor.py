@@ -49,6 +49,9 @@ MAX_STATE_BYTES = 64 * 1024
 MAX_POLICY_BYTES = 64 * 1024
 # Two terminologies, each with at most one new input set at a time.
 MAX_VERDICTS = 8
+# Part of every verdict key: bump it when a judgement rule changes, so stored
+# verdicts from older rules are judged again (2: unchanged RSK re-exports).
+RULES_VERSION = 2
 _GENERATION = re.compile(r"generations/[1-9][0-9]*-([0-9a-f]{64})")
 
 type Failure = Literal["projection", "live_bundle", "policy", "fetch", "build", "state"]
@@ -94,6 +97,7 @@ class _Input:
             "fetched_at": self.fetched_at.isoformat(),
             "live_database_sha256": live_database,
             "policy_sha256": policy,
+            "rules": RULES_VERSION,
         }
         encoded = json.dumps(identity, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(encoded.encode()).hexdigest()
