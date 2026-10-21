@@ -107,13 +107,18 @@ def _report(
 def _message(failure: str | None, verdicts: tuple[Verdict, ...]) -> tuple[bool, str]:
     if failure is not None:
         return False, f"failed: {failure}"
-    if not verdicts:
+    # A republication without content change is nothing to do; reporting it
+    # down would hold the monitor red and hide the next real alert.
+    reported = [
+        item for item in verdicts if item.report.code != "release_content_unchanged"
+    ]
+    if not reported:
         return True, "idle"
     parts = [
         f"would_activate {item.report.release_id}"
         if item.report.decision == "would_activate"
         else f"rejected {item.system} {item.report.criterion}/{item.report.code}"
-        for item in verdicts
+        for item in reported
     ]
-    up = all(item.report.decision == "would_activate" for item in verdicts)
+    up = all(item.report.decision == "would_activate" for item in reported)
     return up, "; ".join(parts)

@@ -32,6 +32,11 @@ _REMOVED_NODE = (
     + '<attribute name="EN">Synthetic standalone label</attribute></attributes></node>'
 )
 _REMOVED = _MINIMAL.replace(_REMOVED_NODE.encode(), b"")
+# The 2026-09-22 RSK re-export of 013 changed only these header bytes (#184).
+_REEXPORT = _MINIMAL.replace(
+    b'xmlns="http://rsk.rejestrymedyczne.csioz.gov.pl"',
+    b'xmlns="https://rsk3.ezdrowie.gov.pl/"',
+).replace(b'version="7"', b'version="13"')
 
 
 def _archive(root: Path, content: bytes) -> str:
@@ -89,7 +94,9 @@ def _policy(*, max_removed: float = 0.2) -> RskIcd10Policy:
 
 def _live(root: Path) -> tuple[DatasetManifest, Path]:
     staged = stage_source(root)
-    source = staged.sources[0].model_copy(update={"valid_from": _LIVE_FROM})
+    source = staged.sources[0].model_copy(
+        update={"valid_from": _LIVE_FROM, "source_version": "002"}
+    )
     base = staged.model_copy(update={"sources": (source,)})
     bundle = root / "live"
     _ = build_reference_artifact(base, root, bundle)
@@ -198,6 +205,10 @@ def _case(name: str) -> tuple[bytes, dict[str, object]]:
         return product, _basic_info(
             product, validDateFrom="2025-01-01T00:00:00.000+00:00"
         )
+    if name == "reexport":
+        return _REEXPORT, _basic_info(
+            _REEXPORT, validDateFrom="2025-01-01T00:00:00.000+00:00"
+        )
     if name == "live_bytes":
         return _MINIMAL, _basic_info(_MINIMAL)
     if name == "malformed_xml":
@@ -213,7 +224,9 @@ def _case(name: str) -> tuple[bytes, dict[str, object]]:
         ("reworded_licence", "licence", "licence_statement_changed"),
         ("other_publisher", "licence", "publisher_changed"),
         ("unlisted_size", "bytes", "product_not_listed_by_rsk"),
+        # Same version and start as the live release, with changed content.
         ("backdated", "history", "not_newer_than_live_release"),
+        ("reexport", "history", "release_content_unchanged"),
         ("live_bytes", "history", "release_already_present"),
         ("malformed_xml", "parse", "product_rejected_by_parser"),
         ("metadata_without_version", "parse", "basic_info_schema_changed"),

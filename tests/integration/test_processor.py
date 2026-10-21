@@ -12,6 +12,7 @@ import pytest
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
 from minos.cli.processor import execute_processor
+from minos.ingest import processor
 from minos.ingest.archive_build import R2BlobReader
 from minos.ingest.processor import BlobReader
 from minos.ingest.watchers.nfz.public_models import Czs, NfzProjection
@@ -199,6 +200,22 @@ def test_new_generation_is_judged_once_and_reported_every_run(
     assert len(run.r2.reads) == reads
 
 
+def test_a_rules_change_judges_stored_inputs_again(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run = _icd9_run(
+        tmp_path,
+        icd9._generation(start="2026-01-01"),  # pyright: ignore[reportPrivateUsage]
+    )
+    _ = run(capsys)
+    run.r2.reads.clear()
+
+    monkeypatch.setattr(processor, "RULES_VERSION", processor.RULES_VERSION + 1)
+    _ = run(capsys)
+
+    assert run.r2.reads != []
+
+
 def test_refused_generation_stays_down_without_a_rebuild(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -221,6 +238,27 @@ def test_refused_generation_stays_down_without_a_rebuild(
     message = "rejected icd9-pl history/retroactive_amendment_exceeds_bound"
     assert run.pushes == [("down", message)] * 2
     assert run.r2.reads == []
+
+
+def test_unchanged_republication_reports_idle(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run = _icd9_run(
+        tmp_path,
+        icd9._generation(closes=None),  # pyright: ignore[reportPrivateUsage]
+    )
+
+    result = run(capsys)
+
+    verdict = {
+        "system": "icd9-pl",
+        "decision": "rejected",
+        "criterion": "history",
+        "code": "release_content_unchanged",
+    }
+    assert result == (0, {"version": 1, "verdicts": [verdict]})
+    # A down push would hold the monitor red and hide the next real alert.
+    assert run.pushes == [("up", "idle")]
 
 
 @pytest.mark.parametrize("fault", ["missing_blob", "altered_projection"])

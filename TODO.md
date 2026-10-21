@@ -442,17 +442,18 @@ UI remain the baseline.
         since the live generation started).
   - [ ] Revisit the 92-day bound after the processor has reported several
         real CZS generations.
+  - [ ] Measure the first real host build (time against the 75-minute cap,
+        memory events) when the processor judges a new release.
   - [ ] Phase B2 (JGP): BAW catalog candidates under the same criteria.
   - [x] Phase B3: `minos processor run` judges new RSK/NFZ inputs from the
         public projections every six hours in a 384 MiB/0.5 CPU container
         from the live API image, with its own read-only R2 key, and reports to
         the `data-update` Kuma monitor. See
         [the host processor](docs/v0.0.1/archive-processing.md#host-processor-141-phase-b3).
-  - [ ] Phase B3 owner steps: the R2 read-only token, the `data-update`
-        push monitor (28800 s), the API release (c0e564b, 2026-10-21) and the
-        `infra/ansible/processor.yml` install are done. The first run failed
-        on Python 3.12 syntax in the runner; after the fix, it shows whether
-        every live input is in R2. See
+  - [x] Phase B3 owner steps: the R2 read-only token, the `data-update`
+        push monitor (28800 s), the API release (c0e564b), the
+        `infra/ansible/processor.yml` install and the six live inputs missing
+        from R2 are done (2026-10-21); the processor runs on the host. See
         [the setup](docs/v0.0.1/operations.md#data-update-processor-setup).
   - [x] Before Phase C: the database bound is 1 GiB, with the search
         attribution budget per release; a 10-source 915.9 MiB bundle kept the

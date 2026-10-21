@@ -186,6 +186,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- An RSK file with the live ICD-10 release's version and start whose nodes and
+  relations parse identically is `release_content_unchanged`, and the
+  processor reports that verdict as `idle`. The first production run held the
+  `data-update` monitor red over RSK's content-identical `013` re-export
+  (#184), which would hide the next real alert (#141).
 - The data-update processor's host runner parses on the host's Python 3.12:
   Ruff had rewritten one `except` clause into the unparenthesized 3.14 form,
   so the first production run stopped with a `SyntaxError`. The runner now has
