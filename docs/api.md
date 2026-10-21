@@ -76,6 +76,13 @@ evidence without a hierarchy; the workbook contains explicit containment and
 context without overriding CZS or implying billability. The API never silently
 selects a latest release or joins these sources.
 
+Each listed release carries `valid_from`, `valid_to` and `in_force`. A release
+governs from its validity start (as a Polish calendar date) until the next
+release of its system starts; a day before every archived release falls to the
+earliest. For each system the release in force today is listed first, and the
+others keep manifest order. Two releases of one system with the same start are
+ambiguous: neither is in force, and a dated search is refused.
+
 Search returns `api: 1` plus the shared CLI v1 envelope: selected release and
 dataset identities, database/source checksums, search/morphology versions,
 labelled match evidence, exact source attributes, complete ancestor context,
@@ -84,7 +91,10 @@ Suggestions are not automatically executed. Empty results return HTTP 200 with
 `status: "no_results"`, not an invented code.
 
 Inputs are strict JSON, at most 4 KiB, with a 256-character/eight-token query,
-an explicit system/release and 1-20 results. Unknown fields/types are rejected.
+an explicit system/release and 1-20 results. A `service_date` (`YYYY-MM-DD`)
+may replace the release: the search then answers from the release in force on
+that Polish calendar day, and a pinned release that does not govern the given
+day returns 400. Unknown fields/types are rejected.
 The optional language is `pl` (default) or `en`. Invalid requests return 400;
 unsupported content types 415; oversized bodies 413; capacity exhaustion 429
 `busy` with `Retry-After: 1`; elapsed search deadlines 504 `query_timeout`;

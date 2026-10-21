@@ -21,6 +21,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
   and checked for unchanged history, with the owner's class-level licence
   approval in `manifests/policy/rsk-icd10-automatic.json` (#141 phase B1).
   Unscoped terminology synonyms now need their wording in every release.
+- `/api/v1/releases` marks each release's `valid_from`, `valid_to` and
+  `in_force` and lists the release in force today first; a search may carry a
+  `service_date` instead of a release and is answered from the release in force
+  that day. Dated dictionary pages and grouper code suggestions follow the same
+  rule (#141).
 - A read-only site audit (`tests/browser/site-audit-browser.mjs`) of every
   public page family: no-JS at three widths, 200% text, clipping, console errors
   and script origins (#80). Release verification now refuses a homepage the
@@ -166,6 +171,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
   conditional default-off public route, and privacy-safe watcher up/down pushes.
 
 ### Changed
+
+- The reference database bound is 1 GiB (was 512 MiB), and the search
+  attribution budget is per release, so terminology history can accumulate.
+  A 915.9 MiB 10-source bundle kept the API at 264 MiB anonymous memory under
+  its 1 CPU/512 MiB limits (#141).
 
 - The Kuma login and admin paths on `status.minoshealth.pl` now require
   Cloudflare Access for the owner. The tunnel route covered the whole host, so

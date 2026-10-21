@@ -437,9 +437,17 @@ UI remain the baseline.
         records, reads R2 with its own read-only key and reports to Telegram
         through a separate data-update push monitor. Measure host build
         memory first.
-  - [ ] Before Phase C: raise the reference build page cap (494.7 of 512 MiB
-        with two ICD-10 releases) with API memory evidence, and list the
-        release valid today first in `/api/v1/releases`.
+  - [x] Before Phase C: the database bound is 1 GiB, with the search
+        attribution budget per release; a 10-source 915.9 MiB bundle kept the
+        API at 264 MiB anonymous memory under 1 CPU/512 MiB (live bundle: 258).
+        `/api/v1/releases` lists the release in force today first, and a dated
+        search or dictionary page uses the release in force that day. See
+        [the evidence](docs/v0.0.1/archive-processing.md#history-growth-and-release-selection).
+  - [ ] Before Phase C: on the host, time a cold activation of a bundle near
+        1 GiB against the 300-second transition (the database is hashed once
+        per process through a 512 MiB cgroup), prune retained bundles so
+        history cannot fill the 25 GB disk, and plan for the 16-source
+        manifest bound.
   - [ ] Phase C: activate ICD-10/ICD-9, then JGP after shadow evidence, with
         automatic rollback and R2 deployment receipts.
 - [x] Alert on watcher failure and on upstream schema drift (new załącznik

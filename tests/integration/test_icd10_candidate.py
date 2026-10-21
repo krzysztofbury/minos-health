@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from fastapi.testclient import TestClient
 
 from minos.cli.main import main
+from minos.http.app import create_app
 from minos.ingest.icd10_candidate import (
     CandidateRejected,
     RskIcd10Policy,
@@ -254,3 +256,87 @@ def test_unarchived_product_is_refused_before_parsing(tmp_path: Path) -> None:
         "bytes",
         "product_not_archived",
     )
+
+
+def _two_releases(root: Path, valid_from: str) -> tuple[Path, str]:
+    base, _ = _live(root)
+    info = _basic_info(_CHANGED, validDateFrom=valid_from)
+    candidate = propose_icd10_release(
+        base,
+        root,
+        product_sha256=_archive(root, _CHANGED),
+        basic_info_sha256=_archive(root, json.dumps(info).encode()),
+        fetched_at=datetime(2025, 12, 2, tzinfo=UTC),
+        policy=_policy(),
+    )
+    bundle = root / "candidate"
+    _ = build_reference_artifact(candidate, root, bundle)
+    return bundle, candidate.sources[-1].release_id
+
+
+@pytest.mark.parametrize(
+    "valid_from,in_force",
+    [
+        ("2026-01-01T00:00:00.000+00:00", "new"),
+        ("2099-01-01T00:00:00.000+00:00", "old"),
+    ],
+)
+def test_releases_list_the_release_in_force_today_first(
+    tmp_path: Path, valid_from: str, in_force: str
+) -> None:
+    bundle, release_id = _two_releases(tmp_path, valid_from)
+    expected = release_id if in_force == "new" else "icd10-synthetic-v1"
+
+    with TestClient(create_app(bundle)) as client:
+        listed = cast(
+            list[dict[str, object]], client.get("/api/v1/releases").json()["releases"]
+        )
+        page = client.get("/slowniki/icd-10/M00")
+
+    icd10 = [item for item in listed if item["system"] == "icd10-pl"]
+    assert [item["release_id"] for item in icd10 if item["in_force"]] == [expected]
+    assert icd10[0]["release_id"] == expected
+    assert {item["valid_to"] for item in icd10} == {
+        None,
+        valid_from[:10] + "T00:00:00Z",
+    }
+    wording = "zmieniona" if in_force == "new" else "próbna"
+    assert page.status_code == 200
+    assert f"Druga kategoria {wording}" in page.text
+
+
+def test_dated_search_answers_from_the_release_in_force_that_day(
+    tmp_path: Path,
+) -> None:
+    bundle, release_id = _two_releases(tmp_path, "2026-01-01T00:00:00.000+00:00")
+
+    def search(**fields: object) -> tuple[int, dict[str, object]]:
+        response = client.post(
+            "/api/v1/search",
+            json={"system": "icd10-pl", "query": "druga kategoria", **fields},
+        )
+        return response.status_code, cast(dict[str, object], response.json())
+
+    with TestClient(create_app(bundle)) as client:
+        # Midnight in Poland is 23:00 UTC on 2025-12-31, so 2026-01-01 is new.
+        answers = {
+            day: search(service_date=day)
+            for day in ("2024-03-01", "2025-12-31", "2026-01-01")
+        }
+        mismatch = search(release_id=release_id, service_date="2025-12-31")
+        undated = search()
+
+    selected = {
+        day: (code, answer["release_id"]) for day, (code, answer) in answers.items()
+    }
+    assert selected == {
+        "2024-03-01": (200, "icd10-synthetic-v1"),
+        "2025-12-31": (200, "icd10-synthetic-v1"),
+        "2026-01-01": (200, release_id),
+    }
+    labels = [
+        cast(list[dict[str, object]], answers[day][1]["results"])[0]["label"]
+        for day in ("2025-12-31", "2026-01-01")
+    ]
+    assert labels == ["Druga kategoria próbna", "Druga kategoria zmieniona"]
+    assert (mismatch[0], undated[0]) == (400, 400)

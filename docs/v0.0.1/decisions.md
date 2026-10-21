@@ -822,7 +822,9 @@ candidate builder that evaluates and reports without activating, then
 activation. A new terminology release is added beside the previous one, which
 closes at the new validity start, so earlier service dates keep their release.
 Licence approval is per source class: the reviewed policy file pins the
-publisher's licence statement, and a reworded statement goes to the owner. Criteria and phases are recorded in
+publisher's licence statement, and a reworded statement goes to the owner.
+Users get the latest release unless a question carries a date; a dated
+question uses the release in force on that day (owner, 2026-10-21). Criteria and phases are recorded in
 [#141](https://github.com/krzysztofbury/minos-health/issues/141#issuecomment-6298146114).
 
 The owner already applied the custom GitHub OIDC subject template. Hosted

@@ -103,7 +103,8 @@ and 256 characters per attribute value. Values and records are not retained
 beyond the bounded ancestor stack and chunk-local event queue. Comments and
 processing instructions have explicit handling; only UTF-8 is supported.
 
-The writer uses an 8 MiB SQLite cache and a 512 MiB database page ceiling.
+The writer uses an 8 MiB SQLite cache and a 1 GiB database page ceiling (512 MiB
+before #141).
 Input and artifact files must be regular files; no-follow, nonblocking opens
 reject symlinks and FIFOs rather than waiting indefinitely. These file-open
 flags and the validation profiler are Linux-specific in this slice.

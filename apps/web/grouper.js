@@ -365,10 +365,12 @@
     return {
       idle: "Wpisz kod lub opis.", empty: "Brak podpowiedzi. Możesz wpisać dokładny kod z dokumentacji.", failed: "Podpowiedzi są chwilowo niedostępne. Możesz wpisać dokładny kod.", delay: 220,
       lookup: function (query, done, fail) {
-        var release = releases[system], controller = new AbortController();
+        var release = releases[system], day = serviceDate(), controller = new AbortController();
         if (!release) return null;
+        // A dated case suggests codes from the release in force on its service day.
+        var body = day ? { system: system, service_date: day, query: query, limit: 6 } : { system: system, release_id: release.release_id, query: query, limit: 6 };
         window.MinosRequest("/api/v1/search", { method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store", credentials: "omit", signal: controller.signal,
-          body: JSON.stringify({ system: system, release_id: release, query: query, limit: 6 }) }).then(function (data) { done(data.results || []); }).catch(fail);
+          body: JSON.stringify(body) }).then(function (data) { done(data.results || []); }).catch(fail);
         return controller;
       },
       render: function (hit) { return [chip(hit.code), el("span", hit.label, "suggestion-label")]; },
@@ -756,7 +758,11 @@
   document.querySelector(".wizard").hidden = false;
   byId("group-availability").textContent = "Sprawdzamy dostępność zestawu reguł...";
   window.MinosRequest("/api/v1/releases", { cache: "no-store", credentials: "omit" }).then(function (data) {
-    data.releases.forEach(function (release) { if (!releases[release.system] || release.origin === "czs") releases[release.system] = release.release_id; });
+    // The API lists the release in force today first; without one, CZS leads ICD-9.
+    data.releases.forEach(function (release) {
+      var held = releases[release.system];
+      if (!held || (!held.in_force && release.origin === "czs")) releases[release.system] = release;
+    });
     var available = data.grouping && data.grouping.available;
     fields.disabled = !available;
     if (available) loadDictionaries();

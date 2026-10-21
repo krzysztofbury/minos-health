@@ -16,6 +16,10 @@ DATABASE_NAME = "minos.db"
 ARTIFACT_MANIFEST_NAME = "manifest.json"
 REVIEW_SUMMARY_NAME = "review.txt"
 MAX_MANIFEST_BYTES = 1024 * 1024
+# History accumulates: each RSK ICD-10 release adds about 70 MiB, and bundle
+# 184 is 424 MiB (#141). The API memory evidence for this bound is in
+# docs/v0.0.1/archive-processing.md.
+MAX_DATABASE_BYTES = 1024 * 1024 * 1024
 
 
 class ArtifactManifest(BaseModel):
@@ -25,7 +29,7 @@ class ArtifactManifest(BaseModel):
 
     schema_version: Literal[2, 3, 4, 5, 6, 7, 8, 9, 10]
     database_sha256: Digest
-    database_size_bytes: int = Field(ge=1, le=512 * 1024 * 1024)
+    database_size_bytes: int = Field(ge=1, le=MAX_DATABASE_BYTES)
     schema_sha256: Digest
     review_summary_sha256: Digest
     dataset: DatasetManifest
@@ -61,7 +65,9 @@ def read_regular_file(path: Path, *, max_bytes: int = MAX_MANIFEST_BYTES) -> byt
     return content
 
 
-def file_identity(path: Path, *, max_bytes: int = 512 * 1024 * 1024) -> tuple[str, int]:
+def file_identity(
+    path: Path, *, max_bytes: int = MAX_DATABASE_BYTES
+) -> tuple[str, int]:
     descriptor = os.open(
         path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
     )

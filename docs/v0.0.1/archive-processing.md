@@ -121,15 +121,52 @@ Real-data evidence (2026-10-20, workstation): against the live bundle
 description, the report was `would_activate` with 12,371 concepts on both
 sides, 0 added, 0 removed and 1 changed. Two builds took 276 seconds with a
 207 MiB peak RSS. The API served both releases, each with its own wording, and
-`/readyz` reported the candidate dataset. Two limits follow:
+`/readyz` reported the candidate dataset. The database reached 494.7 MiB of
+the then 512 MiB page cap, and public search would have stayed on the previous
+release; both are resolved below.
 
-- The database reached 494.7 MiB of the build's 512 MiB page cap
-  (`max_page_count` 131,072). One extra ICD-10 release fits; the next one, or
-  a larger JGP update, does not. Raising the cap needs a reviewed change with
-  API memory evidence before Phase C.
-- `/api/v1/releases` lists sources in manifest order and the web takes the
-  first release per system, so public search stays on the previous release.
-  Phase C must list the release valid today first.
+### History Growth And Release Selection
+
+Each RSK ICD-10 release adds about 70 MiB, and nothing is pruned, so the
+database bound (`MAX_DATABASE_BYTES` in `src/minos/store/artifact.py`) is now
+1 GiB. It sets the build's `max_page_count`, the manifest's size bound and the
+host transfer bounds. Search attribution walked every release under one
+10-second, 50-million-operation budget; that budget is now per release, with
+unchanged output.
+
+Evidence (2026-10-21, workstation, local images from this change): the live
+inputs plus seven derived ICD-10 stand-ins (`014`-`020`, one changed
+description each, starting yearly from 2027) built in 158.8 seconds with a
+212 MiB peak RSS into a 915.9 MiB database with 10 sources. Each bundle was
+then served from disk with a cold page cache under the production API limits
+(1 CPU, 512 MiB with no swap, read-only, no network):
+
+| Bundle | Ready | `pool_ms` | `trees_ms` | Anonymous memory | Slowest probe | OOM |
+| --- | --- | --- | --- | --- | --- | --- |
+| live `bundle-184`, 424.4 MiB | 8.7 s | 5,512 | 106 | 258 MiB | 54 ms | none |
+| 10 sources, 915.9 MiB | 9.9 s | 6,284 | 544 | 264 MiB | 157 ms | none |
+
+Process memory hardly depends on history. The page cache fills the rest of the
+cgroup and is reclaimed (memory.events `max`: 1,136 and 4,336); every probe
+returned 200. The host disk is slower than this workstation, so a cold
+activation near 1 GiB is still to be timed against the 300-second transition
+before Phase C. Retained bundles are never pruned, and a manifest holds at
+most 16 sources; both need a plan before history accumulates unattended.
+
+Release selection follows the owner's rule (2026-10-21): the latest release
+unless the question carries a date, and then the release in force that day.
+A release governs from its validity start, as a Polish calendar date, until
+the next release of its system starts; a day before every archived release
+falls to the earliest, and two releases with the same start are ambiguous.
+`/api/v1/releases` therefore lists the release in force today first for each
+system and marks it `in_force`, so the website's first-release choice is
+today's. A search with `service_date` answers from the release in force that
+day, the dictionary page for a dated JGP view renders that release, and the
+grouper suggests codes from the release in force on the case's service day.
+In the 10-source bundle a search dated 2026-07-01 answered from `013` and one
+dated 2031-06-01 from `018`; in Chromium the grouper suggested the `018`
+wording for a June 2031 discharge, while search and the dictionary page stayed
+on `013`.
 
 Phase B1 reads a local archive root. The host processor (B3) will read the
 same digests from R2 through the existing archive selection.

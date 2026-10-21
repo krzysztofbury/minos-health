@@ -5,6 +5,7 @@ from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
+from minos.domain.jgp_ruleset import polish_date
 from minos.ingest.grouping_dictionaries_manifest import GroupingDictionaries
 from minos.ingest.jgp_catalog_manifest import CatalogManifest
 from minos.ingest.jgp_conditions_manifest import (
@@ -132,6 +133,27 @@ class DatasetManifest(BaseModel):
     product_catalogs: Annotated[tuple[ProductCatalogs, ...], Field(max_length=8)] = (
         Field(default=(), exclude_if=empty_evidence)
     )
+
+    def release_in_force(self, system: str, day: date) -> SourceManifest | None:
+        """The canonical release of ``system`` that governs the Polish ``day``.
+
+        A release governs from its validity start until the next one starts. A
+        day before every archived release falls to the earliest, which is what
+        the bundle served before it held more than one. Two releases with the
+        same start are ambiguous and return None.
+        """
+        releases = sorted(
+            (
+                source
+                for source in self.sources
+                if source.system == system and source.context_for is None
+            ),
+            key=_start_day,
+        )
+        if len({_start_day(source) for source in releases}) != len(releases):
+            return None
+        governing = [source for source in releases if _start_day(source) <= day]
+        return governing[-1] if governing else (releases[0] if releases else None)
 
     @model_validator(mode="after")
     def validate_releases(self) -> Self:
@@ -334,3 +356,9 @@ def utc_text(value: datetime | None) -> str | None:
     if value is None:
         return None
     return value.astimezone(UTC).isoformat()
+
+
+def _start_day(source: SourceManifest) -> date:
+    if source.valid_from is None:
+        return date.min
+    return polish_date(source.valid_from)
