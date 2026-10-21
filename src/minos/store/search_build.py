@@ -104,7 +104,20 @@ def _populate_documents(connection: sqlite3.Connection, sources_sql: str) -> Non
 
 
 def _attribute_documents(connection: sqlite3.Connection, owners_sql: str) -> None:
-    with query_budget(connection, seconds=10, operations=50_000_000):
+    # The walk is linear in releases, and history accumulates them (#141), so
+    # the bound is per release rather than per dataset.
+    releases = max(
+        1,
+        cast(
+            tuple[int],
+            connection.execute(
+                "SELECT count(DISTINCT source_release_id) FROM search_document"
+            ).fetchone(),
+        )[0],
+    )
+    with query_budget(
+        connection, seconds=10 * releases, operations=50_000_000 * releases
+    ):
         attributions = cast(
             Iterable[tuple[int, str, int, int]], connection.execute(owners_sql)
         )

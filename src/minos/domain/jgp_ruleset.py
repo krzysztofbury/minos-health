@@ -7,7 +7,7 @@ uncovered date is `NoRulesetForDate` and an unresolved overlap is
 """
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from minos.domain.reference import ReferenceError
 
@@ -45,11 +45,20 @@ MAX_RELEASES = 64
 
 def today_in_poland() -> date:
     """Service dates are Polish calendar dates; UTC is wrong around midnight."""
-    from datetime import datetime
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
     try:
         return datetime.now(ZoneInfo("Europe/Warsaw")).date()
+    except ZoneInfoNotFoundError:
+        raise TimeZoneUnavailable("Europe/Warsaw time zone data is missing") from None
+
+
+def polish_date(instant: datetime) -> date:
+    """The Polish calendar date of an aware instant (2025-10-16T22:00Z is 10-17)."""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        return instant.astimezone(ZoneInfo("Europe/Warsaw")).date()
     except ZoneInfoNotFoundError:
         raise TimeZoneUnavailable("Europe/Warsaw time zone data is missing") from None
 

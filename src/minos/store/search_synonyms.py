@@ -77,25 +77,40 @@ def validate_search_synonyms(
                     "reviewed group wording is absent from its pinned catalog"
                 )
             continue
-        found = cast(
-            tuple[int] | None,
-            connection.execute(
-                """SELECT 1 FROM concept_description d
-            JOIN source_release s ON s.id=d.source_release_id
-            WHERE s.system=? AND (? IS NULL OR s.id=?)
-            AND instr(d.normalized_text,?)>0 LIMIT 1""",
-                (
-                    entry.system,
-                    entry.release_id,
-                    entry.release_id,
-                    normalize_description(entry.source_wording),
-                ),
-            ).fetchone(),
-        )
-        if found is None:
+        # An unscoped terminology synonym applies to every searchable release
+        # of its system, so each must contain the reviewed wording. Supporting
+        # workbooks are never searched.
+        releases = [
+            release
+            for (release,) in cast(
+                list[tuple[str]],
+                connection.execute(
+                    """SELECT id FROM source_release WHERE system=? AND (? IS NULL OR id=?)
+                    AND id NOT IN (SELECT key FROM json_each(coalesce(
+                        (SELECT value FROM build_metadata WHERE key='supporting_sources'),
+                        '{}')))
+                    ORDER BY id LIMIT 17""",
+                    (entry.system, entry.release_id, entry.release_id),
+                ).fetchall(),
+            )
+        ]
+        if not releases:
             raise ArtifactError(
                 "reviewed synonym wording is absent from its pinned dictionary"
             )
+        for release in releases:
+            found = cast(
+                tuple[int] | None,
+                connection.execute(
+                    """SELECT 1 FROM concept_description
+                WHERE source_release_id=? AND instr(normalized_text,?)>0 LIMIT 1""",
+                    (release, normalize_description(entry.source_wording)),
+                ).fetchone(),
+            )
+            if found is None:
+                raise ArtifactError(
+                    "reviewed synonym wording is absent from its pinned dictionary"
+                )
 
 
 def synonym_requests(

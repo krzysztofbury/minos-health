@@ -111,8 +111,12 @@ If interruption occurs after the symlink switch, the new generation may already
 be active, but the run remains retryable until local finalization completes.
 `heartbeat_pending` is retained as a compatibility name for this durable local
 phase. It does not represent a monitoring request. After durable terminal
-completion, the watcher makes a best-effort Uptime Kuma up or down push. Push
-failure never blocks or changes the watcher result.
+completion, the watcher makes a best-effort Uptime Kuma up or down push. A down
+push carries only `failed: <category>`, one of the fixed run failure classes
+(for example `source_drift`, `archive_failure`, `collection_failure`), so the
+Telegram alert distinguishes upstream drift from storage or network failure
+without source text, URLs or exception messages. Push failure never blocks or
+changes the watcher result.
 
 Startup first restores a missing or stale projection from the latest committed
 RSK revision and then reconciles pending runs. A restored older control database
@@ -197,6 +201,9 @@ disabled against a disposable database copy. It then verifies:
 12. Uptime Kuma has no host port or Docker socket, the public status route was
     enabled only after private admin and 2FA setup, HTTP and RSK push monitors
     use reviewed notifications, and the public page contains coarse state only.
+    From outside, every Kuma admin path on `status.minoshealth.pl` (`/socket.io`,
+    `/dashboard`, `/setup`, `/api/push`, `/api/badge`, `/metrics`) redirects to
+    Cloudflare Access, while `/` and the status-page reads return 200.
 
 The first production deployments are explicit operator actions. Automation may
 later execute the same bounded procedure over restricted SSH, but it must not

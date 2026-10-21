@@ -10,7 +10,7 @@ import uuid
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
@@ -131,6 +131,10 @@ def lookup_failure(error: Exception) -> tuple[int, str]:
     return 503, "unavailable"
 
 
+def _instant(value: datetime | None) -> str | None:
+    return None if value is None else value.isoformat().replace("+00:00", "Z")
+
+
 def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
     if payload.system == "jgp":
         if (
@@ -162,7 +166,19 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
                     "results": [],
                     "truncated": False,
                 }
-    if payload.release_id is None:
+    release_id = payload.release_id
+    if payload.service_date is not None:
+        # A dated question is answered from the release in force that day (#141).
+        governing = pool.manifest.dataset.release_in_force(
+            payload.system, payload.service_date
+        )
+        if governing is None:
+            raise SearchInputError("no single release governs the service date")
+        if release_id is None:
+            release_id = governing.release_id
+        elif release_id != governing.release_id:
+            raise SearchInputError("release does not govern the service date")
+    if release_id is None:
         raise SearchInputError("dictionary release is required")
     with pool.borrow() as lease:
         result = search_reference(
@@ -170,7 +186,7 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
             SearchRequest(
                 payload.system,
                 prepare_query(payload.query, language=payload.language),
-                release_id=payload.release_id,
+                release_id=release_id,
                 language=payload.language,
                 limit=payload.limit,
                 service_date=payload.service_date,
@@ -221,6 +237,23 @@ def load_trees(pool: ReferencePool) -> dict[str, Tree]:
     return trees
 
 
+def tree_in_force(
+    pool: ReferencePool, trees: dict[str, Tree], system: str, day: date | None
+) -> Tree | None:
+    """The tree of the release in force on ``day``, or today when it is None."""
+    if day is None:
+        try:
+            day = today_in_poland()
+        except TimeZoneUnavailable:
+            day = None
+    governing = (
+        pool.manifest.dataset.release_in_force(system, day) if day is not None else None
+    )
+    if governing is not None and governing.release_id in trees:
+        return trees[governing.release_id]
+    return next((item for item in trees.values() if item.system == system), None)
+
+
 def render_code(
     pool: ReferencePool,
     trees: dict[str, Tree],
@@ -231,9 +264,7 @@ def render_code(
     membership_page: int = 1,
 ) -> tuple[int, str]:
     dictionary = DICTIONARIES[slug]
-    tree = next(
-        (item for item in trees.values() if item.system == dictionary.system), None
-    )
+    tree = tree_in_force(pool, trees, dictionary.system, service_date)
     if tree is None:
         raise ArtifactError("dictionary is not in the dataset")
     canonical_icd9 = any(
@@ -536,6 +567,25 @@ def create_app(
         from minos.ingest.search_synonyms import dictionary_notice
 
         pool = cast(ReferencePool, app.state.pool)
+        dataset = pool.manifest.dataset
+        try:
+            today: date | None = today_in_poland()
+        except TimeZoneUnavailable:
+            today = None
+        in_force = {
+            governing.release_id
+            for governing in (
+                dataset.release_in_force(system, today) if today else None
+                for system in {source.system for source in dataset.sources}
+            )
+            if governing is not None
+        }
+        # Clients take the first release of each system, so the one in force
+        # today leads and the rest keep manifest order (#141).
+        canonical = sorted(
+            (source for source in dataset.sources if source.context_for is None),
+            key=lambda source: source.release_id not in in_force,
+        )
         return {
             "api": 1,
             "mode": "validation",
@@ -568,6 +618,9 @@ def create_app(
                     "system": source.system,
                     "origin": source.origin,
                     "source_version": source.source_version,
+                    "valid_from": _instant(source.valid_from),
+                    "valid_to": _instant(source.valid_to),
+                    "in_force": source.release_id in in_force,
                     "publisher": source.publisher,
                     "source_url": source.source_url,
                     "license": source.license,
@@ -586,8 +639,7 @@ def create_app(
                         if evidence.context_for == source.release_id
                     ],
                 }
-                for source in pool.manifest.dataset.sources
-                if source.context_for is None
+                for source in canonical
             ],
         }
 
@@ -742,13 +794,15 @@ def create_app(
 
     def dictionary_sitemap(dictionary: str) -> Response:
         slug = dictionary.removesuffix(".xml")
-        tree = next(
-            (
-                item
-                for item in cast(dict[str, Tree], app.state.trees).values()
-                if slug in DICTIONARIES and item.system == DICTIONARIES[slug].system
-            ),
-            None,
+        tree = (
+            tree_in_force(
+                cast(ReferencePool, app.state.pool),
+                cast(dict[str, Tree], app.state.trees),
+                DICTIONARIES[slug].system,
+                None,
+            )
+            if slug in DICTIONARIES
+            else None
         )
         if tree is None or not tree.sitemap:
             return failure(404, "not_found")

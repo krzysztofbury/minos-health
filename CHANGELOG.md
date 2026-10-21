@@ -15,6 +15,22 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- `minos data candidate-icd10` (operational CLI) judges one archived RSK
+  ICD-10 release against the live bundle without activating it: the release is
+  added beside the previous one, built twice, bounded against removed codes
+  and checked for unchanged history, with the owner's class-level licence
+  approval in `manifests/policy/rsk-icd10-automatic.json` (#141 phase B1).
+  Unscoped terminology synonyms now need their wording in every release.
+- `minos data candidate-icd9` judges one archived CZS ICD-9 generation with its
+  same-version NFZ workbook against the live bundle, using the B1 evaluation.
+  The generation governs from its earliest changed procedure date, and
+  backdating beyond the owner's 92-day bound is refused
+  (`manifests/policy/czs-icd9-automatic.json`, #141 phase B2).
+- `/api/v1/releases` marks each release's `valid_from`, `valid_to` and
+  `in_force` and lists the release in force today first; a search may carry a
+  `service_date` instead of a release and is answered from the release in force
+  that day. Dated dictionary pages and grouper code suggestions follow the same
+  rule (#141).
 - A read-only site audit (`tests/browser/site-audit-browser.mjs`) of every
   public page family: no-JS at three widths, 200% text, clipping, console errors
   and script origins (#80). Release verification now refuses a homepage the
@@ -161,6 +177,24 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- certifi 2026.10.19 in `uv.lock` (was 2026.7.22) for PYSEC-2026-4320, which
+  `pip-audit` reported on 2026-10-21.
+- The reference database bound is 1 GiB (was 512 MiB), and the search
+  attribution budget is per release, so terminology history can accumulate.
+  A 915.9 MiB 10-source bundle kept the API at 264 MiB anonymous memory under
+  its 1 CPU/512 MiB limits (#141).
+
+- The Kuma login and admin paths on `status.minoshealth.pl` now require
+  Cloudflare Access for the owner. The tunnel route covered the whole host, so
+  `/dashboard` and `/socket.io` had been reachable from the internet behind the
+  Kuma password and 2FA; the public status page is unchanged.
+- Watcher down pushes to Uptime Kuma now read `failed: <category>`, one of the
+  fixed run failure classes such as `source_drift` or `archive_failure`, so the
+  Telegram alert tells upstream drift from storage or network failure. The
+  client refuses any other text before sending (#141 phase A).
+- The owner resumed unattended data activation (#141, 2026-10-20): host-side,
+  data-only, ICD-10/ICD-9 first and JGP after shadow evidence. It is not
+  enabled yet; see [the decision](docs/v0.0.1/decisions.md#unattended-data-activation-resumed-2026-10-20).
 - The archive moved from AWS S3 to one EU-jurisdiction Cloudflare R2 bucket
   (#200). R2 has no object versions, so integrity rests on SHA-256 keys,
   create-once writes with native checksums, bucket lock rules against overwrite
@@ -176,7 +210,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   lock rules before `If-None-Match`, so every create-once writer now treats
   `409 ObjectLockedByBucketPolicy` for an existing key like `412` and verifies
   the stored SHA-256 and size; before this, a watcher run re-archiving unchanged
-  metadata would have failed. The watcher moved to R2 at `36402de` on 2026-10-19.
+  metadata would have failed. The watcher moved to R2 at `36402de` on 2026-10-19
+  and Minos's AWS resources were retired on 2026-10-20.
 - Design critique (#196): the Gruper shows its rule-scope limit as a callout
   above the form and again with the result; the case card lists only the facts
   entered, leaving progress to the stepper. Visible dates read DD.MM.RRRR (or

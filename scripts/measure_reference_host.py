@@ -15,7 +15,8 @@ from pathlib import Path
 from types import FrameType
 from typing import BinaryIO, Required, TypedDict, cast
 
-MAX_BYTES = 512 * 1024 * 1024
+# The 1 GiB database bound of src/minos/store/artifact.py plus its two small files.
+MAX_BYTES = 1024 * 1024 * 1024 + 2 * 1024 * 1024
 FILES = {"manifest.json", "minos.db", "review.txt"}
 
 

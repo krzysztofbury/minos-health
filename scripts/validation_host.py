@@ -59,7 +59,8 @@ DIGEST = re.compile(r"[a-f0-9]{64}")
 PROJECT = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 MAX_PARAMS_BYTES = 16 * 1024
 MAX_COMPOSE_BYTES = 1024 * 1024
-MAX_BUNDLE_BYTES = 512 * 1024 * 1024
+# The 1 GiB database bound of src/minos/store/artifact.py plus its two small files.
+MAX_BUNDLE_BYTES = 1024 * 1024 * 1024 + 2 * 1024 * 1024
 MIN_AVAILABLE_MIB = 300
 MEMORY_LIMIT = re.compile(r"([0-9]+)([bkmg]?)")
 RETIRE_GRACE_S = 10

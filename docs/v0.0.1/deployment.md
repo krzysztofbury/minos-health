@@ -52,7 +52,7 @@ Watcher container
   -> mutable control SQLite on a persistent volume
   -> private R2 snapshot bucket (SHA-256 keys, bucket lock)
   -> dedicated local public-projection volume
-  -> best-effort terminal up/down push to Uptime Kuma
+  -> best-effort terminal up/down push to Uptime Kuma (down names the failure category)
 
 Uptime Kuma container
   -> private monitoring network
@@ -441,6 +441,14 @@ After legal clearance and registration:
 - `minoshealth.com` redirects permanently to `.pl` while preserving safe paths;
 - `status.minoshealth.pl` routes to Uptime Kuma only when
   `uptime_kuma_public_status_enabled=true` after private bootstrap;
+  the tunnel sends every path of that host to Kuma, so a Cloudflare Access
+  application (`minos-status-admin`, owner email only, 24-hour session) guards
+  the Kuma login and admin paths: `/socket.io*`, `/dashboard*`, `/setup*`,
+  `/settings*`, `/manage-status-page`, `/add*`, `/edit/*`, `/clone/*`,
+  `/maintenance*`, `/api/push/*`, `/api/badge/*` and `/metrics`. The public page
+  needs only `/`, `/assets/*`, `/icon.svg`, `/api/entry-page` and the three
+  `minos-health` status-page reads, and never opens `/socket.io`. Watcher pushes
+  stay on the internal network and never pass through Cloudflare (2026-10-20);
 - `minos.health`, if purchased, redirects the same way;
 - Cloudflare manages DNS and tunnel routing;
 - DNSSEC is enabled after the registrar and delegation chain are verified;

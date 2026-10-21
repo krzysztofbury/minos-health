@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "source_class": "rsk-icd10",
+  "hcd": "00CD10",
+  "approved_on": "2026-10-20",
+  "approval": "Owner decision 2026-10-20 (#141): a parseable RSK ICD-10 release that passes every activation criterion goes live without manual review.",
+  "description_sha256": "ebec75b6c9bbded7b9f883f1ab5b6f04c581c07ad3c1fc6f1d305063d22a4b33",
+  "publisher": "Biuro Światowej Organizacji Zdrowia w Polsce",
+  "license": "CC BY-NC-SA 3.0 IGO (scope under review; treat as NC-constrained)",
+  "notices": [
+    "Source: RSK/CeZ and Biuro Światowej Organizacji Zdrowia w Polsce.",
+    "The fetch timestamp is the archived watcher observation timestamp of the product file.",
+    "The Polish translation was not prepared by WHO; WHO is not responsible for its content or accuracy. The WHO 2019 English edition is binding and authentic.",
+    "Minos preserves the source hierarchy and text, derives contextual dotted lookup codes and marker-free search keys, and does not infer billability. Numeric modifiers are not expanded into diagnosis codes.",
+    "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+    "On 2026-10-20 the owner authorized automatic activation of RSK ICD-10 PL releases published under the same RSK licence statement for noncommercial public reference search (#141). Search remains noncommercial; RSK content must not become a dependency of paid features.",
+    "Source-derived data and transformations remain subject to CC BY-NC-SA 3.0 IGO, https://creativecommons.org/licenses/by-nc-sa/3.0/igo/ . Software licensing does not replace source terms. Official downloads link upstream; raw archives remain private."
+  ],
+  "max_removed_code_ratio": 0.01,
+  "max_concept_count_change_ratio": 0.05
+}

@@ -101,8 +101,9 @@ database. It stores exact raw bytes and revisioned control-database recovery
 images in a private Cloudflare R2 bucket (#200). GitHub-hosted Actions build and test the images
 but do not run production schedules. Collectors in issues #6-#8 emit change
 records. Reviewed updates use the guarded validation-deploy tool. Unattended
-selection, activation and detailed incident delivery are deferred in #141;
-#21 is closed as superseded, not delivered.
+selection, activation and detailed incident delivery resumed in #141 on
+2026-10-20 and are not yet enabled; #21 is closed as superseded, not delivered.
+Watcher failure pushes name a fixed failure category, such as `source_drift`.
 
 Offline `minos data diff` compares explicitly pinned terminology, catalog and
 conditions releases in verified bundle directories, with bounded Markdown/JSON

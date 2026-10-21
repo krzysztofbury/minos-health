@@ -320,11 +320,10 @@ UI remain the baseline.
       and representative host overlap/load evidence. Production provisioning,
       secrets, preflight and the RSK/BAW/NFZ watchers are delivered. The AWS
       acceptance harness and budget alert were retired with AWS (#200).
-- [ ] Move the archive to Cloudflare R2 and retire Minos AWS (#200): code,
-      docs, EU bucket with lock and lifecycle rules, vault tokens, the
-      verified copy (549 objects, 0 failures) and the watcher cutover
-      (`36402de`, 2026-10-19) are done; the lock-answer fix release, the first
-      R2 watcher run, the post-cutover delta copy and AWS teardown remain. See
+- [x] Move the archive to Cloudflare R2 and retire Minos AWS (#200): EU
+      bucket with lock and lifecycle rules, verified copy (549 objects, 0
+      failures), watcher cutover (`36402de`) and lock-answer fix (`39d0cf6`) on
+      2026-10-19, first scheduled R2 runs and AWS retirement on 2026-10-20. See
       [the migration evidence](docs/validation/r2-migration.md).
 - [x] Add the issue #6 private capture gate: fixed anonymous endpoints, bounded
       exact-byte staging, semantic `00CD10` XML selection, rotation quarantine,
@@ -416,14 +415,50 @@ UI remain the baseline.
       non-expiring chained inventory off-host, with ordinary-loss and
       suspected-compromise restore commands.
 - [ ] Execute ordinary-loss and suspected-compromise empty-host restore drills.
-- [ ] Deferred in #141 (#21 closed as superseded): automatic verified change
-      selection through scoped OIDC,
-      pinned proposals/logical diffs and policy-qualified routine data activation.
-      Failed or significant candidates retain/restore the last good release and
-      send detailed privacy-safe Telegram alerts. Never give the watcher a GitHub
-      token; only the trusted promotion boundary may merge eligible data changes.
-- [ ] Alert on watcher failure and on upstream schema drift (new załącznik
-      names, changed file formats).
+- [ ] Unattended data activation (#141, resumed by the owner 2026-10-20; #21
+      closed as superseded). A file that parses and passes every criterion goes
+      live without manual work; failures keep the last good release and alert.
+      Host-side processor container with its own read-only R2 key, data-only
+      without #41; see [the decision](docs/v0.0.1/decisions.md#unattended-data-activation-resumed-2026-10-20).
+  - [x] Phase A: watcher down pushes name a fixed failure category
+        (`failed: source_drift`, `failed: archive_failure`, ...).
+  - [ ] Phase A: confirm each `rsk`, `baw` and `nfz` push monitor has a
+        heartbeat interval longer than its schedule, so a silent watcher also
+        alerts. Telegram delivery was re-enabled and all three monitors exist
+        on the status page (2026-10-20).
+  - [x] Phase B1: `minos data candidate-icd10` judges one archived RSK
+        ICD-10 release against the live bundle (bytes, parse, build twice,
+        regression bounds, unchanged history, licence) and prints a report.
+        Real-data run: `would_activate`, 276 s, 207 MiB peak RSS. See
+        [the shadow candidate](docs/v0.0.1/archive-processing.md#shadow-icd-10-candidate-141-phase-b1).
+  - [x] Phase B2 (ICD-9): `minos data candidate-icd9` judges one archived CZS
+        generation with its same-version workbook; the generation governs from
+        its earliest changed code date, backdating at most 92 days. Real-data
+        stand-in: `would_activate`, 269 s, 207 MiB. See
+        [the ICD-9 candidate](docs/v0.0.1/archive-processing.md#shadow-icd-9-candidate-141-phase-b2).
+  - [ ] Owner review: the CZS effective-date rule and the 92-day backdating
+        bound in `manifests/policy/czs-icd9-automatic.json`.
+  - [ ] Phase B2 (JGP): BAW catalog candidates under the same criteria.
+  - [ ] Phase B3: host processor container runs B1/B2 on watcher change
+        records, reads R2 with its own read-only key and reports to Telegram
+        through a separate data-update push monitor. Measure host build
+        memory first.
+  - [x] Before Phase C: the database bound is 1 GiB, with the search
+        attribution budget per release; a 10-source 915.9 MiB bundle kept the
+        API at 264 MiB anonymous memory under 1 CPU/512 MiB (live bundle: 258).
+        `/api/v1/releases` lists the release in force today first, and a dated
+        search or dictionary page uses the release in force that day. See
+        [the evidence](docs/v0.0.1/archive-processing.md#history-growth-and-release-selection).
+  - [ ] Before Phase C: on the host, time a cold activation of a bundle near
+        1 GiB against the 300-second transition (the database is hashed once
+        per process through a 512 MiB cgroup), prune retained bundles so
+        history cannot fill the 25 GB disk, and plan for the 16-source
+        manifest bound.
+  - [ ] Phase C: activate ICD-10/ICD-9, then JGP after shadow evidence, with
+        automatic rollback and R2 deployment receipts.
+- [x] Alert on watcher failure and on upstream schema drift (new załącznik
+      names, changed file formats): drift fails the run, and its down push
+      names `source_drift`. Delivery depends on the Phase A Kuma item.
 - [x] Bootstrap Uptime Kuma privately on Mikr.us from the pinned rootless image,
       with no host port or public route. Create the admin and 2FA, HTTP monitor,
       paused RSK push monitor, and status page domain mapping. Remove the
@@ -437,6 +472,14 @@ UI remain the baseline.
 - [x] Restore the stopped 1Password Kuma backup to a disposable isolated Docker
       volume and start the same pinned rootless image as UID `10003`. Confirm
       health and the status page, then remove the test volume and container.
+- [x] Guard the Kuma login and admin paths on `status.minoshealth.pl` with
+      Cloudflare Access (owner email only, 2026-10-20). The tunnel route covered
+      the whole host, so `/dashboard` and `/socket.io` had been reachable from the
+      internet behind the Kuma password and 2FA. Verified: 13 admin paths
+      redirect to Access, 7 public paths return 200 and the page renders.
+- [ ] Move the Kuma admin to its own Access-protected hostname and restrict the
+      `status.minoshealth.pl` tunnel route to the public status-page paths, so
+      the guard lives in Git rather than only in Cloudflare (#28).
 - [ ] Include restored Kuma state in a complete empty-host Mikr.us recovery drill
       before an image upgrade; never copy its live SQLite database.
 - [x] Configure a dedicated Telegram bot and test delivery through Kuma. Attach
@@ -663,10 +706,11 @@ UI remain the baseline.
 - [ ] Retain enough GHCR releases for rollback within GitHub Free storage
       limits.
 
-## Mikr.us, AWS, And Cloudflare
+## Mikr.us, AWS (Retired), And Cloudflare
 
-- [ ] Reuse and recovery-test the watcher private versioned S3 Terraform state
-      bucket with native locking.
+- [x] Retire the watcher Terraform state bucket and the `infra` Terraform
+      roots with AWS (#200); the R2 bucket, lock and lifecycle rules are
+      dashboard-managed and recorded in [the R2 migration](docs/validation/r2-migration.md).
 - [x] Purchase the dedicated Mikr.us `3.0` host; pin its SSH host key, rotate the
       console password, install a dedicated 1Password-backed operator key, and
       apply an idempotent Ansible baseline for key-only SSH, exact UFW rules,
@@ -686,8 +730,9 @@ UI remain the baseline.
       tests carry over to #49.
 - [x] Install host GHCR authentication for private exact-digest pulls, using
       the required package-read-only credential boundary.
-- [ ] Verify actual hosted archive-reader OIDC/IAM acceptance (#19); the custom
-      subject rehearsal does not prove the current AWS trust accepts it.
+- [x] Drop the hosted archive-reader OIDC/IAM acceptance: the role and the
+      GitHub OIDC provider were deleted with AWS (#200). #19's hosted build
+      evidence would now use a read-only R2 credential.
 - [x] Create the Cloudflare Tunnel, back up its scoped credential in 1Password,
       install it as a service-restricted host secret for the pinned
       `cloudflared` GID, and publish no application port directly from Mikr.us.
@@ -706,7 +751,7 @@ UI remain the baseline.
       compatible release manifest; do not deploy mutable tags or use Watchtower.
 - [ ] Quiesce watcher dispatch, verify a pre-deploy recovery image, test
       migrations on a disposable copy, and run scheduler-paused volume, secret,
-      S3, and recovery-image preflights before activation.
+      R2, and recovery-image preflights before activation.
 - [ ] Stop the prior watcher, start the exact candidate digest paused on the live
       volume, apply the tested migration, verify live revision/WAL/secrets and a
       post-migration recovery image, then activate one bounded canary.
@@ -730,9 +775,9 @@ UI remain the baseline.
       readiness and known-search checks. Accept that these local signals do not
       detect a complete Mikr.us host, network, or power outage from outside its
       fault domain.
-- [ ] Test recovery from Git, signed release and deployment records, versioned
-      S3 snapshots and control recovery images, GHCR digests, and Terraform
-      state onto an empty host.
+- [ ] Test recovery from Git, signed release and deployment records, R2
+      archive blobs and control recovery images, and GHCR digests onto an
+      empty host.
 
 ## Later
 

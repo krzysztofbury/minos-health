@@ -777,9 +777,9 @@ The incident and delivery intent must be durable before sending. Retry delivery
 with bounded backoff, deduplicate by candidate and failure identity, and report
 delivery failure separately; notification failure never changes activation
 success/failure or loses the incident. Distinct failed candidates need alerts
-even when a Kuma monitor is already down. The existing watcher pushes only
-generic `completed`/`failed` messages, so it does not yet satisfy this detailed
-alert contract. #21 owns implementation and actual Telegram delivery evidence.
+even when a Kuma monitor is already down. Watcher pushes carry only `completed`
+or a fixed `failed: <category>` message (2026-10-20), which names the failed
+capture class but does not satisfy this detailed per-candidate alert contract. #21 owns implementation and actual Telegram delivery evidence.
 No unattended processing or notification integration is enabled by this record.
 
 ### Validation-Stage Scope And Deferred Automation (2026-10-06)
@@ -798,6 +798,37 @@ Next work is #126 and #25/#42 practitioner relevance and complete workflow-speed
 validation; #34-#36 grouper work follows its encounter and legal-binding gates.
 Keep dictionary and embedding experiments separate with unchanged gold sets.
 #19 and #21 are not closed as delivered by this split; #41 remains independent.
+
+### Unattended Data Activation Resumed (2026-10-20)
+
+The owner prioritized unattended operation, meeting the #141 re-entry gate. A
+new source file that parses and passes every activation criterion reaches users
+without manual work; the owner intervenes only when a file fails under the
+current setup, while the last good release keeps serving. The 2026-10-05
+contract above is the safety contract. Owner choices:
+
+- Processing and activation run on the Mikr.us host, in a processor container
+  separate from the watcher, with its own read-only R2 key. The watcher never
+  gains activation authority and no host deploy key enters GitHub.
+- ICD-10 (RSK `00CD10`) and ICD-9 (CZS) activate first. JGP and grouper data
+  from BAW zarządzenia follow after shadow evidence, under the same criteria.
+  Retroactive amendments always go to the owner.
+- Data-only activation does not wait for #41. Data bundles activate with R2
+  `deployment-receipts/` and the existing checksums; code images stay
+  owner-deployed and #41 still governs them.
+
+Delivery is phased: failure categories in watcher pushes, then a shadow
+candidate builder that evaluates and reports without activating, then
+activation. A new terminology release is added beside the previous one, which
+closes at the new validity start, so earlier service dates keep their release.
+Licence approval is per source class: the reviewed policy file pins the
+publisher's licence statement, and a reworded statement goes to the owner.
+Users get the latest release unless a question carries a date; a dated
+question uses the release in force on that day (owner, 2026-10-21). A CZS
+ICD-9 generation governs from its earliest changed procedure date, never later
+than its publication day, with backdating bounded by the policy (proposed 92
+days, pending owner review). Criteria and phases are recorded in
+[#141](https://github.com/krzysztofbury/minos-health/issues/141#issuecomment-6298146114).
 
 The owner already applied the custom GitHub OIDC subject template. Hosted
 non-AWS [attempt 2](https://github.com/krzysztofbury/minos-health/actions/runs/37372958134/attempts/2)
@@ -957,8 +988,11 @@ network, and persistent `/app/data` at `/var/lib/minos/uptime-kuma`. The
 Cloudflare route defaults off until private setup and access controls are
 complete.
 
-`status.minoshealth.pl` publishes coarse service state only. Detailed watcher
-state remains private, and issue #54 remains the future private detailed admin
+`status.minoshealth.pl` publishes coarse service state only. The Kuma login and
+administration paths on that host sit behind Cloudflare Access for the owner
+(2026-10-20), because the tunnel route covers the whole host; see
+[deployment](deployment.md#cloudflare-and-domains). Detailed watcher state
+remains private, and issue #54 remains the future private detailed admin
 portal. Since Kuma shares the host, it cannot detect or notify for a total
 Mikr.us host, network, or power outage. This limitation is accepted for now.
 Docker logs are bounded locally. CloudWatch is not part of the runtime.

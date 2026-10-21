@@ -18,6 +18,7 @@ from minos.ingest.reference_manifest import DatasetManifest, SourceManifest
 from minos.store.artifact import (
     ARTIFACT_MANIFEST_NAME,
     DATABASE_NAME,
+    MAX_DATABASE_BYTES,
     MAX_MANIFEST_BYTES,
     REVIEW_SUMMARY_NAME,
     ArtifactManifest,
@@ -112,7 +113,7 @@ def _build_database(
         _ = connection.execute("PRAGMA journal_mode = DELETE")
         _ = connection.execute("PRAGMA synchronous = FULL")
         _ = connection.execute("PRAGMA page_size = 4096")
-        _ = connection.execute("PRAGMA max_page_count = 131072")
+        _ = connection.execute(f"PRAGMA max_page_count = {MAX_DATABASE_BYTES // 4096}")
         _ = connection.execute("PRAGMA cache_size = -8192")
         _ = connection.execute("PRAGMA mmap_size = 0")
         _ = connection.execute("PRAGMA temp_store = FILE")

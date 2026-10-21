@@ -62,7 +62,9 @@ from minos.ingest.watchers.protocols import (
     CollectedRun,
     CollectionContext,
     CollectorRegistry,
+    FailureCategory,
     RetryableWatcherError,
+    SourceDriftWatcherError,
 )
 from minos.ingest.watchers.recovery import (
     ListedRecoveryImage,
@@ -215,6 +217,25 @@ class _InterruptCollector:
 
 
 @final
+class _DriftContext:
+    def __enter__(self) -> CollectedRun:
+        raise SourceDriftWatcherError("schema changed at https://source.invalid/x?q=1")
+
+    def __exit__(self, *_error: object) -> None:
+        pass
+
+
+@final
+class _DriftCollector:
+    def collect(
+        self,
+        context: CollectionContext,
+    ) -> AbstractContextManager[CollectedRun]:
+        _ = context
+        return _DriftContext()
+
+
+@final
 class _Archive:
     def __init__(
         self,
@@ -358,9 +379,9 @@ class _Heartbeat:
         _ = source_id
         self._events.append("heartbeat_success")
 
-    def failure(self, source_id: str) -> None:
+    def failure(self, source_id: str, category: FailureCategory) -> None:
         _ = source_id
-        self._events.append("heartbeat_failure")
+        self._events.append(f"heartbeat_failure:{category}")
 
 
 type _LifecycleRecord = tuple[str, str, dict[str, object]]
@@ -567,8 +588,8 @@ class _UnavailableMonitor:
         _ = source_id
         raise RuntimeError(self._secret)
 
-    def failure(self, source_id: str) -> None:
-        _ = source_id
+    def failure(self, source_id: str, category: FailureCategory) -> None:
+        _ = source_id, category
         raise RuntimeError(self._secret)
 
 
@@ -937,7 +958,7 @@ def test_archive_failure_records_incident_without_advancing_cursor(
         assert _query(database_path, "SELECT incident_category FROM incidents") == [
             ("archive_failure",)
         ]
-        assert events[-1] == "heartbeat_failure"
+        assert events[-1] == "heartbeat_failure:archive_failure"
         assert lifecycle_logger.records[-1] == (
             "error",
             "Watcher run failed",
@@ -1261,7 +1282,39 @@ def test_cancellation_aborts_claim_and_sends_failure_heartbeat(tmp_path: Path) -
             )
 
         assert _query(database, "SELECT status FROM watcher_runs") == [("failed",)]
-        assert events[-1] == "heartbeat_failure"
+        assert events[-1] == "heartbeat_failure:collection_failure"
+    finally:
+        store.close()
+
+
+def test_source_drift_fails_run_and_reports_only_its_category(tmp_path: Path) -> None:
+    events: list[str] = []
+    database = tmp_path / "control.sqlite3"
+    store = _open_source_store(database)
+    try:
+        _ = store.configure_source(SourceConfiguration("rsk", "rsk", {}, True))
+        registry = CollectorRegistry()
+        registry.register("rsk", _DriftCollector())
+        orchestrator = WatcherOrchestrator(
+            store=store,
+            archive=_Archive(events),
+            collectors=registry,
+            recovery_publisher=_RecoveryPublisher(events),
+            heartbeat=_Heartbeat(events),
+        )
+
+        with pytest.raises(SourceDriftWatcherError):
+            _ = orchestrator.run_claim(
+                store.claim_manual("rsk"),
+                RetryPolicy(3, 0.01, 0.01),
+            )
+
+        assert store.load_source_state("rsk").cursor == {}
+        assert _query(database, "SELECT status FROM watcher_runs") == [("failed",)]
+        assert _query(database, "SELECT incident_category FROM incidents") == [
+            ("source_drift",)
+        ]
+        assert events == ["heartbeat_start", "heartbeat_failure:source_drift"]
     finally:
         store.close()
 
@@ -1306,7 +1359,7 @@ def test_uncertain_commit_is_not_followed_by_abort(
 
         assert _query(database, "SELECT status FROM watcher_runs") == [("committed",)]
         assert _query(database, "SELECT incident_category FROM incidents") == []
-        assert events[-1] == "heartbeat_failure"
+        assert events[-1] == "heartbeat_failure:control_commit_failure"
     finally:
         store.close()
 

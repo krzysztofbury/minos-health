@@ -2,9 +2,11 @@
 
 Status: useful #19 build work retained on `feat/validation-archive-build`,
 2026-10-06. The remaining #140 automation work is preserved on
-`feat/archive-application-freshness` and parked in #141. Automatic selection,
-promotion, activation and detailed Telegram delivery are not enabled. Reviewed
-updates continue; automation is not a prerequisite for client validation.
+`feat/archive-application-freshness`. The owner resumed #141 on 2026-10-20
+(see [the decision](decisions.md#unattended-data-activation-resumed-2026-10-20)):
+host-side, data-only activation in phases. Automatic selection, promotion,
+activation and detailed Telegram delivery are not enabled yet; reviewed updates
+continue until activation is enabled per source class.
 
 ## Archive Build Boundary (#19)
 
@@ -77,10 +79,147 @@ pins were retired with AWS (#200); R2 behavior evidence is in #200. Hosted full
 real-selection repeated builds remain #19 gates. Do not
 upload private raw bytes or source-bearing diffs merely to obtain CI evidence.
 
+## Shadow ICD-10 Candidate (#141 Phase B1)
+
+The operational CLI judges one archived RSK ICD-10 release against the live
+bundle without activating anything:
+
+```sh
+minos data candidate-icd10 --live-bundle <live bundle> \
+  --archive-root <archive> --product-sha256 <digest> \
+  --basic-info-sha256 <digest> --fetched-at <observation time> \
+  --policy manifests/policy/rsk-icd10-automatic.json --work <new directory>
+```
+
+The digests come from the watcher's `rsk_source_change` record and the archived
+`00CD10` basic-info. The candidate is the live dataset plus the new release:
+
+- the previous open RSK release is closed at the new `validDateFrom`, so earlier
+  service dates keep answering from it, and each JGP catalog keeps the
+  terminology release it was built with;
+- the new entry takes its version, validity, file identity and creation time
+  from RSK basic-info, and its licence and notices from the owner policy;
+- ICD-10 synonyms pinned to the previous release become unscoped. The build
+  accepts an unscoped terminology synonym only if its reviewed wording exists
+  in every release of its system.
+
+`manifests/policy/rsk-icd10-automatic.json` is the owner's class-level approval
+(2026-10-20). It pins the SHA-256 of the RSK description, which carries the
+licence statement, and the publisher; any change refuses the release. It also
+bounds removed codes (1%) and the concept count change (5%).
+
+The command prints one JSON report with no paths or source text and exits 0
+for `would_activate`, 9 for a refusal that names its criterion (`bytes`,
+`parse`, `build`, `regression`, `history`, `licence`) and code, and 3 for a
+data or input error. Evaluation builds the candidate twice and requires equal
+database SHA-256s, keeps only the first bundle, requires every live release's
+rows to be byte-identical and every catalog, condition and dictionary table to
+keep its live row count, then counts added, removed and redescribed codes.
+
+Real-data evidence (2026-10-20, workstation): against the live bundle
+(`1fbca86f`, schema 10) with a stand-in `014` derived from `013` by one changed
+description, the report was `would_activate` with 12,371 concepts on both
+sides, 0 added, 0 removed and 1 changed. Two builds took 276 seconds with a
+207 MiB peak RSS. The API served both releases, each with its own wording, and
+`/readyz` reported the candidate dataset. The database reached 494.7 MiB of
+the then 512 MiB page cap, and public search would have stayed on the previous
+release; both are resolved below.
+
+### History Growth And Release Selection
+
+Each RSK ICD-10 release adds about 70 MiB, and nothing is pruned, so the
+database bound (`MAX_DATABASE_BYTES` in `src/minos/store/artifact.py`) is now
+1 GiB. It sets the build's `max_page_count`, the manifest's size bound and the
+host transfer bounds. Search attribution walked every release under one
+10-second, 50-million-operation budget; that budget is now per release, with
+unchanged output.
+
+Evidence (2026-10-21, workstation, local images from this change): the live
+inputs plus seven derived ICD-10 stand-ins (`014`-`020`, one changed
+description each, starting yearly from 2027) built in 158.8 seconds with a
+212 MiB peak RSS into a 915.9 MiB database with 10 sources. Each bundle was
+then served from disk with a cold page cache under the production API limits
+(1 CPU, 512 MiB with no swap, read-only, no network):
+
+| Bundle | Ready | `pool_ms` | `trees_ms` | Anonymous memory | Slowest probe | OOM |
+| --- | --- | --- | --- | --- | --- | --- |
+| live `bundle-184`, 424.4 MiB | 8.7 s | 5,512 | 106 | 258 MiB | 54 ms | none |
+| 10 sources, 915.9 MiB | 9.9 s | 6,284 | 544 | 264 MiB | 157 ms | none |
+
+Process memory hardly depends on history. The page cache fills the rest of the
+cgroup and is reclaimed (memory.events `max`: 1,136 and 4,336); every probe
+returned 200. The host disk is slower than this workstation, so a cold
+activation near 1 GiB is still to be timed against the 300-second transition
+before Phase C. Retained bundles are never pruned, and a manifest holds at
+most 16 sources; both need a plan before history accumulates unattended.
+
+Release selection follows the owner's rule (2026-10-21): the latest release
+unless the question carries a date, and then the release in force that day.
+A release governs from its validity start, as a Polish calendar date, until
+the next release of its system starts; a day before every archived release
+falls to the earliest, and two releases with the same start are ambiguous.
+`/api/v1/releases` therefore lists the release in force today first for each
+system and marks it `in_force`, so the website's first-release choice is
+today's. A search with `service_date` answers from the release in force that
+day, the dictionary page for a dated JGP view renders that release, and the
+grouper suggests codes from the release in force on the case's service day.
+In the 10-source bundle a search dated 2026-07-01 answered from `013` and one
+dated 2031-06-01 from `018`; in Chromium the grouper suggested the `018`
+wording for a June 2031 discharge, while search and the dictionary page stayed
+on `013`.
+
+Phase B1 reads a local archive root. The host processor (B3) will read the
+same digests from R2 through the existing archive selection.
+
+## Shadow ICD-9 Candidate (#141 Phase B2)
+
+```sh
+minos data candidate-icd9 --live-bundle <live bundle> \
+  --archive-root <archive> --czs-sha256 <digest> \
+  [--workbook-sha256 <digest> --workbook-url <NFZ XLSX URL>] \
+  --fetched-at <observation time> \
+  --policy manifests/policy/czs-icd9-automatic.json --work <new directory>
+```
+
+The CZS digest comes from the watcher's `czs_dictionary` record. Evaluation,
+the report and the exit codes are those of B1. The candidate adds the new CZS
+generation and a same-version NFZ workbook beside the previous pair:
+
+- An unchanged version (`symbol`) reuses the live workbook bytes under a new
+  release identity bound to the new generation. A changed version needs the
+  archived workbook for that version (`workbook_companion_missing` otherwise).
+- CZS has no dictionary-level validity, only a publication time and per-code
+  procedure dates, and NFZ backdates some codes (generation 93, published
+  2026-09-24, has codes starting 2026-09-01). The new generation therefore
+  governs from its earliest changed date: an added code's `data_od`, either
+  side of a changed `data_od` or `data_do`, and the publication day for a title,
+  status or annotation change. The previous generation closes at that Polish
+  midnight, so earlier service dates keep it.
+- Refusals: backdating beyond `max_backdating_days` (92, owner policy; history
+  `retroactive_amendment_exceeds_bound`), a generation not newer than the live
+  one, a republication with identical entries (`release_content_unchanged`,
+  which B3 treats as nothing to do rather than a failure), an edition other
+  than the policy's, and every B1 bytes, parse, build, regression and history
+  check.
+- ICD-9 synonyms pinned to the previous generation become unscoped. An unscoped
+  terminology synonym is checked against every searchable release of its
+  system; supporting workbooks are never searched, so they are excluded.
+
+Real-data evidence (2026-10-21, workstation): against the live bundle with a
+stand-in generation 94 derived from 93 (published 2026-10-15, one title
+changed, one code added from 2026-10-01), the report was `would_activate` with
+10,179 and 10,180 concepts, 1 added, 0 removed and 1 changed. Two builds took
+269 seconds with a 207 MiB peak RSS; the database was 496.0 MiB. Through the
+API the new generation was listed first and in force, a search dated 2026-09-15
+answered from generation 93 with the old title, one dated 2026-10-01 from 94
+with the new one, and the tree, the added code's page and the ICD-9 sitemap
+came from generation 94 with the reused workbook hierarchy.
+
 ## Deferred Target (#21/#141)
 
-The following is future acceptance scope, not the next execution checklist.
-Resume only after the owner prioritizes automation based on validation evidence.
+The following is the acceptance scope resumed on 2026-10-20. It runs in a
+host-side processor container, not GitHub Actions, so step 4's protected-branch
+workflow is replaced by that container with its own read-only R2 key.
 
 1. Verify bounded control recovery images and select exact `source_changes`
    rows with source/run/observation/revision identity assertions. Keep capture
@@ -108,9 +247,9 @@ Resume only after the owner prioritizes automation based on validation evidence.
 
 #41 is still open: the current validation deployment has exact digest identities
 and compatible rollback, but lacks the independently signed complete release
-manifest and off-host receipt chain. #21 explicitly requires that trusted
-contract and must not silently substitute the manual validation exception.
-Implement/review the needed release boundary before enabling unattended
-activation. Existing source/policy/legal gates are not waived by a successful
-archive build. No production configuration or notification secret changes are
-part of the first chunk.
+manifest and off-host receipt chain. On 2026-10-20 the owner accepted data-only
+activation without #41: data bundles activate with R2 `deployment-receipts/` and
+the existing checksums, while code images stay owner-deployed under #41.
+Existing source/policy/legal gates are not waived by a successful archive build.
+No production configuration or notification secret changes are part of the
+first chunk.
