@@ -338,6 +338,22 @@ def resolve_release(revision: str, run_id: int) -> Release:
     return release
 
 
+def require_live_sources(bundle: Path, live: list[str] | None) -> None:
+    """The live bundle is authoritative: the processor may have activated
+    releases the repository manifest does not list yet (#141 phase C)."""
+    if live is None:
+        raise DeployError("live bundle manifest is unreadable on the host")
+    manifest = read_artifact_manifest(bundle)
+    missing = sorted(
+        set(live) - {source.release_id for source in manifest.dataset.sources}
+    )
+    if missing:
+        raise DeployError(
+            "bundle drops live releases; add them to the manifest: "
+            + ", ".join(missing)
+        )
+
+
 def plan_path(revision: str) -> Path:
     return WORK_ROOT / revision / "plan.json"
 
@@ -350,6 +366,7 @@ def plan(arguments: Arguments) -> Plan:
     live = cast(dict[str, str], state["live"])
     if live["api_image"] == release.api_image and live["database_sha256"] == database:
         raise DeployError("this release and bundle are already live")
+    require_live_sources(bundle, cast(list[str] | None, state.get("live_sources")))
     group_sample = jgp_sample(bundle)
     modifier_state: Literal["unbound", "reviewed"] = "unbound"
     if group_sample is not None:

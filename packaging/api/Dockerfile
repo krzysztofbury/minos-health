@@ -28,6 +28,8 @@ COPY --from=builder /build/.venv /build/.venv
 # The host processor (#141 B3) judges candidates in this image under these
 # owner-approved activation policies; they carry no source data or secrets.
 COPY manifests/policy /app/policy
+# Criterion 4: reviewed questions a candidate must keep answering (#141 C).
+COPY tests/evaluation/search-gold-v1.json tests/golden/grouping-cases.json /app/acceptance/
 # A validation deployment mounts one pinned, read-only bundle. No raw sources,
 # credentials, source archive, compiler or package manager enter this image.
 RUN mkdir -p /app/data && \

@@ -3,11 +3,13 @@
 import json
 from collections.abc import Callable
 from pathlib import Path
-from typing import ClassVar
+from typing import Annotated, ClassVar, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from minos.ingest.archive_build import R2BlobReader
+from minos.domain.reference import ReferenceError
+from minos.ingest.archive_build import R2BlobReader, create_r2_client
+from minos.ingest.object_storage import validate_r2_endpoint
 from minos.ingest.processor import (
     BlobReader,
     ProcessorError,
@@ -15,6 +17,7 @@ from minos.ingest.processor import (
     Verdict,
     run_processor,
 )
+from minos.ingest.receipts import ReceiptClient, append_receipt
 from minos.ingest.watchers.uptime_kuma import (
     UptimeKumaClient,
     UptimeKumaError,
@@ -22,6 +25,7 @@ from minos.ingest.watchers.uptime_kuma import (
 )
 
 KUMA_SOURCE = "data-update"
+ACTIVATION_SOURCE = "data-activation"
 
 
 class _Arguments(BaseModel):
@@ -34,6 +38,8 @@ class _Arguments(BaseModel):
     uptime_kuma_targets: Path
     archive_bucket: str
     archive_endpoint: str
+    acceptance_directory: Path | None = None
+    accepted: Path | None = None
 
 
 def execute_processor(
@@ -61,12 +67,89 @@ def execute_processor(
         policy_directory=selected.policy_directory,
         work=selected.work,
         state=selected.state,
+        acceptance_directory=selected.acceptance_directory,
+        accepted=selected.accepted,
     )
     try:
         verdicts = run_processor(paths, reader)
     except ProcessorError as error:
         return _report(targets, kuma_factory, failure=error.failure)
     return _report(targets, kuma_factory, verdicts=verdicts)
+
+
+class Outcome(BaseModel):
+    """What the host runner did with the accepted bundle; written by root."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+    version: Literal[1]
+    status: Literal["idle", "disabled", "activated", "failed"]
+    stage: Annotated[str, Field(pattern=r"^[a-z_]{1,32}$")] | None = None
+    release_id: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9-]{0,95}$")] | None = (
+        None
+    )
+    activation: dict[str, object] | None = None
+
+
+class _FinalizeArguments(BaseModel):
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", strict=True)
+    outcome: Path
+    uptime_kuma_targets: Path
+    archive_bucket: str
+    archive_endpoint: str
+
+
+def execute_finalize(
+    arguments: dict[str, object],
+    *,
+    client_factory: Callable[[str], ReceiptClient] | None = None,
+    kuma_factory: Callable[[UptimeKumaTargets], UptimeKumaClient] = UptimeKumaClient,
+) -> int:
+    """Record an activation receipt in R2 and report the activation outcome."""
+    try:
+        selected = _FinalizeArguments.model_validate(arguments)
+        # Without a data-activation monitor yet, the push is skipped; the
+        # receipt is still written.
+        targets = UptimeKumaTargets.load(selected.uptime_kuma_targets)
+        with selected.outcome.open("rb") as source:
+            outcome = Outcome.model_validate_json(source.read(64 * 1024))
+    except ValidationError, UptimeKumaError, OSError:
+        print(json.dumps({"version": 1, "failed": "config"}))
+        return 1
+    up, message, summary = _outcome_message(outcome)
+    if outcome.status == "activated":
+        try:
+            if outcome.activation is None:
+                raise ReferenceError("activation record is missing")
+            client = (client_factory or _r2_client)(selected.archive_endpoint)
+            summary["receipt"] = append_receipt(
+                client, selected.archive_bucket, outcome.activation
+            )
+        except ReferenceError:
+            # The new data is live; only its R2 record is missing.
+            up, message = False, "activation failed: receipt"
+            summary["receipt"] = "failed"
+    try:
+        with kuma_factory(targets) as kuma:
+            kuma.report(ACTIVATION_SOURCE, up=up, message=message)
+    except UptimeKumaError:
+        summary["report"] = "failed"
+    print(json.dumps(summary, sort_keys=True))
+    return 0 if up and "report" not in summary else 1
+
+
+def _outcome_message(outcome: Outcome) -> tuple[bool, str, dict[str, object]]:
+    summary: dict[str, object] = {"version": 1, "status": outcome.status}
+    if outcome.status == "failed":
+        return False, f"activation failed: {outcome.stage or 'unknown'}", summary
+    if outcome.status == "idle" or outcome.release_id is None:
+        return True, "idle", summary
+    summary["release_id"] = outcome.release_id
+    return True, f"{outcome.status} {outcome.release_id}", summary
+
+
+def _r2_client(endpoint: str) -> ReceiptClient:
+    client = cast(object, create_r2_client(validate_r2_endpoint(endpoint)))
+    return cast(ReceiptClient, client)
 
 
 def _r2_reader(bucket: str, endpoint: str) -> BlobReader:

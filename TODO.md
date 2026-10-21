@@ -422,10 +422,10 @@ UI remain the baseline.
       without #41; see [the decision](docs/v0.0.1/decisions.md#unattended-data-activation-resumed-2026-10-20).
   - [x] Phase A: watcher down pushes name a fixed failure category
         (`failed: source_drift`, `failed: archive_failure`, ...).
-  - [ ] Phase A: confirm each `rsk`, `baw` and `nfz` push monitor has a
-        heartbeat interval longer than its schedule, so a silent watcher also
-        alerts. Telegram delivery was re-enabled and all three monitors exist
-        on the status page (2026-10-20).
+  - [x] Phase A: each `rsk`, `baw` and `nfz` push monitor waits 93,600 s
+        (26 h) against daily pushes, so a silent watcher alerts. Retries were 3
+        on every push monitor, so a bad push stayed PENDING and never notified;
+        the owner set them lower (2026-10-21).
   - [x] Phase B1: `minos data candidate-icd10` judges one archived RSK
         ICD-10 release against the live bundle (bytes, parse, build twice,
         regression bounds, unchanged history, licence) and prints a report.
@@ -466,8 +466,19 @@ UI remain the baseline.
         per process through a 512 MiB cgroup), prune retained bundles so
         history cannot fill the 25 GB disk, and plan for the 16-source
         manifest bound.
-  - [ ] Phase C: activate ICD-10/ICD-9, then JGP after shadow evidence, with
-        automatic rollback and R2 deployment receipts.
+  - [x] Phase C (code): criterion 4 acceptance in the processor, data-only
+        `stage-data` in `validation_host`, two attempts per database, public
+        readiness check with rollback, R2 receipt chain and the
+        `data-activation` monitor; `plan` refuses a bundle that drops a live
+        release. See
+        [data-only activation](docs/v0.0.1/archive-processing.md#data-only-activation-141-phase-c).
+  - [ ] Phase C (owner): add the `data-activation` push monitor (Retries 0,
+        28800 s) and its `data_activation` token, release the API, reapply
+        `processor.yml`, then list `icd10-pl` and `icd9-pl` in
+        `processor_activation_classes` after a disabled dry run.
+  - [ ] Phase C: record the first real activation (host build and transition
+        time, receipt sequence) when RSK or NFZ publishes a new release.
+  - [ ] Phase C: JGP/BAW catalog activation after its shadow design (B2 JGP).
 - [x] Alert on watcher failure and on upstream schema drift (new załącznik
       names, changed file formats): drift fails the run, and its down push
       names `source_drift`. Delivery depends on the Phase A Kuma item.

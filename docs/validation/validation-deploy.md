@@ -406,6 +406,18 @@ keeps `candidate`: running, OOM flag, restarts, the validated `error_class`, and
 the `max`, `oom` and `oom_kill` counters. A missing log or cgroup file leaves
 `null` and never changes the outcome. Raw log lines are not kept.
 
+### Data-Only Stages (#141 Phase C)
+
+`stage-data` stages a new database under the live API and edge images, code
+revision and Compose topology; it copies a bundle directory instead of an
+upload and pulls no image. Its stage key is `data-<database SHA-256>`, used
+for `validation-stage/`, `validation-rollback/`, `activate`, `receipt` and
+`rollback --revision`. `inspect` keeps reporting the code revision as
+`live_revision`, adds the stage as `live_stage` and lists the live bundle's
+release identities as `live_sources`; `plan` refuses a bundle without all of
+them. The processor runner calls these functions in-process under the
+deployment lock it already holds.
+
 ### Retention
 
 `prune` keeps:

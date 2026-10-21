@@ -55,6 +55,9 @@ EDGE_IMAGE = re.compile(
     r"ghcr\.io/krzysztofbury/minos-health-validation-edge@sha256:[a-f0-9]{64}"
 )
 REVISION = re.compile(r"[a-f0-9]{40}")
+# A code release stages under its source revision; a data-only activation
+# (#141 phase C) keeps the live images and stages under its database digest.
+STAGE_KEY = re.compile(r"[a-f0-9]{40}|data-[a-f0-9]{64}")
 DIGEST = re.compile(r"[a-f0-9]{64}")
 PROJECT = re.compile(r"[a-z][a-z0-9_-]{0,31}")
 MAX_PARAMS_BYTES = 16 * 1024
@@ -380,6 +383,16 @@ def validate_previous(value: object) -> dict[str, str]:
         bool(DIGEST.fullmatch(item["database_sha256"])), "previous digest is invalid"
     )
     return item
+
+
+def stage_key(params: dict[str, object], deployment: dict[str, str]) -> str:
+    key = cast(str, params.get("stage_key", deployment["source_revision"]))
+    require(bool(STAGE_KEY.fullmatch(key)), "stage key is not exact")
+    require(
+        key in (deployment["source_revision"], "data-" + deployment["database_sha256"]),
+        "stage key does not name this deployment",
+    )
+    return key
 
 
 def memory_available_mib() -> int:
@@ -964,13 +977,44 @@ def live_revision(layout: Layout, identities: dict[str, str]) -> str | None:
     return matches[0] if matches else None
 
 
+def live_sources(layout: Layout, database: str) -> list[str] | None:
+    """Release identities of the live bundle, which may hold activated data."""
+    path = layout.bundle(database) / "manifest.json"
+    if not path.is_file():
+        return None
+    content = path.read_bytes()
+    if len(content) > MAX_COMPOSE_BYTES:
+        return None
+    # Unreadable is reported, never guessed; the workstation plan then refuses.
+    try:
+        dataset = cast(dict[str, object], json.loads(content)["dataset"])
+        return sorted(
+            cast(str, cast(dict[str, object], source)["release_id"])
+            for source in cast(list[object], dataset["sources"])
+        )
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def stage_revision(layout: Layout, stage: str) -> str:
+    record = cast(
+        dict[str, str],
+        json.loads((layout.stage(stage) / "deployment.json").read_text()),
+    )
+    return record["source_revision"]
+
+
 def inspect(layout: Layout, _: dict[str, object]) -> dict[str, object]:
     content, compose = load_compose(layout.compose)
     identities = live_identities(compose)
+    stage = live_revision(layout, identities)
     return {
         "compose_sha256": sha256_bytes(content),
         "live": identities,
-        "live_revision": live_revision(layout, identities),
+        # The code revision, also for a data-only activation's stage.
+        "live_revision": None if stage is None else stage_revision(layout, stage),
+        "live_stage": stage,
+        "live_sources": live_sources(layout, identities["database_sha256"]),
         "available_mib": memory_available_mib(),
         "free_bytes": shutil.disk_usage(layout.root).free,
         "operational": operational(layout),
@@ -1007,10 +1051,7 @@ def _install_bundle(
         return
     require(archive.is_file(), "bundle archive was not uploaded")
     require(sha256_file(archive) == archive_sha, "bundle archive checksum differs")
-    partial = layout.reference / ("." + database + ".partial")
-    if partial.exists():
-        shutil.rmtree(partial)
-    partial.mkdir(mode=0o755, parents=True)
+    partial = _partial(layout, database)
     with tarfile.open(archive, "r:gz") as bundle:
         members = bundle.getmembers()
         require(
@@ -1025,6 +1066,43 @@ def _install_bundle(
                 raise HostError("bundle member is unreadable")
             with (partial / member.name).open("xb") as output:
                 shutil.copyfileobj(source, output)
+    _finish_install(layout, partial, database)
+    archive.unlink()
+
+
+def _install_bundle_directory(layout: Layout, source: Path, database: str) -> None:
+    """Copy a processor-built bundle; its owner never gains the reference tree."""
+    target = layout.bundle(database)
+    if target.exists():
+        require(
+            sha256_file(target / "minos.db") == database, "installed bundle differs"
+        )
+        return
+    require(source.is_dir() and not source.is_symlink(), "bundle directory is missing")
+    entries = sorted(source.iterdir())
+    require(
+        [entry.name for entry in entries] == sorted(BUNDLE_FILES)
+        and all(entry.is_file() and not entry.is_symlink() for entry in entries)
+        and sum(entry.stat().st_size for entry in entries) <= MAX_BUNDLE_BYTES,
+        "bundle directory layout is unsupported",
+    )
+    partial = _partial(layout, database)
+    for entry in entries:
+        with entry.open("rb") as reader, (partial / entry.name).open("xb") as output:
+            shutil.copyfileobj(reader, output)
+    _finish_install(layout, partial, database)
+
+
+def _partial(layout: Layout, database: str) -> Path:
+    partial = layout.reference / ("." + database + ".partial")
+    if partial.exists():
+        shutil.rmtree(partial)
+    partial.mkdir(mode=0o755, parents=True)
+    return partial
+
+
+def _finish_install(layout: Layout, partial: Path, database: str) -> None:
+    target = layout.bundle(database)
     require(
         sha256_file(partial / "minos.db") == database,
         "bundle database checksum differs",
@@ -1036,7 +1114,6 @@ def _install_bundle(
             os.chown(path, 0, 0)
     os.chmod(partial, 0o755)
     os.rename(partial, target)
-    archive.unlink()
 
 
 def _verify_image(reference: str, revision: str) -> str:
@@ -1090,9 +1167,57 @@ def stage(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     return {"stage": str(directory), "compose_json_sha256": sha256_bytes(staged)}
 
 
+def stage_data(layout: Layout, params: dict[str, object]) -> dict[str, object]:
+    """Stage a new database under the live images (#141 phase C).
+
+    Only the database changes: the images, Compose topology and code revision
+    stay the live ones, so no image is pulled. The returned deployment and
+    stage key drive the ordinary activate, receipt and rollback commands.
+    """
+    database = cast(str, params["database_sha256"])
+    require(bool(DIGEST.fullmatch(database)), "database digest is invalid")
+    content, compose = load_compose(layout.compose)
+    require(
+        sha256_bytes(content) == params["compose_sha256"],
+        "live compose changed since plan",
+    )
+    identities = live_identities(compose)
+    require(identities["database_sha256"] != database, "database is already live")
+    live = live_revision(layout, identities)
+    require(live is not None, "live release has no staged revision record")
+    deployment = validate_deployment(
+        {
+            "api_image": identities["api_image"],
+            "edge_image": identities["edge_image"],
+            "source_revision": stage_revision(layout, cast(str, live)),
+            "database_sha256": database,
+        }
+    )
+    previous = {
+        name: identities[name]
+        for name in ("api_image", "edge_image", "database_sha256")
+    }
+    _install_bundle_directory(layout, Path(cast(str, params["bundle"])), database)
+    key = "data-" + database
+    directory = layout.stage(key)
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    write_once(directory / "deployment.json", canonical(deployment))
+    rollback = layout.rollback(key)
+    rollback.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    write_once(rollback, content)
+    rendered = swap_identities(compose, previous, deployment, layout.reference)
+    staged = (json.dumps(rendered, indent=2) + "\n").encode()
+    write_once(directory / "compose.json", staged)
+    return {
+        "stage_key": key,
+        "deployment": deployment,
+        "compose_json_sha256": sha256_bytes(staged),
+    }
+
+
 def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     deployment = validate_deployment(params["deployment"])
-    revision = deployment["source_revision"]
+    revision = stage_key(params, deployment)
     directory = layout.stage(revision)
     staged = (directory / "compose.json").read_bytes()
     live, _ = load_compose(layout.compose)
@@ -1170,7 +1295,7 @@ def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
 
 def rollback(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     revision = cast(str, params["revision"])
-    require(bool(REVISION.fullmatch(revision)), "revision is not exact")
+    require(bool(STAGE_KEY.fullmatch(revision)), "revision is not exact")
     source = layout.rollback(revision)
     require(source.is_file(), "no retained rollback for that revision")
     content, compose = load_compose(source)
@@ -1305,7 +1430,7 @@ def prune(layout: Layout, params: dict[str, object]) -> dict[str, object]:
 
 def receipt(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     deployment = validate_deployment(params["deployment"])
-    directory = layout.stage(deployment["source_revision"])
+    directory = layout.stage(stage_key(params, deployment))
     activated = directory / "activated-at.txt"
     require(activated.is_file(), "release was not activated by this tool")
     # The host's own activation record is authoritative, not the caller's.
@@ -1324,6 +1449,7 @@ READ_ONLY: dict[str, Callable[[Layout, dict[str, object]], dict[str, object]]] =
 MUTATING: dict[str, Callable[[Layout, dict[str, object]], dict[str, object]]] = {
     "prepare": prepare,
     "stage": stage,
+    "stage-data": stage_data,
     "activate": activate,
     "rollback": rollback,
     "prune": prune,

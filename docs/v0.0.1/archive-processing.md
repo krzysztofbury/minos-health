@@ -238,7 +238,7 @@ is skipped.
 
 The container runs as `minos-processor` (UID/GID 10005) with the watcher's
 hardening: read-only root, no capabilities, `no-new-privileges`, init, 0.5 CPU,
-384 MiB without swap, 64 PIDs and a 16 MiB `/tmp`. Temporary files go to the
+512 MiB without swap (384 MiB before phase C), 64 PIDs and a 16 MiB `/tmp`. Temporary files go to the
 on-disk work directory (`TMPDIR`), because tmpfs pages count against the memory
 limit. It mounts the public projections, the live bundle, the R2 key and the
 Kuma target read-only; only `/var/lib/minos/processor/{work,state}` are
@@ -271,7 +271,8 @@ One run:
    digest or source text can reach Telegram. A failed step stores nothing and
    is retried next run.
 
-It activates nothing. Every live input must be in R2: release bundles are built
+Judging activates nothing; [phase C](#data-only-activation-141-phase-c) does,
+for allowlisted classes. Every live input must be in R2: release bundles are built
 on the workstation from `data/archive`, and no committed selection proves
 that each curated workbook is in the bucket. A missing blob reports
 `failed: fetch`, the cue to copy it with the operator key.
@@ -315,6 +316,76 @@ whose effective day is not after the live generation's start is refused
 (`effective_day_not_after_live_release`), so the effective bound is the
 smaller of 92 days and the time since the live generation started. The
 processor's reports are the evidence for revisiting it.
+
+## Data-Only Activation (#141 Phase C)
+
+Owner decisions (2026-10-21): the processor's R2 key is read-write, so the
+receipt writer needs no second key; activation outcomes go to a second
+`data-activation` Kuma push monitor; the live bundle's manifest is the source
+of truth; and activation starts disabled, enabled per source class.
+
+After the judging container exits, a `would_activate` candidate has also
+passed criterion 4 inside it: each reviewed search gold case for its system
+that the live bundle answers in its top five on the new release's first day
+must stay there (`regression/search_gold_case_lost`), and every golden real
+grouping case must answer identically, since JGP catalogs keep their pinned
+terminology release (`regression/grouping_golden_case_changed`). Each bundle
+is asked in its own child process through the real HTTP application with one
+pool lease; busy answers are asked again, and an answer that stays
+unavailable fails the run (`failed: build`) rather than the candidate. The
+cases ship in the API image as `/app/acceptance`. The first build then moves
+to `/var/lib/minos/processor/accepted/<database SHA-256>` with `request.json`.
+An accepted bundle that no current verdict accepts any more, for example after
+a policy or rules change, is deleted on the next run.
+
+The runner, still under the deployment lock:
+
+1. Reads `/etc/minos/processor/activation.json`. A class not listed reports
+   `disabled <release>` and keeps the bundle; an absent file allows nothing.
+2. Gives each database at most two attempts, counted in
+   `activation/attempts.json` before each try: every observed failed API start
+   (#198) succeeded on retry. A spent budget reports
+   `activation failed: retries_exhausted` until a newer candidate replaces it.
+3. Calls `validation_host` in-process (its command entry point would take the
+   lock again): `stage-data` copies and verifies the bundle into
+   `/opt/minos/reference` and stages a deployment with the live images, code
+   revision and Compose topology under the key `data-<database SHA-256>`; the
+   ordinary `activate` starts the other colour, moves the edge after real
+   health and restores the previous release on failure. An incomplete
+   restoration stops at once (`activation failed: rollback`) and leaves the
+   host for explicit operator recovery.
+4. Requires the public `/readyz` to serve the candidate's dataset identity
+   within a minute, else rolls back (`activation failed: verify`).
+5. Writes the host receipt, prunes to the live release plus one rollback, and
+   deletes the accepted copy.
+6. Writes `activation/outcome.json` (root-owned, readable by the processor)
+   and runs `minos processor finalize`, which appends the receipt to the R2
+   `deployment-receipts/` chain and pushes `data-activation`: up with `idle`,
+   `disabled <release>` or `activated <release>`, down with
+   `activation failed: <stage>`. Each `deployment-receipts/<sequence>.json`
+   names its predecessor's SHA-256; the writer verifies the whole chain first
+   and creates the next key with `If-None-Match: *`; the bucket lock keeps
+   receipts forever. Data-only receipts are unsigned and carry no release
+   manifest (#41 still governs code). A failed receipt write after a
+   successful activation reports `activation failed: receipt`: the data
+   serves, its record is missing, and the outcome is kept in
+   `activation/pending.json` and finalized again on each run until the
+   receipt exists.
+
+`inspect` reports the live code revision as before and the data stage as
+`live_stage`, and `deploy_validation plan` refuses a bundle that drops a live
+release (`bundle drops live releases`): after an activation, add the release
+to the repository manifest before the next reviewed release.
+
+Evidence (2026-10-21, workstation, API image from the tree, the processor
+limits, network off): acceptance of the live bundle against itself for both
+systems, four child pool loads, took 58 seconds with anonymous memory at
+281 MiB and no reclaim events. In one process the second pool load reached
+480 MiB and was OOM-killed, because a closed pool keeps its native dictionary
+memory; hence one child per bundle, and the processor limit is now the API's
+512 MiB. The transition, rollback and receipt path ran against the fake
+Docker host of the validation tests. Production end to end is unexercised
+until RSK or NFZ publishes a new release; no stand-in data goes live.
 
 ## Deferred Target (#21/#141)
 

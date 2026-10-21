@@ -981,3 +981,171 @@ def test_failed_retirement_restores_the_previous_release(
         "reference-api",
         "watcher",
     ]
+
+
+def _stage_data(
+    site: tuple[Path, Path, Path], host: Host, bundle: Path | None = None
+) -> dict[str, object]:
+    _, default, _ = site
+    source = bundle or default
+    return host(
+        "stage-data",
+        {
+            "bundle": str(source),
+            "database_sha256": hashlib.sha256(
+                (source / "minos.db").read_bytes()
+            ).hexdigest(),
+            "compose_sha256": host("inspect", {})["compose_sha256"],
+        },
+    )
+
+
+def test_data_activation_keeps_the_live_images_and_rolls_back_by_stage(
+    site: tuple[Path, Path, Path],
+) -> None:
+    root, bundle, _ = site
+    host = host_for(site)
+    before = (root / "compose.yaml").read_bytes()
+
+    staged_data = _stage_data(site, host)
+    activated = host(
+        "activate",
+        {
+            "deployment": staged_data["deployment"],
+            "compose_sha256": hashlib.sha256(before).hexdigest(),
+            "stage_key": staged_data["stage_key"],
+        },
+    )
+    inspected = host("inspect", {})
+    restored = host("rollback", {"revision": staged_data["stage_key"]})
+
+    database = hashlib.sha256((bundle / "minos.db").read_bytes()).hexdigest()
+    assert staged_data["stage_key"] == "data-" + database
+    assert staged_data["deployment"] == {
+        "api_image": OLD_API,
+        "edge_image": OLD_EDGE,
+        "source_revision": OLD_REVISION,
+        "database_sha256": database,
+    }
+    assert activated["status"] == "activated"
+    # The workstation tools keep seeing the code revision.
+    assert (inspected["live_revision"], inspected["live_stage"]) == (
+        OLD_REVISION,
+        "data-" + database,
+    )
+    assert cast(dict[str, str], inspected["live"])["api_image"] == OLD_API
+    calls = cast(list[list[str]], docker_state(site)["calls"])
+    assert not any(call[0] == "pull" for call in calls)
+    assert restored["status"] == "restored"
+    assert (root / "compose.yaml").read_bytes() == before
+
+
+@pytest.mark.parametrize("damage", ["extra_file", "symlink", "live_database"])
+def test_data_stage_refuses_an_unreviewed_bundle(
+    site: tuple[Path, Path, Path], damage: str
+) -> None:
+    root, bundle, base = site
+    host = host_for(site)
+    source = bundle
+    if damage == "extra_file":
+        _ = (bundle / "notes.txt").write_bytes(b"x")
+    elif damage == "symlink":
+        (bundle / "review.txt").unlink()
+        (bundle / "review.txt").symlink_to(base / "docker-state.json")
+    else:
+        source = base / "live-copy"
+        source.mkdir()
+        for name in ("manifest.json", "review.txt"):
+            _ = (source / name).write_bytes(b"{}")
+        live = root / "reference" / OLD_DB / "minos.db"
+        _ = live.write_bytes(b"live")
+        _ = (source / "minos.db").write_bytes(b"live")
+
+    with pytest.raises(DeployError):
+        if damage == "live_database":
+            _ = host(
+                "stage-data",
+                {
+                    "bundle": str(source),
+                    "database_sha256": OLD_DB,
+                    "compose_sha256": host("inspect", {})["compose_sha256"],
+                },
+            )
+        else:
+            _ = _stage_data(site, host, source)
+
+    assert not any(
+        path.name.startswith("data-") for path in (root / "validation-stage").iterdir()
+    )
+
+
+def test_plan_refuses_a_bundle_that_drops_a_live_release(tmp_path: Path) -> None:
+    from minos.ingest.reference_artifact import build_reference_artifact
+    from tests.integration.test_reference_artifact import stage_source
+
+    dataset = stage_source(tmp_path)
+    bundle = tmp_path / "bundle"
+    _ = build_reference_artifact(dataset, tmp_path, bundle)
+    release = dataset.sources[0].release_id
+
+    deploy_validation.require_live_sources(bundle, [release])
+    with pytest.raises(DeployError, match="icd10-rsk-014-activated"):
+        deploy_validation.require_live_sources(
+            bundle, [release, "icd10-rsk-014-activated"]
+        )
+    with pytest.raises(DeployError, match="unreadable"):
+        deploy_validation.require_live_sources(bundle, None)
+
+
+def test_processor_activator_drives_the_host_transition_in_process(
+    site: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import processor_host
+
+    root, bundle, base = site
+    monkeypatch.setenv("PATH", f"{base / 'bin'}:{os.environ['PATH']}")
+    monkeypatch.setenv("FAKE_DOCKER_STATE", str(base / "docker-state.json"))
+    before = (root / "compose.yaml").read_bytes()
+    activator = processor_host.ValidationActivator(root)
+    database = hashlib.sha256((bundle / "minos.db").read_bytes()).hexdigest()
+
+    staged_data = activator.stage(bundle, database)
+    activated = activator.activate(staged_data)
+    activator.finish(staged_data, {"operator": "minos-processor"})
+    receipt = root / "validation-stage" / f"data-{database}" / "activation-receipt.json"
+    restored = activator.rollback(cast(str, staged_data["stage_key"]))
+
+    assert activated["status"] == "activated"
+    assert json.loads(receipt.read_text())["operator"] == "minos-processor"
+    assert restored["status"] == "restored"
+    assert (root / "compose.yaml").read_bytes() == before
+    with pytest.raises(processor_host.HostError, match="already live"):
+        _ = activator.stage(root / "reference" / OLD_DB, OLD_DB)
+
+
+def test_processor_activator_retries_after_a_restored_failed_start(
+    site: tuple[Path, Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts import processor_host
+
+    root, bundle, base = site
+    monkeypatch.setenv("PATH", f"{base / 'bin'}:{os.environ['PATH']}")
+    monkeypatch.setenv("FAKE_DOCKER_STATE", str(base / "docker-state.json"))
+    state = docker_state(site)
+    state["fail_up"] = 1
+    _ = (base / "docker-state.json").write_text(json.dumps(state))
+    before = (root / "compose.yaml").read_bytes()
+    activator = processor_host.ValidationActivator(root)
+    database = hashlib.sha256((bundle / "minos.db").read_bytes()).hexdigest()
+
+    first = activator.stage(bundle, database)
+    with pytest.raises(processor_host.HostError, match="previous release was restored"):
+        _ = activator.activate(first)
+    restored = (root / "compose.yaml").read_bytes()
+    second = activator.stage(bundle, database)
+    activated = activator.activate(second)
+
+    # The write-once records accept the same second attempt.
+    assert restored == before
+    assert second == first
+    assert activated["status"] == "activated"

@@ -700,11 +700,14 @@ the reference API image, so it starts working after the API release that ships
    `minos-production-processor-r2-credentials` (ID
    `3lapt4pwp43x2rojdjzccsumhi`; its title starts with a space, so use the ID)
    with the fields `access key id` (32 hex) and `secret access key` (64 hex).
-2. In Kuma, create a push monitor named `data-update` with a heartbeat interval
-   of 28800 seconds (six-hour timer, jitter and the 75-minute run cap) and the
-   Telegram notification. Its push token (the 32 characters after
-   `/api/push/`) is the `data_update` field of the `MinosHealth Uptime Kuma`
-   item (ID `clb4foeld7unl27zh7o6ainxja`), beside the watcher tokens.
+2. In Kuma, create two push monitors with a heartbeat interval of 28800
+   seconds (six-hour timer, jitter and the run cap), **Retries 0** (a pending
+   push does not notify) and the Telegram notification: `data-update` for
+   verdicts and `data-activation` for activation outcomes (#141 phase C).
+   Their push tokens (the 32 characters after `/api/push/`) are the
+   `data_update` and `data_activation` fields of the `MinosHealth Uptime Kuma`
+   item (ID `clb4foeld7unl27zh7o6ainxja`), beside the watcher tokens. Both
+   fields must exist before the install below, which reads them.
 3. After the API release, install the processor. The subshell builds the
    credential file and the Kuma target in a private temporary directory and
    removes it on exit:
@@ -719,8 +722,9 @@ the reference API image, so it starts working after the API release that ships
        "$(op read 'op://MinosHealth/3lapt4pwp43x2rojdjzccsumhi/access key id')" \
        "$(op read 'op://MinosHealth/3lapt4pwp43x2rojdjzccsumhi/secret access key')" \
        > "$secrets/r2"
-     printf '{"version":1,"sources":{"data-update":"%s"}}\n' \
+     printf '{"version":1,"sources":{"data-update":"%s","data-activation":"%s"}}\n' \
        "$(op read 'op://MinosHealth/clb4foeld7unl27zh7o6ainxja/data_update')" \
+       "$(op read 'op://MinosHealth/clb4foeld7unl27zh7o6ainxja/data_activation')" \
        > "$secrets/kuma.json"
      ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
        uvx --from ansible-core==2.21.4 ansible-playbook \
@@ -741,6 +745,25 @@ the reference API image, so it starts working after the API release that ships
 
 Later applies may omit both sources; the installed files are kept and
 re-checked. `processor.yml` never touches the `minos` Compose project.
+
+Automatic activation (#141 phase C) is off until the owner lists classes:
+
+```sh
+ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
+  uvx --from ansible-core==2.21.4 ansible-playbook infra/ansible/processor.yml \
+  -e '{"processor_activation_classes": ["icd10-pl", "icd9-pl"]}'
+```
+
+`[]` turns it off again. Each apply rewrites the allowlist, so pass the list
+on every apply. When `data-activation` reports
+`activation failed: retries_exhausted`, the accepted bundle stays in
+`/var/lib/minos/processor/accepted/` for inspection, and the last good release
+keeps serving. To try again, delete `activation/attempts.json`; to give up on
+that candidate, delete the accepted directory and its `request.json`. An
+activated release is rolled back like any other, with its stage key:
+`uv run python -m scripts.deploy_validation rollback --revision data-<database SHA-256>`.
+After an activation, add the release to the repository manifest before the
+next reviewed release: `plan` refuses a bundle that drops a live release.
 
 ## Mutable Product Data Gate
 

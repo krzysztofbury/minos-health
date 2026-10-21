@@ -141,7 +141,7 @@ class S3ArchiveReader:
 
     @classmethod
     def create(cls, selection: ArchiveSelection) -> Self:
-        return cls(_create_client(selection.endpoint), selection)
+        return cls(create_r2_client(selection.endpoint), selection)
 
     def close(self) -> None:
         """The caller that creates the SDK client owns its connection pool."""
@@ -195,7 +195,7 @@ class R2BlobReader:
             endpoint = validate_r2_endpoint(endpoint)
         except ValueError:
             raise SourceError("archive endpoint is unsupported") from None
-        return cls(cast(BlobS3Client, _create_client(endpoint)), bucket)
+        return cls(cast(BlobS3Client, create_r2_client(endpoint)), bucket)
 
     def close(self) -> None:
         _close_client(self._client)
@@ -244,7 +244,7 @@ class R2BlobReader:
             raise SourceError("archive blob write failed") from None
 
 
-def _create_client(endpoint: str) -> ArchiveS3Client:
+def create_r2_client(endpoint: str) -> ArchiveS3Client:
     boto3_api = cast(_Boto3, boto3)  # pyright: ignore[reportInvalidCast]
     try:
         return cast(

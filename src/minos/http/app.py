@@ -11,6 +11,7 @@ from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
+from functools import partial
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal, cast
 
@@ -392,6 +393,7 @@ def create_app(
     expected_database_sha256: str | None = None,
     required_search_profile: str | None = None,
     public_directory: Path | None = None,
+    pool_capacity: int = 4,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
@@ -399,7 +401,9 @@ def create_app(
         warmup_stop = threading.Event()
         try:
             started = time.monotonic()
-            pool = await run_in_threadpool(ReferencePool, bundle)
+            pool = await run_in_threadpool(
+                partial(ReferencePool, bundle, capacity=pool_capacity)
+            )
             pool_ms = round((time.monotonic() - started) * 1000)
             if (
                 required_search_profile is not None
