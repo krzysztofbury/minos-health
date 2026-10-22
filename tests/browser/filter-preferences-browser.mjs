@@ -175,7 +175,7 @@ async function checkMetadata() {
   assert.equal(metadata.width, "1200"); assert.equal(metadata.height, "630");
   assert.equal(metadata.card, "summary_large_image");
   for (const text of ["localStorage", "90 dni", "Nie zapisujemy wyszukiwań", "Szczegóły prywatności"]) assert.ok(!metadata.preferences.includes(text), "No inline storage notice");
-  assert.ok(metadata.preferences.includes("Przywróć wszystkie filtry"));
+  assert.ok(metadata.preferences.includes("Przywróć domyślne filtry"));
   assert.equal(metadata.privacy, "/polityka-prywatnosci");
   // Probe this stack's route, not the canonical public host when testing locally.
   const raster = await evaluate(`(async () => {
@@ -340,7 +340,7 @@ try {
     assert.deepEqual(available, order, "This suite requires the packaged ICD-10, ICD-9 and JGP stack");
     assert.deepEqual(await selected(), available);
     assert.equal(await rawPreference(), null);
-    assert.equal(await evaluate("document.querySelectorAll('.filter-soon[aria-disabled=true]').length"), 1);
+    assert.equal(await evaluate("document.querySelector('input[value=icd11-pl]').checked"), false, "ICD-11 PL is not a default source (#53)");
     await submitTyped("badania moczu", available);
     assert.equal(await rawPreference(), null, "Search and suggestions must not persist defaults or queries");
     await snapshot(`filters-${name}`);

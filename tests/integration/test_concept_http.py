@@ -12,7 +12,7 @@ from minos.domain.reference import QueryLimitError
 from minos.http.app import create_app
 from minos.http.reference import ReferencePool
 from minos.ingest.reference_artifact import build_reference_artifact
-from minos.store.concept_detail import concept_detail
+from minos.store.concept_detail import MAX_NEIGHBOURS, concept_detail
 from minos.store.reference import open_reference_bundle
 from scripts.smoke_reference_web import fixture
 from tests.integration.test_jgp_condition_consumers import consumer_bundle
@@ -266,11 +266,11 @@ def test_store_bounds_refuse_incomplete_answers(bundle: Path, boundary: str) -> 
         elif boundary == "children":
             _ = connection.executemany(
                 "INSERT INTO reference_node VALUES (?,?,?,'child','text')",
-                [(release, i + 100, "") for i in range(401)],
+                [(release, i + 100, "") for i in range(MAX_NEIGHBOURS + 1)],
             )
             _ = connection.executemany(
                 "INSERT INTO reference_relation VALUES (?,3,?,'contains')",
-                [(release, i + 100) for i in range(401)],
+                [(release, i + 100) for i in range(MAX_NEIGHBOURS + 1)],
             )
         elif boundary == "bytes":
             _ = connection.execute(

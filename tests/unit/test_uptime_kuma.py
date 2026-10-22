@@ -235,6 +235,8 @@ def test_uptime_kuma_target_file_rejects_duplicate_keys(tmp_path: Path) -> None:
         ("manual jgp 44042", True),
         ("rejected icd9-pl history/x; manual jgp 44042; manual jgp 43868", True),
         ("manual jgp 044042", False),
+        ("manual icd11 002; manual jgp 44042", True),
+        ("manual icd11 https://rsk3.ezdrowie.gov.pl/x", False),
         ("manual jgp Zalacznik1a.xlsx", False),
         ("rejected jgp history/x", False),
         ("", False),

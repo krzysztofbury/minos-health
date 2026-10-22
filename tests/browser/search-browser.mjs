@@ -65,7 +65,7 @@ try {
       ['icd10-pl', 'icd9-pl', 'jgp'].filter(system => system === 'jgp' ? body.jgp_search : body.releases.some(release => release.system === system)))`);
     assert.deepEqual(await evaluate('[...document.querySelectorAll("input[name=system]:checked")].map(box => box.value)'), available);
     assert.equal(await evaluate('document.querySelector("input[value=jgp]").disabled'), !available.includes('jgp'), 'The local dictionary fixture need not include JGP');
-    assert.equal(await evaluate("document.querySelectorAll('.filter-soon').length"), 1); // ICD-11 only; JGP has its own section since #26
+    assert.equal(await evaluate('document.querySelector("input[value=icd11-pl]").checked'), false, "ICD-11 PL starts unselected (#53)");
     await evaluate('document.querySelector("#query").focus(); document.querySelector("#query").value="badania moczu"; document.querySelector("#query").dispatchEvent(new Event("input",{bubbles:true}))');
     await wait('document.querySelectorAll("#suggestions .suggestion").length > 0');
     assert.equal(await evaluate('document.querySelector("#query").getAttribute("aria-expanded")'), "true");

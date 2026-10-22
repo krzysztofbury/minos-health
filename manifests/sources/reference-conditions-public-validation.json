@@ -340,6 +340,36 @@
         "concepts": 12371,
         "descriptions": 24735
       }
+    },
+    {
+      "release_id": "icd11-rsk-2026-01-026b26b3997b",
+      "system": "icd11-pl",
+      "origin": "rsk",
+      "source_version": "2026-01",
+      "source_file_id": "e7914c14-b2d1-4638-8bed-20a389717d99",
+      "source_url": "https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/e7914c14-b2d1-4638-8bed-20a389717d99",
+      "publisher": "World Health Organization",
+      "fetched_at": "2026-10-22T10:50:55Z",
+      "source_created_at": "2026-08-18T12:55:00.804Z",
+      "valid_from": null,
+      "valid_to": null,
+      "sha256": "026b26b3997be06e0fdca41c1ea3cdd1b5c11d1dd5d70412ed4b8a35b4260328",
+      "size_bytes": 117000048,
+      "license": "CC BY-ND 4.0 (Polish translation); ICD-11 CC BY-ND 3.0 IGO",
+      "notices": [
+        "Source: RSK/CeZ resource 99ICD1 (ICD-11 PL, resource version 002), the Polish translation of the WHO ICD-11 MMS release 2026-01 prepared in project FERS.04.15-IP.07-0004/24.",
+        "This translation was not created by the World Health Organization (WHO) and WHO is not responsible for the translation. In the event of any inconsistency between the English version and the translation, the original English source shall be the binding and authentic version. The original English version and the translation are available in the WHO ICD-11 platform https://icd.who.int.",
+        "Pre-released (przedostateczna) translation published for consultation. Its publication does not put ICD-11 into force in Poland; it is not an NFZ settlement or JGP input.",
+        "Minos reproduces codes, titles, WHO URIs, definitions, inclusions, exclusions and index terms verbatim (CC BY-ND), adds no text to ICD-11 and marks its own fields as not originating from WHO. Blocks and windows stay uncoded containers.",
+        "International Classification of Diseases, Eleventh Revision (ICD-11), World Health Organization (WHO) 2019 https://icd.who.int/browse11. Licensed under the Creative Commons Attribution-NoDerivatives 3.0 IGO licence (CC BY-ND 3.0 IGO).",
+        "The fetch timestamp is the owner-approved download of 2026-10-22 (#53); the bytes match the RSK metadata size. The RSK watcher keeps metadata only for this resource."
+      ],
+      "expected": {
+        "nodes": 124410,
+        "relations": 124382,
+        "concepts": 35692,
+        "descriptions": 35692
+      }
     }
   ],
   "komunikaty": [
@@ -3507,5 +3537,43 @@
         }
       ]
     }
-  ]
+  ],
+  "icd11_maps": {
+    "release_id": "icd11-maps-who-2026-01",
+    "icd11_release_id": "icd11-rsk-2026-01-026b26b3997b",
+    "notices": [
+      "Source: RSK/CeZ resource 99ICD1, WHO ICD-10/ICD-11 mapping tables 2026-01, each sheet reproduced row for row with its source row number.",
+      "The ICD-10 side is WHO ICD-10 2019, not the Polish 2008 edition. The tables state no match type and Minos adds none; gaps stay unfilled.",
+      "WHO ICD-11 licence clause 1.2.4: mappings and crosswalks are not covered by the Classifications License and are subject to a separate written agreement from WHO. On 2026-10-22 the owner decided to show the published tables verbatim without such an agreement (decisions.md)."
+    ],
+    "files": [
+      {
+        "kind": "10to11_one",
+        "file_name": "10To11MapdoJednejKategorii_2026-01.xlsx",
+        "source_url": "https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/8c76859d-0f6c-46e5-abda-6732b98c2c9d",
+        "sha256": "892a27aed38be532d0b5de5a9ac88b9c3655e76c9c73945836cbc1ea864dccee",
+        "size_bytes": 1104875,
+        "fetched_at": "2026-10-22T10:50:56Z",
+        "expected_rows": 12597
+      },
+      {
+        "kind": "10to11_many",
+        "file_name": "10To11MapdowieluKategorii_2026-01.xlsx",
+        "source_url": "https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/b669f440-0606-410a-93e8-7d74f428232e",
+        "sha256": "6aa6014e8477bb875847a7fa316c054cd4c67c05e9e46ecebec50ddc058c5737",
+        "size_bytes": 1336739,
+        "fetched_at": "2026-10-22T10:50:56Z",
+        "expected_rows": 15630
+      },
+      {
+        "kind": "11to10_one",
+        "file_name": "11To10MapdoJednejKategorii_2026-01.xlsx",
+        "source_url": "https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/0233ce81-6e8a-412b-9516-de741ffe525c",
+        "sha256": "fbb4dbf093e6da3ec3bd2d8e49e6a2583d1475c98b4b1850d4e97a468ced2599",
+        "size_bytes": 1149313,
+        "fetched_at": "2026-10-22T10:50:56Z",
+        "expected_rows": 17943
+      }
+    ]
+  }
 }

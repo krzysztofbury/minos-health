@@ -51,6 +51,17 @@ DICTIONARIES: Final = {
         + " hierarchii i uwagi oznaczone jako skoroszyt: skoroszyt ICD-9 PL NFZ"
         + " tej samej wersji.",
     ),
+    "icd-11": Dictionary(
+        "icd-11",
+        "icd11-pl",
+        "ICD-11",
+        "ICD-11",
+        "Treść: polska wersja językowa ICD-11 (MMS) z Rejestru Systemów Kodowania"
+        + " (RSK), wersja przedostateczna, licencja CC BY-ND 4.0. Tłumaczenie nie"
+        + " zostało dokonane przez WHO i WHO nie ponosi za nie odpowiedzialności;"
+        + " wiążąca jest oryginalna wersja angielska (https://icd.who.int). ICD-11"
+        + " nie obowiązuje jeszcze w Polsce i nie służy do rozliczeń NFZ.",
+    ),
 }
 
 
@@ -180,6 +191,60 @@ def _rank_section(evidence: dict[str, object]) -> list[str]:
     return parts
 
 
+MAP_TABLES: Final = {
+    "10to11_one": "ICD-10 do ICD-11, jedna kategoria",
+    "10to11_many": "ICD-10 do ICD-11, wiele kategorii",
+    "11to10_one": "ICD-11 do ICD-10, jedna kategoria",
+}
+_PLAIN_CODE: Final = re.compile(r"[0-9A-Z]{1,6}(?:\.[0-9A-Z]{1,4})?")
+
+
+def icd11_map_section(system: str, rows: list[dict[str, object]]) -> str:
+    """WHO map rows as published: codes, titles and URIs, no match type added."""
+    if not rows:
+        return ""
+    target, field, title_field = (
+        ("icd-11", "icd11_code", "icd11_title")
+        if system == "icd10-pl"
+        else ("icd-10", "icd10_code", "icd10_title")
+    )
+    heading = (
+        "Odpowiedniki w ICD-11" if system == "icd10-pl" else "Odpowiedniki w ICD-10"
+    )
+    parts = [f'        <section class="detail-notes icd11-map"><h2>{heading}</h2>']
+    for table, label in MAP_TABLES.items():
+        group = [row for row in rows if row["table"] == table]
+        if not group:
+            continue
+        items: list[str] = []
+        for row in group:
+            code = cast(str | None, row[field])
+            title = cast(str | None, row[title_field])
+            chip = ""
+            if code is not None:
+                chip = (
+                    f'<a class="code-chip" href="/slowniki/{target}/{_e(code)}">{_e(code)}</a> '
+                    if _PLAIN_CODE.fullmatch(code)
+                    else f'<span class="code-chip">{_e(code)}</span> '
+                )
+            uri = cast(str | None, row["icd11_uri"])
+            items.append(
+                "<li>"
+                + chip
+                + _e(title or "")
+                + (f' <span class="detail-source">{_e(uri)}</span>' if uri else "")
+                + "</li>"
+            )
+        parts.append(f"<h3>Tabela WHO: {label}</h3><ul>{''.join(items)}</ul>")
+    parts.append(
+        '<p class="detail-source">Wiersze tabel WHO z zasobu ICD-11 PL w RSK (wydanie'
+        + " 2026-01) bez zmian. Strona ICD-10 tabel to ICD-10 WHO 2019, nie polskie"
+        + " wydanie 2008. Tabele nie określają rodzaju odpowiedniości i nie służą do"
+        + " rozliczeń NFZ.</p></section>"
+    )
+    return "".join(parts)
+
+
 def code_page(
     dictionary: Dictionary,
     node: dict[str, object],
@@ -189,6 +254,8 @@ def code_page(
     rank_evidence: dict[str, object] | None = None,
     jgp_section: str = "",
     dated_path: str | None = None,
+    map_section: str = "",
+    children_truncated: bool = False,
 ) -> str:
     code = cast(str, node["code"])
     label = " ".join(cast(str, node["label"]).split())
@@ -221,6 +288,11 @@ def code_page(
         parts.append(
             f'        <p class="badge badge-warn">Status {_e(status)} w CZS</p>'
         )
+    if dictionary.system == "icd11-pl":
+        parts.append(
+            '        <p class="badge badge-warn">Wersja przedostateczna ICD-11:'
+            + " nie obowiązuje i nie służy do rozliczeń NFZ</p>"
+        )
     if node.get("canonical") is False:
         parts.append(
             '        <p class="badge badge-muted">Pozycja tylko w skoroszycie NFZ,'
@@ -246,6 +318,8 @@ def code_page(
         parts.extend(_rank_section(rank_evidence))
     if jgp_section:
         parts.append(jgp_section)
+    if map_section:
+        parts.append(map_section)
     for kind in ("includes", "excludes", "term", "modifier", "note"):
         group = [note for note in notes if note["kind"] == kind]
         if not group:
@@ -272,9 +346,15 @@ def code_page(
             )
             for child in children
         )
+        more = (
+            '<p class="detail-source">Pokazano pierwsze pozycje. Użyj wyszukiwania,'
+            + " aby znaleźć pozostałe.</p>"
+            if children_truncated
+            else ""
+        )
         parts.append(
             '        <section class="code-children"><h2>Kody podrzędne</h2>'
-            + f'<ul class="code-list">{items}</ul></section>'
+            + f'<ul class="code-list">{items}</ul>{more}</section>'
         )
     if path:
         items = "".join(

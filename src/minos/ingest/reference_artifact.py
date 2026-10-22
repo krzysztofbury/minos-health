@@ -60,6 +60,7 @@ def build_reference_artifact(
             ("icd10-pl", "rsk"),
             ("icd9-pl", "czs"),
             ("icd9-pl", "nfz-workbook"),
+            ("icd11-pl", "rsk"),
         ):
             raise SourceError("unsupported source adapter")
     try:
@@ -183,6 +184,12 @@ def _build_database(
             import_product_catalogs(
                 connection, manifest.product_catalogs, archive_root, database.parent
             )
+        if manifest.icd11_maps is not None:
+            from minos.store.icd11_maps import import_icd11_maps
+
+            import_icd11_maps(
+                connection, manifest.icd11_maps, archive_root, database.parent
+            )
         if manifest.grouping_dictionaries is not None:
             from minos.store.grouping_dictionaries import import_grouping_dictionaries
 
@@ -214,6 +221,10 @@ def _source_events(
         from minos.ingest.icd9_workbook import parse_icd9_workbook
 
         return parse_icd9_workbook(snapshot, source)
+    if (source.system, source.origin) == ("icd11-pl", "rsk"):
+        from minos.ingest.icd11 import parse_icd11
+
+        return parse_icd11(snapshot)
     raise SourceError("unsupported source adapter")
 
 
@@ -316,6 +327,12 @@ def _review_summary(
     if manifest.characteristics:
         lines.append(
             f"Characteristics knowledge horizon: {manifest.characteristics_knowledge_as_of}; {manifest.characteristics_knowledge_evidence}"
+        )
+    if manifest.icd11_maps is not None:
+        lines.append(f"WHO ICD-10/ICD-11 maps: {manifest.icd11_maps.release_id}")
+        lines.extend(
+            f"Pinned {item.kind}: {item.sha256} / {item.size_bytes} / {item.expected_rows} rows"
+            for item in manifest.icd11_maps.files
         )
     from minos.ingest.search_synonyms import dictionary_notice
 

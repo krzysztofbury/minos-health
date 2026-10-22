@@ -23,8 +23,9 @@ _PUSH_TOKEN = re.compile(r"[A-Za-z0-9]{32}")
 # Data-update verdicts (#141 B3) reach Telegram, so only release identifiers,
 # fixed criteria and refusal codes may appear in them.
 _VERDICT = r"would_activate [a-z0-9][a-z0-9-]{0,95}|rejected icd(?:10|9)-pl [a-z]{1,16}/[a-z0-9_]{1,64}"
-# A BAW document whose JGP workbooks wait for a reviewed release.
-_MANUAL = r"manual jgp [1-9][0-9]{0,8}"
+# A BAW document whose JGP workbooks, or an RSK ICD-11 PL version whose
+# files, wait for a reviewed release.
+_MANUAL = r"manual jgp [1-9][0-9]{0,8}|manual icd11 [0-9A-Za-z.-]{1,16}"
 # Data-activation outcomes (#141 phase C) use the same closed vocabulary.
 _ACTIVATION = (
     r"(?:activated|disabled) [a-z0-9][a-z0-9-]{0,95}|activation failed: [a-z_]{1,32}"

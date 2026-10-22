@@ -49,6 +49,7 @@ from minos.http.pages import (
     CODE_PATTERN,
     DICTIONARIES,
     code_page,
+    icd11_map_section,
     missing_page,
     recovery_page,
     sitemap,
@@ -56,6 +57,7 @@ from minos.http.pages import (
 from minos.http.reference import CapacityError, ReferencePool
 from minos.http.source_pages import SOURCE_ROUTE, register_source_pages
 from minos.store.artifact import dataset_identity
+from minos.store.icd11_maps import map_rows
 from minos.store.jgp_condition_reference import (
     characteristics_calendar,
     code_memberships,
@@ -75,9 +77,9 @@ from minos.store.tree import (
 LOGGER = logging.getLogger("minos.http")
 TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
 PAGE_ROUTE = re.compile(
-    r"/slowniki/icd-(?:10|9)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/[1-9][0-9]{0,1})?)?"
+    r"/slowniki/icd-(?:10|9|11)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/[1-9][0-9]{0,1})?)?"
 )
-SITEMAP_ROUTE = re.compile(r"/sitemap-icd-(?:10|9)\.xml")
+SITEMAP_ROUTE = re.compile(r"/sitemap-icd-(?:10|9|11)\.xml")
 RANK_ROUTE = re.compile(
     r"/api/v1/procedure-ranks/[a-z0-9-]{1,80}/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}"
 )
@@ -266,6 +268,9 @@ def render_code(
 ) -> tuple[int, str]:
     dictionary = DICTIONARIES[slug]
     tree = tree_in_force(pool, trees, dictionary.system, service_date)
+    if tree is None and dictionary.system == "icd11-pl":
+        # ICD-11 is optional; a bundle without it has no such pages.
+        return 404, missing_page(dictionary, code)
     if tree is None:
         raise ArtifactError("dictionary is not in the dataset")
     canonical_icd9 = any(
@@ -284,10 +289,21 @@ def render_code(
                 return 404, missing_page(dictionary, code)
             node: dict[str, object] = {**item, "path": [], "notes": []}
             children: list[dict[str, object]] = []
+            truncated = False
         else:
             answer = tree_node(lease.connection, tree.hierarchy, ordinal)
             node = cast(dict[str, object], answer["node"])
             children = cast(list[dict[str, object]], answer["children"])
+            truncated = answer.get("truncated") is True
+        maps = pool.manifest.dataset.icd11_maps
+        map_section = (
+            icd11_map_section(
+                dictionary.system,
+                map_rows(lease.connection, maps, dictionary.system, code),
+            )
+            if maps is not None and ordinal is not None
+            else ""
+        )
         # Supporting-only workbook nodes have no canonical concept to rank.
         ranks = (
             procedure_rank_evidence(
@@ -300,8 +316,10 @@ def render_code(
             else None
         )
         jgp_section = ""
-        day: date | None = service_date
-        if day is None and pool.manifest.dataset.characteristics:
+        # JGP conditions name ICD-10 and ICD-9 codes only; ICD-11 is not in force.
+        grouped = dictionary.system in ("icd10-pl", "icd9-pl")
+        day: date | None = service_date if grouped else None
+        if day is None and grouped and pool.manifest.dataset.characteristics:
             try:
                 day = today_in_poland()
             except TimeZoneUnavailable:
@@ -358,6 +376,8 @@ def render_code(
         ranks,
         jgp_section,
         f"/slowniki/{slug}/{code}/jgp/{service_date}" if service_date else None,
+        map_section,
+        truncated,
     )
 
 
@@ -718,6 +738,8 @@ def create_app(
     ) -> Response:
         # Codes are public identifiers, never typed free text; no query strings.
         if dictionary not in DICTIONARIES or not CODE_PATTERN.fullmatch(code):
+            return failure(404, "not_found")
+        if service_date is not None and DICTIONARIES[dictionary].system == "icd11-pl":
             return failure(404, "not_found")
         if membership_catalog is not None and (
             membership_catalog not in ("1a", "1ae")

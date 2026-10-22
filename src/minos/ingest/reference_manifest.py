@@ -7,6 +7,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from minos.domain.jgp_ruleset import polish_date
 from minos.ingest.grouping_dictionaries_manifest import GroupingDictionaries
+from minos.ingest.icd11_maps_manifest import Icd11Maps
 from minos.ingest.jgp_catalog_manifest import CatalogManifest
 from minos.ingest.jgp_conditions_manifest import (
     ConditionsManifest,
@@ -22,6 +23,8 @@ from minos.ingest.product_catalogs_manifest import ProductCatalogs
 from minos.ingest.search_synonyms import SearchSynonym
 
 MAX_SOURCE_BYTES = 64 * 1024 * 1024
+# The ICD-11 PL MMS export is 117 MB (#53); only that system gets the larger bound.
+MAX_ICD11_SOURCE_BYTES = 160 * 1024 * 1024
 
 
 def _lineage_root(item: CatalogManifest) -> int:
@@ -42,8 +45,9 @@ class ExpectedCounts(BaseModel):
         extra="forbid", frozen=True, strict=True
     )
 
-    nodes: int = Field(ge=1, le=100_000)
-    relations: int = Field(ge=0, le=100_000)
+    # ICD-11 PL has 124,410 nodes with its inclusions and index terms (#53).
+    nodes: int = Field(ge=1, le=200_000)
+    relations: int = Field(ge=0, le=200_000)
     concepts: int = Field(ge=1, le=100_000)
     descriptions: int = Field(ge=1, le=200_000)
 
@@ -65,7 +69,7 @@ class SourceManifest(BaseModel):
     valid_from: AwareDatetime | None
     valid_to: AwareDatetime | None
     sha256: Digest
-    size_bytes: int = Field(ge=1, le=MAX_SOURCE_BYTES)
+    size_bytes: int = Field(ge=1, le=MAX_ICD11_SOURCE_BYTES)
     license: SourceText
     notices: Annotated[tuple[SourceText, ...], Field(min_length=1, max_length=16)]
     expected: ExpectedCounts
@@ -75,6 +79,8 @@ class SourceManifest(BaseModel):
     def validate_period(self) -> Self:
         if self.valid_from and self.valid_to and self.valid_to <= self.valid_from:
             raise ValueError("invalid source validity period")
+        if self.size_bytes > MAX_SOURCE_BYTES and self.system != "icd11-pl":
+            raise ValueError("source exceeds its byte bound")
         return self
 
 
@@ -133,6 +139,8 @@ class DatasetManifest(BaseModel):
     product_catalogs: Annotated[tuple[ProductCatalogs, ...], Field(max_length=8)] = (
         Field(default=(), exclude_if=empty_evidence)
     )
+    # WHO ICD-10/ICD-11 map tables (#53); schema 11.
+    icd11_maps: Icd11Maps | None = Field(default=None, exclude_if=absent_context)
 
     def release_in_force(self, system: str, day: date) -> SourceManifest | None:
         """The canonical release of ``system`` that governs the Polish ``day``.
@@ -188,6 +196,13 @@ class DatasetManifest(BaseModel):
             ):
                 raise ValueError("product catalogs must bind one pinned act each")
             all_ids += [item.release_id for item in self.product_catalogs]
+        if self.icd11_maps is not None:
+            target = sources.get(self.icd11_maps.icd11_release_id)
+            if target is None or target.system != "icd11-pl":
+                raise ValueError("ICD-11 maps must bind an ICD-11 PL release")
+            if not self.product_catalogs:
+                raise ValueError("ICD-11 maps extend a product catalog dataset")
+            all_ids.append(self.icd11_maps.release_id)
         if len(set(all_ids)) != len(all_ids):
             raise ValueError("duplicate catalog release identity")
         for characteristic in self.characteristics:

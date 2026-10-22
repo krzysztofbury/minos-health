@@ -6,9 +6,12 @@
   var SYSTEMS = {
     "icd10-pl": { name: "ICD-10", group: "Rozpoznania (ICD-10)", empty: "Brak wyników w ICD-10.", path: "/slowniki/icd-10" },
     "icd9-pl": { name: "ICD-9", group: "Procedury (ICD-9)", empty: "Brak wyników w ICD-9.", path: "/slowniki/icd-9" },
-    "jgp": { name: "JGP", group: "JGP grupy", empty: "Brak pasujących grup JGP.", path: "/jgp" }
+    "jgp": { name: "JGP", group: "JGP grupy", empty: "Brak pasujących grup JGP.", path: "/jgp" },
+    "icd11-pl": { name: "ICD-11", group: "ICD-11 (wersja przedostateczna, nie do rozliczeń NFZ)", empty: "Brak wyników w ICD-11.", path: "/slowniki/icd-11" }
   };
-  var ORDER = ["icd10-pl", "icd9-pl", "jgp"];
+  var ORDER = ["icd10-pl", "icd9-pl", "jgp", "icd11-pl"];
+  // ICD-11 PL is pre-released and not in force, so it is searched only on request.
+  var DEFAULT_SYSTEMS = ["icd10-pl", "icd9-pl", "jgp"];
   var FIRST_PAGE = 10;
   var MAX_RESULTS = 20;
   var SUGGEST_LIMIT = 4;
@@ -31,7 +34,7 @@
   var preferenceStatus = document.getElementById("filter-preferences-status");
   var resetFilters = document.getElementById("reset-filters");
   // Keep user intent separate from availability; a missing release is temporary.
-  var preferredSystems = ORDER.slice();
+  var preferredSystems = DEFAULT_SYSTEMS.slice();
 
   var releases = {};
   var suggestTimer = 0;
@@ -74,7 +77,7 @@
     try {
       raw = window.localStorage.getItem(FILTER_KEY);
     } catch (error) {
-      preferenceFailure("Nie udało się odczytać zapamiętanych filtrów. Włączamy wszystkie dostępne źródła.");
+      preferenceFailure("Nie udało się odczytać zapamiętanych filtrów. Włączamy domyślne źródła.");
       return;
     }
     if (raw === null) return;
@@ -109,9 +112,11 @@
     syncReset();
   }
 
-  // Reset only offers something while an available source is switched off.
+  // Reset only offers something while an available source differs from the default.
   function syncReset() {
-    resetFilters.hidden = boxes.every(function (box) { return box.disabled || box.checked; });
+    resetFilters.hidden = boxes.every(function (box) {
+      return box.disabled || box.checked === (DEFAULT_SYSTEMS.indexOf(box.value) >= 0);
+    });
   }
 
   function filtersChanged() {
@@ -516,14 +521,14 @@
   });
   resetFilters.addEventListener("click", function () {
     var focused = document.activeElement === resetFilters;
-    preferredSystems = ORDER.slice();
+    preferredSystems = DEFAULT_SYSTEMS.slice();
     applyPreference();
     // The button hides itself; keep keyboard focus on the restored filters.
     var first = boxes.find(function (box) { return !box.disabled; });
     if (focused && first) first.focus();
     var removed = removePreference();
     filtersChanged();
-    if (removed) preferenceStatus.textContent = "Przywrócono wszystkie dostępne filtry i usunięto zapamiętany wybór.";
+    if (removed) preferenceStatus.textContent = "Przywrócono domyślne filtry i usunięto zapamiętany wybór.";
   });
   document.addEventListener("keydown", function (event) {
     var tag = document.activeElement && document.activeElement.tagName;

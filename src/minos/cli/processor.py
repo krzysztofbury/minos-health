@@ -15,6 +15,7 @@ from minos.ingest.processor import (
     ProcessorError,
     ProcessorPaths,
     Verdict,
+    manual_icd11,
     manual_jgp,
     run_processor,
 )
@@ -74,9 +75,10 @@ def execute_processor(
     try:
         verdicts = run_processor(paths, reader)
         manual = manual_jgp(paths)
+        icd11 = manual_icd11(paths)
     except ProcessorError as error:
         return _report(targets, kuma_factory, failure=error.failure)
-    return _report(targets, kuma_factory, verdicts=verdicts, manual=manual)
+    return _report(targets, kuma_factory, verdicts=verdicts, manual=manual, icd11=icd11)
 
 
 class Outcome(BaseModel):
@@ -165,8 +167,9 @@ def _report(
     failure: str | None = None,
     verdicts: tuple[Verdict, ...] = (),
     manual: tuple[int, ...] = (),
+    icd11: str | None = None,
 ) -> int:
-    up, message = _message(failure, verdicts, manual)
+    up, message = _message(failure, verdicts, manual, icd11)
     summary: dict[str, object] = {"version": 1}
     if failure is None:
         summary["verdicts"] = [
@@ -179,6 +182,8 @@ def _report(
         ]
         if manual:
             summary["manual_jgp"] = list(manual)
+        if icd11 is not None:
+            summary["manual_icd11"] = icd11
     else:
         summary["failed"] = failure
     try:
@@ -193,7 +198,10 @@ def _report(
 
 
 def _message(
-    failure: str | None, verdicts: tuple[Verdict, ...], manual: tuple[int, ...]
+    failure: str | None,
+    verdicts: tuple[Verdict, ...],
+    manual: tuple[int, ...],
+    icd11: str | None,
 ) -> tuple[bool, str]:
     if failure is not None:
         return False, f"failed: {failure}"
@@ -202,7 +210,7 @@ def _message(
     reported = [
         item for item in verdicts if item.report.code != "release_content_unchanged"
     ]
-    if not reported and not manual:
+    if not reported and not manual and icd11 is None:
         return True, "idle"
     parts = [
         f"would_activate {item.report.release_id}"
@@ -213,7 +221,11 @@ def _message(
     # A JGP workbook waiting for review holds the monitor down, so the owner
     # is told once; a reviewed release that serves it brings the monitor up.
     parts += [f"manual jgp {document}" for document in manual]
-    up = not manual and all(
-        item.report.decision == "would_activate" for item in reported
+    if icd11 is not None:
+        parts.append(f"manual icd11 {icd11}")
+    up = (
+        not manual
+        and icd11 is None
+        and all(item.report.decision == "would_activate" for item in reported)
     )
     return up, "; ".join(parts)

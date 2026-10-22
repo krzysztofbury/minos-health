@@ -104,6 +104,8 @@ def source_files(manifest: DatasetManifest) -> Iterator[BlobIdentity]:
             yield modifier.display.file
     for binding in manifest.modifier_bindings:
         yield binding.overlay
+    if manifest.icd11_maps is not None:
+        yield from manifest.icd11_maps.files
 
 
 class ArchiveS3Client(Protocol):

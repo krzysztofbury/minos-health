@@ -282,6 +282,13 @@ One run:
    those workbooks. A BAW projection without lineage fails the run
    (`failed: projection`) rather than reporting nothing. On 2026-10-22 every
    in-force type 1 or 3 workbook (43868, 43943, 44042) was live.
+6. Reports ICD-11 PL files that wait for a manual release (#53). A current
+   RSK `99ICD1` MMS XML or WHO map workbook whose file UUID and size no live
+   pin carries pushes `data-update` down with `manual icd11 <RSK version>`.
+   The watcher keeps this resource metadata-only, so identity and size, not a
+   digest, are compared; the PDFs are ignored. It is silent while the live
+   bundle has no ICD-11, and clears on the first run after a reviewed release
+   pins the new files.
 
 Judging activates nothing; [phase C](#data-only-activation-141-phase-c) does,
 for allowlisted classes. Every live input must be in R2: release bundles are built

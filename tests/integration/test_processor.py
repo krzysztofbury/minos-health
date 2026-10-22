@@ -21,11 +21,13 @@ from minos.ingest.watchers.rsk.public_models import (
     RedistributionManifest,
     RskProvenanceEntry,
     RskProvenanceProjection,
+    public_entry_sort_key,
 )
 from minos.ingest.watchers.uptime_kuma import UptimeKumaClient, UptimeKumaTargets
 from minos.store.artifact import ARTIFACT_MANIFEST_NAME, ArtifactManifest
 from tests.integration import test_icd9_candidate as icd9
 from tests.integration import test_icd10_candidate as icd10
+from tests.integration.test_icd11_reference import icd11_bundle
 from tests.integration.test_jgp_api import lineage_bundle
 from tests.unit.test_sources_page import (
     _baw_projection,  # pyright: ignore[reportPrivateUsage]
@@ -564,3 +566,93 @@ def test_a_baw_projection_without_lineage_fails_instead_of_passing(
 
     assert (code, summary) == (1, {"version": 1, "failed": "projection"})
     assert run.pushes == [("down", "failed: projection")]
+
+
+def _icd11_entry(name: str, uuid: str, size: int, extension: str) -> RskProvenanceEntry:
+    return RskProvenanceEntry(
+        hcd="99ICD1",
+        resource_name="ICD-11 PL",
+        resource_short_name="ICD-11 PL",
+        publisher_name=None,
+        publisher_short_name=None,
+        resource_type=None,
+        resource_version="002",
+        origin_url=f"https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/{uuid}",
+        valid_from="2026-01-01T00:00:00Z",
+        valid_to=None,
+        file_uuid=uuid,
+        file_name=name,
+        extension=extension,
+        type_label=None,
+        size_bytes=size,
+        file_created_at=None,
+        source_archived_at=None,
+        metadata_observation_sha256="d" * 64,
+        product_sha256=None,
+        status="current",
+        first_observed_at="2026-09-24T08:00:00Z",
+        last_observed_at="2026-10-22T08:00:00Z",
+        archive_status="metadata_only",
+        downloadable=False,
+        download_url=None,
+        notices=[],
+    )
+
+
+@pytest.mark.parametrize(
+    "change,manual",
+    [("none", None), ("xml_size", "002"), ("new_map", "002")],
+)
+def test_icd11_files_no_live_release_pins_hold_the_monitor_down(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], change: str, manual: str | None
+) -> None:
+    bundle = icd11_bundle(tmp_path)
+    dataset = ArtifactManifest.model_validate_json(
+        (bundle / ARTIFACT_MANIFEST_NAME).read_bytes()
+    ).dataset
+    xml = next(source for source in dataset.sources if source.system == "icd11-pl")
+    assert dataset.icd11_maps is not None
+    entries = [
+        _icd11_entry(
+            "icd11_2026-01_pl_in",
+            xml.source_file_id,
+            xml.size_bytes + (1 if change == "xml_size" else 0),
+            "xml",
+        ),
+        # The resource's PDFs are not read by the bundle.
+        _icd11_entry("Przewodnik", "00000000-0000-4000-8000-0000000000aa", 9, "pdf"),
+    ]
+    for item in dataset.icd11_maps.files:
+        name, uuid = (
+            item.file_name.removesuffix(".xlsx"),
+            item.source_url.rsplit("/", 1)[1],
+        )
+        if change == "new_map" and item.kind == "11to10_one":
+            name, uuid = (
+                "11To10MapdoJednejKategorii_2027-01",
+                "00000000-0000-4000-8000-0000000000bb",
+            )
+        entries.append(_icd11_entry(name, uuid, item.size_bytes, "xlsx"))
+    run = _Run(tmp_path, bundle)
+    projection = RskProvenanceProjection(
+        schema_version=1,
+        source="RSK",
+        through_state_revision=7,
+        projected_at="2026-10-22T08:00:00Z",
+        included_revisions=[7],
+        history_truncated=False,
+        entries=sorted(entries, key=public_entry_sort_key),
+        redistribution=RedistributionManifest(schema_version=1, artifacts=[]),
+        notices=[],
+    )
+    _publish(run.public, "RSK", projection.model_dump_json().encode())
+
+    code, summary = run(capsys)
+
+    expected: dict[str, object] = {"version": 1, "verdicts": []}
+    if manual is not None:
+        expected["manual_icd11"] = manual
+    assert (code, summary) == (0, expected)
+    assert run.pushes == [
+        ("down", f"manual icd11 {manual}") if manual else ("up", "idle")
+    ]
