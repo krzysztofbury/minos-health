@@ -240,8 +240,9 @@ beside, not inside, the settlement scope; see
 - [x] ICD-11 PL search, dictionary and code pages from RSK `99ICD1` (MMS
       2026-01), filter unselected by default, WHO URI and notices on every
       page, and the WHO ICD-10/ICD-11 tables row for row (#53).
-- [ ] ICD-11: upload the four `99ICD1` blobs to R2, release the API with the
-      new bundle and verify search, pages and maps in a browser.
+- [x] ICD-11: the four `99ICD1` blobs are in R2 (create-once, checksums
+      verified), release 7ddb4b0 serves ICD-11 (2026-10-22) and the pages and
+      maps were checked in a browser.
 - [ ] ICD-11: review with a coder whether chapter X extension codes (agents,
       substances) should rank below categories for disease queries; chapters
       X, 23 and 26 list only their first 400 codes on a page.

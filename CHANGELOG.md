@@ -212,6 +212,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- A dictionary listing marks every entry that has codes, however long the
+  listing: one capped probe of the children's children left ICD-11 chapters
+  25, 26, V and X without an expand arrow. The processor fetches live inputs
+  up to the source bound (the 117 MB ICD-11 PL export failed every run with
+  `failed: fetch` after the 7ddb4b0 release), and map URIs on code pages
+  lost a stray separator line (#53).
 - An RSK file with the live ICD-10 release's version and start whose nodes and
   relations parse identically is `release_content_unchanged`, and the
   processor reports that verdict as `idle`. The first production run held the

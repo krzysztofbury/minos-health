@@ -231,26 +231,18 @@ def _listing(
 def _owners(
     connection: sqlite3.Connection, release_id: str, children: list[Row]
 ) -> set[int]:
-    # Map flattened grandchildren back to the listed child that owns them.
-    listed = {row[1] for row in children}
-    parent_of: dict[int, int] = {}
-    frontier = _children(connection, release_id, sorted(listed))
-    owners: set[int] = set()
-    for _depth in range(MAX_DEPTH):
-        next_containers: list[int] = []
-        for parent, ordinal, kind, *_rest in frontier:
-            owner = parent if parent in listed else parent_of.get(parent)
-            if owner is None:
-                continue
-            if kind in STRUCTURAL_KINDS:
-                owners.add(owner)
-            elif kind == "container":
-                parent_of[ordinal] = owner
-                next_containers.append(ordinal)
-        if not next_containers:
-            break
-        frontier = _children(connection, release_id, next_containers)
-    return owners
+    """Listed children that own structural nodes, directly or through containers."""
+    rows = cast(
+        list[tuple[int]],
+        connection.execute(
+            reference_sql("queries/tree_owners.sql"),
+            {
+                "release_id": release_id,
+                "parents": json.dumps(sorted({row[1] for row in children})),
+            },
+        ).fetchall(),
+    )
+    return {row[0] for row in rows}
 
 
 def _notes(

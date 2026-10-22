@@ -195,3 +195,37 @@ def maps(root: Path, icd11_release_id: str) -> dict[str, object]:
         "notices": ["Synthetic WHO map fixture."],
         "files": files,
     }
+
+
+def wide_export(blocks: int) -> bytes:
+    """Chapter 01 with many empty blocks before chapter 02 and its one category."""
+    parts = [
+        f"<element><id>{BASE}</id><child>{BASE}/c1</child><child>{BASE}/c2</child></element>"
+    ]
+    parts.append(
+        f"<element><parent>{BASE}</parent><code>01</code><id>{BASE}/c1</id>"
+        + "<classKind>chapter</classKind><title><value>Rozdział</value><language>pl</language></title>"
+        + "".join(f"<child>{BASE}/b{index}</child>" for index in range(blocks))
+        + "</element>"
+    )
+    parts.extend(
+        f"<element><parent>{BASE}/c1</parent><code /><id>{BASE}/b{index}</id>"
+        + "<classKind>block</classKind><title><value>Blok</value><language>pl</language></title></element>"
+        for index in range(blocks)
+    )
+    parts.append(
+        f"<element><parent>{BASE}</parent><code>02</code><id>{BASE}/c2</id>"
+        + "<classKind>chapter</classKind><title><value>Drugi rozdział</value><language>pl</language></title>"
+        + f"<child>{BASE}/k</child></element>"
+    )
+    parts.append(
+        f"<element><parent>{BASE}/c2</parent><code>2A00</code><id>{BASE}/k</id>"
+        + "<classKind>category</classKind><title><value>Kategoria</value><language>pl</language></title></element>"
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<icd11>'
+        + f"<releaseId>{RELEASE}</releaseId><releaseDate>2026-01-17</releaseDate>"
+        + "<linearization><code>mms</code><elements>"
+        + "".join(parts)
+        + "</elements></linearization></icd11>"
+    ).encode()

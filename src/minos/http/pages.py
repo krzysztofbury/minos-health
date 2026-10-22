@@ -232,7 +232,7 @@ def icd11_map_section(system: str, rows: list[dict[str, object]]) -> str:
                 "<li>"
                 + chip
                 + _e(title or "")
-                + (f' <span class="detail-source">{_e(uri)}</span>' if uri else "")
+                + (f' <span class="map-uri">{_e(uri)}</span>' if uri else "")
                 + "</li>"
             )
         parts.append(f"<h3>Tabela WHO: {label}</h3><ul>{''.join(items)}</ul>")
