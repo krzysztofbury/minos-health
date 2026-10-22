@@ -512,7 +512,7 @@ and Compose mounts each file read-only into only that container:
 - bucket-scoped R2 access key for the watcher (S3-compatible credential file);
 - Uptime Kuma target JSON for the watcher, containing only version, source IDs,
   and 32-character alphanumeric push tokens;
-- a separate read-only, bucket-scoped R2 key and a `data-update`-only Kuma
+- a separate bucket-scoped R2 key and a `data-update`/`data-activation` Kuma
   target for the data-update processor, in `/etc/minos/processor`, mode `0440`
   root:`minos-processor` (see [the processor setup](#data-update-processor-setup)).
 
@@ -695,7 +695,9 @@ The [host processor](archive-processing.md#host-processor-141-phase-b3) runs in
 the reference API image, so it starts working after the API release that ships
 `minos processor run`. Owner steps:
 
-1. Create a Cloudflare R2 API token with Object Read only on `minos-archive`.
+1. Create a Cloudflare R2 API token with Object Read & Write on
+   `minos-archive`: the processor reads inputs and appends phase C receipts,
+   and the bucket lock, not the token, refuses overwrite and delete.
    It lives in the MinosHealth vault as the login item
    `minos-production-processor-r2-credentials` (ID
    `3lapt4pwp43x2rojdjzccsumhi`; its title starts with a space, so use the ID)
@@ -755,7 +757,10 @@ ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
 ```
 
 `[]` turns it off again. Each apply rewrites the allowlist, so pass the list
-on every apply. When `data-activation` reports
+on every apply. `data-update` down with `manual jgp <document id>` means BAW
+published a JGP catalog or characteristics workbook that no live release
+serves: build and deploy the reviewed release as before; the next run after
+it serves those workbooks brings the monitor up. When `data-activation` reports
 `activation failed: retries_exhausted`, the accepted bundle stays in
 `/var/lib/minos/processor/accepted/` for inspection, and the last good release
 keeps serving. To try again, delete `activation/attempts.json`; to give up on

@@ -23,8 +23,13 @@ from minos.ingest.watchers.rsk.public_models import (
     RskProvenanceProjection,
 )
 from minos.ingest.watchers.uptime_kuma import UptimeKumaClient, UptimeKumaTargets
+from minos.store.artifact import ARTIFACT_MANIFEST_NAME, ArtifactManifest
 from tests.integration import test_icd9_candidate as icd9
 from tests.integration import test_icd10_candidate as icd10
+from tests.integration.test_jgp_api import lineage_bundle
+from tests.unit.test_sources_page import (
+    _baw_projection,  # pyright: ignore[reportPrivateUsage]
+)
 
 _POLICIES = Path(__file__).parents[2] / "manifests/policy"
 _BUCKET = "minos-archive-synthetic"
@@ -475,3 +480,87 @@ def test_an_accepted_bundle_without_an_accepting_verdict_is_dropped(
 
     assert code == 0
     assert list(run.accepted.iterdir()) == []
+
+
+def _jgp_run(
+    root: Path, workbooks: dict[int, str], *, repealed: int | None = None
+) -> _Run:
+    """The 46/2026 lineage on BAW beside a live bundle with two of its catalogs.
+
+    Every document gets its act ZIPX and a 1a workbook; ``workbooks`` names a
+    digest per document, and the token ``live:<n>`` the nth live catalog's.
+    """
+    bundle = lineage_bundle(root)
+    manifest = ArtifactManifest.model_validate_json(
+        (bundle / ARTIFACT_MANIFEST_NAME).read_bytes()
+    )
+    live = [item.workbook.sha256 for item in manifest.dataset.catalogs]
+    run = _Run(root, bundle)
+    projection = _baw_projection()
+    for document in cast(list[dict[str, object]], projection["documents"]):
+        identity = cast(int, document["document_id"])
+        digest = workbooks.get(identity, "e" * 64)
+        if digest.startswith("live:"):
+            digest = live[int(digest.removeprefix("live:"))]
+        document["files"] = [
+            {"file_id": identity * 10, "name": "Akt_prawny.zipx",
+             "size_bytes": 1, "sha256": "c" * 64},
+            {"file_id": identity * 10 + 1, "name": "Załącznik 1a.xlsx",
+             "size_bytes": 1, "sha256": digest},
+        ]  # fmt: skip
+        if identity == repealed:
+            document["legal_status"] = "Uchylony"
+    _publish(run.public / "baw", "BAW", json.dumps(projection).encode())
+    return run
+
+
+# Types 4, 5 and 6 (43944, 43945, 44041, 44043, 44044) carry workbooks the
+# live bundle lacks in every case; only an original act or a consolidated
+# text in force names a catalog.
+_SERVED = {43868: "live:0", 43943: "live:1"}
+
+
+@pytest.mark.parametrize(
+    "workbooks,repealed,manual",
+    [
+        ({**_SERVED, 44042: "d" * 64}, None, [44042]),
+        ({**_SERVED, 44042: "d" * 64}, 44042, []),
+        ({**_SERVED, 44042: "live:1"}, None, []),
+        ({43868: "d" * 64, 43943: "live:1", 44042: "f" * 64}, None, [44042, 43868]),
+    ],
+    ids=["new_consolidation", "repealed", "served", "two_newest_first"],
+)
+def test_a_jgp_workbook_the_live_bundle_lacks_holds_the_monitor_down(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    workbooks: dict[int, str],
+    repealed: int | None,
+    manual: list[int],
+) -> None:
+    run = _jgp_run(tmp_path, workbooks, repealed=repealed)
+
+    code, summary = run(capsys)
+
+    expected: dict[str, object] = {"version": 1, "verdicts": []}
+    if manual:
+        expected["manual_jgp"] = manual
+    assert (code, summary) == (0, expected)
+    message = "; ".join(f"manual jgp {document}" for document in manual)
+    assert run.pushes == [("down", message) if manual else ("up", "idle")]
+    assert run.r2.reads == []
+
+
+def test_a_baw_projection_without_lineage_fails_instead_of_passing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run = _Run(tmp_path, lineage_bundle(tmp_path))
+    projection = _baw_projection()
+    projection["schema_version"] = 1
+    for document in cast(list[dict[str, object]], projection["documents"]):
+        del document["lineage"]
+    _publish(run.public / "baw", "BAW", json.dumps(projection).encode())
+
+    code, summary = run(capsys)
+
+    assert (code, summary) == (1, {"version": 1, "failed": "projection"})
+    assert run.pushes == [("down", "failed: projection")]

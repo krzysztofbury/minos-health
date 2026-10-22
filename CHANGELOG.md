@@ -15,6 +15,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- The host processor reports JGP catalogs waiting for a manual release: a BAW
+  original act or consolidated text in force whose 1a or 9 workbook no live
+  release serves pushes `data-update` down with `manual jgp <document id>`,
+  and the next run after a reviewed release serves it clears the alert
+  (#141).
 - `minos data candidate-icd10` (operational CLI) judges one archived RSK
   ICD-10 release against the live bundle without activating it: the release is
   added beside the previous one, built twice, bounded against removed codes

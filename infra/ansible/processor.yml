@@ -1,7 +1,7 @@
 ---
 # Data-update processor (#141 phase B3), kept apart from site.yml so it never
 # enters the watcher candidate preflight or the runtime rollback. It installs
-# the identity, directories, read-only archive key, Kuma target, host runner
+# the identity, directories, archive key, Kuma targets, host runner
 # and timer. The processor runs in the live reference API image, so apply it
 # after an API release that ships `minos processor run`. Automatic activation
 # (#141 phase C) is limited to `processor_activation_classes`, empty unless
@@ -66,7 +66,7 @@
       when: processor_r2_credentials_source is defined
       no_log: true
 
-    - name: Require the read-only R2 credential schema
+    - name: Require the processor R2 credential schema
       ansible.builtin.assert:
         that:
           - >-

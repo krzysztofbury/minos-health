@@ -1,10 +1,12 @@
 """Judge newly archived source files against the live bundle (#141 phase B3).
 
 The processor reads only the watcher's public projections, never its control
-database. It fetches every input from the archive with its own read-only key,
+database. It fetches every input from the archive with its own key,
 runs the shadow candidates and activates nothing. A verdict is stored once per
 input, live bundle and policy, so an unchanged rejection is not rebuilt; every
-run reports the current verdicts to the data-update Kuma monitor.
+run reports the current verdicts to the data-update Kuma monitor. JGP catalogs
+are not built here: a BAW workbook the live bundle lacks is reported as a
+manual step until a reviewed release serves it.
 """
 
 import hashlib
@@ -22,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from minos.domain.jgp_ruleset import polish_date
 from minos.domain.reference import ReferenceError
+from minos.http.source_models import BawProjection
 from minos.ingest.acceptance import AcceptanceUnavailable, accept_candidate
 from minos.ingest.archive_build import ArchiveObject, source_files
 from minos.ingest.candidate_evaluation import (
@@ -59,6 +62,12 @@ MAX_VERDICTS = 8
 # verdicts from older rules are judged again (2: unchanged RSK re-exports).
 RULES_VERSION = 2
 _GENERATION = re.compile(r"generations/[1-9][0-9]*-([0-9a-f]{64})")
+# A JGP catalog is built from an original act (BAW AutomaticType 1) or a
+# consolidated text (3), as CatalogManifest admits; types 4 and 5 repeat
+# earlier versions' attachments and type 6 is the amending act itself.
+_CATALOG_ACT_TYPES = frozenset((1, 3))
+_IN_FORCE = "Obowiązujący"
+MAX_MANUAL_JGP = 4
 
 type Failure = Literal["projection", "live_bundle", "policy", "fetch", "build", "state"]
 
@@ -153,6 +162,42 @@ def run_processor(
         _write_state(paths.state, _State(verdicts=current))
     _drop_stale_acceptance(paths, current)
     return tuple(current.values())
+
+
+def manual_jgp(paths: ProcessorPaths) -> tuple[int, ...]:
+    """BAW documents in force whose JGP workbooks the live bundle lacks.
+
+    The answer is recomputed each run from the watcher projection and the live
+    bundle, so it clears once a reviewed release serves those workbooks. The
+    newest documents come first and the count is bounded for the Kuma message.
+    """
+    projection = _read_projection(
+        paths.public_directory / "baw", "api/v1/provenance/baw.json", BawProjection
+    )
+    if projection is None:
+        return ()
+    dataset = _read_live(paths.live_bundle).dataset
+    live = {item.workbook.sha256 for item in dataset.catalogs} | {
+        item.workbook.sha256 for item in dataset.characteristics
+    }
+    pending: list[int] = []
+    for document in projection.documents:
+        # Without lineage the act type is unknown; guessing could hide a catalog.
+        if document.lineage is None:
+            raise ProcessorError("projection")
+        if (
+            document.legal_status != _IN_FORCE
+            or document.lineage.automatic_type not in _CATALOG_ACT_TYPES
+        ):
+            continue
+        # The watcher keeps only the act's ZIPX and its 1a and 9 workbooks, so
+        # every other file is a workbook; display names vary and are not read.
+        if any(
+            not item.name.casefold().endswith(".zipx") and item.sha256 not in live
+            for item in document.files
+        ):
+            pending.append(document.document_id)
+    return tuple(sorted(pending, reverse=True)[:MAX_MANUAL_JGP])
 
 
 def _drop_stale_acceptance(paths: ProcessorPaths, current: dict[str, Verdict]) -> None:
