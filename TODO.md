@@ -242,8 +242,6 @@ beside, not inside, the settlement scope; see
       page, and the WHO ICD-10/ICD-11 tables row for row (#53).
 - [ ] ICD-11: upload the four `99ICD1` blobs to R2, release the API with the
       new bundle and verify search, pages and maps in a browser.
-- [ ] ICD-11: ask WHO in writing about clause 1.2.4 (maps), if the owner
-      wants the risk closed.
 - [ ] ICD-11: review with a coder whether chapter X extension codes (agents,
       substances) should rank below categories for disease queries; chapters
       X, 23 and 26 list only their first 400 codes on a page.

@@ -22,8 +22,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   not-in-force, not-for-NFZ notice. The search filter starts unselected and
   "Przywróć domyślne filtry" restores ICD-10, ICD-9 and JGP. The three WHO
   ICD-10/ICD-11 tables are imported row for row (reference schema 11) and
-  shown on ICD-10 and ICD-11 code pages and in the concept API; WHO licence
-  clause 1.2.4 on mappings is an accepted owner risk. The database grows from
+  shown on ICD-10 and ICD-11 code pages and in the concept API, verbatim and
+  attributed to WHO, with no crosswalk of Minos's own. The database grows from
   425 to 676 MiB; API memory is unchanged. The processor reports
   `manual icd11 <version>` while current `99ICD1` files are not pinned live.
 - The host processor reports JGP catalogs waiting for a manual release: a BAW

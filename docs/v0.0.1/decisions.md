@@ -861,10 +861,13 @@ and WHO URI with attribution and no adaptation.
 - The ICD-11 search filter starts unselected (owner); every ICD-11 page and
   the dictionary carry the pre-released, not-in-force and not-for-NFZ notice,
   the WHO disclaimer, citation and URI.
-- Clause 1.2.4 of the WHO licence says mappings and crosswalks are not covered
-  and need a separate written WHO agreement. The owner decided to show the
-  published tables anyway, row for row with their source row numbers, no match
-  type and no filled gaps, and accepts that risk. ICD-10 pages show the
+- The maps are WHO's own ICD-10/ICD-11 tables, published by CeZ in the RSK
+  `99ICD1` resource. Minos republishes them verbatim, row for row with their
+  source row numbers, no match type and no filled gaps, attributed to WHO and
+  RSK. Clause 1.2.4 of the WHO licence requires a separate agreement for
+  producing mappings or crosswalks; Minos produces none, so the clause does
+  not apply, and Minos never presents the tables as its own. Official
+  adoption of ICD-11 in Poland would not change these terms. ICD-10 pages show the
   10-to-11 rows, ICD-11 pages the 11-to-10 rows; the tables' ICD-10 side is WHO
   2019, not the Polish 2008 edition.
 - The RSK watcher keeps `99ICD1` metadata-only. The four files were downloaded
