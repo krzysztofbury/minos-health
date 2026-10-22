@@ -526,7 +526,8 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
     if value.jgp_sample is not None and chromium is not None:
         output = WORK_ROOT / value.deployment.source_revision / "browser"
         output.mkdir(parents=True, exist_ok=True)
-        with tempfile.TemporaryDirectory(prefix="cb-") as browser_temp:
+        # Chromium's socket path must stay under the Unix path limit.
+        with tempfile.TemporaryDirectory(prefix="cb-", dir="/tmp") as browser_temp:
             _ = run(
                 [
                     "node",

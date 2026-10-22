@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var NAMES = { "icd10-pl": "ICD-10", "icd9-pl": "ICD-9" };
+  var NAMES = { "icd10-pl": "ICD-10", "icd9-pl": "ICD-9", "icd11-pl": "ICD-11" };
   var HANDOFF_KEY = "minos.dictionary.query";
   var SEARCH_LIMIT = 20;
   var searchController;
@@ -287,7 +287,9 @@
       if (notes) detail.append(notes);
       detail.append(element("p", "detail-source", answer.supporting_hierarchy
         ? "Nazwa, status i daty: CZS NFZ. Miejsce w hierarchii i uwagi oznaczone jako skoroszyt: skoroszyt NFZ tej samej wersji."
-        : "Treść i układ: Rejestr Systemów Kodowania (RSK), " + NAMES[system] + " wersja " + release.source_version + "."));
+        : system === "icd11-pl"
+          ? "Treść: ICD-11 PL z Rejestru Systemów Kodowania (RSK), wersja przedostateczna " + release.source_version + ", CC BY-ND 4.0. Tłumaczenie nie pochodzi od WHO; wiążąca jest wersja angielska. Nie do rozliczeń NFZ."
+          : "Treść i układ: Rejestr Systemów Kodowania (RSK), " + NAMES[system] + " wersja " + release.source_version + "."));
       if (info.code) {
         var permalink = element("a", "detail-permalink", "Stały adres tego kodu");
         permalink.href = window.location.pathname + "/" + encodeURIComponent(info.code);

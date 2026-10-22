@@ -18,6 +18,7 @@ PAGE_ROUTES = (
     ("/slowniki", "dictionaries.html"),
     ("/slowniki/icd-10", "dictionary-icd-10.html"),
     ("/slowniki/icd-9", "dictionary-icd-9.html"),
+    ("/slowniki/icd-11", "dictionary-icd-11.html"),
 )
 ASSET_ROUTES = (
     "/grouper.js",
@@ -135,7 +136,7 @@ def _routes() -> str:
             error_log /dev/null;
         }
         # Code pages and sitemaps are server-rendered by the API for crawlers.
-        location ~ "^/slowniki/icd-(10|9)/[A-Za-z0-9][A-Za-z0-9.-]{0,15}(/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(/1ae?/[1-9][0-9]{0,1})?)?$" {
+        location ~ "^/slowniki/icd-(10|9|11)/[A-Za-z0-9][A-Za-z0-9.-]{0,15}(/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(/1ae?/[1-9][0-9]{0,1})?)?$" {
             if ($request_uri ~ "\\?") { return 404; }
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
             proxy_pass http://reference-api:8081;
@@ -143,7 +144,7 @@ def _routes() -> str:
             proxy_read_timeout 3s;
             error_log /dev/null;
         }
-        location ~ "^/sitemap-icd-(10|9)\\.xml$" {
+        location ~ "^/sitemap-icd-(10|9|11)\\.xml$" {
             if ($request_uri ~ "\\?") { return 404; }
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
             proxy_hide_header Cache-Control;
@@ -191,7 +192,7 @@ def _routes() -> str:
             error_log /dev/null;
         }
         # Concept details pin dictionary releases; optional dates select JGP only.
-        location ~ "^/api/v1/concepts/icd(10|9)-pl/[a-z0-9-]{1,80}/[A-Z0-9][A-Z0-9.-]{0,15}(/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(/1ae?/pages/([1-9]|1[0-9]|20))?)?$" {
+        location ~ "^/api/v1/concepts/icd(10|9|11)-pl/[a-z0-9-]{1,80}/[A-Z0-9][A-Z0-9.-]{0,15}(/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(/1ae?/pages/([1-9]|1[0-9]|20))?)?$" {
             if ($request_uri ~ "\\?") { return 404; }
             if ($request_method != GET) { return 405; }
             proxy_hide_header Cache-Control;
@@ -268,8 +269,8 @@ def build(output: Path) -> None:
         }""",
     )
     config = config.replace(
-        '~^/(|slowniki|slowniki/icd-10|slowniki/icd-9|zrodla|polityka-prywatnosci|regulamin)$ "no-cache";',
-        '~^/(|slowniki|slowniki/icd-10|slowniki/icd-9|polityka-prywatnosci|regulamin)$ "no-cache";\n        ~^/zrodla(/|$|\\?) "upstream";',
+        '~^/(|slowniki|slowniki/icd-10|slowniki/icd-9|slowniki/icd-11|zrodla|polityka-prywatnosci|regulamin)$ "no-cache";',
+        '~^/(|slowniki|slowniki/icd-10|slowniki/icd-9|slowniki/icd-11|polityka-prywatnosci|regulamin)$ "no-cache";\n        ~^/zrodla(/|$|\\?) "upstream";',
     )
     health = """        location = /healthz {
             default_type application/json;

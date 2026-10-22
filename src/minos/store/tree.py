@@ -11,7 +11,8 @@ from minos.store.reference_build import reference_sql
 
 STRUCTURAL_KINDS: Final = frozenset(("range", "classification"))
 MAX_CHILDREN: Final = 400
-MAX_NOTES: Final = 120
+# Every ICD-11 index term is shown (NE61 has 484); ND text is not trimmed (#53).
+MAX_NOTES: Final = 500
 MAX_UNPLACED: Final = 400
 MAX_DEPTH: Final = 8
 # CZS and RSK attribute names stay source-faithful; only the label is translated.
@@ -23,6 +24,7 @@ ATTRIBUTE_LABELS: Final = {
     "wlaczenia": "Obejmuje",
     "wylaczenia": "Nie obejmuje",
     "opis": "Opis",
+    "uri": "Identyfikator WHO (URI)",
     "annotationPL": "Uwaga",
 }
 NOTE_KINDS: Final = {

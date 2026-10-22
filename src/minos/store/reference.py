@@ -214,6 +214,10 @@ def open_reference_bundle(
                 from minos.store.product_catalogs import validate_product_bindings
 
                 validate_product_bindings(connection, manifest.dataset.product_catalogs)
+            if manifest.schema_version >= 11:
+                from minos.store.icd11_maps import validate_icd11_map_binding
+
+                validate_icd11_map_binding(connection, manifest.dataset.icd11_maps)
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources

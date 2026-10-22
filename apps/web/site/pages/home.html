@@ -19,10 +19,10 @@
               <label class="filter"><input type="checkbox" name="system" value="icd10-pl" checked{{search_disabled}}><span><strong>ICD-10</strong> rozpoznania</span></label>
               <label class="filter"><input type="checkbox" name="system" value="icd9-pl" checked{{search_disabled}}><span><strong>ICD-9</strong> procedury</span></label>
               <label class="filter"><input type="checkbox" name="system" value="jgp" checked{{search_disabled}}><span><strong>JGP</strong> grupy</span></label>
-              <span class="filter filter-soon" title="W przygotowaniu" aria-disabled="true"><span><strong>ICD-11</strong> <em>w przygotowaniu</em></span></span>
+              <label class="filter"><input type="checkbox" name="system" value="icd11-pl"{{search_disabled}}><span><strong>ICD-11</strong> <em>wersja przedostateczna</em></span></label>
             </fieldset>
             <div class="filter-preferences" id="filter-preferences" hidden>
-              <button class="button button-quiet" id="reset-filters" type="button" disabled>Przywróć wszystkie filtry</button>
+              <button class="button button-quiet" id="reset-filters" type="button" disabled>Przywróć domyślne filtry</button>
               <p id="filter-preferences-status" role="status" aria-live="polite"></p>
             </div>
           </form>

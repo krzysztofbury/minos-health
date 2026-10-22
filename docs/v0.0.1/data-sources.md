@@ -372,6 +372,20 @@ product artifacts. Expanding the byte allowlist requires naming the exact
 artifacts and reviewing their product and redistribution boundaries; it does
 not require a change to the existing all-HCD metadata monitoring.
 
+ICD-11 PL (#53, 2026-10-22) did not expand the watcher's byte allowlist.
+`99ICD1` resource version 002 exposes the MMS export `icd11_2026-01_pl_in.xml`
+(117,000,048 bytes), three WHO map workbooks
+(`10To11MapdoJednejKategorii`, `10To11MapdowieluKategorii`,
+`11To10MapdoJednejKategorii`, all `_2026-01.xlsx`) and three PDFs (print
+edition, English MMS, WHO guide). The owner approved one download of the XML
+and the workbooks on 2026-10-22; the PDFs are not used. The export is the WHO
+API linearization as XML: 28 chapters (`01` to `26`, `V`, `X`), 1,360 uncoded
+blocks, 159 windows and 35,664 categories, every text value tagged `pl`.
+Against ICD-10 PL `013` the 10-to-11 tables cover 12,288 of 12,371 concepts;
+the 83 others are chapter ranges written differently and 2008 codes WHO later
+removed. The watcher still observes `99ICD1` metadata; the processor compares
+its file UUIDs and sizes with the live pins (`manual icd11 <version>`).
+
 For allowlisted bytes, compare complete file metadata and compute SHA-256.
 `uuid + creationDate + sizeBytes` is a useful trigger, not a sufficient content
 identity. Re-fetch metadata after download to detect rotation during transfer.

@@ -760,7 +760,10 @@ ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
 on every apply. `data-update` down with `manual jgp <document id>` means BAW
 published a JGP catalog or characteristics workbook that no live release
 serves: build and deploy the reviewed release as before; the next run after
-it serves those workbooks brings the monitor up. When `data-activation` reports
+it serves those workbooks brings the monitor up. `manual icd11 <version>` is
+the same for a new RSK `99ICD1` ICD-11 PL export or map workbook: download
+the files, add them to the manifest and the archive, upload them to R2
+create-once with the operator key and release a reviewed bundle. When `data-activation` reports
 `activation failed: retries_exhausted`, the accepted bundle stays in
 `/var/lib/minos/processor/accepted/` for inspection, and the last good release
 keeps serving. To try again, delete `activation/attempts.json`; to give up on

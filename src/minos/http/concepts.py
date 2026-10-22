@@ -15,13 +15,13 @@ from minos.http.reference import CapacityError, ReferencePool
 from minos.store.concept_detail import ContextReleaseMismatch, concept_detail
 
 CONCEPT_ROUTE = re.compile(
-    r"/api/v1/concepts/icd(?:10|9)-pl/[a-z0-9-]{1,80}/[A-Z0-9][A-Z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/pages/(?:[1-9]|1[0-9]|20))?)?"
+    r"/api/v1/concepts/icd(?:10|9|11)-pl/[a-z0-9-]{1,80}/[A-Z0-9][A-Z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/pages/(?:[1-9]|1[0-9]|20))?)?"
 )
 
 
 class ConceptLookup(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
-    system: Literal["icd10-pl", "icd9-pl"]
+    system: Literal["icd10-pl", "icd9-pl", "icd11-pl"]
     release_id: str = Field(pattern=r"^[a-z0-9-]{1,80}$", max_length=80)
     code: str = Field(pattern=r"^[A-Z0-9][A-Z0-9.\-]{0,15}$", max_length=16)
     service_date: str | None = Field(

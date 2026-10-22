@@ -15,14 +15,15 @@ experiments stay unchanged.
   retaining their own titles, dates and source descriptions. The API-free
   maintenance mode keeps text-only cards and explicitly unavailable search;
   it does not reference an image absent from its host inventory.
-- A new browser starts with all available search sources selected. ICD-11
-  stays unavailable. Missing metadata disables the affected source only.
+- A new browser starts with ICD-10, ICD-9 and JGP selected; ICD-11 PL is
+  available but unselected because it is pre-released and not in force
+  (#53). Missing metadata disables the affected source only.
 - Explicit filter changes automatically save only an ordered allowlisted
   source selection, schema version and absolute 90-day expiry in
   `minos.search.filters.v1`. No initial write, per-keystroke storage, cookies,
   medical queries, codes, identifiers or analytics fields are added.
 - Expiry is not renewed by reading or searching. Invalid or expired records
-  fall back to all available sources and deletion is attempted on access.
+  fall back to the default sources and deletion is attempted on access.
   Storage failures do not invalidate the current in-memory choice.
 - User intent is separate from current availability. Unavailable sources do
   not enter requests but remain part of the saved preference. A deliberately

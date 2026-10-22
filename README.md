@@ -208,6 +208,7 @@ All sources are public. Details, endpoints, and polling procedures live in
 | JGP grouper algorithm and procedure ranks | NFZ komunikaty JGP |
 | ICD-9 PL | NFZ dictionary downloads and <https://slowniki.nfz.gov.pl> |
 | ICD-10 PL | RSK resource HCD `00CD10`, <https://rsk3.ezdrowie.gov.pl> |
+| ICD-11 PL (pre-released) and WHO ICD-10/ICD-11 tables | RSK resource HCD `99ICD1`, CC BY-ND 4.0 |
 | JGP utilization statistics | <https://api.nfz.gov.pl> (open data, attribution required) |
 
 Source snapshots and generated databases are artifacts, not repository

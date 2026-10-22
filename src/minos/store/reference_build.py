@@ -40,6 +40,7 @@ BINDING_MIGRATION = "007_jgp_modifier_binding.sql"
 FOLDED_MIGRATION = "008_folded_search.sql"
 DICTIONARIES_MIGRATION = "009_grouping_dictionaries.sql"
 PRODUCTS_MIGRATION = "010_product_catalogs.sql"
+ICD11_MAPS_MIGRATION = "011_icd11_maps.sql"
 MODIFIERS_TABLES = (
     "modifier_release",
     "tariff_modifier",
@@ -94,10 +95,12 @@ def reference_sql(relative_path: str) -> str:
 
 def schema_version_for(
     manifest: DatasetManifest,
-) -> Literal[2, 3, 4, 5, 6, 7, 8, 9, 10]:
+) -> Literal[2, 3, 4, 5, 6, 7, 8, 9, 10, 11]:
     # Each schema is a superset of the previous one, so older bundles stay valid.
     # Conditions build as 6 even without MODTAR: the dated condition consumers
     # rely on schema 6's lookup indexes. Schema 5 bundles stay readable.
+    if manifest.icd11_maps is not None:
+        return 11
     if manifest.product_catalogs:
         return 10
     if manifest.grouping_dictionaries is not None:
@@ -114,7 +117,7 @@ def schema_version_for(
 
 
 def migrations_for(schema_version: int) -> tuple[str, ...]:
-    if schema_version not in (2, 3, 4, 5, 6, 7, 8, 9, 10):
+    if schema_version not in (2, 3, 4, 5, 6, 7, 8, 9, 10, 11):
         raise ArtifactError("incompatible reference schema version")
     return (
         MIGRATIONS
@@ -126,6 +129,7 @@ def migrations_for(schema_version: int) -> tuple[str, ...]:
         + ((FOLDED_MIGRATION,) if schema_version >= 8 else ())
         + ((DICTIONARIES_MIGRATION,) if schema_version >= 9 else ())
         + ((PRODUCTS_MIGRATION,) if schema_version >= 10 else ())
+        + ((ICD11_MAPS_MIGRATION,) if schema_version >= 11 else ())
     )
 
 
@@ -162,6 +166,7 @@ def tables_for(schema_version: int) -> tuple[str, ...]:
             if schema_version >= 10
             else ()
         )
+        + (("icd11_map_release", "icd11_map_row") if schema_version >= 11 else ())
     )
 
 
@@ -305,7 +310,7 @@ def _insert_release(
 def _insert_node(
     connection: sqlite3.Connection, release_id: str, node: ReferenceNode
 ) -> None:
-    if node.ordinal < 1 or node.ordinal > 100_000:
+    if node.ordinal < 1 or node.ordinal > 200_000:
         raise ArtifactError("source node ordinal exceeds limit")
     if len(node.attributes) > 16:
         raise ArtifactError("source node attributes exceed limit")
@@ -465,6 +470,16 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
                 connection.execute(
                     """SELECT 'product_catalog_release', count(*) FROM product_catalog_release
                     UNION ALL SELECT 'product_catalog_member', count(*) FROM product_catalog_member"""
+                ).fetchall(),
+            )
+        )
+    if version >= 11:
+        result.update(
+            cast(
+                list[tuple[str, int]],
+                connection.execute(
+                    """SELECT 'icd11_map_release', count(*) FROM icd11_map_release
+                    UNION ALL SELECT 'icd11_map_row', count(*) FROM icd11_map_row"""
                 ).fetchall(),
             )
         )

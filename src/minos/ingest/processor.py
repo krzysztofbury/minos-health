@@ -68,6 +68,11 @@ _GENERATION = re.compile(r"generations/[1-9][0-9]*-([0-9a-f]{64})")
 _CATALOG_ACT_TYPES = frozenset((1, 3))
 _IN_FORCE = "Obowiązujący"
 MAX_MANUAL_JGP = 4
+# ICD-11 PL files the bundle reads; the resource's PDFs are not used (#53).
+_ICD11_FILES = re.compile(
+    r"icd11_20[0-9]{2}-[0-9]{2}_pl_in|(10To11MapdoJednejKategorii|10To11MapdowieluKategorii|11To10MapdoJednejKategorii)_20[0-9]{2}-[0-9]{2}"
+)
+_RESOURCE_VERSION = re.compile(r"[0-9A-Za-z.-]{1,16}")
 
 type Failure = Literal["projection", "live_bundle", "policy", "fetch", "build", "state"]
 
@@ -198,6 +203,47 @@ def manual_jgp(paths: ProcessorPaths) -> tuple[int, ...]:
         ):
             pending.append(document.document_id)
     return tuple(sorted(pending, reverse=True)[:MAX_MANUAL_JGP])
+
+
+def manual_icd11(paths: ProcessorPaths) -> str | None:
+    """The RSK version of ICD-11 PL files no live release pins, if any.
+
+    ICD-11 is built by hand, and the watcher keeps only its metadata, so the
+    check compares RSK file identities and sizes with the live pins. It stays
+    silent while the live bundle serves no ICD-11 at all.
+    """
+    projection = _read_projection(
+        paths.public_directory, "api/v1/provenance/rsk.json", RskProvenanceProjection
+    )
+    if projection is None:
+        return None
+    dataset = _read_live(paths.live_bundle).dataset
+    live = {
+        (source.source_file_id, source.size_bytes)
+        for source in dataset.sources
+        if source.system == "icd11-pl"
+    }
+    if not live:
+        return None
+    if dataset.icd11_maps is not None:
+        live |= {
+            (item.source_url.rsplit("/", 1)[1], item.size_bytes)
+            for item in dataset.icd11_maps.files
+        }
+    pending = [
+        entry.resource_version
+        for entry in projection.entries
+        if entry.hcd == "99ICD1"
+        and entry.status == "current"
+        and entry.file_name is not None
+        and _ICD11_FILES.fullmatch(entry.file_name)
+        and (entry.file_uuid, entry.size_bytes) not in live
+    ]
+    if not pending:
+        return None
+    if not _RESOURCE_VERSION.fullmatch(pending[0]):
+        raise ProcessorError("projection")
+    return pending[0]
 
 
 def _drop_stale_acceptance(paths: ProcessorPaths, current: dict[str, Verdict]) -> None:

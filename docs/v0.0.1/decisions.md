@@ -142,10 +142,11 @@ except for the narrow browser-local search filter setting accepted below.
 On 2026-10-05 the owner requested all available search sources selected by
 default, automatic filter persistence in localStorage without an opt-in,
 updated product metadata, a branded raster social preview and a privacy-policy
-update. ICD-11 remains unavailable. Only explicit filter changes write the
+update. ICD-11 was unavailable then; since 2026-10-22 it is a source that
+starts unselected (see below). Only explicit filter changes write the
 versioned allowlisted selection and a 90-day expiry; searches, identifiers and
 medical codes are excluded. Read/search does not extend expiry. Reset removes
-only this key, restores available sources, and does not write a new record.
+only this key, restores the default sources, and does not write a new record.
 Unavailable sources remain part of user intent; an intentional empty selection
 is preserved and validated rather than silently replaced.
 
@@ -841,6 +842,40 @@ passed, proving observed claim shape only. It neither repairs the old archive-re
 IAM trust nor establishes cryptographically verified provenance or activation.
 Do not silently roll back this change or provision IAM/KMS/signer/host services.
 Future live changes still require exact reviewed plans.
+
+### ICD-11 PL Search And WHO Maps (#53, 2026-10-22)
+
+The owner resumed #53, reversing its deferral: ICD-11 is still not an NFZ
+settlement input, but the Polish translation and the WHO ICD-10/ICD-11 tables
+help coders prepare for it. RSK `99ICD1` (ICD-11 PL, resource version 002)
+publishes the MMS 2026-01 export and three map workbooks. Terms come from the
+RSK description and the WHO translation agreement with the Ministry of Health
+(TR/24/013) and the WHO ICD-11 licence: the translation is CC BY-ND 4.0,
+pre-released for consultation, not made by WHO, with the English version
+binding; software may incorporate ICD-11 if every item keeps its code, title
+and WHO URI with attribution and no adaptation.
+
+- Search covers titles, inclusions and index terms, reproduced word for word.
+  Definitions and exclusions are shown, not searched. ICD-11 stays out of the
+  project synonym mechanism; Minos adds no ICD-11 text.
+- The ICD-11 search filter starts unselected (owner); every ICD-11 page and
+  the dictionary carry the pre-released, not-in-force and not-for-NFZ notice,
+  the WHO disclaimer, citation and URI.
+- Clause 1.2.4 of the WHO licence says mappings and crosswalks are not covered
+  and need a separate written WHO agreement. The owner decided to show the
+  published tables anyway, row for row with their source row numbers, no match
+  type and no filled gaps, and accepts that risk. ICD-10 pages show the
+  10-to-11 rows, ICD-11 pages the 11-to-10 rows; the tables' ICD-10 side is WHO
+  2019, not the Polish 2008 edition.
+- The RSK watcher keeps `99ICD1` metadata-only. The four files were downloaded
+  once with the owner's approval and go to R2 with the operator key. The
+  processor reports `manual icd11 <version>` on `data-update` while a current
+  `99ICD1` XML or map file (RSK file UUID and size) is not pinned live. ICD-11
+  is not activated automatically; WHO releases yearly.
+- Measured on the live dataset (workstation, 2026-10-22): the database grows
+  from 425 to 676 MiB of the 1 GiB bound, a build takes 148 s with 187 MiB
+  peak memory, and API anonymous memory stays at 245 MiB (242 without
+  ICD-11). Terminology history now has about 350 MiB of headroom.
 
 ### Frontend
 

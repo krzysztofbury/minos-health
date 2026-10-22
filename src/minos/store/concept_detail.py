@@ -11,13 +11,15 @@ from minos.domain.reference import ArtifactError, QueryLimitError, ReferenceErro
 from minos.domain.search import SearchInputError
 from minos.ingest.reference_manifest import SourceManifest
 from minos.store.artifact import ArtifactManifest, dataset_identity
+from minos.store.icd11_maps import map_rows
 from minos.store.jgp_condition_reference import code_memberships
 from minos.store.komunikat import procedure_rank_evidence
 from minos.store.query_budget import query_budget
 from minos.store.reference import ReferenceReader
 
 MAX_RESPONSE_BYTES = 1024 * 1024
-MAX_NEIGHBOURS = 400
+# ICD-11 NE61 has 484 index-term children (#53).
+MAX_NEIGHBOURS = 1000
 
 
 class ContextReleaseMismatch(ReferenceError):
@@ -231,6 +233,14 @@ def concept_detail(
                 "evidence": ranks,
             }
             if ranks is not None
+            else None,
+            "icd11_map": {
+                "release_id": maps.release_id,
+                "notices": list(maps.notices),
+                "rows": map_rows(connection, maps, system, code),
+            }
+            if (maps := manifest.dataset.icd11_maps) is not None
+            and system in ("icd10-pl", "icd11-pl")
             else None,
             "jgp": dated_memberships(
                 connection, manifest, source, code, service_date, catalog, page

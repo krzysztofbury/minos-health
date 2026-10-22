@@ -90,8 +90,8 @@ These remaining gates stay open.
       signed releases (#41),
       full deployment acceptance (#27), and external brand/commercial gates (#2/#3).
 
-Deferred work remains #141 (unattended activation), #95 (assisted case entry),
-#53 (ICD-11) and #54 (private watcher portal). Completed prerequisites do not
+Deferred work remains #141 (unattended activation), #95 (assisted case entry)
+and #54 (private watcher portal); #53 (ICD-11 PL) was resumed on 2026-10-22. Completed prerequisites do not
 automatically authorize those features. Unsupported grouping rules remain
 undetermined; the deployed subset and golden cases do not establish ward accuracy.
 
@@ -233,8 +233,20 @@ below records their delivery; remaining practitioner and release gates stay expl
        reviewed de-identified outcome cases when available (#38). Closed #4 did
        not supply verified encounters; #37's derived cases are a separate result.
 
-ICD-11 (#53) stays deferred: it is not an NFZ settlement input, adds a
-licensing review, and does not advance JGP validation.
+ICD-11 PL (#53) was resumed on 2026-10-22 as pre-released reference search
+beside, not inside, the settlement scope; see
+[the decision](docs/v0.0.1/decisions.md#icd-11-pl-search-and-who-maps-53-2026-10-22).
+
+- [x] ICD-11 PL search, dictionary and code pages from RSK `99ICD1` (MMS
+      2026-01), filter unselected by default, WHO URI and notices on every
+      page, and the WHO ICD-10/ICD-11 tables row for row (#53).
+- [ ] ICD-11: upload the four `99ICD1` blobs to R2, release the API with the
+      new bundle and verify search, pages and maps in a browser.
+- [ ] ICD-11: ask WHO in writing about clause 1.2.4 (maps), if the owner
+      wants the risk closed.
+- [ ] ICD-11: review with a coder whether chapter X extension codes (agents,
+      substances) should rank below categories for disease queries; chapters
+      X, 23 and 26 list only their first 400 codes on a page.
 
 See [JGP delivery scope](docs/v0.0.1/jgp-delivery-scope.md) for the acceptance
 boundaries, deferred diff ownership and UI preservation gate. Implementation

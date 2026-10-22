@@ -180,21 +180,22 @@
           Po zmianie filtrów na stronie głównej automatycznie zapisujemy ich
           wybór w localStorage pod kluczem <code>minos.search.filters.v1</code>.
           Wpis zawiera wyłącznie wersję formatu, identyfikatory wybranych źródeł
-          (ICD-10 PL, ICD-9 PL, JGP) oraz termin ważności: 90 dni od ostatniej
+          (ICD-10 PL, ICD-9 PL, JGP, ICD-11 PL) oraz termin ważności: 90 dni od ostatniej
           zmiany filtrów. Nie zawiera treści wyszukiwań, kodów medycznych ani
           identyfikatora użytkownika i nie jest przesyłany jako plik cookie.
           Zwykłe wyszukiwanie lub odczyt ustawienia nie przedłuża jego ważności.
         </p>
         <p>
-          Domyślnie zaznaczamy wszystkie dostępne źródła. Zapamiętywanie nie ma
+          Domyślnie zaznaczamy ICD-10, ICD-9 i JGP; ICD-11 w wersji
+          przedostatecznej włączasz sam. Zapamiętywanie nie ma
           osobnego przełącznika zgody ani banera. localStorage, podobnie jak
           cookies, podlega zasadom
           przechowywania informacji na urządzeniu; jego użycie nie stanowi
           samo w sobie wyjątku od wymagań dotyczących zgody.
         </p>
         <p>
-          Przycisk „Przywróć wszystkie filtry” usuwa tylko ten wpis i przywraca
-          wszystkie dostępne źródła. Nowy wpis powstaje dopiero po kolejnej
+          Przycisk „Przywróć domyślne filtry” usuwa tylko ten wpis i przywraca
+          domyślne źródła. Nowy wpis powstaje dopiero po kolejnej
           zmianie filtrów. Możesz też usunąć lub zablokować dane strony w
           ustawieniach przeglądarki. Po upływie 90 dni ustawienie jest ignorowane,
           a serwis próbuje je usunąć przy następnym otwarciu wyszukiwarki; nie

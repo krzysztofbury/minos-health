@@ -15,6 +15,17 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- ICD-11 PL (#53): pre-released Polish ICD-11 MMS 2026-01 from RSK `99ICD1`
+  as a searchable dictionary (titles, inclusions and index terms, verbatim),
+  with `/slowniki/icd-11` tree and code pages that carry the WHO URI,
+  definition, exclusions, the WHO disclaimer and citation and a
+  not-in-force, not-for-NFZ notice. The search filter starts unselected and
+  "Przywróć domyślne filtry" restores ICD-10, ICD-9 and JGP. The three WHO
+  ICD-10/ICD-11 tables are imported row for row (reference schema 11) and
+  shown on ICD-10 and ICD-11 code pages and in the concept API; WHO licence
+  clause 1.2.4 on mappings is an accepted owner risk. The database grows from
+  425 to 676 MiB; API memory is unchanged. The processor reports
+  `manual icd11 <version>` while current `99ICD1` files are not pinned live.
 - The host processor reports JGP catalogs waiting for a manual release: a BAW
   original act or consolidated text in force whose 1a or 9 workbook no live
   release serves pushes `data-update` down with `manual jgp <document id>`,

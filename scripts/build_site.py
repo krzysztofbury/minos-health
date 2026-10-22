@@ -106,15 +106,14 @@ class Page:
 
 def _dictionary_tabs(current: str) -> str:
     tabs: list[str] = []
-    for path, label in (("/slowniki/icd-10", "ICD-10"), ("/slowniki/icd-9", "ICD-9")):
+    for path, label in (
+        ("/slowniki/icd-10", "ICD-10"),
+        ("/slowniki/icd-9", "ICD-9"),
+        ("/slowniki/icd-11", "ICD-11"),
+    ):
         state = ' aria-current="page"' if path == current else ""
         tabs.append(
             f'          <a class="dictionary-tab" role="listitem" href="{path}"{state}>{label}</a>'
-        )
-    for label in ("ICD-11",):
-        tabs.append(
-            '          <span class="dictionary-tab is-soon" role="listitem"'
-            + f' title="W przygotowaniu" aria-disabled="true">{label}</span>'
         )
     return "\n".join(tabs)
 
@@ -132,6 +131,28 @@ ICD10_NOTE = (
     + "<p>Tłumaczenie polskie nie zostało przygotowane przez WHO; WHO nie odpowiada"
     + " za jego treść ani poprawność. Wiążące jest angielskie wydanie WHO 2019."
     + " Minos zachowuje tekst i układ źródła; żaden wydawca nie popiera Minos.</p>"
+)
+# The WHO translation agreement (TR/24/013, clause 7) fixes this disclaimer.
+ICD11_NOTE = (
+    "<p>Źródłem jest polska wersja językowa ICD-11 (MMS, wydanie WHO 2026-01)"
+    + " z Rejestru Systemów Kodowania (RSK, Centrum e-Zdrowia). Jest to wersja"
+    + " przedostateczna (pre-released), opublikowana do konsultacji. Jej"
+    + " udostępnienie nie oznacza, że ICD-11 wchodzi w życie: nie służy do"
+    + " rozliczeń NFZ, które nadal opierają się na ICD-10.</p>"
+    + "<p>Tłumaczenie nie zostało dokonane przez Światową Organizację Zdrowia"
+    + " (WHO) i WHO nie ponosi za nie odpowiedzialności. W przypadku jakichkolwiek"
+    + " rozbieżności między wersją angielską a tłumaczeniem wersją wiążącą i"
+    + " autentyczną jest oryginalna wersja angielska. Oryginalna wersja angielska"
+    + ' i tłumaczenie są dostępne na platformie <a href="https://icd.who.int"'
+    + ' rel="noopener noreferrer">WHO ICD-11</a>. Tłumaczenie jest dostępne na'
+    + ' warunkach licencji <a href="https://creativecommons.org/licenses/by-nd/4.0/"'
+    + ' rel="noopener noreferrer">CC BY-ND 4.0</a>; Minos pokazuje kody, nazwy,'
+    + " identyfikatory WHO (URI) i teksty bez zmian. Żaden wydawca nie popiera"
+    + " Minos.</p>"
+    + "<p>International Classification of Diseases, Eleventh Revision (ICD-11),"
+    + " World Health Organization (WHO) 2019 https://icd.who.int/browse11."
+    + " Licensed under the Creative Commons Attribution-NoDerivatives 3.0 IGO"
+    + " licence (CC BY-ND 3.0 IGO).</p>"
 )
 ICD9_NOTE = (
     "<p>Kody, nazwy, statusy i daty pochodzą z Centralnych Zasobów Słownikowych"
@@ -198,7 +219,7 @@ PAGES = (
         "dictionaries.html",
         "/slowniki",
         "Słowniki - Minos Health",
-        "Przeglądaj pełne słowniki ICD-10 i ICD-9 w układzie źródła.",
+        "Przeglądaj pełne słowniki ICD-10, ICD-9 i ICD-11 w układzie źródła.",
         "index, follow",
         "/slowniki",
         ("validation",),
@@ -248,6 +269,31 @@ PAGES = (
             "tree_placeholder": "np. 89.00 albo badanie moczu",
             "dictionary_tabs": _dictionary_tabs("/slowniki/icd-9"),
             "source_note": ICD9_NOTE,
+        },
+    ),
+    Page(
+        "dictionary-icd-11.html",
+        "dictionary.html",
+        "/slowniki/icd-11",
+        "Słownik ICD-11 - Minos Health",
+        "Polska wersja przedostateczna ICD-11: rozdziały, bloki i kody z"
+        + " włączeniami i terminami indeksu.",
+        "index, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+        script="/dictionary.js",
+        body_class="page-dictionary",
+        values={
+            "system": "icd11-pl",
+            "dictionary_short": "ICD-11",
+            "dictionary_title": "Słownik ICD-11",
+            "dictionary_lead": "Międzynarodowa Statystyczna Klasyfikacja Chorób i"
+            + " Problemów Zdrowotnych, 11. rewizja: polska wersja przedostateczna,"
+            + " jeszcze nieobowiązująca.",
+            "tree_placeholder": "np. BA00 albo nadciśnienie",
+            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-11"),
+            "source_note": ICD11_NOTE,
         },
     ),
     Page(
@@ -415,9 +461,16 @@ def render_site(mode: Mode) -> dict[str, bytes]:
     return files
 
 
-SITEMAP_PATHS = ("/", "/slowniki", "/slowniki/icd-10", "/slowniki/icd-9", "/zrodla")
+SITEMAP_PATHS = (
+    "/",
+    "/slowniki",
+    "/slowniki/icd-10",
+    "/slowniki/icd-9",
+    "/slowniki/icd-11",
+    "/zrodla",
+)
 # The reference API generates one sitemap per dictionary from the verified bundle.
-CODE_SITEMAPS = ("/sitemap-icd-10.xml", "/sitemap-icd-9.xml")
+CODE_SITEMAPS = ("/sitemap-icd-10.xml", "/sitemap-icd-9.xml", "/sitemap-icd-11.xml")
 LLMS = """# Minos Health
 
 > Bezpłatna, niekomercyjna wyszukiwarka i przeglądarka oficjalnych polskich
@@ -431,6 +484,8 @@ LLMS = """# Minos Health
 - [Wyszukiwarka](https://minoshealth.pl/): kody i opisy ICD-10, ICD-9 i grup JGP.
 - [Słownik ICD-10](https://minoshealth.pl/slowniki/icd-10): pełne drzewo rozdziałów i kodów.
 - [Słownik ICD-9](https://minoshealth.pl/slowniki/icd-9): pełne drzewo działów i procedur.
+- [Słownik ICD-11](https://minoshealth.pl/slowniki/icd-11): polska wersja
+  przedostateczna ICD-11 (MMS), jeszcze nieobowiązująca i nie do rozliczeń NFZ.
 - Strona kodu: `https://minoshealth.pl/slowniki/icd-10/{KOD}` lub
   `https://minoshealth.pl/slowniki/icd-9/{KOD}`, np. /slowniki/icd-10/J18.9.
   Zawiera nazwę, miejsce w hierarchii, kody podrzędne, uwagi „obejmuje” i
