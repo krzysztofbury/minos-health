@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 MAX_DIFF_BYTES = 1024 * 1024
 MAX_CHANGED_PATHS = 10_000
-ROOT_DOCUMENTS = frozenset({"README.md", "CHANGELOG.md", "TODO.md"})
+ROOT_DOCUMENTS = frozenset({"README.md", "CHANGELOG.md"})
 
 
 class Context(BaseModel):

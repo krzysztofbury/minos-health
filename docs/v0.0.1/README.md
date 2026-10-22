@@ -2,7 +2,7 @@
 
 Status reconciled 2026-10-11: reference search, dated JGP pages and the supported
 grouper are deployed under the public-validation exception. Full product-release
-and practitioner acceptance remain open; see [TODO](../../TODO.md) and the
+and practitioner acceptance remain open; see [the issues](https://github.com/krzysztofbury/minos-health/issues) and the
 [#156 delivery record](https://github.com/krzysztofbury/minos-health/pull/156#issuecomment-6077733204).
 
 This directory records the decisions and constraints for the first Minos

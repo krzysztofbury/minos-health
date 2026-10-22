@@ -31,9 +31,11 @@ performance regression for developer convenience.
   safety-sensitive changes, not every small edit. Pause for user review at
   decisions and risk boundaries.
 - Keep one reviewable purpose per commit and use short imperative subjects.
-- Update docs, CHANGELOG, README and TODO in the same PR as the change. Never
-  open a documentation-only follow-up PR; Actions minutes are limited. Record
-  post-deployment evidence in issue comments and fold it into the next PR.
+- Update docs, CHANGELOG and README in the same PR as the change. Never open a
+  documentation-only follow-up PR; Actions minutes are limited. Open work lives
+  in GitHub issues, not in a TODO file: add, update or close the owning issue
+  with the change. Record post-deployment evidence in issue comments and fold
+  it into the next PR.
 - Never modify or discard user changes outside the agreed chunk.
 
 ## Implementation

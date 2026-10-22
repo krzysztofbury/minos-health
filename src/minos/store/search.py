@@ -201,6 +201,8 @@ def _parameters(request: SearchRequest) -> dict[str, str | int]:
         "match": "token_text : (" + match + ")",
         "excluded": "[]",
         "row_limit": request.limit + 1,
+        # ICD-10 has real X00-X59 codes; only ICD-11 chapter X is supplementary.
+        "supplementary_prefix": "X" if request.system == "icd11-pl" else "",
     }
 
 

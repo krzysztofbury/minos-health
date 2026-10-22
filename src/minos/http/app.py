@@ -75,6 +75,8 @@ from minos.store.tree import (
 )
 
 LOGGER = logging.getLogger("minos.http")
+# ICD-11 chapter 01 has 23 blocks; each block is one more bounded tree query.
+MAX_PAGE_BLOCKS = 64
 TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
 PAGE_ROUTE = re.compile(
     r"/slowniki/icd-(?:10|9|11)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/[1-9][0-9]{0,1})?)?"
@@ -290,11 +292,24 @@ def render_code(
             node: dict[str, object] = {**item, "path": [], "notes": []}
             children: list[dict[str, object]] = []
             truncated = False
+            blocks: dict[int, list[dict[str, object]]] = {}
         else:
             answer = tree_node(lease.connection, tree.hierarchy, ordinal)
             node = cast(dict[str, object], answer["node"])
             children = cast(list[dict[str, object]], answer["children"])
             truncated = answer.get("truncated") is True
+            # ICD-11 blocks carry no code, so a code page lists their members
+            # under the block title instead of linking to a page that cannot exist.
+            blocks = {
+                cast(int, child["ordinal"]): cast(
+                    list[dict[str, object]],
+                    tree_node(
+                        lease.connection, tree.hierarchy, cast(int, child["ordinal"])
+                    )["children"],
+                )
+                for child in children[:MAX_PAGE_BLOCKS]
+                if child["code"] is None and child["kind"] == "container"
+            }
         maps = pool.manifest.dataset.icd11_maps
         map_section = (
             icd11_map_section(
@@ -378,6 +393,7 @@ def render_code(
         f"/slowniki/{slug}/{code}/jgp/{service_date}" if service_date else None,
         map_section,
         truncated,
+        blocks,
     )
 
 

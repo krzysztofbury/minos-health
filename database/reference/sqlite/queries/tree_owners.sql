@@ -1,5 +1,6 @@
--- Listed nodes with a structural descendant through anonymous containers. A
+-- Listed nodes with a listed descendant through anonymous containers. A
 -- fixed row cap would drop the last owners of a long listing (ICD-11 blocks).
+-- Titled containers (ICD-11 blocks and windows) are tree levels themselves.
 WITH RECURSIVE walk(owner, ordinal) AS (
     SELECT parent.value, relation.child_ordinal
     FROM json_each(:parents) AS parent
@@ -14,6 +15,7 @@ WITH RECURSIVE walk(owner, ordinal) AS (
       ON node.source_release_id = :release_id
      AND node.ordinal = walk.ordinal
      AND node.kind = 'container'
+     AND trim(node.source_text) = ''
     CROSS JOIN reference_relation AS relation
       ON relation.source_release_id = :release_id
      AND relation.parent_ordinal = walk.ordinal
@@ -23,4 +25,5 @@ SELECT DISTINCT walk.owner
 FROM walk CROSS JOIN reference_node AS node
   ON node.source_release_id = :release_id
  AND node.ordinal = walk.ordinal
- AND node.kind IN ('classification', 'range');
+ AND (node.kind IN ('classification', 'range')
+      OR (node.kind = 'container' AND trim(node.source_text) <> ''));

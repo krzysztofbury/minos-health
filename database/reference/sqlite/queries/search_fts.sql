@@ -19,6 +19,9 @@ WITH candidates(ordinal, document_id, title_rank, prefix_rank) AS (
 ), ranked AS (
     SELECT candidates.ordinal, candidates.document_id, candidates.title_rank,
            candidates.prefix_rank,
+            CASE WHEN :supplementary_prefix <> ''
+                  AND substr(concept.lookup_code, 1, 1) = :supplementary_prefix
+            THEN 1 ELSE 0 END AS supplementary,
             coalesce(length(replace(concept.lookup_code, '.', '')), 99) AS code_depth,
             coalesce(json_extract(:jgp_counts, '$."' || concept.lookup_code || '"'), 0) AS jgp_count,
            row_number() OVER (
@@ -30,8 +33,9 @@ WITH candidates(ordinal, document_id, title_rank, prefix_rank) AS (
       ON concept.source_release_id = :release_id AND concept.node_ordinal = candidates.ordinal
     WHERE candidates.ordinal NOT IN (SELECT value FROM json_each(:excluded))
 )
--- Lexical and structural, not clinical: a code's own title before inclusion
--- text, a title that begins with the query before one that only contains it,
--- a broader code before its narrower codes, then source order.
+-- ICD-11 extension codes (chapter X) cannot stand alone, so they follow every
+-- stem code. Lexical and structural, not clinical: a code's own title before
+-- inclusion text, a title that begins with the query before one that only
+-- contains it, a broader code before its narrower codes, then source order.
 SELECT ordinal, document_id FROM ranked WHERE position = 1
-ORDER BY title_rank, prefix_rank, code_depth, jgp_count DESC, ordinal LIMIT :row_limit;
+ORDER BY supplementary, title_rank, prefix_rank, code_depth, jgp_count DESC, ordinal LIMIT :row_limit;

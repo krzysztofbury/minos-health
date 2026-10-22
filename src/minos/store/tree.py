@@ -46,6 +46,18 @@ class Hierarchy:
         return self.release_id != self.hierarchy_release_id
 
 
+def _listed(kind: str, text: str) -> bool:
+    """A tree level: a coded node or a titled container such as an ICD-11 block.
+
+    Untitled containers (all of ICD-10's) are anonymous and flattened away.
+    """
+    return kind in STRUCTURAL_KINDS or (kind == "container" and bool(text.strip()))
+
+
+def _anonymous(kind: str, text: str) -> bool:
+    return kind == "container" and not text.strip()
+
+
 def resolve_hierarchy(connection: sqlite3.Connection, release_id: str) -> Hierarchy:
     row = cast(
         tuple[str] | None,
@@ -120,7 +132,7 @@ def tree_node(
                 {"release_id": hierarchy.hierarchy_release_id, "ordinal": ordinal},
             ).fetchone(),
         )
-        if row is None or row[1] not in STRUCTURAL_KINDS:
+        if row is None or not _listed(row[1], row[3]):
             raise SearchInputError("tree node is not in the release")
         budget.check()
         children = _flatten(
@@ -157,8 +169,8 @@ def _flatten(
     result: list[Row] = []
     frontier = rows
     for _depth in range(MAX_DEPTH):
-        containers = [row[1] for row in frontier if row[2] == "container"]
-        result.extend(row for row in frontier if row[2] in STRUCTURAL_KINDS)
+        containers = [row[1] for row in frontier if _anonymous(row[2], row[4])]
+        result.extend(row for row in frontier if _listed(row[2], row[4]))
         if not containers or len(result) >= MAX_CHILDREN:
             break
         frontier = _children(connection, hierarchy.hierarchy_release_id, containers)
@@ -253,7 +265,9 @@ def _notes(
     frontier = _children(connection, release, [ordinal])
     for depth in range(MAX_DEPTH):
         expand = [
-            row[1] for row in frontier if row[2] in ("container", "text", "modifier")
+            row[1]
+            for row in frontier
+            if row[2] in ("text", "modifier") or _anonymous(row[2], row[4])
         ]
         notes.extend(
             (row[1], row[2], row[3], row[4])
@@ -322,7 +336,7 @@ def _path(
         ((row[0], row[1], row[4], row[2], row[3]) for row in rows),
         key=lambda row: -row[1],
     ):
-        if kind not in STRUCTURAL_KINDS:
+        if not _listed(kind, text):
             continue
         code = codes.get(node_ordinal) or source_code or None
         missing = (0, text)

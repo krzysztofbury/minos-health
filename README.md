@@ -57,8 +57,8 @@ in #174; full CI no longer re-runs on pushes to `main`.
 
 The initial golden suite has 9 synthetic and 5 pinned-source derived cases.
 Practitioner builder acceptance (#158), real ward agreement (#38), and full
-signed-release/capacity acceptance remain open. The [TODO](TODO.md) distinguishes
-delivered functionality from these gates.
+signed-release/capacity acceptance remain open; open work is tracked in
+[GitHub issues](https://github.com/krzysztofbury/minos-health/issues).
 
 ## Roadmap
 
@@ -248,7 +248,7 @@ Minos is in active public validation. No version tags or GitHub Releases have
 been published; exact-digest validation deployments are tracked separately from
 the full signed product-release gates in #41/#27. See [CHANGELOG.md](CHANGELOG.md)
 for unreleased changes, [SPEC.md](SPEC.md) for the implementation baseline and
-[TODO.md](TODO.md) for the current work queue.
+[GitHub issues](https://github.com/krzysztofbury/minos-health/issues) for open work.
 
 ## Contributing
 

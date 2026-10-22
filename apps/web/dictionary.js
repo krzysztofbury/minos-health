@@ -362,9 +362,14 @@
     if (release.supporting_sources && release.supporting_sources.length) {
       var support = (hit.supporting_contexts || [])[0];
       if (!support) return null;
-      return support.context.nodes.filter(function (step) { return step.kind === "range" || step.kind === "classification"; });
+      return support.context.nodes.filter(treeLevel);
     }
-    return (hit.context && hit.context.nodes || []).filter(function (step) { return step.kind === "range" || step.kind === "classification"; });
+    return (hit.context && hit.context.nodes || []).filter(treeLevel);
+  }
+
+  // Coded nodes and titled containers (ICD-11 blocks) are tree levels; untitled containers are not.
+  function treeLevel(step) {
+    return step.kind === "range" || step.kind === "classification" || (step.kind === "container" && clean(step.label || "") !== "");
   }
 
   function search(query, limit) {
