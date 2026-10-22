@@ -212,6 +212,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- ICD-11 search ranks extension codes (chapter X) after stem codes, so
+  "cholera" lists 1A00 before the vaccine and agent codes; they remain
+  findable and exact code lookups are unchanged. ICD-11 blocks and windows
+  are tree levels in the dictionary and on code pages, so chapter X shows its
+  14 blocks instead of the first 400 of 2,767 codes (#53).
+- `TODO.md` is retired: its open items moved to GitHub issues (#2, #3, #27,
+  #28, #38, #41, #42, #49, #126, #141, #158 and the new #212, #213, #214),
+  and `AGENTS.md` now keeps open work in issues.
 - A dictionary listing marks every entry that has codes, however long the
   listing: one capped probe of the children's children left ICD-11 chapters
   25, 26, V and X without an expand arrow. The processor fetches live inputs

@@ -1,7 +1,8 @@
 # Decisions
 
 Status: accepted planning record, 2026-08-06; amended 2026-08-21, 2026-09-17,
-2026-09-23, 2026-10-01, 2026-10-02, 2026-10-03, 2026-10-05, and 2026-10-16
+2026-09-23, 2026-10-01, 2026-10-02, 2026-10-03, 2026-10-05, 2026-10-16 and
+2026-10-22
 
 ## Product
 
@@ -879,6 +880,15 @@ and WHO URI with attribution and no adaptation.
   from 425 to 676 MiB of the 1 GiB bound, a build takes 148 s with 187 MiB
   peak memory, and API anonymous memory stays at 245 MiB (242 without
   ICD-11). Terminology history now has about 350 MiB of headroom.
+- Search ranks ICD-11 extension codes (chapter X, every code starting with X,
+  17,159 concepts) after all stem codes in each match stage, because WHO does
+  not allow them alone; they stay findable and an exact code lookup is
+  unchanged. ICD-10's own X00-X59 codes are not affected (owner, 2026-10-22).
+- ICD-11 blocks and windows are tree levels: titled containers are listed and
+  expanded like codes, while untitled containers (all of ICD-10's) stay
+  flattened. No listing then exceeds 299 entries, where flattening put up to
+  2,767 codes under chapter X; a code page lists a block's members under its
+  title, since a block has no code and no page.
 
 ### Frontend
 

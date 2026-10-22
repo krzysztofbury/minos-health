@@ -229,3 +229,31 @@ def wide_export(blocks: int) -> bytes:
         + "".join(parts)
         + "</elements></linearization></icd11>"
     ).encode()
+
+
+def ranking_export() -> bytes:
+    """Chapter X listed first, with an extension code whose title starts with the query."""
+    parts = [
+        f"<element><id>{BASE}</id><child>{BASE}/cx</child><child>{BASE}/c1</child></element>"
+    ]
+    for chapter, code, title, uri in (
+        ("X", "XA0001", "Szczepionka syntetyczna rozszerzenie", "x1"),
+        ("01", "1A00", "Syntetyczna szczepionka", "a1"),
+    ):
+        node = "cx" if chapter == "X" else "c1"
+        parts.append(
+            f"<element><parent>{BASE}</parent><code>{chapter}</code><id>{BASE}/{node}</id>"
+            + f"<classKind>chapter</classKind><title><value>Rozdział {chapter}</value><language>pl</language></title>"
+            + f"<child>{BASE}/{uri}</child></element>"
+        )
+        parts.append(
+            f"<element><parent>{BASE}/{node}</parent><code>{code}</code><id>{BASE}/{uri}</id>"
+            + f"<classKind>category</classKind><title><value>{title}</value><language>pl</language></title></element>"
+        )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n<icd11>'
+        + f"<releaseId>{RELEASE}</releaseId><releaseDate>2026-01-17</releaseDate>"
+        + "<linearization><code>mms</code><elements>"
+        + "".join(parts)
+        + "</elements></linearization></icd11>"
+    ).encode()

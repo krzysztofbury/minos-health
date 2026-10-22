@@ -25,7 +25,7 @@ base-to-checked-out-revision diff, not just the last commit:
 - Manual run: always full checks, including publication verification.
 
 Only ordinary, non-executable Markdown files under `docs/`, plus content updates
-to `README.md`, `TODO.md` and `CHANGELOG.md`, qualify. Agent instructions do not
+to `README.md` and `CHANGELOG.md`, qualify. Agent instructions do not
 qualify. README deletion still exercises packaging. Runtime files renamed into
 documentation remain visible as a deletion plus an addition. Unknown paths,
 symlinks, mode changes, empty diffs, missing/invalid refs, unavailable Git evidence

@@ -135,6 +135,25 @@ def _item(dictionary: Dictionary, code: str | None, label: str) -> str:
     return f'<li><a class="code-link" href="{_e(code_path(dictionary, code))}">{text}</a></li>'
 
 
+def _block(
+    dictionary: Dictionary,
+    child: dict[str, object],
+    members: list[dict[str, object]] | None,
+) -> str:
+    """A coded child, or an uncoded ICD-11 block titled over its own children."""
+    code, label = cast(str | None, child["code"]), cast(str, child["label"])
+    if code or members is None:
+        return _item(dictionary, code, label)
+    nested = "".join(
+        _item(dictionary, cast(str | None, item["code"]), cast(str, item["label"]))
+        for item in members
+    )
+    return (
+        f'<li class="code-block"><span class="result-label">{_e(label)}</span>'
+        + f'<ul class="code-list">{nested}</ul></li>'
+    )
+
+
 def _rank_section(evidence: dict[str, object]) -> list[str]:
     parts = [
         '        <section class="detail-notes procedure-rank"><h2>Ranga procedury w JGP (SZP)</h2>'
@@ -256,6 +275,7 @@ def code_page(
     dated_path: str | None = None,
     map_section: str = "",
     children_truncated: bool = False,
+    blocks: dict[int, list[dict[str, object]]] | None = None,
 ) -> str:
     code = cast(str, node["code"])
     label = " ".join(cast(str, node["label"]).split())
@@ -341,9 +361,7 @@ def code_page(
         )
     if children:
         items = "".join(
-            _item(
-                dictionary, cast(str | None, child["code"]), cast(str, child["label"])
-            )
+            _block(dictionary, child, (blocks or {}).get(cast(int, child["ordinal"])))
             for child in children
         )
         more = (

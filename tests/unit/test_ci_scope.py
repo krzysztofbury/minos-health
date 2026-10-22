@@ -38,7 +38,6 @@ def repository(tmp_path: Path) -> Path:
     [
         ("README.md", True),
         ("CHANGELOG.md", True),
-        ("TODO.md", True),
         ("docs/validation/a note.md", True),
         ("docs/validation/probe.py", False),
         ("src/runtime.py", False),

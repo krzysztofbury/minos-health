@@ -169,38 +169,84 @@ def test_a_map_release_differing_from_the_manifest_is_refused(
             pass
 
 
-def test_every_listed_chapter_with_codes_is_expandable(tmp_path: Path) -> None:
-    # More container rows than one capped probe returned once hid chapter 02.
-    blocks = 1700
-    digest, size = icd11.stage(tmp_path, icd11.wide_export(blocks))
+def _icd11_only(
+    root: Path, content: bytes, nodes: int, concepts: int
+) -> tuple[Path, str]:
+    """An ICD-11-only bundle of one synthetic export."""
+    digest, size = icd11.stage(root, content)
+    release = f"icd11-rsk-test-{digest[:12]}"
     source = {
-        **icd11.source(tmp_path),
-        "release_id": f"icd11-rsk-wide-{digest[:12]}",
+        **icd11.source(root),
+        "release_id": release,
         "sha256": digest,
         "size_bytes": size,
         "expected": {
-            "nodes": blocks + 3,
-            "relations": blocks + 1,
-            "concepts": 3,
-            "descriptions": 3,
+            "nodes": nodes,
+            # Both fixtures have two chapters, the only nodes without a parent.
+            "relations": nodes - 2,
+            "concepts": concepts,
+            "descriptions": concepts,
         },
     }
     manifest = DatasetManifest.model_validate_json(
         json.dumps(
             {
                 "schema_version": 1,
-                "transform_version": "icd11-wide-test",
+                "transform_version": "icd11-test",
                 "lockfile_sha256": "0" * 64,
                 "sources": [source],
             }
         )
     )
-    output = tmp_path / "wide"
-    _ = build_reference_artifact(manifest, tmp_path, output)
+    output = root / f"bundle-{digest[:12]}"
+    _ = build_reference_artifact(manifest, root, output)
+    return output, release
 
-    with TestClient(create_app(output)) as wide:
-        roots = cast(Json, wide.get(f"/api/v1/tree/{source['release_id']}/0").json())
+
+def test_every_listed_chapter_with_codes_is_expandable(tmp_path: Path) -> None:
+    # More container rows than one capped probe returned once hid chapter 02.
+    blocks = 1700
+    bundle, release = _icd11_only(
+        tmp_path, icd11.wide_export(blocks), nodes=blocks + 3, concepts=3
+    )
+
+    with TestClient(create_app(bundle)) as wide:
+        roots = cast(Json, wide.get(f"/api/v1/tree/{release}/0").json())
+    # Titled blocks are tree levels, so chapter 01 expands into them.
     assert [
         (item["code"], item["has_children"])
         for item in cast(list[Json], roots["children"])
-    ] == [("01", False), ("02", True)]
+    ] == [("01", True), ("02", True)]
+
+
+def test_extension_codes_follow_stem_codes_but_stay_findable(tmp_path: Path) -> None:
+    bundle, release = _icd11_only(tmp_path, icd11.ranking_export(), nodes=4, concepts=4)
+
+    with TestClient(create_app(bundle)) as ranked:
+
+        def codes(query: str) -> list[str]:
+            answer = cast(
+                Json,
+                ranked.post(
+                    "/api/v1/search",
+                    json={"system": "icd11-pl", "release_id": release, "query": query},
+                ).json(),
+            )
+            return [
+                cast(str, hit["code"]) for hit in cast(list[Json], answer["results"])
+            ]
+
+        # The extension title starts with the query and comes first in source order.
+        assert codes("szczepionka") == ["1A00", "XA0001"]
+        assert codes("rozszerzenie") == ["XA0001"]
+        assert codes("XA0001") == ["XA0001"]
+
+
+def test_a_chapter_page_lists_codes_under_their_block(client: TestClient) -> None:
+    page = client.get("/slowniki/icd-11/01").text
+
+    assert (
+        '<li class="code-block"><span class="result-label">Syntetyczny blok</span>'
+        in page
+    )
+    assert 'href="/slowniki/icd-11/1A00"' in page
