@@ -28,6 +28,7 @@ from tests.fixtures.fake_docker import service_config
 
 ROOT = Path(__file__).parents[2]
 HOST_PROGRAM = ROOT / "scripts" / "validation_host.py"
+FIXTURE_MEMORY_MIB = 16 * 1024
 API = "ghcr.io/krzysztofbury/minos-health-reference-api@sha256:"
 EDGE = "ghcr.io/krzysztofbury/minos-health-validation-edge@sha256:"
 OLD_REVISION, NEW_REVISION = "1" * 40, "2" * 40
@@ -188,10 +189,14 @@ def host_for(site: tuple[Path, Path, Path]) -> Host:
             [sys.executable, "-", command, encoded],
             input=(
                 "import sys, types\nmodule = types.ModuleType('host_fixture')\n"
-                f"exec({HOST_PROGRAM.read_text()!r}, module.__dict__)\n"
+                + f"exec({HOST_PROGRAM.read_text()!r}, module.__dict__)\n"
                 # Keep real subprocess/CLI/receipt coverage without five-minute
                 # waits for deliberately unhealthy synthetic containers.
-                "module.UP_WAIT_TIMEOUT_S = 5\nsys.exit(module.main(sys.argv))\n"
+                + "module.UP_WAIT_TIMEOUT_S = 5\n"
+                # The runner's free memory is not under test (#218); the
+                # headroom refusal asks for more than this fixed host has.
+                + f"module.memory_available_mib = lambda: {FIXTURE_MEMORY_MIB}\n"
+                + "sys.exit(module.main(sys.argv))\n"
             ).encode(),
             capture_output=True,
             timeout=60,
@@ -205,6 +210,15 @@ def host_for(site: tuple[Path, Path, Path]) -> Host:
         return parse_host_answer(completed.stdout.decode(), command)
 
     return call
+
+
+def fixed_memory(activator: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the in-process host's free memory; the runner's is not under test."""
+    monkeypatch.setattr(
+        cast(object, getattr(activator, "_host")),  # noqa: B009 - private host module
+        "memory_available_mib",
+        lambda: FIXTURE_MEMORY_MIB,
+    )
 
 
 def docker_state(site: tuple[Path, Path, Path]) -> dict[str, object]:
@@ -1107,6 +1121,7 @@ def test_processor_activator_drives_the_host_transition_in_process(
     monkeypatch.setenv("FAKE_DOCKER_STATE", str(base / "docker-state.json"))
     before = (root / "compose.yaml").read_bytes()
     activator = processor_host.ValidationActivator(root)
+    fixed_memory(activator, monkeypatch)
     database = hashlib.sha256((bundle / "minos.db").read_bytes()).hexdigest()
 
     staged_data = activator.stage(bundle, database)
@@ -1136,6 +1151,7 @@ def test_processor_activator_retries_after_a_restored_failed_start(
     _ = (base / "docker-state.json").write_text(json.dumps(state))
     before = (root / "compose.yaml").read_bytes()
     activator = processor_host.ValidationActivator(root)
+    fixed_memory(activator, monkeypatch)
     database = hashlib.sha256((bundle / "minos.db").read_bytes()).hexdigest()
 
     first = activator.stage(bundle, database)
@@ -1149,3 +1165,29 @@ def test_processor_activator_retries_after_a_restored_failed_start(
     assert restored == before
     assert second == first
     assert activated["status"] == "activated"
+
+
+@pytest.mark.parametrize(
+    ("tools", "search_error", "accepted"),
+    [(12, False, True), (11, False, False), (12, True, False)],
+    ids=["complete", "missing_tool", "failing_search"],
+)
+def test_verify_mcp_requires_the_catalog_and_a_real_search(
+    monkeypatch: pytest.MonkeyPatch, tools: int, search_error: bool, accepted: bool
+) -> None:
+    def answer(
+        _base: str, method: str, _params: dict[str, object]
+    ) -> dict[str, object]:
+        if method == "tools/list":
+            return {"tools": [{"name": f"tool-{index}"} for index in range(tools)]}
+        return {"isError": search_error, "structuredContent": {}}
+
+    monkeypatch.setattr(deploy_validation, "_mcp", answer)
+
+    if accepted:
+        assert deploy_validation.verify_mcp("https://example.test").startswith(
+            "12 tools"
+        )
+    else:
+        with pytest.raises(DeployError, match="public MCP"):
+            _ = deploy_validation.verify_mcp("https://example.test")

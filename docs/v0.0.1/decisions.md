@@ -844,6 +844,35 @@ IAM trust nor establishes cryptographically verified provenance or activation.
 Do not silently roll back this change or provision IAM/KMS/signer/host services.
 Future live changes still require exact reviewed plans.
 
+### Public MCP Server For Agents (#216, 2026-10-22)
+
+The owner asked for an MCP server so agents and LLMs can do what the site
+does: anonymous with a rate limit, everything in v1, MCP Python SDK 2.x, and a
+documentation page. Owner choices: the Gruper is in v1; patient data needs no
+detection beyond the structured input (the stay has no name, PESEL or address
+field, nothing is stored, logs carry no arguments, and what a user sends
+through their own LLM provider is between them); load is accepted until
+traffic shows otherwise.
+
+- `POST /mcp`: stateless Streamable HTTP with JSON answers, served by the
+  reference API process. Twelve read-only tools call the site's own HTTP API in
+  process, so validation, `busy`, bounds and data match the pages: search,
+  code detail, classification browsing, WHO ICD-10/ICD-11 rows, JGP groups,
+  lists, catalog sections and two-date comparison, case dictionaries, the
+  Gruper (summary by default, `detail="trace"` for routing traces) and source
+  status. Two resources and two prompts guide a coding workflow.
+- Contract from librus-mcp: typed outputs, closed error codes without input
+  echo, `LIMIT` above 256 KiB instead of a cut, titles stripped from schemas
+  (catalog 17.5 KiB), same JSON in text and structured content.
+- Free like the site: RSK ICD-10 is non-commercial and must not back a paid
+  feature. Every result carries the notice and its release.
+- The edge allows 60 requests per minute per client (`CF-Connecting-IP`,
+  burst 30); deployment verification lists the tools and runs one search.
+- `/dla-agentow` is generated from `tools/list`, in Polish with the English
+  tool reference agents see; a test validates its examples against the schemas.
+- Measured on the live bundle: API anonymous memory 271 MiB with MCP (245
+  without), under the 512 MiB limit.
+
 ### ICD-11 PL Search And WHO Maps (#53, 2026-10-22)
 
 The owner resumed #53, reversing its deferral: ICD-11 is still not an NFZ

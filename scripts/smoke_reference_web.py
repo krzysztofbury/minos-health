@@ -126,6 +126,28 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None  # the redirect itself is the answer under test
 
 
+def mcp_call(
+    base: str, method: str, params: dict[str, object], *, client: str | None = None
+) -> dict[str, object]:
+    request = urllib.request.Request(
+        base + "/mcp",
+        data=json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+        ).encode(),
+        headers={
+            "Host": "minoshealth.pl",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2025-11-25",
+            **({"CF-Connecting-IP": client} if client else {}),
+        },
+        method="POST",
+    )
+    with cast(HTTPResponse, urllib.request.urlopen(request, timeout=20)) as response:
+        answer = cast(dict[str, object], json.loads(response.read(1_048_576)))
+    return cast(dict[str, object], answer["result"])
+
+
 def get_page(base: str, route: str) -> tuple[int, list[str]]:
     """Status and every Cache-Control header, without following redirects."""
     opener = urllib.request.build_opener(_NoRedirect)
@@ -358,6 +380,28 @@ def main(arguments: Arguments) -> None:
         )
         assert cast(dict[str, object], concept["concept"])["parents"] == []
         assert concept["jgp"] is None
+        # The agent endpoint answers through the same edge (#216).
+        listed = mcp_call(base, "tools/list", {})
+        assert len(cast(list[object], listed["tools"])) == 12
+        searched = mcp_call(
+            base,
+            "tools/call",
+            {
+                "name": "search_codes",
+                "arguments": {"query": "badania moczu", "systems": ["icd9-pl"]},
+            },
+        )
+        assert not searched.get("isError")
+        # 60 per minute with a burst of 30 per client; a held GET is refused.
+        limited = 0
+        for _ in range(40):
+            try:
+                _ = mcp_call(base, "tools/list", {}, client="203.0.113.9")
+            except urllib.error.HTTPError as error:
+                error.close()
+                limited += error.code == 429
+        assert limited >= 5
+        assert get_json(base, "/mcp")[0] == 405
         dated_status, dated, _ = get_json(base, concept_route + "/jgp/2026-07-10")
         assert dated_status == 200 and dated["concept"] == concept["concept"]
         assert get_json(base, concept_route + "/jgp/2026-07-10/1a/pages/1")[0] == 200

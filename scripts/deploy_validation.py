@@ -488,6 +488,46 @@ def verify_home(base: str) -> str:
     return "served without edge rewriting"
 
 
+def _mcp(base: str, method: str, params: dict[str, object]) -> dict[str, object]:
+    request = urllib.request.Request(
+        base + "/mcp",
+        data=json.dumps(
+            {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+        ).encode(),
+        headers={
+            "User-Agent": "minos-validation-deploy",
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2025-11-25",
+        },
+        method="POST",
+    )
+    try:
+        with cast(
+            HTTPResponse, urllib.request.urlopen(request, timeout=20)
+        ) as response:
+            answer = cast(dict[str, object], json.loads(response.read(512 * 1024)))
+    except OSError, ValueError:
+        raise DeployError(f"public MCP {method} failed") from None
+    result = answer.get("result")
+    if not isinstance(result, dict):
+        raise DeployError(f"public MCP {method} returned no result")
+    return cast(dict[str, object], result)
+
+
+def verify_mcp(base: str) -> str:
+    """The agent endpoint (#216): its catalog and one real search."""
+    tools = cast(list[dict[str, object]], _mcp(base, "tools/list", {}).get("tools", []))
+    found = _mcp(
+        base,
+        "tools/call",
+        {"name": "search_codes", "arguments": {"query": "zapalenie płuc", "limit": 1}},
+    )
+    if len(tools) != 12 or found.get("isError"):
+        raise DeployError("public MCP catalog or search is wrong")
+    return f"{len(tools)} tools listed, search_codes answered"
+
+
 def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
     status, body = get(base + "/readyz")
     ready = cast(dict[str, object], json.loads(body)) if status == 200 else {}
@@ -497,6 +537,7 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
         )
     checks: dict[str, object] = {"readyz": "ready", "dataset_id": value.dataset_id}
     checks["home"] = verify_home(base)
+    checks["mcp"] = verify_mcp(base)
     if value.rank_sample is not None:
         code, rank = value.rank_sample
         status, body = get(f"{base}/slowniki/icd-9/{code}")

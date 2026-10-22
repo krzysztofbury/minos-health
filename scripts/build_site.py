@@ -9,6 +9,7 @@ import argparse
 import html
 import json
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, final
@@ -102,6 +103,8 @@ class Page:
     body_class: str = ""
     head_extra: str = ""
     values: dict[str, str] = field(default_factory=dict[str, str])
+    # Values computed only when the page renders (the MCP tool catalog).
+    computed: Callable[[], dict[str, str]] | None = None
 
 
 def _dictionary_tabs(current: str) -> str:
@@ -322,6 +325,20 @@ PAGES = (
         ("maintenance", "validation"),
     ),
     Page(
+        "agents.html",
+        "agents.html",
+        "/dla-agentow",
+        "Minos Health dla agentów AI (MCP) - Minos Health",
+        "Serwer MCP dla agentów AI: wyszukiwanie ICD-10, ICD-9, ICD-11 i JGP, karty"
+        + " kodów, mapy WHO i Gruper. Bezpłatnie, bez klucza, tylko do odczytu.",
+        "index, follow",
+        None,
+        ("validation",),
+        analytics=False,
+        body_class="page-agents",
+        computed=lambda: _mcp_values(),
+    ),
+    Page(
         "terms.html",
         "terms.html",
         "/regulamin",
@@ -370,9 +387,21 @@ def _nav(mode: Mode, current: str | None) -> str:
     return "\n".join(links)
 
 
-def _footer_nav() -> str:
+def _mcp_values() -> dict[str, str]:
+    from minos.http.mcp_docs import ENDPOINT, catalog, reference_html
+
+    tools = catalog()
+    return {
+        "mcp_endpoint": ENDPOINT,
+        "tool_count": str(len(tools)),
+        "tool_reference": reference_html(tools),
+    }
+
+
+def _footer_nav(mode: Mode) -> str:
     links = (
         ("/zrodla", "Źródła danych"),
+        *((("/dla-agentow", "Dla agentów AI (MCP)"),) if mode == "validation" else ()),
         ("/polityka-prywatnosci", "Polityka prywatności"),
         ("/regulamin", "Regulamin"),
         ("mailto:kontakt@minoshealth.pl", "kontakt@minoshealth.pl"),
@@ -393,7 +422,8 @@ def _fill(template: str, values: dict[str, str]) -> str:
 def render_page(page: Page, mode: Mode) -> str:
     layout = (SITE / "layout.html").read_text(encoding="utf-8")
     content = _fill(
-        (SITE / "pages" / page.source).read_text(encoding="utf-8"), page.values
+        (SITE / "pages" / page.source).read_text(encoding="utf-8"),
+        {**page.values, **(page.computed() if page.computed else {})},
     )
     scripts = PLAUSIBLE if page.analytics else ""
     if page.script:
@@ -416,7 +446,7 @@ def render_page(page: Page, mode: Mode) -> str:
             if mode == "validation"
             else "summary",
             "nav": _nav(mode, page.nav),
-            "footer_nav": _footer_nav(),
+            "footer_nav": _footer_nav(mode),
             "content": content.rstrip("\n"),
         },
     )
@@ -468,6 +498,7 @@ SITEMAP_PATHS = (
     "/slowniki/icd-9",
     "/slowniki/icd-11",
     "/zrodla",
+    "/dla-agentow",
 )
 # The reference API generates one sitemap per dictionary from the verified bundle.
 CODE_SITEMAPS = ("/sitemap-icd-10.xml", "/sitemap-icd-9.xml", "/sitemap-icd-11.xml")
@@ -497,6 +528,10 @@ LLMS = """# Minos Health
   /jgp/2026-10-02/A01. Wartości to punkty bazowe wg katalogu, bez modyfikatorów,
   nie punkty do rozliczenia.
 - [Źródła danych](https://minoshealth.pl/zrodla): wersje słowników i zarządzenia NFZ.
+- [Dla agentów AI](https://minoshealth.pl/dla-agentow): serwer MCP
+  https://minoshealth.pl/mcp (Streamable HTTP, bez klucza, tylko odczyt) z
+  wyszukiwaniem ICD-10, ICD-9, ICD-11 i JGP, kartami kodów i grup, mapami WHO
+  ICD-10/ICD-11 i Gruperem dla zanonimizowanego pobytu.
 
 ## API (JSON, bez klucza)
 
@@ -583,7 +618,7 @@ def render_page_shell(nav: str = "/slowniki", body_class: str = "page-code") -> 
             "social_image": SOCIAL_IMAGE,
             "twitter_card": "summary_large_image",
             "nav": _nav("validation", page.nav),
-            "footer_nav": _footer_nav(),
+            "footer_nav": _footer_nav("validation"),
             "content": "{{content}}",
         },
     )

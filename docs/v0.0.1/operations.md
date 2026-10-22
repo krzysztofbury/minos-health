@@ -436,6 +436,18 @@ Before `v0.0.1`, perform and time at least:
 Documentation alone is not a tested backup. Record observed recovery time and
 every unresolved manual step.
 
+## MCP For Agents (#216)
+
+`https://minoshealth.pl/mcp` serves the public MCP tools from the reference
+API; `/dla-agentow` documents them. It has no key and no state. The edge
+limits each client to 60 requests per minute (burst 30) by
+`CF-Connecting-IP`; a client above it gets HTTP 429, and a busy API pool gives
+the `BUSY` tool error. `deploy_validation verify` lists the twelve tools and
+runs one `search_codes` call. To take MCP offline without a release, add a
+Cloudflare WAF rule that blocks `/mcp`; the website is unaffected. A quick
+check from the workstation:
+`claude mcp add --transport http minos-health https://minoshealth.pl/mcp`.
+
 ## Logging
 
 Watcher lifecycle and RSK transport events use allowlisted Loguru fields. Docker

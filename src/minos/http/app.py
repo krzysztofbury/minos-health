@@ -501,7 +501,10 @@ def create_app(
             )
             raise
         try:
-            yield
+            # Stateless MCP still needs its session manager's task group.
+            async with mcp_sessions.run():
+                yield
+            await close_mcp()
         finally:
             if warmup is not None:
                 warmup_stop.set()
@@ -901,7 +904,12 @@ def create_app(
     register_jgp_pages(app, cache_control=PAGE_CACHE)
     register_comparison_pages(app, cache_control=PAGE_CACHE)
     register_grouping_routes(app, failure=failure)
-    register_source_pages(app, public_directory or Path("/var/lib/minos/public"))
+    public = public_directory or Path("/var/lib/minos/public")
+    register_source_pages(app, public)
+    from minos.http.mcp import create_mcp, mount_mcp
+
+    mcp_server, close_mcp = create_mcp(app, public)
+    mcp_sessions = mount_mcp(app, mcp_server)
     return app
 
 
