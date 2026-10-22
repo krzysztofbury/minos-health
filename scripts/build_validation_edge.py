@@ -19,6 +19,7 @@ PAGE_ROUTES = (
     ("/slowniki/icd-10", "dictionary-icd-10.html"),
     ("/slowniki/icd-9", "dictionary-icd-9.html"),
     ("/slowniki/icd-11", "dictionary-icd-11.html"),
+    ("/dla-agentow", "agents.html"),
 )
 ASSET_ROUTES = (
     "/grouper.js",
@@ -117,6 +118,26 @@ def _routes() -> str:
             proxy_pass http://reference-api:8081;
             proxy_connect_timeout 1s;
             proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        # Public MCP for agents (#216): stateless Streamable HTTP served by the
+        # API, limited per client (Cloudflare's CF-Connecting-IP, else the peer).
+        location = /mcp {
+            if ($request_uri != "/mcp") { return 404; }
+            # Stateless: no server stream, and a held GET would pin an API slot.
+            if ($request_method != POST) { return 405; }
+            limit_req zone=mcp burst=30 nodelay;
+            limit_req_status 429;
+            client_max_body_size 64k;
+            client_body_buffer_size 64k;
+            client_body_timeout 2s;
+            proxy_request_buffering on;
+            proxy_buffering off;
+            proxy_max_temp_file_size 0;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            # One tool may make several bounded API calls in sequence.
+            proxy_read_timeout 20s;
             error_log /dev/null;
         }
         location = /api/v1/group {
@@ -242,6 +263,18 @@ def build(output: Path) -> None:
         _ = target.write_bytes(content)
         identities[name] = hashlib.sha256(content).hexdigest()
     config = (FILES / "edge-nginx.conf").read_text()
+    keepalive = "    keepalive_timeout 15;\n"
+    if config.count(keepalive) != 1:
+        raise ValueError("edge http block layout changed")
+    config = config.replace(
+        keepalive,
+        keepalive
+        + "    map $http_cf_connecting_ip $mcp_client {\n"
+        + '        "" $binary_remote_addr;\n'
+        + "        default $http_cf_connecting_ip;\n"
+        + "    }\n"
+        + "    limit_req_zone $mcp_client zone=mcp:1m rate=60r/m;\n",
+    )
     # Nginx warning/error messages can include untrusted URLs and headers.
     config = config.replace("error_log /dev/stderr warn;", "error_log /dev/null;")
     sources = """        location = /zrodla {

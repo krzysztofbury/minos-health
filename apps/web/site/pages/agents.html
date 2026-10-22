@@ -1,0 +1,38 @@
+      <div class="shell page-head">
+        <h1>Minos Health dla agentów AI</h1>
+        <p class="page-lead">Serwer MCP daje agentom i modelom językowym to samo, co strona: wyszukiwanie ICD-10, ICD-9, ICD-11 i grup JGP, karty kodów i grup, mapy WHO ICD-10/ICD-11 oraz Gruper dla zanonimizowanego pobytu. Bezpłatnie, bez klucza, tylko do odczytu.</p>
+      </div>
+      <article class="shell prose">
+      <section>
+        <h2>Adres</h2>
+        <pre><code>{{mcp_endpoint}}</code></pre>
+        <p>Protokół MCP przez Streamable HTTP, bezstanowo, odpowiedzi JSON. {{tool_count}} narzędzi, 2 zasoby (<code>minos://about</code>, <code>minos://releases</code>) i 2 szablony promptów (<code>code-hospital-stay</code>, <code>explain-jgp-group</code>).</p>
+      </section>
+
+      <section>
+        <h2>Jak połączyć</h2>
+        <p>Claude Code:</p>
+        <pre><code>claude mcp add --transport http minos-health {{mcp_endpoint}}</code></pre>
+        <p>Claude.ai i Claude Desktop: Ustawienia, Konektory, „Dodaj własny konektor” i adres powyżej. ChatGPT: Ustawienia, Aplikacje i konektory, tryb dewelopera, nowy konektor z tym adresem.</p>
+        <p>Cursor, VS Code i inne klienty z plikiem konfiguracji:</p>
+        <pre><code>{"mcpServers": {"minos-health": {"url": "{{mcp_endpoint}}"}}}</code></pre>
+      </section>
+
+      <section>
+        <h2>Zasady</h2>
+        <ul>
+          <li>Narzędzia tylko odczytują dane. Nie zapisujemy niczego, co wysyła agent; logi zawierają nazwę trasy, status i czas, nigdy argumentów.</li>
+          <li>Do Grupera wysyłaj wyłącznie zanonimizowane fakty kliniczne: wiek, daty, kody i kody oddziałów. <strong>Nie wpisuj imion, nazwisk, numeru PESEL ani adresów.</strong> Dane przechodzą też przez dostawcę Twojego modelu.</li>
+          <li>Wyniki to treść referencyjna z oficjalnych źródeł, nie porada medyczna ani wiążąca decyzja NFZ. Wartości JGP to punkty z katalogu, nie złotówki. Koduj wyłącznie udokumentowaną opiekę.</li>
+          <li>ICD-11 PL to wersja przedostateczna: nie obowiązuje i nie służy do rozliczeń NFZ. Mapy ICD-10/ICD-11 to tabele WHO bez zmian.</li>
+          <li>Limity: 60 zapytań na minutę na klienta (z rezerwą 30 zapytań); powyżej serwer odpowiada HTTP 429. Wynik ma do 256 KiB. Przy przeciążeniu narzędzie zwraca <code>BUSY</code>; spróbuj ponownie po chwili. Serwer przyjmuje tylko POST (bez strumienia SSE).</li>
+          <li>Licencje jak na stronie: ICD-10 PL CC BY-NC-SA 3.0 IGO (niekomercyjnie), ICD-11 PL CC BY-ND 4.0 i WHO CC BY-ND 3.0 IGO, materiały NFZ w opublikowanej postaci. Każdy wynik podaje wydanie i źródło. Korzystanie z serwera podlega <a href="/regulamin">regulaminowi</a> i <a href="/polityka-prywatnosci">polityce prywatności</a>.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Narzędzia (tool reference)</h2>
+        <p>Opisy, argumenty i pola wyników poniżej pochodzą wprost z listy narzędzi serwera (<code>tools/list</code>), dlatego są po angielsku, tak jak widzi je agent.</p>
+{{tool_reference}}
+      </section>
+      </article>

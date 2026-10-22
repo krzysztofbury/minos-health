@@ -1,7 +1,7 @@
       <div class="shell page-head">
-        <p class="page-meta">Dokument obowiązuje od 05.10.2026</p>
+        <p class="page-meta">Dokument obowiązuje od 22.10.2026</p>
         <h1>Polityka prywatności</h1>
-        <p class="page-lead">Opisujemy tutaj, jakie dane mogą być przetwarzane podczas korzystania z minoshealth.pl. Serwis udostępnia wyszukiwarkę rozpoznań ICD-10 PL, procedur ICD-9 PL i grup JGP, przeglądanie słowników oraz grup JGP z warunkami grupowania i punktami bazowymi, strony informacyjne i publiczny rejestr pochodzenia danych. Nie ma kont, płatności ani obsługi danych pacjentów. Nie wykonujemy indywidualnego grupowania hospitalizacji.</p>
+        <p class="page-lead">Opisujemy tutaj, jakie dane mogą być przetwarzane podczas korzystania z minoshealth.pl. Serwis udostępnia wyszukiwarkę rozpoznań ICD-10 PL, procedur ICD-9 PL i grup JGP, przeglądanie słowników oraz grup JGP z warunkami grupowania i punktami bazowymi, Gruper dla zanonimizowanego pobytu, serwer MCP dla agentów AI, strony informacyjne i publiczny rejestr pochodzenia danych. Nie ma kont, płatności ani obsługi danych pacjentów; Gruper i serwer MCP przetwarzają wyłącznie zanonimizowane fakty kliniczne, w pamięci, bez zapisu.</p>
       </div>
       <article class="shell prose">
       <section>
@@ -79,7 +79,7 @@
       </section>
 
       <section>
-        <h2>5. Wyszukiwarka i słowniki</h2>
+        <h2>5. Wyszukiwarka, słowniki, Gruper i serwer MCP</h2>
         <p>
           Wyszukiwarka na stronie głównej, łącznie z podpowiedziami
           wyświetlanymi podczas pisania, wysyła zapytanie do API Minos w treści
@@ -102,6 +102,25 @@
           słowników i grup JGP nie ładują Plausible. Zapamiętane filtry nie są
           przekazywane do Plausible ani do API; API otrzymuje tylko wybór źródła
           potrzebny do wykonania danego wyszukiwania.
+        </p>
+        <p>
+          Gruper (strona „Gruper” i narzędzie <code>group_case</code> serwera
+          MCP) przyjmuje opis pobytu wyłącznie w postaci pól klinicznych:
+          wiek, daty, kody rozpoznań, procedur i oddziałów, tryb wypisu. Nie ma
+          pól na imię, nazwisko, PESEL ani adres. Opis jest przetwarzany w
+          pamięci na czas obliczenia i nie trafia do bazy, logów ani analityki.
+          Nie wpisuj danych pozwalających zidentyfikować pacjenta.
+        </p>
+        <p>
+          Serwer MCP pod adresem <code>/mcp</code> (opis na stronie
+          <a href="/dla-agentow">Dla agentów AI</a>) udostępnia agentom AI te
+          same funkcje tylko do odczytu. Argumenty narzędzi przetwarzamy w
+          pamięci i nie zapisujemy ich; logi aplikacji zawierają wyłącznie
+          trasę, status i czas odpowiedzi. Aby ograniczyć liczbę zapytań na
+          klienta, serwer WWW przechowuje adres IP klienta przekazany przez
+          Cloudflare w pamięci przez okres limitu (około minuty). Treść
+          wysyłana przez agenta przechodzi też przez dostawcę modelu, z którego
+          korzystasz; za ten przepływ odpowiada użytkownik i jego dostawca.
         </p>
       </section>
 

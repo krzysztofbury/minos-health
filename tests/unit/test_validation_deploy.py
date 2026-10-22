@@ -1149,3 +1149,29 @@ def test_processor_activator_retries_after_a_restored_failed_start(
     assert restored == before
     assert second == first
     assert activated["status"] == "activated"
+
+
+@pytest.mark.parametrize(
+    ("tools", "search_error", "accepted"),
+    [(12, False, True), (11, False, False), (12, True, False)],
+    ids=["complete", "missing_tool", "failing_search"],
+)
+def test_verify_mcp_requires_the_catalog_and_a_real_search(
+    monkeypatch: pytest.MonkeyPatch, tools: int, search_error: bool, accepted: bool
+) -> None:
+    def answer(
+        _base: str, method: str, _params: dict[str, object]
+    ) -> dict[str, object]:
+        if method == "tools/list":
+            return {"tools": [{"name": f"tool-{index}"} for index in range(tools)]}
+        return {"isError": search_error, "structuredContent": {}}
+
+    monkeypatch.setattr(deploy_validation, "_mcp", answer)
+
+    if accepted:
+        assert deploy_validation.verify_mcp("https://example.test").startswith(
+            "12 tools"
+        )
+    else:
+        with pytest.raises(DeployError, match="public MCP"):
+            _ = deploy_validation.verify_mcp("https://example.test")

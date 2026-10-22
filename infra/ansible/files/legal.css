@@ -568,6 +568,14 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .prose p, .prose li, .prose address { line-height: 1.65; }
 .prose p + p { margin-top: 0.75rem; }
 .prose ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+.page-agents pre { margin: 0.5rem 0 0.75rem; padding: 0.75rem; border-radius: var(--radius); background: var(--canvas); font-size: var(--text-xs); white-space: pre-wrap; overflow-wrap: anywhere; }
+.mcp-contents { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
+.prose .mcp-tool { margin-top: 1.25rem; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.mcp-tool h3 { margin-bottom: 0.4rem; font-size: var(--text-md); }
+.mcp-tool .table-scroll { overflow-x: auto; }
+.mcp-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.mcp-table th, .mcp-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.mcp-table td:last-child { overflow-wrap: anywhere; }
 .prose address { font-style: normal; }
 .prose .callout { padding: 1rem 1.1rem; border-left: 4px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; background: var(--accent-tint); }
 

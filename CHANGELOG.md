@@ -15,6 +15,17 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- Public MCP server for agents (#216) at `https://minoshealth.pl/mcp`:
+  stateless Streamable HTTP, no key, twelve read-only tools that mirror the
+  site (`search_codes`, `get_code`, `browse_codes`, `map_icd10_icd11`,
+  `get_jgp_group`, `get_jgp_list`, `browse_jgp_catalog`, `compare_jgp_group`,
+  `get_case_dictionaries`, `group_case`, `get_source_status`,
+  `get_service_info`), two resources and two prompts, closed error codes, a
+  256 KiB result bound and a 60-per-minute per-client edge limit. The
+  `/dla-agentow` page documents it from the live catalog; the privacy policy
+  describes the Gruper and MCP processing. `mcp==2.1.1` (MIT) joins the API
+  extra; its `cryptography` chain adds the permissive MIT-0 (`cffi`) and
+  Apache-2.0 OR BSD-3-Clause licences to the dependency allowlist.
 - ICD-11 PL (#53): pre-released Polish ICD-11 MMS 2026-01 from RSK `99ICD1`
   as a searchable dictionary (titles, inclusions and index terms, verbatim),
   with `/slowniki/icd-11` tree and code pages that carry the WHO URI,
