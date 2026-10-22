@@ -15,6 +15,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- The host processor reports JGP catalogs waiting for a manual release: a BAW
+  original act or consolidated text in force whose 1a or 9 workbook no live
+  release serves pushes `data-update` down with `manual jgp <document id>`,
+  and the next run after a reviewed release serves it clears the alert
+  (#141).
 - `minos data candidate-icd10` (operational CLI) judges one archived RSK
   ICD-10 release against the live bundle without activating it: the release is
   added beside the previous one, built twice, bounded against removed codes
@@ -211,6 +216,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
   the check (#141).
 - certifi 2026.10.19 in `uv.lock` (was 2026.7.22) for PYSEC-2026-4320, which
   `pip-audit` reported on 2026-10-21.
+- virtualenv 21.14.12 in `uv.lock` (was 21.7.13, a pre-commit development
+  dependency) for CVE-2026-113722, -113725, -113726, -113732 and -113776,
+  which `pip-audit` reported on 2026-10-22; packaging and python-discovery
+  moved with it.
 - The reference database bound is 1 GiB (was 512 MiB), and the search
   attribution budget is per release, so terminology history can accumulate.
   A 915.9 MiB 10-source bundle kept the API at 264 MiB anonymous memory under

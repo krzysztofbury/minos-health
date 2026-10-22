@@ -418,7 +418,7 @@ UI remain the baseline.
 - [ ] Unattended data activation (#141, resumed by the owner 2026-10-20; #21
       closed as superseded). A file that parses and passes every criterion goes
       live without manual work; failures keep the last good release and alert.
-      Host-side processor container with its own read-only R2 key, data-only
+      Host-side processor container with its own R2 key, data-only
       without #41; see [the decision](docs/v0.0.1/decisions.md#unattended-data-activation-resumed-2026-10-20).
   - [x] Phase A: watcher down pushes name a fixed failure category
         (`failed: source_drift`, `failed: archive_failure`, ...).
@@ -472,13 +472,20 @@ UI remain the baseline.
         `data-activation` monitor; `plan` refuses a bundle that drops a live
         release. See
         [data-only activation](docs/v0.0.1/archive-processing.md#data-only-activation-141-phase-c).
-  - [ ] Phase C (owner): add the `data-activation` push monitor (Retries 0,
-        28800 s) and its `data_activation` token, release the API, reapply
-        `processor.yml`, then list `icd10-pl` and `icd9-pl` in
-        `processor_activation_classes` after a disabled dry run.
+  - [x] Phase C (owner): the `data-activation` push monitor (Retries 0,
+        28800 s) and its `data_activation` token, the API release (bd07e2f),
+        the `processor.yml` reapply with a disabled dry run (`idle`), then
+        `icd10-pl` and `icd9-pl` in `processor_activation_classes`
+        (2026-10-22).
   - [ ] Phase C: record the first real activation (host build and transition
         time, receipt sequence) when RSK or NFZ publishes a new release.
+  - [x] Phase C: a BAW JGP workbook no live release serves holds
+        `data-update` down with `manual jgp <document id>` until a reviewed
+        release serves it; see
+        [the host processor](docs/v0.0.1/archive-processing.md#host-processor-141-phase-b3).
   - [ ] Phase C: JGP/BAW catalog activation after its shadow design (B2 JGP).
+        The NFZ `jgp` notice files (algorithm, ranks, specialties) have no
+        manual-step alert yet.
 - [x] Alert on watcher failure and on upstream schema drift (new załącznik
       names, changed file formats): drift fails the run, and its down push
       names `source_drift`. Delivery depends on the Phase A Kuma item.

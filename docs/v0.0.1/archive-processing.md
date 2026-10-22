@@ -176,7 +176,7 @@ wording for a June 2031 discharge, while search and the dictionary page stayed
 on `013`.
 
 Phase B1 reads a local archive root. The host processor (B3) fetches the
-same digests from R2 with its own read-only key.
+same digests from R2 with its own key.
 
 ## Shadow ICD-9 Candidate (#141 Phase B2)
 
@@ -270,6 +270,18 @@ One run:
    the next real alert. The push accepts only those shapes, so no path, URL,
    digest or source text can reach Telegram. A failed step stores nothing and
    is retried next run.
+5. Reports JGP catalogs that wait for a manual release. JGP catalogs are not
+   built automatically, so a BAW original act or consolidated text in force
+   (AutomaticType 1 or 3, `Obowiązujący`) with a workbook whose digest is
+   neither a live catalog's 1a nor a live characteristics workbook pushes
+   `data-update` down with `manual jgp <document id>` (newest four, after any
+   verdicts). Types 4 and 5 repeat earlier attachments and type 6 is the
+   amending act, so they are not read; nor are display names, since the
+   watcher keeps only the act's ZIPX and its 1a and 9 workbooks. Nothing is
+   stored: the alert clears on the first run after a reviewed release serves
+   those workbooks. A BAW projection without lineage fails the run
+   (`failed: projection`) rather than reporting nothing. On 2026-10-22 every
+   in-force type 1 or 3 workbook (43868, 43943, 44042) was live.
 
 Judging activates nothing; [phase C](#data-only-activation-141-phase-c) does,
 for allowlisted classes. Every live input must be in R2: release bundles are built
@@ -387,11 +399,17 @@ memory; hence one child per bundle, and the processor limit is now the API's
 Docker host of the validation tests. Production end to end is unexercised
 until RSK or NFZ publishes a new release; no stand-in data goes live.
 
+Host install (2026-10-22, API release bd07e2f, `processor.yml` with both Kuma
+targets): the first phase C run took 44 seconds, judged `icd10-pl` as
+`release_content_unchanged`, finalized `idle` to `data-activation` and left
+`accepted/` empty. The owner then listed `icd10-pl` and `icd9-pl` in
+`/etc/minos/processor/activation.json`.
+
 ## Deferred Target (#21/#141)
 
 The following is the acceptance scope resumed on 2026-10-20. It runs in a
 host-side processor container, not GitHub Actions, so step 4's protected-branch
-workflow is replaced by that container with its own read-only R2 key.
+workflow is replaced by that container with its own R2 key.
 
 1. Verify bounded control recovery images and select exact `source_changes`
    rows with source/run/observation/revision identity assertions. Keep capture

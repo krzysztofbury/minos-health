@@ -15,6 +15,7 @@ from minos.ingest.processor import (
     ProcessorError,
     ProcessorPaths,
     Verdict,
+    manual_jgp,
     run_processor,
 )
 from minos.ingest.receipts import ReceiptClient, append_receipt
@@ -72,9 +73,10 @@ def execute_processor(
     )
     try:
         verdicts = run_processor(paths, reader)
+        manual = manual_jgp(paths)
     except ProcessorError as error:
         return _report(targets, kuma_factory, failure=error.failure)
-    return _report(targets, kuma_factory, verdicts=verdicts)
+    return _report(targets, kuma_factory, verdicts=verdicts, manual=manual)
 
 
 class Outcome(BaseModel):
@@ -162,8 +164,9 @@ def _report(
     *,
     failure: str | None = None,
     verdicts: tuple[Verdict, ...] = (),
+    manual: tuple[int, ...] = (),
 ) -> int:
-    up, message = _message(failure, verdicts)
+    up, message = _message(failure, verdicts, manual)
     summary: dict[str, object] = {"version": 1}
     if failure is None:
         summary["verdicts"] = [
@@ -174,6 +177,8 @@ def _report(
             )
             for item in verdicts
         ]
+        if manual:
+            summary["manual_jgp"] = list(manual)
     else:
         summary["failed"] = failure
     try:
@@ -187,7 +192,9 @@ def _report(
     return 0 if failure is None else 1
 
 
-def _message(failure: str | None, verdicts: tuple[Verdict, ...]) -> tuple[bool, str]:
+def _message(
+    failure: str | None, verdicts: tuple[Verdict, ...], manual: tuple[int, ...]
+) -> tuple[bool, str]:
     if failure is not None:
         return False, f"failed: {failure}"
     # A republication without content change is nothing to do; reporting it
@@ -195,7 +202,7 @@ def _message(failure: str | None, verdicts: tuple[Verdict, ...]) -> tuple[bool, 
     reported = [
         item for item in verdicts if item.report.code != "release_content_unchanged"
     ]
-    if not reported:
+    if not reported and not manual:
         return True, "idle"
     parts = [
         f"would_activate {item.report.release_id}"
@@ -203,5 +210,10 @@ def _message(failure: str | None, verdicts: tuple[Verdict, ...]) -> tuple[bool, 
         else f"rejected {item.system} {item.report.criterion}/{item.report.code}"
         for item in reported
     ]
-    up = all(item.report.decision == "would_activate" for item in reported)
+    # A JGP workbook waiting for review holds the monitor down, so the owner
+    # is told once; a reviewed release that serves it brings the monitor up.
+    parts += [f"manual jgp {document}" for document in manual]
+    up = not manual and all(
+        item.report.decision == "would_activate" for item in reported
+    )
     return up, "; ".join(parts)
