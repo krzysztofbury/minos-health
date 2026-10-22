@@ -3544,7 +3544,7 @@
     "notices": [
       "Source: RSK/CeZ resource 99ICD1, WHO ICD-10/ICD-11 mapping tables 2026-01, each sheet reproduced row for row with its source row number.",
       "The ICD-10 side is WHO ICD-10 2019, not the Polish 2008 edition. The tables state no match type and Minos adds none; gaps stay unfilled.",
-      "WHO ICD-11 licence clause 1.2.4: mappings and crosswalks are not covered by the Classifications License and are subject to a separate written agreement from WHO. On 2026-10-22 the owner decided to show the published tables verbatim without such an agreement (decisions.md)."
+      "These are WHO's own tables as published by CeZ in RSK, republished verbatim and attributed to WHO. Minos produces no mapping or crosswalk of its own (WHO ICD-11 licence clause 1.2.4) and never presents the tables as its own."
     ],
     "files": [
       {

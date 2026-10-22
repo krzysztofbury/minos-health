@@ -167,3 +167,40 @@ def test_a_map_release_differing_from_the_manifest_is_refused(
     with pytest.raises(ArtifactError, match="ICD-11 map binding"):
         with open_reference_connection(copy):
             pass
+
+
+def test_every_listed_chapter_with_codes_is_expandable(tmp_path: Path) -> None:
+    # More container rows than one capped probe returned once hid chapter 02.
+    blocks = 1700
+    digest, size = icd11.stage(tmp_path, icd11.wide_export(blocks))
+    source = {
+        **icd11.source(tmp_path),
+        "release_id": f"icd11-rsk-wide-{digest[:12]}",
+        "sha256": digest,
+        "size_bytes": size,
+        "expected": {
+            "nodes": blocks + 3,
+            "relations": blocks + 1,
+            "concepts": 3,
+            "descriptions": 3,
+        },
+    }
+    manifest = DatasetManifest.model_validate_json(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "transform_version": "icd11-wide-test",
+                "lockfile_sha256": "0" * 64,
+                "sources": [source],
+            }
+        )
+    )
+    output = tmp_path / "wide"
+    _ = build_reference_artifact(manifest, tmp_path, output)
+
+    with TestClient(create_app(output)) as wide:
+        roots = cast(Json, wide.get(f"/api/v1/tree/{source['release_id']}/0").json())
+    assert [
+        (item["code"], item["has_children"])
+        for item in cast(list[Json], roots["children"])
+    ] == [("01", False), ("02", True)]

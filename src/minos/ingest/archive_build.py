@@ -24,7 +24,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validat
 from minos.domain.reference import SourceError
 from minos.ingest.manifest_types import Digest
 from minos.ingest.object_storage import R2_REGION, validate_r2_endpoint
-from minos.ingest.reference_manifest import DatasetManifest
+from minos.ingest.reference_manifest import MAX_ICD11_SOURCE_BYTES, DatasetManifest
 from minos.store.artifact import dataset_identity
 
 MAX_ARCHIVE_OBJECTS = 128
@@ -42,7 +42,8 @@ class ArchiveObject(BaseModel):
     # The key embeds the SHA-256 and R2 refuses overwrites under blobs/, so
     # checksum and size are the complete pin (see minos.ingest.object_storage).
     sha256: Digest
-    size_bytes: int = Field(ge=1, le=64 * 1024 * 1024)
+    # A live input may be as large as any reviewed source (ICD-11 PL is 112 MiB).
+    size_bytes: int = Field(ge=1, le=MAX_ICD11_SOURCE_BYTES)
 
 
 class ArchiveSelection(BaseModel):

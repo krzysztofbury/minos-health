@@ -13,8 +13,9 @@ from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
 from minos.cli.processor import execute_processor
 from minos.ingest import processor
-from minos.ingest.archive_build import R2BlobReader
+from minos.ingest.archive_build import ArchiveObject, R2BlobReader, source_files
 from minos.ingest.processor import BlobReader
+from minos.ingest.reference_manifest import MAX_ICD11_SOURCE_BYTES, DatasetManifest
 from minos.ingest.watchers.nfz.public_models import Czs, NfzProjection
 from minos.ingest.watchers.publication.filesystem import ImmutableGenerationPublisher
 from minos.ingest.watchers.rsk.public_models import (
@@ -656,3 +657,19 @@ def test_icd11_files_no_live_release_pins_hold_the_monitor_down(
     assert run.pushes == [
         ("down", f"manual icd11 {manual}") if manual else ("up", "idle")
     ]
+
+
+def test_every_reviewed_source_size_can_be_fetched_as_a_live_input() -> None:
+    # The 117 MB ICD-11 PL source once failed every run with failed: fetch.
+    manifest = DatasetManifest.model_validate_json(
+        (
+            Path(__file__).parents[2]
+            / "manifests/sources/reference-conditions-public-validation.json"
+        ).read_text()
+    )
+    objects = [
+        ArchiveObject(sha256=blob.sha256, size_bytes=blob.size_bytes)
+        for blob in source_files(manifest)
+    ]
+    assert max(item.size_bytes for item in objects) > 64 * 1024 * 1024
+    assert ArchiveObject(sha256="a" * 64, size_bytes=MAX_ICD11_SOURCE_BYTES)

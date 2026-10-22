@@ -435,6 +435,7 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .detail-notes h3 { margin-bottom: 0.4rem; font-size: var(--text-md); }
 .detail-notes ul { margin: 0 0 0.75rem; padding-left: 1.2rem; }
 .detail-notes li { margin: 0.2rem 0; }
+.map-uri { color: var(--muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
 .detail-source { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--line); color: var(--muted); font-size: var(--text-sm); }
 .jgp-conditions, .jgp-memberships, .page-jgp .detail-source { overflow-wrap: anywhere; }
 .jgp-conditions .badge, .jgp-memberships .badge { white-space: normal; }
