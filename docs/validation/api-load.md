@@ -83,10 +83,15 @@ objective.
 
 The first 2026-10-23 activation then failed the same way and the #199
 diagnostics named the class: `QueryTimeoutError`, no memory events. The
-comparison preload in `ReferencePool` ran under a 5 s deadline; the host took
-3.5 s for it alone on 2026-10-11, and the previous colour shares the one CPU
-during activation. The deadline is now 30 s, still failing closed well inside
-the 120 s health start period. The guarded retry activated at 08:43:10Z.
+comparison preload in `ReferencePool` ran under a 5 s total deadline and,
+nested inside it, the one-second request budget for each release; the host
+took 3.5 s for five releases alone on 2026-10-11, and the previous colour
+shares the one CPU during activation. The guarded retry activated at
+08:43:10Z. Raising only the total to 30 s (#223) was not enough: the
+activation of `14e489f` failed with the same class and rolled back. Each
+release now shares the 30 s preload deadline, still failing closed well
+inside the 120 s health start period; a fake-clock test reproduces the
+failure without the fix.
 
 ## Public Run, 2026-10-23
 
