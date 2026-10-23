@@ -83,6 +83,7 @@ def test_materializer_serializes_validated_host_material_atomically(
         'ansible_user: "root"\n'
         'expected_hostname: "synthetic-host"\n'
         'cloudflared_tunnel_id: "11111111-2222-3333-4444-555555555555"\n'
+        'ssh_exposure: "public"\n'
     )
     assert (repository / "infra/ansible/known_hosts").read_text() == (
         f"[synthetic.example.test]:12345 {_public_key(1).rsplit(' ', 1)[0]}\n"
@@ -98,6 +99,38 @@ def test_materializer_serializes_validated_host_material_atomically(
             repository / "infra/ansible/files/root_authorized_keys",
             repository / "infra/ansible/inventory/host_vars/minos-production.yml",
         )
+    )
+
+
+@pytest.mark.parametrize(
+    ("host", "port", "exposure", "pinned"),
+    [
+        ("minos-production.tail1234.ts.net", "22", "tailnet", "{host}"),
+        # Port 22 alone is not the tailnet, and neither is a tailnet name elsewhere.
+        ("synthetic.example.test", "22", "public", "{host}"),
+        ("minos-production.tail1234.ts.net", "2222", "public", "[{host}]:2222"),
+    ],
+)
+def test_ssh_exposure_and_host_key_pin_follow_the_address(
+    tmp_path: Path, host: str, port: str, exposure: str, pinned: str
+) -> None:
+    repository = tmp_path / "repository"
+    values = _values() | {"ansible_host": host, "ansible_port": port}
+
+    materialize(
+        repository,
+        tmp_path / "home",
+        read_secret=_reader(values),
+        derive_public_key=lambda _path: values["operator_public_key"],
+    )
+
+    inventory = (
+        repository / "infra/ansible/inventory/host_vars/minos-production.yml"
+    ).read_text()
+    assert f'ssh_exposure: "{exposure}"\n' in inventory
+    # OpenSSH looks up port 22 by the bare name; a bracketed pin would not match.
+    assert (repository / "infra/ansible/known_hosts").read_text() == (
+        f"{pinned.format(host=host)} {_public_key(1).rsplit(' ', 1)[0]}\n"
     )
 
 

@@ -194,6 +194,10 @@ delivery, full host-loss recovery, representative load, and public browser
 verification remain pending. Load objectives and the measurements so far are
 in [the API load record](docs/validation/api-load.md) (#42).
 
+The site reaches the host only through the Cloudflare Tunnel. SSH, the one
+management path, moves to a Tailscale tailnet with no public listener (#227);
+the two-stage cutover is in [the Ansible runbook](infra/ansible/README.md).
+
 Object storage is one EU-jurisdiction Cloudflare R2 bucket whose lock rules
 refuse overwrites and deletes; the AWS stacks and their acceptance harness were
 retired in #200. Mikr.us activation and restore drills remain explicit operator

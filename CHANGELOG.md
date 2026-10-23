@@ -234,6 +234,15 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- SSH can leave the public internet (#227). `infra/ansible/ssh-tailnet.yml`
+  joins the host to a Tailscale tailnet in userspace mode with a one-time
+  tagged key, proves a login over it, and only then makes `sshd` listen on
+  loopback and removes the firewall's SSH rule, rolling back on any failure
+  before that. The materializer derives `ssh_exposure` from the address and
+  pins port 22 under the bare host name, as OpenSSH looks it up; `site.yml`
+  keeps either state and never reopens SSH on a tailnet host. The tailnet
+  policy is reviewed in `infra/tailscale/policy.hujson`. The site stays on the
+  Cloudflare Tunnel. The cutover itself is two owner-approved runs.
 - Load objectives adopted (#42, `docs/validation/api-load.md`): one user is
   the experience to protect (public p95: search 500 ms, pages and Gruper 1 s,
   MCP call 1.5 s), four users may slow down but stay correct (search, pages

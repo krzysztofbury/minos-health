@@ -1,0 +1,22 @@
+// Minos tailnet policy (#227). The owner applies this file in the Tailscale
+// admin console; it is reviewed here like any other host boundary.
+{
+	// Only tailnet admins may tag a device as the Minos server, and the host
+	// joins with a one-time auth key carrying this tag.
+	"tagOwners": {
+		"tag:minos-server": ["autogroup:admin"],
+	},
+
+	// The owner's devices reach the server on SSH and nothing else. No rule
+	// names the server as a source, so it can start no connection itself.
+	"acls": [
+		{
+			"action": "accept",
+			"src":    ["autogroup:admin"],
+			"dst":    ["tag:minos-server:22"],
+		},
+	],
+
+	// OpenSSH keeps authenticating with the pinned key; Tailscale SSH stays off.
+	"ssh": [],
+}

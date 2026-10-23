@@ -1,3 +1,9 @@
+{% if ssh_exposure == 'tailnet' %}
+# Public SSH is closed (#227): tailscaled in userspace mode proxies tailnet
+# connections to loopback, so sshd listens nowhere else.
+ListenAddress 127.0.0.1
+ListenAddress ::1
+{% endif %}
 PermitRootLogin prohibit-password
 PubkeyAuthentication yes
 PasswordAuthentication no

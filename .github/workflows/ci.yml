@@ -71,6 +71,9 @@ jobs:
           uvx --from ansible-core==2.21.4 ansible-playbook \
             infra/ansible/processor.yml --syntax-check \
             -e expected_hostname=minos-ci
+          uvx --from ansible-core==2.21.4 ansible-playbook \
+            infra/ansible/ssh-tailnet.yml --syntax-check \
+            -e expected_hostname=minos-ci -e ssh_tailnet_stage=join
         env:
           ANSIBLE_CONFIG: infra/ansible/ansible.cfg
           SYNTHETIC_DIGEST_HEX: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
@@ -83,6 +86,16 @@ jobs:
             --module-name ansible.builtin.template \
             --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/minos-compose.yml.j2 dest=${RUNNER_TEMP}/minos-compose.yaml" \
             --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","uptime_kuma_gid":10003,"uptime_kuma_image_reference":"docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6","uptime_kuma_uid":10003,"watcher_archive_backend":"s3","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_endpoint":"https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com","watcher_secrets_gid":10002,"watcher_uid":10001,"watcher_uptime_kuma_required":false}'
+          for exposure in public tailnet; do
+            uvx --from ansible-core==2.21.4 ansible localhost \
+              --inventory localhost, --connection local \
+              --module-name ansible.builtin.template \
+              --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/10-minos-hardening.conf.j2 dest=${RUNNER_TEMP}/sshd-${exposure}.conf" \
+              --extra-vars "ssh_exposure=${exposure}"
+          done
+          # Public SSH keeps no listen override; a tailnet host listens on loopback only (#227).
+          if grep -q ListenAddress "${RUNNER_TEMP}/sshd-public.conf"; then exit 1; fi
+          test "$(grep -c '^ListenAddress' "${RUNNER_TEMP}/sshd-tailnet.conf")" = 2
           uvx --from ansible-core==2.21.4 ansible localhost \
             --inventory localhost, --connection local \
             --module-name ansible.builtin.template \
