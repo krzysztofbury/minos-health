@@ -4,6 +4,8 @@ import hashlib
 import json
 import os
 import stat
+import threading
+import weakref
 from pathlib import Path
 from typing import Annotated, ClassVar, Literal
 
@@ -48,8 +50,24 @@ def canonical_json(value: BaseModel | dict[str, object]) -> bytes:
     ).encode()
 
 
+# A frozen manifest never changes its digest. The API names its one dataset on
+# every log line, and serialising it took about a millisecond each time (#225).
+_IDENTITIES: dict[int, tuple[weakref.ref[DatasetManifest], str]] = {}
+_IDENTITIES_LOCK = threading.Lock()
+
+
 def dataset_identity(manifest: DatasetManifest) -> str:
-    return hashlib.sha256(canonical_json(manifest)).hexdigest()
+    with _IDENTITIES_LOCK:
+        known = _IDENTITIES.get(id(manifest))
+    # The weak reference rules out a new manifest reusing a freed object's id.
+    if known is not None and known[0]() is manifest:
+        return known[1]
+    digest = hashlib.sha256(canonical_json(manifest)).hexdigest()
+    with _IDENTITIES_LOCK:
+        if len(_IDENTITIES) >= 16:
+            _IDENTITIES.clear()
+        _IDENTITIES[id(manifest)] = (weakref.ref(manifest), digest)
+    return digest
 
 
 def read_regular_file(path: Path, *, max_bytes: int = MAX_MANIFEST_BYTES) -> bytes:
