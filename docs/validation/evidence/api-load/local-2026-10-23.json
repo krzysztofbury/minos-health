@@ -1,0 +1,293 @@
+{
+  "mode": "local",
+  "dataset_id": "1c8f1fa12bcb5f7aee97247c8fd91dd29682a759c2d647730de183035acca4fb",
+  "api_limits": {
+    "cpus": 1,
+    "memory_mib": 512,
+    "swap": false
+  },
+  "startup": {
+    "healthy_s": 12.3,
+    "event": {
+      "event": "api_startup",
+      "pool_ms": 4779,
+      "trees_ms": 235
+    },
+    "memory": {
+      "peak_mib": 512,
+      "current_mib": 508,
+      "anon_mib": 278,
+      "file_mib": 225,
+      "max_events": 2759,
+      "oom_kill": 0
+    }
+  },
+  "phases": [
+    {
+      "concurrency": 1,
+      "requests": 60,
+      "stopped_early": false,
+      "seconds": 1.5,
+      "kinds": {
+        "concept": {
+          "count": 6,
+          "statuses": {
+            "200": 6
+          },
+          "errors": {},
+          "p50_ms": 8.5,
+          "p95_ms": 13.3,
+          "max_ms": 13.3
+        },
+        "group": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 57.2,
+          "p95_ms": 67.3,
+          "max_ms": 67.3
+        },
+        "jgp_group": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 14.7,
+          "p95_ms": 19.2,
+          "max_ms": 19.2
+        },
+        "mcp_get_code": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 40.1,
+          "p95_ms": 47.9,
+          "max_ms": 47.9
+        },
+        "mcp_group_case": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 58.4,
+          "p95_ms": 63.1,
+          "max_ms": 63.1
+        },
+        "mcp_search_codes": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 39.3,
+          "p95_ms": 64.2,
+          "max_ms": 64.2
+        },
+        "search": {
+          "count": 29,
+          "statuses": {
+            "200": 29
+          },
+          "errors": {},
+          "p50_ms": 7.7,
+          "p95_ms": 21.8,
+          "max_ms": 38.2
+        }
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests": 240,
+      "stopped_early": false,
+      "seconds": 15.6,
+      "kinds": {
+        "concept": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 22.0,
+          "p95_ms": 82.3,
+          "max_ms": 99.8
+        },
+        "group": {
+          "count": 22,
+          "statuses": {
+            "429": 1,
+            "200": 21
+          },
+          "errors": {
+            "busy": 1
+          },
+          "p50_ms": 491.2,
+          "p95_ms": 685.2,
+          "max_ms": 697.8
+        },
+        "jgp_group": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 109.1,
+          "p95_ms": 186.0,
+          "max_ms": 259.0
+        },
+        "mcp_get_code": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {},
+          "p50_ms": 168.3,
+          "p95_ms": 259.8,
+          "max_ms": 349.9
+        },
+        "mcp_group_case": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {
+            "BUSY": 11
+          },
+          "p50_ms": 597.5,
+          "p95_ms": 803.9,
+          "max_ms": 803.9
+        },
+        "mcp_search_codes": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 873.9,
+          "p95_ms": 1066.9,
+          "max_ms": 1197.0
+        },
+        "search": {
+          "count": 110,
+          "statuses": {
+            "200": 110
+          },
+          "errors": {},
+          "p50_ms": 62.6,
+          "p95_ms": 520.6,
+          "max_ms": 722.5
+        }
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests": 240,
+      "stopped_early": false,
+      "seconds": 14.2,
+      "kinds": {
+        "concept": {
+          "count": 22,
+          "statuses": {
+            "200": 21,
+            "429": 1
+          },
+          "errors": {
+            "busy": 1
+          },
+          "p50_ms": 190.5,
+          "p95_ms": 396.4,
+          "max_ms": 397.5
+        },
+        "group": {
+          "count": 22,
+          "statuses": {
+            "429": 3,
+            "200": 19
+          },
+          "errors": {
+            "busy": 3
+          },
+          "p50_ms": 615.2,
+          "p95_ms": 950.2,
+          "max_ms": 950.2
+        },
+        "jgp_group": {
+          "count": 22,
+          "statuses": {
+            "200": 20,
+            "429": 2
+          },
+          "errors": {
+            "busy": 2
+          },
+          "p50_ms": 194.5,
+          "p95_ms": 399.8,
+          "max_ms": 576.1
+        },
+        "mcp_get_code": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {
+            "BUSY": 2
+          },
+          "p50_ms": 892.9,
+          "p95_ms": 1107.0,
+          "max_ms": 1107.0
+        },
+        "mcp_group_case": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {
+            "BUSY": 14
+          },
+          "p50_ms": 713.3,
+          "p95_ms": 1234.5,
+          "max_ms": 1234.5
+        },
+        "mcp_search_codes": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 1246.6,
+          "p95_ms": 1688.8,
+          "max_ms": 1742.4
+        },
+        "search": {
+          "count": 110,
+          "statuses": {
+            "200": 100,
+            "429": 10
+          },
+          "errors": {
+            "busy": 10
+          },
+          "p50_ms": 386.4,
+          "p95_ms": 795.9,
+          "max_ms": 976.5
+        }
+      }
+    }
+  ],
+  "after": {
+    "readyz": 200,
+    "memory": {
+      "peak_mib": 512,
+      "current_mib": 505,
+      "anon_mib": 328,
+      "file_mib": 171,
+      "max_events": 3184,
+      "oom_kill": 0
+    }
+  }
+}
