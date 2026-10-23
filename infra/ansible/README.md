@@ -103,9 +103,12 @@ Design:
 
 Rollout, each production run approved separately:
 
-1. Create the tailnet, apply `infra/tailscale/policy.hujson`, enable MagicDNS,
-   join the workstation, and create a one-time, pre-authorised auth key with
-   `tag:minos-server`. Store it in 1Password.
+1. In the owner's tailnet (one user; MagicDNS on; the workstation already
+   joined), replace the default allow-all policy with
+   `infra/tailscale/policy.hujson`: own devices keep reaching each other, and
+   the new `tag:minos-server` accepts SSH from admin devices only. Then
+   generate a one-time, pre-authorised, non-ephemeral auth key with that tag
+   and store it in 1Password as `minos-production-tailscale`, field `auth key`.
 2. Prove a login through the Mikr.us panel console.
 3. Join, over the current public SSH (public SSH is unchanged):
 
