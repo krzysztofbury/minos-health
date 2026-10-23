@@ -101,6 +101,10 @@ Design:
   The prior `sshd` configuration also listens on loopback, so a failed cutover
   rolls back without losing the tailnet path.
 
+Re-materialize the host variables before the next `site.yml` run after this
+change: the baseline now requires the derived `ssh_exposure` and refuses to run
+without it.
+
 Rollout, each production run approved separately:
 
 1. In the owner's tailnet (one user; MagicDNS on; the workstation already

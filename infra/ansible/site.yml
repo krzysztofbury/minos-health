@@ -3168,7 +3168,7 @@
       register: ssh_hardening_prior
 
     - name: Require the tailnet management path before a loopback-only sshd
-      ansible.builtin.include_tasks: tasks/tailnet-ssh-checks.yml
+      ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
       when: ssh_exposure == 'tailnet'
 
     - name: Install the candidate SSH hardening drop-in
@@ -3269,7 +3269,7 @@
           when: ssh_hardening.changed
 
         - name: Require loopback-only SSH listeners on a tailnet host
-          ansible.builtin.include_tasks: tasks/tailnet-ssh-listeners.yml
+          ansible.builtin.import_tasks: tasks/tailnet-ssh-listeners.yml
           when: ssh_exposure == 'tailnet'
 
       rescue:

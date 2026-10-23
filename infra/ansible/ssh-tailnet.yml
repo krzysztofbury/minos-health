@@ -45,55 +45,75 @@
             name: gpg
             state: present
 
-        - name: Download the Tailscale repository signing key for inspection
-          ansible.builtin.get_url:
-            url: "{{ tailscale_key_url }}"
-            dest: /root/tailscale-key-candidate.gpg
-            owner: root
-            group: root
-            mode: "0600"
-            force: true
+        - name: Create a private directory for the key inspection
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: minos-tailscale-key.
+          register: tailscale_key_dir
 
-        - name: Read the candidate key fingerprint
-          ansible.builtin.command:
-            argv:
-              - gpg
-              - --show-keys
-              - --with-colons
-              - --with-fingerprint
-              - /root/tailscale-key-candidate.gpg
-          environment:
-            GNUPGHOME: /root/.gnupg-minos-key-check
-          register: tailscale_key_listing
-          changed_when: false
+        - name: Inspect and install only the pinned signing key
+          block:
+            - name: Download the Tailscale repository signing key for inspection
+              ansible.builtin.get_url:
+                url: "{{ tailscale_key_url }}"
+                dest: "{{ tailscale_key_dir.path }}/candidate.gpg"
+                owner: root
+                group: root
+                mode: "0600"
+                force: true
 
-        - name: Require the pinned Tailscale signing key
-          vars:
-            fingerprints: >-
-              {{ tailscale_key_listing.stdout_lines
-                 | select('match', '^fpr:') | map('split', ':')
-                 | map(attribute=9) | list }}
-          ansible.builtin.assert:
-            that:
-              - fingerprints | first == tailscale_key_fingerprint
-            fail_msg: The Tailscale repository key is not the reviewed one; refusing to trust it.
+            # gpg refuses a GNUPGHOME it did not create, so it gets its own
+            # mode-0700 directory inside the private one.
+            - name: Create the throwaway GnuPG home
+              ansible.builtin.file:
+                path: "{{ tailscale_key_dir.path }}/gnupg"
+                state: directory
+                owner: root
+                group: root
+                mode: "0700"
 
-        - name: Install the pinned Tailscale signing key
-          ansible.builtin.copy:
-            src: /root/tailscale-key-candidate.gpg
-            dest: /etc/apt/keyrings/tailscale.gpg
-            remote_src: true
-            owner: root
-            group: root
-            mode: "0644"
+            - name: Read the candidate keys
+              ansible.builtin.command:
+                argv:
+                  - gpg
+                  - --show-keys
+                  - --with-colons
+                  - --with-fingerprint
+                  - "{{ tailscale_key_dir.path }}/candidate.gpg"
+              environment:
+                GNUPGHOME: "{{ tailscale_key_dir.path }}/gnupg"
+              register: tailscale_key_listing
+              changed_when: false
 
-        - name: Remove the key candidate and inspection home
-          ansible.builtin.file:
-            path: "{{ item }}"
-            state: absent
-          loop:
-            - /root/tailscale-key-candidate.gpg
-            - /root/.gnupg-minos-key-check
+            # apt trusts every key in the keyring, so it must hold exactly the
+            # reviewed one.
+            - name: Require exactly the pinned Tailscale signing key
+              vars:
+                primaries: "{{ tailscale_key_listing.stdout_lines | select('match', '^pub:') | list }}"
+                fingerprints: >-
+                  {{ tailscale_key_listing.stdout_lines
+                     | select('match', '^fpr:') | map('split', ':')
+                     | map(attribute=9) | list }}
+              ansible.builtin.assert:
+                that:
+                  - primaries | length == 1
+                  - fingerprints | first == tailscale_key_fingerprint
+                fail_msg: The Tailscale repository keyring is not exactly the reviewed key.
+
+            - name: Install the pinned Tailscale signing key
+              ansible.builtin.copy:
+                src: "{{ tailscale_key_dir.path }}/candidate.gpg"
+                dest: /etc/apt/keyrings/tailscale.gpg
+                remote_src: true
+                owner: root
+                group: root
+                mode: "0644"
+
+          always:
+            - name: Remove the key inspection directory
+              ansible.builtin.file:
+                path: "{{ tailscale_key_dir.path }}"
+                state: absent
 
         - name: Configure the official Tailscale repository
           ansible.builtin.copy:
@@ -144,6 +164,10 @@
 
         - name: Join with the one-time tagged auth key
           when: (tailnet_before.stdout | from_json).BackendState != 'Running'
+          # The copy module stages its source in the remote temporary
+          # directory; keep that on tmpfs so the key never reaches disk.
+          vars:
+            ansible_remote_tmp: /run/minos-ansible-tmp
           block:
             - name: Require an auth key file argument
               ansible.builtin.assert:
@@ -193,10 +217,13 @@
               no_log: true
 
           always:
-            - name: Remove the auth key from the host
+            - name: Remove the auth key and its staging directory from the host
               ansible.builtin.file:
-                path: "{{ tailscale_auth_key_path }}"
+                path: "{{ item }}"
                 state: absent
+              loop:
+                - "{{ tailscale_auth_key_path }}"
+                - /run/minos-ansible-tmp
 
         - name: Read the joined tailnet state
           ansible.builtin.command:
@@ -302,7 +329,7 @@
       when: ssh_tailnet_stage == 'private'
       block:
         - name: Require the tailnet path for this session
-          ansible.builtin.include_tasks: tasks/tailnet-ssh-checks.yml
+          ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
           vars:
             tailnet_require_ssh_service: false
 
@@ -312,30 +339,6 @@
           register: ssh_socket_active
           changed_when: false
           failed_when: false
-
-        # Socket activation takes listen addresses from the socket unit, so
-        # ListenAddress would be ignored. Sessions survive: Ubuntu's
-        # ssh.service kills only the listener, never its session children.
-        - name: Serve SSH from ssh.service instead of socket activation
-          when: >-
-            ssh_socket_enabled.stdout | trim not in ['disabled', 'masked', ''] or
-            ssh_socket_active.stdout | trim == 'active'
-          block:
-            - name: Enable ssh.service at boot
-              ansible.builtin.systemd_service:
-                name: ssh.service
-                enabled: true
-
-            - name: Disable SSH socket activation
-              ansible.builtin.systemd_service:
-                name: ssh.socket
-                enabled: false
-                state: stopped
-
-            - name: Keep the SSH listener running
-              ansible.builtin.systemd_service:
-                name: ssh.service
-                state: started
 
         - name: Inspect the prior SSH hardening drop-in
           ansible.builtin.stat:
@@ -348,8 +351,55 @@
               - ssh_hardening_prior.stat.exists
             fail_msg: Run the site baseline before closing public SSH.
 
+        - name: Inspect the socket ordering drop-in of upgraded hosts
+          ansible.builtin.stat:
+            path: /etc/systemd/system/ssh.service.d/00-socket.conf
+          register: ssh_socket_dropin
+
         - name: Switch sshd to loopback and prove it
           block:
+            # Socket activation takes listen addresses from the socket unit,
+            # so ListenAddress would be ignored. Sessions survive: Ubuntu's
+            # ssh.service kills only the listener, never its session children.
+            - name: Serve SSH from ssh.service instead of socket activation
+              when: >-
+                ssh_socket_enabled.stdout | trim not in ['disabled', 'masked', ''] or
+                ssh_socket_active.stdout | trim == 'active' or
+                ssh_socket_dropin.stat.exists
+              block:
+                - name: Keep the socket ordering drop-in for review
+                  ansible.builtin.copy:
+                    src: /etc/systemd/system/ssh.service.d/00-socket.conf
+                    dest: /etc/minos/ssh-00-socket.conf.disabled
+                    remote_src: true
+                    owner: root
+                    group: root
+                    mode: "0644"
+                  when: ssh_socket_dropin.stat.exists
+
+                # It pulls ssh.socket back in, which would fight sshd for port 22.
+                - name: Remove the socket ordering drop-in
+                  ansible.builtin.file:
+                    path: /etc/systemd/system/ssh.service.d/00-socket.conf
+                    state: absent
+
+                - name: Enable ssh.service at boot
+                  ansible.builtin.systemd_service:
+                    name: ssh.service
+                    enabled: true
+                    daemon_reload: true
+
+                - name: Disable SSH socket activation
+                  ansible.builtin.systemd_service:
+                    name: ssh.socket
+                    enabled: false
+                    state: stopped
+
+                - name: Keep the SSH listener running
+                  ansible.builtin.systemd_service:
+                    name: ssh.service
+                    state: started
+
             - name: Install the loopback-only SSH hardening drop-in
               ansible.builtin.template:
                 src: templates/10-minos-hardening.conf.j2
@@ -414,23 +464,24 @@
               changed_when: false
 
             - name: Require loopback-only SSH listeners
-              ansible.builtin.include_tasks: tasks/tailnet-ssh-listeners.yml
+              ansible.builtin.import_tasks: tasks/tailnet-ssh-listeners.yml
 
           rescue:
             - name: Restore the prior SSH drop-in
               ansible.builtin.copy:
-                src: "{{ ssh_hardening.backup_file }}"
+                src: "{{ (ssh_hardening | default({})).backup_file }}"
                 dest: /etc/ssh/sshd_config.d/10-minos-hardening.conf
                 remote_src: true
                 owner: root
                 group: root
                 mode: "0644"
-              when: ssh_hardening.backup_file is defined
+              when: (ssh_hardening | default({})).backup_file is defined
 
             - name: Restart sshd on the prior addresses
               ansible.builtin.systemd_service:
                 name: ssh.service
                 state: restarted
+                daemon_reload: true
 
             - name: Prove a fresh SSH login after rollback
               ansible.builtin.command: *tailnet_login
@@ -438,9 +489,12 @@
               become: false
               changed_when: false
 
-            - name: Stop with public SSH still open
+            - name: Stop before touching the firewall
               ansible.builtin.fail:
-                msg: Restored the prior sshd; the UFW SSH rule was not removed.
+                msg: >-
+                  Restored the prior sshd drop-in
+                  {{ '' if (ssh_hardening | default({})).backup_file is defined else '(none was replaced)' }}
+                  and kept sshd on ssh.service; the UFW SSH rule was not removed.
 
         - name: Remove the public SSH firewall rule
           ansible.builtin.command: ufw delete allow 22/tcp
@@ -463,7 +517,7 @@
             fail_msg: The firewall still allows inbound traffic.
 
         - name: Require the final tailnet state
-          ansible.builtin.include_tasks: tasks/tailnet-ssh-checks.yml
+          ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
 
         - name: Report the owner's final check
           ansible.builtin.debug:
