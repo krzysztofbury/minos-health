@@ -439,12 +439,11 @@ FROM grouped ORDER BY title_row,code LIMIT :limit OFFSET :offset
 # cached path computes it once and keeps the per-code part of the query.
 # Each split point must occur once, or a later edit could cut the query apart
 # somewhere else without failing.
-if (
-    MEMBERSHIP_SQL.count("), linked AS (") != 1
-    or MEMBERSHIP_SQL.count("  UNION\n  SELECT g.code") != 1
-):
+if MEMBERSHIP_SQL.count("), linked AS (") != 1:
     raise RuntimeError("membership query no longer splits at its reviewed points")
 _REACHABLE, _LINKED = MEMBERSHIP_SQL.split("), linked AS (", 1)
+if _LINKED.count("  UNION\n") != 1:
+    raise RuntimeError("membership query no longer splits at its reviewed points")
 _SELECTOR_LISTS_TAIL = """)
 SELECT DISTINCT r.group_code,lists.value,typeof(lists.value) FROM reachable r
   JOIN condition_selector s ON s.release_id=:release AND s.catalog=:catalog
