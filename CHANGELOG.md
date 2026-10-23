@@ -436,3 +436,5 @@ signed-release and deployment-acceptance gates remain #41/#27.
   restores the root logger, `httpx`/`httpcore` log at WARNING only, and `/mcp`
   requests log under their own route name. Query text and encounter data were
   never logged; they travel in POST bodies.
+- `opentelemetry-api` 1.45.1 fixes CVE-2026-114603 in a FastAPI and MCP
+  dependency; the API image runs with the OpenTelemetry SDK disabled.
