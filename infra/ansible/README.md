@@ -147,6 +147,12 @@ Rollout, each production run approved separately:
 6. From the workstation, prove the provider IPv4 port and IPv6 port 22 refuse,
    and record the evidence in #227.
 
+Reverting: over the tailnet or the Mikr.us console, run
+`ufw allow 22/tcp comment 'Minos SSH'`, delete the two `ListenAddress` lines
+from `/etc/ssh/sshd_config.d/10-minos-hardening.conf`, and restart
+`ssh.service`. Then set the provider address and mapped port back in the
+1Password item and re-materialize; `ssh_exposure` returns to `public`.
+
 `site.yml`, `scripts.deploy_validation` and `scripts.deploy_watcher` then work
 over the tailnet unchanged. In `tailnet` mode the baseline refuses to run unless
 the session itself arrived over the tailnet, and never re-adds the SSH rule.
