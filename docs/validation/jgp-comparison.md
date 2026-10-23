@@ -150,7 +150,7 @@ source values, and its schedule projection at two MiB. One release is built at
 a time, limiting temporary populations independently of retained data. Retained
 objects are conservatively charged by Python object size, including tuple and
 Fact overhead and repeated references, against a 64 MiB ceiling. The total
-preload deadline is five seconds; each release retains its one-second reader
+preload deadline is 30 seconds (five until #198); each release retains its one-second reader
 budget. Defaults for the offline full diff remain unchanged. Limit failures
 close all readers and prevent readiness, without lazy fallback or retries.
 
