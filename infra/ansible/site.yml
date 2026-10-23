@@ -89,6 +89,17 @@
           Supply the reviewed host identity, tunnel identity, S3 watcher
           settings, expected image digest, source revision, and AWS region.
 
+    - name: Require the materialized SSH exposure
+      ansible.builtin.assert:
+        that:
+          - ssh_exposure is defined
+          - ssh_exposure in ['public', 'tailnet']
+          - >-
+            (ssh_exposure == 'tailnet') ==
+            (ansible_host is match('^[a-z0-9.-]+\\.ts\\.net$') and
+             ansible_port | int == 22)
+        fail_msg: Re-materialize the host variables; ssh_exposure follows ansible_host (#227).
+
     - name: Require the reviewed production host
       ansible.builtin.assert:
         that:
@@ -3063,9 +3074,14 @@
         that:
           - ufw_is_inactive or ufw_is_active
           - not ufw_is_inactive or ufw_added_rules | length == 0
-          - not ufw_is_active or ufw_added_rules | length == 1
-          - not ufw_is_active or ufw_added_rules[0] == "ufw allow 22/tcp comment 'Minos SSH'"
-          - not ufw_is_active or ufw_numbered_rules | length == 2
+          - >-
+            not ufw_is_active or ssh_exposure != 'public' or
+            (ufw_added_rules == ["ufw allow 22/tcp comment 'Minos SSH'"] and
+             ufw_numbered_rules | length == 2)
+          # A tailnet host has no inbound allow rule at all (#227).
+          - >-
+            not ufw_is_active or ssh_exposure != 'tailnet' or
+            (ufw_added_rules | length == 0 and ufw_numbered_rules | length == 0)
         fail_msg: Refusing to replace an unreviewed firewall rule set.
 
     - name: Require UFW to manage IPv6 explicitly
@@ -3096,6 +3112,7 @@
         - name: Allow SSH on IPv4 and direct global IPv6
           ansible.builtin.command: ufw allow 22/tcp comment 'Minos SSH'
           changed_when: true
+          when: ssh_exposure == 'public'
 
         - name: Enable low-volume firewall logging
           ansible.builtin.command: ufw logging low
@@ -3135,9 +3152,13 @@
         that:
           - "'Status: active' in ufw_effective.stdout"
           - "'Default: deny (incoming), allow (outgoing), deny (routed)' in ufw_effective.stdout"
-          - ufw_effective_rules | length == 2
-          - ufw_effective_rules[0] is match("^\\[\\s*1\\]\\s+22/tcp\\s+ALLOW IN\\s+Anywhere\\s+# Minos SSH$")
-          - ufw_effective_rules[1] is match("^\\[\\s*2\\]\\s+22/tcp \\(v6\\)\\s+ALLOW IN\\s+Anywhere \\(v6\\)\\s+# Minos SSH$")
+          - ufw_effective_rules | length == (2 if ssh_exposure == 'public' else 0)
+          - >-
+            ssh_exposure != 'public' or
+            ufw_effective_rules[0] is match("^\\[\\s*1\\]\\s+22/tcp\\s+ALLOW IN\\s+Anywhere\\s+# Minos SSH$")
+          - >-
+            ssh_exposure != 'public' or
+            ufw_effective_rules[1] is match("^\\[\\s*2\\]\\s+22/tcp \\(v6\\)\\s+ALLOW IN\\s+Anywhere \\(v6\\)\\s+# Minos SSH$")
         fail_msg: The effective IPv4 and IPv6 firewall differs from the reviewed boundary.
       when: not ansible_check_mode
 
@@ -3146,9 +3167,13 @@
         path: /etc/ssh/sshd_config.d/10-minos-hardening.conf
       register: ssh_hardening_prior
 
+    - name: Require the tailnet management path before a loopback-only sshd
+      ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
+      when: ssh_exposure == 'tailnet'
+
     - name: Install the candidate SSH hardening drop-in
-      ansible.builtin.copy:
-        src: files/10-minos-hardening.conf
+      ansible.builtin.template:
+        src: templates/10-minos-hardening.conf.j2
         dest: /etc/ssh/sshd_config.d/10-minos-hardening.conf
         owner: root
         group: root
@@ -3242,6 +3267,10 @@
           become: false
           changed_when: false
           when: ssh_hardening.changed
+
+        - name: Require loopback-only SSH listeners on a tailnet host
+          ansible.builtin.import_tasks: tasks/tailnet-ssh-listeners.yml
+          when: ssh_exposure == 'tailnet'
 
       rescue:
         - name: Restore the prior SSH drop-in

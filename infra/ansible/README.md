@@ -25,10 +25,19 @@ The dedicated key pair is the `minos-mikrus-production-ssh` SSH Key item in the
 `~/.ssh/minos_mikrus_ed25519` with mode `0600`. Its public key is materialized
 into an ignored Ansible source file.
 
-The firewall intentionally permits guest port `22/tcp` on IPv4 and on the
-globally routed guest IPv6 address. Mikr.us maps a provider-assigned public IPv4
-port to that guest port; IPv6 reaches guest port `22` directly. Both paths
-require the pinned public key after hardening.
+The public site never reaches the host directly: every service sits behind the
+Cloudflare Tunnel and no container publishes a host port. SSH is the one
+management path, and `ssh_exposure` (derived by the materializer from the
+address) says where it listens:
+
+- `public`: the firewall permits guest port `22/tcp` on IPv4 and on the globally
+  routed guest IPv6 address. Mikr.us maps a provider-assigned public IPv4 port
+  to that guest port; IPv6 reaches guest port `22` directly. Both paths require
+  the pinned public key.
+- `tailnet` (#227): `sshd` listens on loopback only and the firewall allows no
+  inbound traffic. `tailscaled` in userspace mode proxies tailnet connections to
+  loopback, so only the owner's tailnet devices reach SSH, still with the pinned
+  key. The cutover is described under Tailnet SSH.
 
 ## Materialize Host Metadata
 
@@ -36,8 +45,9 @@ Git tracks only the `minos-production` inventory alias, the Python interpreter,
 and the constrained materializer. The `minos-production-deployment` item in the
 `MinosHealth` vault has these fields:
 
-- `ansible_host`: provider DNS name;
-- `ansible_port`: provider-mapped SSH port;
+- `ansible_host`: provider DNS name, or the tailnet name
+  `minos-production.<tailnet>.ts.net` after the cutover;
+- `ansible_port`: provider-mapped SSH port, or `22` on the tailnet;
 - `ansible_user`: exactly `root`;
 - `expected_hostname`: guest short hostname asserted by the playbook;
 - `cloudflared_tunnel_id`: Cloudflare tunnel UUID;
@@ -66,6 +76,86 @@ existing Git history. Removing history requires a separately coordinated rewrite
 and clone invalidation. Rotate or rebind the provider endpoint, host key, operator
 key, and tunnel identity where practical before treating the externalized values
 as private operational metadata.
+
+## Tailnet SSH (#227)
+
+`sshd` once accepted connections from the whole internet. Key-only login does
+not protect against a flaw in `sshd` itself, so the host moves SSH onto a
+Tailscale tailnet and closes the public paths. The site is unaffected: it uses
+the Cloudflare Tunnel, and the management path does not depend on it.
+
+Design:
+
+- `tailscaled` comes from the official repository, its signing key pinned by
+  fingerprint and checked before apt trusts it. Security updates arrive through
+  unattended upgrades (`origin=Tailscale`).
+- Userspace networking, because the LXC guest has no guaranteed TUN device.
+  Inbound tailnet connections reach `sshd` from `127.0.0.1`, so the SSH log and
+  `MaxStartups` no longer see client addresses.
+- The host joins once with a one-time, pre-authorised auth key tagged
+  `tag:minos-server`; tagged devices do not expire. The key file never enters
+  Git or the host's disk beyond a tmpfs copy removed after the join.
+- `infra/tailscale/policy.hujson` is the reviewed tailnet policy: admins reach
+  the server tag on TCP 22 only, and the server starts nothing.
+- Break-glass: the Mikr.us panel console with the root password from 1Password.
+  The prior `sshd` configuration also listens on loopback, so a failed cutover
+  rolls back without losing the tailnet path.
+
+Re-materialize the host variables before the next `site.yml` run after this
+change: the baseline now requires the derived `ssh_exposure` and refuses to run
+without it.
+
+Rollout, each production run approved separately:
+
+1. In the owner's tailnet (one user; MagicDNS on; the workstation already
+   joined), replace the default allow-all policy with
+   `infra/tailscale/policy.hujson`: own devices keep reaching each other, and
+   the new `tag:minos-server` accepts SSH from admin devices only. Then
+   generate a one-time, pre-authorised, non-ephemeral auth key with that tag
+   and store it in 1Password as `minos-production-tailscale`, field `auth key`.
+2. Prove a login through the Mikr.us panel console.
+3. Join, over the current public SSH (public SSH is unchanged):
+
+   ```sh
+   umask 077
+   key_file="$(mktemp)"
+   trap 'rm -f -- "$key_file"' EXIT
+   op read "op://MinosHealth/minos-production-tailscale/auth key" > "$key_file"
+   ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
+     uvx --from ansible-core==2.21.4 ansible-playbook \
+     infra/ansible/ssh-tailnet.yml -e ssh_tailnet_stage=join \
+     -e "tailscale_auth_key_source=$key_file"
+   ```
+
+   It ends with a fresh SSH login over the tailnet name it prints.
+4. Set `ansible_host` to that name and `ansible_port` to `22` in the
+   `minos-production-deployment` item, then re-materialize. `known_hosts` now
+   pins the same host key under the bare tailnet name, and `ssh_exposure`
+   becomes `tailnet`.
+5. Close the public paths, over the tailnet:
+
+   ```sh
+   ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
+     uvx --from ansible-core==2.21.4 ansible-playbook \
+     infra/ansible/ssh-tailnet.yml -e ssh_tailnet_stage=private
+   ```
+
+   It converts socket activation to `ssh.service` if needed, makes `sshd`
+   listen on loopback, proves a fresh login and loopback-only listeners, and
+   only then deletes the UFW SSH rule. Any failure before that restores the
+   prior drop-in.
+6. From the workstation, prove the provider IPv4 port and IPv6 port 22 refuse,
+   and record the evidence in #227.
+
+Reverting: over the tailnet or the Mikr.us console, run
+`ufw allow 22/tcp comment 'Minos SSH'`, delete the two `ListenAddress` lines
+from `/etc/ssh/sshd_config.d/10-minos-hardening.conf`, and restart
+`ssh.service`. Then set the provider address and mapped port back in the
+1Password item and re-materialize; `ssh_exposure` returns to `public`.
+
+`site.yml`, `scripts.deploy_validation` and `scripts.deploy_watcher` then work
+over the tailnet unchanged. In `tailnet` mode the baseline refuses to run unless
+the session itself arrived over the tailnet, and never re-adds the SSH rule.
 
 ## Apply
 

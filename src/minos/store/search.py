@@ -24,6 +24,7 @@ from minos.domain.search import (
     prefix_upper_bound,
     use_token_prefix,
 )
+from minos.store.bundle_cache import BundleCache
 from minos.store.query_budget import QueryBudget, query_budget
 from minos.store.reference_build import reference_sql
 from minos.store.search_jgp import membership_counts
@@ -39,6 +40,7 @@ def search_reference(
     request: SearchRequest,
     *,
     analyzer: PolishMorphology | None = None,
+    cache: BundleCache | None = None,
 ) -> SearchResult:
     # Latency is a target, not a reason to discard an otherwise valid 500 ms
     # result. Keep the operation/output bounds and a finite recovery deadline.
@@ -58,7 +60,7 @@ def search_reference(
         release = _resolve_release(connection, request)
         index = _select_index(connection, request.index)
         request = replace(request, release_id=release)
-        counts, day = membership_counts(connection, request)
+        counts, day = membership_counts(connection, request, cache)
         selected, morphology = _select_matches(
             connection, request, index, analyzer, counts
         )

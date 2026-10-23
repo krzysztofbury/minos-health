@@ -70,7 +70,10 @@ def materialize(
     private_key = _normalize_private_key(values["operator_private_key"])
 
     inventory = _serialize_inventory(host, port, user, expected_hostname, tunnel_id)
-    known_hosts = f"[{host}]:{port} {host_key}\n"
+    # OpenSSH records and looks up port 22 under the bare host name.
+    known_hosts = (
+        f"{host} {host_key}\n" if port == 22 else f"[{host}]:{port} {host_key}\n"
+    )
     authorized_keys = f"{operator_key}\n"
     private_path = home / ".ssh" / "minos_mikrus_ed25519"
     _require_key_pair(private_path, private_key, operator_key, derive)
@@ -221,7 +224,17 @@ def _serialize_inventory(
         f'ansible_user: "{user}"\n'
         f'expected_hostname: "{expected_hostname}"\n'
         f'cloudflared_tunnel_id: "{tunnel_id}"\n'
+        f'ssh_exposure: "{ssh_exposure(host, port)}"\n'
     ).encode()
+
+
+def ssh_exposure(host: str, port: int) -> str:
+    """How SSH reaches the host, derived from the address so they never disagree.
+
+    A tailnet name on port 22 means public SSH is closed (#227); anything else
+    is the provider's public mapping.
+    """
+    return "tailnet" if host.endswith(".ts.net") and port == 22 else "public"
 
 
 def _require_key_pair(

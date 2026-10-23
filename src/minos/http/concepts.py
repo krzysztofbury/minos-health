@@ -72,6 +72,7 @@ def register_concept_routes(
                     service_date=day,
                     catalog=selection.catalog,
                     page=int(selection.page),
+                    cache=lease.cache,
                 )
             return Response(payload, media_type="application/json")
         except ValidationError, ValueError, SearchInputError:

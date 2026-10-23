@@ -14,6 +14,7 @@ from minos.domain.search import SearchRequest, SearchResult
 from minos.http.app import create_app
 from minos.http.reference import CapacityError
 from minos.ingest.reference_artifact import build_reference_artifact
+from minos.store.bundle_cache import BundleCache
 from minos.store.search import search_reference
 from tests.integration.test_icd9_reference import stage_companion
 
@@ -253,6 +254,7 @@ def test_busy_sql_workers_do_not_block_liveness_and_overload_is_explicit(
         request: SearchRequest,
         *,
         analyzer: PolishMorphology | None = None,
+        cache: BundleCache | None = None,
     ) -> SearchResult:
         nonlocal occupied
         with lock:
@@ -260,7 +262,7 @@ def test_busy_sql_workers_do_not_block_liveness_and_overload_is_explicit(
             if occupied == 4:
                 entered.set()
         assert release.wait(5)
-        return real_search(connection, request, analyzer=analyzer)
+        return real_search(connection, request, analyzer=analyzer, cache=cache)
 
     monkeypatch.setattr(adapter, "search_reference", slow)
     with (
