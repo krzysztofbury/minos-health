@@ -3,6 +3,7 @@
 import calendar
 import hashlib
 import sqlite3
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import cast
@@ -10,12 +11,14 @@ from typing import cast
 from pydantic import ValidationError
 
 from minos.domain.jgp_modifiers import (
+    CatalogWindow,
     LegalOverlay,
+    ModifierRelease,
     exact_millionths,
     reconcile_legal_overlay,
     resolve_group_reference,
     select_legal_provisions,
-    select_reviewed_mappings,
+    select_reconciled_mappings,
 )
 from minos.domain.reference import ArtifactError, SourceError
 from minos.ingest.archive_source import verified_source
@@ -183,16 +186,27 @@ def require_modifier_binding(
     return binding
 
 
-def reviewed_group_modifiers(
+@dataclass(frozen=True)
+class ModifierReference:
+    """One catalog release's reviewed MODTAR inputs, validated and reconciled.
+
+    They depend only on the immutable bundle, so a caller holding one verified
+    bundle may reuse them for every service date of that catalog release.
+    """
+
+    modifier_release_id: str
+    catalog_release_id: str
+    release: ModifierRelease
+    overlay: LegalOverlay
+    windows: tuple[CatalogWindow, ...]
+
+
+def load_modifier_reference(
     connection: sqlite3.Connection,
     dataset: DatasetManifest,
-    ruleset: dict[str, object],
-    code: str,
-) -> dict[str, object]:
-    from minos.store.jgp_ruleset import catalog_group
-
-    _ = catalog_group(connection, ruleset, code)
-    binding = require_modifier_binding(connection, ruleset)
+    binding: dict[str, object],
+    catalog_release_id: str,
+) -> ModifierReference:
     pin = next(
         item for item in dataset.modifiers if item.release_id == binding["release_id"]
     )
@@ -201,13 +215,44 @@ def reviewed_group_modifiers(
         tuple[str],
         connection.execute(
             "SELECT overlay_json FROM modifier_binding WHERE catalog_release_id=?",
-            (ruleset["release_id"],),
+            (catalog_release_id,),
         ).fetchone(),
     )
     overlay = LegalOverlayInput.model_validate_json(row[0]).domain()
+    windows = catalog_windows(connection)
+    return ModifierReference(
+        pin.release_id,
+        catalog_release_id,
+        release,
+        reconcile_legal_overlay(release, overlay, catalog_windows=windows),
+        windows,
+    )
+
+
+def reviewed_group_modifiers(
+    connection: sqlite3.Connection,
+    dataset: DatasetManifest,
+    ruleset: dict[str, object],
+    code: str,
+    reference: ModifierReference | None = None,
+) -> dict[str, object]:
+    from minos.store.jgp_ruleset import catalog_group
+
+    _ = catalog_group(connection, ruleset, code)
+    binding = require_modifier_binding(connection, ruleset)
+    if reference is None:
+        reference = load_modifier_reference(
+            connection, dataset, binding, cast(str, ruleset["release_id"])
+        )
+    elif (reference.modifier_release_id, reference.catalog_release_id) != (
+        binding["release_id"],
+        ruleset["release_id"],
+    ):
+        raise ArtifactError("MODTAR reference conflicts with the ruleset binding")
+    overlay = reference.overlay
     service_date = date.fromisoformat(cast(str, ruleset["service_date"]))
-    selected = select_reviewed_mappings(
-        release, overlay, service_date, catalog_windows=catalog_windows(connection)
+    selected = select_reconciled_mappings(
+        overlay, service_date, catalog_windows=reference.windows
     )
     mappings: list[dict[str, object]] = []
     for mapping, resolved in selected:

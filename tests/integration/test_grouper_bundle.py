@@ -25,7 +25,12 @@ from minos.domain.grouper_rules import (
     GroupingResult,
     ModifierBindingUnbound,
 )
-from minos.grouper.pipeline import derive_candidates, evaluate_candidates, final_points
+from minos.grouper.pipeline import (
+    PreparedSources,
+    derive_candidates,
+    evaluate_candidates,
+    final_points,
+)
 from minos.grouper.szp_2026 import ALGORITHM_SHA256
 from minos.ingest.jgp_conditions_codec import encode
 from minos.ingest.reference_artifact import build_reference_artifact
@@ -305,8 +310,15 @@ def test_reviewed_binding_applies_only_declared_modifiers(
                 _ = final_points(connection, opened.dataset, result, frozenset())
             return
         plain = final_points(connection, opened.dataset, result, frozenset())
+        # A shared cache answers exactly as a fresh one, request after request.
+        shared = PreparedSources()
+        for _ in range(2):
+            assert (
+                final_points(connection, opened.dataset, result, frozenset(), shared)
+                == plain
+            )
         declared = final_points(
-            connection, opened.dataset, result, frozenset({"manual-17-6a"})
+            connection, opened.dataset, result, frozenset({"manual-17-6a"}), shared
         )
     assert plain[0].total_hundredths == 100000
     assert {d.outcome for d in plain[0].decisions} == {"possible"}
