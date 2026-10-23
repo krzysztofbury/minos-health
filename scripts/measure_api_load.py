@@ -33,6 +33,7 @@ PUBLIC_BASE = "https://minoshealth.pl"
 PUBLIC_PHASES = ((1, 40), (4, 120))
 PUBLIC_MCP_CALLS = 12
 LOCAL_PHASES = ((1, 60), (4, 240), (8, 240))
+DEADLINE_ANSWERS = frozenset({"query_timeout", "evaluation_timeout"})
 SERVICE_DATE = "2026-10-02"
 GROUP_BODY: Json = {
     "schema_version": 1,
@@ -209,7 +210,12 @@ def phase(
         # the MCP limit on this header. Public runs never set it.
         client = f"198.51.100.{index % concurrency + 1}" if distinct_clients else ""
         sample = send(base, steps[index % len(steps)], client)
-        if stop_on_error and (sample.status >= 500 or sample.status == 0):
+        # The API's closed deadline answers are designed shedding (#42); any
+        # other 5xx, such as the edge's own 504, or a transport failure stops.
+        if stop_on_error and (
+            sample.status == 0
+            or (sample.status >= 500 and sample.error not in DEADLINE_ANSWERS)
+        ):
             stop.set()
         return sample
 
@@ -248,7 +254,28 @@ def startup_event(container: str) -> Json:
     raise ValueError("API startup event missing")
 
 
-def local(bundle: Path, api_image: str, edge_image: str, output: Path) -> Json:
+def grouping_phases(container: str, seen: int) -> tuple[Json, int]:
+    """Percentiles of the API's per-request grouping phases logged after `seen`."""
+    lines = [
+        line
+        for line in docker("logs", container).splitlines()
+        if line.startswith("{") and '"route": "/api/v1/group"' in line
+    ]
+    values: dict[str, list[float]] = {}
+    for line in lines[seen:]:
+        logged = cast(Json, json.loads(line)).get("phases")
+        if isinstance(logged, dict):
+            for name, ms in cast(dict[str, int], logged).items():
+                values.setdefault(name, []).append(ms)
+    return {
+        name: {"p50_ms": percentile(rows, 0.5), "p95_ms": percentile(rows, 0.95)}
+        for name, rows in sorted(values.items())
+    }, len(lines)
+
+
+def local(
+    bundle: Path, api_image: str, edge_image: str, output: Path, *, api_cpus: float
+) -> Json:
     from minos.store.reference import read_artifact_manifest
 
     manifest = read_artifact_manifest(bundle)
@@ -261,7 +288,7 @@ def local(bundle: Path, api_image: str, edge_image: str, output: Path) -> Json:
                     "reference-api": api_service(
                         api_image, bundle.resolve(), manifest.database_sha256
                     )
-                    | {"memswap_limit": "512m"},
+                    | {"memswap_limit": "512m", "cpus": f"{api_cpus:.2f}"},
                     "edge": {
                         "image": edge_image,
                         "user": "101:101",
@@ -313,8 +340,10 @@ def local(bundle: Path, api_image: str, edge_image: str, output: Path) -> Json:
         if status != 200:
             raise ValueError("releases unavailable")
         steps = workload(releases) + mcp_steps()
-        phases = [
-            phase(
+        phases: list[Json] = []
+        seen = grouping_phases(api, 0)[1]
+        for concurrency, count in LOCAL_PHASES:
+            measured = phase(
                 base,
                 steps,
                 concurrency,
@@ -322,13 +351,13 @@ def local(bundle: Path, api_image: str, edge_image: str, output: Path) -> Json:
                 stop_on_error=False,
                 distinct_clients=True,
             )
-            for concurrency, count in LOCAL_PHASES
-        ]
+            measured["grouping_phases"], seen = grouping_phases(api, seen)
+            phases.append(measured)
         ready = get_json(base, "/readyz")[0]
         return {
             "mode": "local",
             "dataset_id": releases.get("dataset_id"),
-            "api_limits": {"cpus": 1, "memory_mib": 512, "swap": False},
+            "api_limits": {"cpus": api_cpus, "memory_mib": 512, "swap": False},
             "startup": startup,
             "phases": phases,
             "after": {"readyz": ready, "memory": cgroup(api)},
@@ -384,6 +413,7 @@ class Arguments(argparse.Namespace):
     api_image: str = ""
     edge_image: str = ""
     output: Path = Path()
+    api_cpus: float = 1.0
     base: str = PUBLIC_BASE
 
 
@@ -395,6 +425,9 @@ def main() -> None:
     _ = command.add_argument("--api-image", required=True)
     _ = command.add_argument("--edge-image", required=True)
     _ = command.add_argument("--output", type=Path, required=True)
+    # The host CPU is several times slower than a workstation core; a smaller
+    # share approximates it (#222). Production limits stay one CPU.
+    _ = command.add_argument("--api-cpus", type=float, default=1.0)
     command = commands.add_parser("public")
     _ = command.add_argument("--base", default=PUBLIC_BASE)
     _ = command.add_argument("--output", type=Path, required=True)
@@ -406,6 +439,7 @@ def main() -> None:
                 arguments.api_image,
                 arguments.edge_image,
                 arguments.output,
+                api_cpus=arguments.api_cpus,
             )
         )
         if arguments.command == "local"

@@ -19,8 +19,9 @@ RELEASES: dict[str, object] = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    # Concept lookups fail with a server error, Gruper refuses as busy, MCP
-    # answers a tool error; everything else succeeds.
+    # Concept lookups fail with a server error, tree lookups with the closed
+    # deadline answer, Gruper refuses as busy, MCP answers a tool error;
+    # everything else succeeds.
     def _answer(self, status: int, body: object) -> None:
         content = json.dumps(body).encode()
         self.send_response(status)
@@ -32,6 +33,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path.startswith("/api/v1/concepts/"):
             self._answer(503, {"api": 1, "error": {"code": "unavailable"}})
+        elif self.path.startswith("/api/v1/tree/"):
+            self._answer(504, {"api": 1, "error": {"code": "query_timeout"}})
         else:
             self._answer(200, {"api": 1})
 
@@ -102,6 +105,18 @@ def test_a_public_phase_stops_at_the_first_server_error(base: str) -> None:
 
     assert result["stopped_early"] is True
     assert cast(int, result["requests"]) < 40
+
+
+def test_a_closed_deadline_answer_does_not_stop_a_public_phase(base: str) -> None:
+    tree = Step("tree", "/api/v1/tree/icd10-r/A00")
+    search = Step("search", "/api/v1/search", {"query": "x"})
+
+    result = phase(
+        base, [tree, search], 1, 10, stop_on_error=True, distinct_clients=False
+    )
+
+    assert result["stopped_early"] is False
+    assert kinds(result)["tree"]["errors"] == {"query_timeout": 5}
 
 
 def test_public_runs_require_https() -> None:

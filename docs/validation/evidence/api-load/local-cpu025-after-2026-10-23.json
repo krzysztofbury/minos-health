@@ -1,0 +1,383 @@
+{
+  "mode": "local",
+  "dataset_id": "1c8f1fa12bcb5f7aee97247c8fd91dd29682a759c2d647730de183035acca4fb",
+  "api_limits": {
+    "cpus": 0.25,
+    "memory_mib": 512,
+    "swap": false
+  },
+  "startup": {
+    "healthy_s": 35.7,
+    "event": {
+      "event": "api_startup",
+      "pool_ms": 19212,
+      "trees_ms": 690
+    },
+    "memory": {
+      "peak_mib": 512,
+      "current_mib": 507,
+      "anon_mib": 278,
+      "file_mib": 222,
+      "max_events": 1571,
+      "oom_kill": 0
+    }
+  },
+  "phases": [
+    {
+      "concurrency": 1,
+      "requests": 60,
+      "stopped_early": false,
+      "seconds": 4.1,
+      "kinds": {
+        "concept": {
+          "count": 6,
+          "statuses": {
+            "200": 6
+          },
+          "errors": {},
+          "p50_ms": 10.0,
+          "p95_ms": 82.0,
+          "max_ms": 82.0
+        },
+        "group": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 88.9,
+          "p95_ms": 210.2,
+          "max_ms": 210.2
+        },
+        "jgp_group": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 87.1,
+          "p95_ms": 88.3,
+          "max_ms": 88.3
+        },
+        "mcp_get_code": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 187.4,
+          "p95_ms": 191.9,
+          "max_ms": 191.9
+        },
+        "mcp_group_case": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 92.7,
+          "p95_ms": 93.7,
+          "max_ms": 93.7
+        },
+        "mcp_search_codes": {
+          "count": 5,
+          "statuses": {
+            "200": 5
+          },
+          "errors": {},
+          "p50_ms": 187.9,
+          "p95_ms": 203.3,
+          "max_ms": 203.3
+        },
+        "search": {
+          "count": 29,
+          "statuses": {
+            "200": 29
+          },
+          "errors": {},
+          "p50_ms": 14.8,
+          "p95_ms": 90.6,
+          "max_ms": 92.3
+        }
+      },
+      "grouping_phases": {
+        "borrow_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "evaluate_ms": {
+          "p50_ms": 9,
+          "p95_ms": 203
+        },
+        "parse_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "queue_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "render_ms": {
+          "p50_ms": 3,
+          "p95_ms": 77
+        },
+        "respond_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "upload_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        }
+      }
+    },
+    {
+      "concurrency": 4,
+      "requests": 240,
+      "stopped_early": false,
+      "seconds": 40.9,
+      "kinds": {
+        "concept": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 101.6,
+          "p95_ms": 203.8,
+          "max_ms": 296.3
+        },
+        "group": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 307.4,
+          "p95_ms": 597.9,
+          "max_ms": 602.7
+        },
+        "jgp_group": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 300.0,
+          "p95_ms": 704.3,
+          "max_ms": 704.5
+        },
+        "mcp_get_code": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {},
+          "p50_ms": 795.4,
+          "p95_ms": 1106.7,
+          "max_ms": 1293.3
+        },
+        "mcp_group_case": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {},
+          "p50_ms": 298.6,
+          "p95_ms": 500.7,
+          "max_ms": 501.9
+        },
+        "mcp_search_codes": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 2709.0,
+          "p95_ms": 3498.1,
+          "max_ms": 3806.4
+        },
+        "search": {
+          "count": 110,
+          "statuses": {
+            "200": 109,
+            "504": 1
+          },
+          "errors": {
+            "query_timeout": 1
+          },
+          "p50_ms": 195.2,
+          "p95_ms": 1687.1,
+          "max_ms": 1888.4
+        }
+      },
+      "grouping_phases": {
+        "borrow_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "evaluate_ms": {
+          "p50_ms": 288,
+          "p95_ms": 403
+        },
+        "parse_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "queue_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "render_ms": {
+          "p50_ms": 3,
+          "p95_ms": 96
+        },
+        "respond_ms": {
+          "p50_ms": 0,
+          "p95_ms": 88
+        },
+        "upload_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        }
+      }
+    },
+    {
+      "concurrency": 8,
+      "requests": 240,
+      "stopped_early": false,
+      "seconds": 30.8,
+      "kinds": {
+        "concept": {
+          "count": 22,
+          "statuses": {
+            "200": 15,
+            "429": 7
+          },
+          "errors": {
+            "busy": 7
+          },
+          "p50_ms": 499.0,
+          "p95_ms": 704.9,
+          "max_ms": 704.9
+        },
+        "group": {
+          "count": 22,
+          "statuses": {
+            "200": 12,
+            "429": 10
+          },
+          "errors": {
+            "busy": 10
+          },
+          "p50_ms": 801.7,
+          "p95_ms": 1395.6,
+          "max_ms": 1395.6
+        },
+        "jgp_group": {
+          "count": 22,
+          "statuses": {
+            "200": 15,
+            "429": 7
+          },
+          "errors": {
+            "busy": 7
+          },
+          "p50_ms": 698.4,
+          "p95_ms": 1200.4,
+          "max_ms": 1200.4
+        },
+        "mcp_get_code": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {
+            "BUSY": 14
+          },
+          "p50_ms": 1604.0,
+          "p95_ms": 2299.7,
+          "max_ms": 2299.7
+        },
+        "mcp_group_case": {
+          "count": 21,
+          "statuses": {
+            "200": 21
+          },
+          "errors": {
+            "BUSY": 7
+          },
+          "p50_ms": 613.4,
+          "p95_ms": 1495.1,
+          "max_ms": 1495.1
+        },
+        "mcp_search_codes": {
+          "count": 22,
+          "statuses": {
+            "200": 22
+          },
+          "errors": {},
+          "p50_ms": 3400.7,
+          "p95_ms": 4901.9,
+          "max_ms": 5401.3
+        },
+        "search": {
+          "count": 110,
+          "statuses": {
+            "200": 59,
+            "504": 7,
+            "429": 44
+          },
+          "errors": {
+            "query_timeout": 7,
+            "busy": 44
+          },
+          "p50_ms": 602.4,
+          "p95_ms": 2290.5,
+          "max_ms": 2491.1
+        }
+      },
+      "grouping_phases": {
+        "borrow_ms": {
+          "p50_ms": 403,
+          "p95_ms": 591
+        },
+        "evaluate_ms": {
+          "p50_ms": 302,
+          "p95_ms": 795
+        },
+        "parse_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "queue_ms": {
+          "p50_ms": 0,
+          "p95_ms": 0
+        },
+        "render_ms": {
+          "p50_ms": 3,
+          "p95_ms": 94
+        },
+        "respond_ms": {
+          "p50_ms": 0,
+          "p95_ms": 1
+        },
+        "upload_ms": {
+          "p50_ms": 0,
+          "p95_ms": 85
+        }
+      }
+    }
+  ],
+  "after": {
+    "readyz": 200,
+    "memory": {
+      "peak_mib": 512,
+      "current_mib": 502,
+      "anon_mib": 302,
+      "file_mib": 191,
+      "max_events": 1755,
+      "oom_kill": 0
+    }
+  }
+}

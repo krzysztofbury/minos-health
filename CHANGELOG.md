@@ -23,6 +23,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   overload answered as closed `busy`/`BUSY`, API process memory 278 MiB after
   startup and 328 MiB after load. The capped public run meets them for one
   user and for MCP; at four users one Gruper case got an edge 504 (#222).
+  `local --api-cpus 0.25` approximates the slower host CPU, and each Gruper
+  request logs its phase durations (`upload_ms` to `respond_ms`, never
+  content) so time can be placed under load.
 - Public MCP server for agents (#216) at `https://minoshealth.pl/mcp`:
   stateless Streamable HTTP, no key, twelve read-only tools that mirror the
   site (`search_codes`, `get_code`, `browse_codes`, `map_icd10_icd11`,
@@ -231,6 +234,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Load objectives adopted (#42, `docs/validation/api-load.md`): one user is
+  the experience to protect (public p95: search 500 ms, pages and Gruper 1 s,
+  MCP call 1.5 s), four users may slow down but stay correct (search, pages
+  and Gruper 1.5 s, closed deadline answers at most 5% per route), eight
+  users must shed cleanly. At any load: no edge-generated 5xx, transport
+  failure or API 500. Public load runs now stop only on those, not on the
+  API's closed `query_timeout`/`evaluation_timeout` answers.
 - The terms of service (`/regulamin`, effective 23.10.2026) cover ICD-11 PL,
   JGP groups, the Gruper and the MCP server: their scope, anonymised input
   only, query limits, and the ICD-11 PL, WHO map and NFZ material rights.
@@ -455,5 +465,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
   now each release shares the 30 s preload deadline, still failing closed
   before readiness. Memory was ruled out: limits down to 288 MiB start
   normally and 256 MiB ends in an OOM kill, not exit code 3.
+- Gruper cases no longer pile up at the 3 s deadline under concurrent load
+  (#222). Every request revalidated and reconciled the whole MODTAR modifier
+  dictionary for each valid group, 85% of its CPU, although startup already
+  validates the immutable bundle. The grouper now keeps one validated
+  reference per MODTAR and catalog release, guarded against any other
+  binding: a warm case takes 8.8 ms instead of 37.5 ms, and at a host-like
+  0.25 CPU four users see Gruper p95 598 ms instead of 2,317 ms and MCP
+  `group_case` 501 ms instead of 3,000 ms. Search deadline answers under
+  contention remain (#225).
 - `opentelemetry-api` 1.45.1 fixes CVE-2026-114603 in a FastAPI and MCP
   dependency; the API image runs with the OpenTelemetry SDK disabled.
