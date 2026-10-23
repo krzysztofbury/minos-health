@@ -546,6 +546,7 @@ def create_app(
                         "/api/v1/search",
                         "/api/v1/group",
                         "/api/v1/grouping/dictionaries",
+                        "/mcp",
                     )
                     else "/api/v1/tree"
                     if TREE_ROUTE.fullmatch(request.url.path)

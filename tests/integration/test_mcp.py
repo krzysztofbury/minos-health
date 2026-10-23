@@ -231,10 +231,27 @@ def test_logs_never_carry_tool_arguments(
     with caplog.at_level(logging.DEBUG):
         _ = _call(grouping, "group_case", {"case": case})
         _ = _call(grouping, "search_codes", {"query": "neuropatia unikalna"})
+        # A code argument travels in the in-process request URL (#220).
+        _ = _call(grouping, "get_code", {"system": "icd10-pl", "code": "Y35.7"})
 
     logged = "\n".join(record.getMessage() for record in caplog.records)
     assert "G60.4" not in logged
     assert "neuropatia" not in logged
+    assert "Y35.7" not in logged
+
+
+def test_the_server_leaves_root_logging_alone() -> None:
+    # The SDK's basicConfig is a no-op while pytest's handlers sit on the root.
+    root = logging.getLogger()
+    handlers, level = list(root.handlers), root.level
+    root.handlers.clear()
+    try:
+        _ = catalog()
+
+        assert (root.handlers, root.level) == ([], level)
+    finally:
+        root.handlers[:] = handlers
+        root.setLevel(level)
 
 
 def test_resources_and_prompts_are_listed(reference: TestClient) -> None:
