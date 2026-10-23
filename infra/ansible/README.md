@@ -97,9 +97,12 @@ Design:
   Git or the host's disk beyond a tmpfs copy removed after the join.
 - `infra/tailscale/policy.hujson` is the reviewed tailnet policy: admins reach
   the server tag on TCP 22 only, and the server starts nothing.
-- Break-glass: the Mikr.us panel console with the root password from 1Password.
-  The prior `sshd` configuration also listens on loopback, so a failed cutover
-  rolls back without losing the tailnet path.
+- Break-glass: Mikr.us M.A.R.I.A.N (panel, "Pomoc i diagnostyka") runs
+  commands typed into its form as root without SSH; a test run on 2026-10-23
+  reached the host. The panel's WebSSH is not a recovery path: it uses the
+  public SSH port with the root password, which `sshd` refuses and this change
+  closes. The prior `sshd` configuration also listens on loopback, so a failed
+  cutover rolls back without losing the tailnet path.
 
 Re-materialize the host variables before the next `site.yml` run after this
 change: the baseline now requires the derived `ssh_exposure` and refuses to run
@@ -112,15 +115,16 @@ Rollout, each production run approved separately:
    `infra/tailscale/policy.hujson`: own devices keep reaching each other, and
    the new `tag:minos-server` accepts SSH from admin devices only. Then
    generate a one-time, pre-authorised, non-ephemeral auth key with that tag
-   and store it in 1Password as `minos-production-tailscale`, field `auth key`.
-2. Prove a login through the Mikr.us panel console.
+   and store it in 1Password as item and field `minos-production-tailscale`.
+2. Prove that M.A.R.I.A.N reaches the host (a harmless command such as
+   `hostname`).
 3. Join, over the current public SSH (public SSH is unchanged):
 
    ```sh
    umask 077
    key_file="$(mktemp)"
    trap 'rm -f -- "$key_file"' EXIT
-   op read "op://MinosHealth/minos-production-tailscale/auth key" > "$key_file"
+   op read "op://MinosHealth/minos-production-tailscale/minos-production-tailscale" > "$key_file"
    ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
      uvx --from ansible-core==2.21.4 ansible-playbook \
      infra/ansible/ssh-tailnet.yml -e ssh_tailnet_stage=join \
@@ -147,7 +151,7 @@ Rollout, each production run approved separately:
 6. From the workstation, prove the provider IPv4 port and IPv6 port 22 refuse,
    and record the evidence in #227.
 
-Reverting: over the tailnet or the Mikr.us console, run
+Reverting: over the tailnet or through M.A.R.I.A.N, run
 `ufw allow 22/tcp comment 'Minos SSH'`, delete the two `ListenAddress` lines
 from `/etc/ssh/sshd_config.d/10-minos-hardening.conf`, and restart
 `ssh.service`. Then set the provider address and mapped port back in the
