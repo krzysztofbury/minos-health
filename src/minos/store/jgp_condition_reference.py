@@ -437,6 +437,13 @@ FROM grouped ORDER BY title_row,code LIMIT :limit OFFSET :offset
 # The selector reachability above depends only on the release and catalog,
 # yet it parsed every condition of the catalog on each request (#225). The
 # cached path computes it once and keeps the per-code part of the query.
+# Each split point must occur once, or a later edit could cut the query apart
+# somewhere else without failing.
+if (
+    MEMBERSHIP_SQL.count("), linked AS (") != 1
+    or MEMBERSHIP_SQL.count("  UNION\n  SELECT g.code") != 1
+):
+    raise RuntimeError("membership query no longer splits at its reviewed points")
 _REACHABLE, _LINKED = MEMBERSHIP_SQL.split("), linked AS (", 1)
 _SELECTOR_LISTS_TAIL = """)
 SELECT DISTINCT r.group_code,lists.value,typeof(lists.value) FROM reachable r
@@ -450,10 +457,11 @@ _PAIRS_HEAD = """WITH pairs(group_code,list_id) AS (
   SELECT DISTINCT p.group_code,m.list_id FROM pairs p
     JOIN directional_member m ON m.release_id=:release AND m.catalog=:catalog
        AND m.list_id=p.list_id AND m.system=:system AND m.code=:code
-  UNION"""
+  UNION
+"""
 # Both are composed from this module's constant SQL only, never from input.
 SELECTOR_LISTS_SQL = _REACHABLE + _SELECTOR_LISTS_TAIL  # nosec B608
-CACHED_MEMBERSHIP_SQL = _PAIRS_HEAD + _LINKED.split("  UNION", 1)[1]  # nosec B608
+CACHED_MEMBERSHIP_SQL = _PAIRS_HEAD + _LINKED.split("  UNION\n", 1)[1]  # nosec B608
 
 
 def selector_lists(
@@ -472,6 +480,7 @@ def selector_lists(
     groups: dict[int, set[str]] = {}
     for group, list_id, kind in rows:
         # Integer ids compare in Python exactly as the SQL join compared them.
+        # The join would also coerce a text "5"; the cache refuses it instead.
         if kind != "integer" or not isinstance(list_id, int):
             raise ArtifactError("selector list id is not an integer")
         groups.setdefault(list_id, set()).add(group)

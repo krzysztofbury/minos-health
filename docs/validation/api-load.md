@@ -133,7 +133,12 @@ through the real app on one thread:
 | `membership_counts` re-parsed the conditions manifests and the code count table | every word search | both cached; the dated selection still runs per request |
 
 The caches belong to the API's verified pool and reach requests through its
-leases, never a module-global release cache. One cycle fell from 129 ms to
+leases, never a module-global release cache. Synthetic fixtures reach lists
+directly, so `tests/compatibility/test_jgp_membership_cache.py` also proves the
+cached JGP lists on a real bundle (`MINOS_GROUPER_BUNDLE`): every selector link
+of every release and catalog, where selectors nest and about 220 lists are
+shared between groups, plus every 50th listed code end to end. It passed on
+the production bundle `1c8f1fa1`. One cycle fell from 129 ms to
 75 ms of CPU: code page 6.8 to 1.0 ms, MCP `get_code` 28 to 6 ms, MCP
 `search_codes` 31 to 19 ms.
 

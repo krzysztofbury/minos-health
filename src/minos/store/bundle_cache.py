@@ -16,7 +16,9 @@ class BundleCache:
     Own exactly one per opened bundle and never share it across bundles:
     entries are keyed by release, not by database bytes. Each owning module
     builds its own entries, so the cache holds no knowledge of their meaning.
-    A failed build stores nothing and the next request retries it.
+    A failed build stores nothing and the next request retries it. Builds run
+    under the lock, so a cold entry briefly holds back other first uses; each
+    is bounded by its caller's query budget and happens once per process.
     """
 
     def __init__(self) -> None:
