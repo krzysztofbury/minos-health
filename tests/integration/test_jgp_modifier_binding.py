@@ -16,6 +16,7 @@ from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.artifact import canonical_json, file_identity
 from minos.store.jgp_modifier_binding import (
+    load_modifier_reference,
     require_modifier_binding,
     reviewed_group_modifiers,
 )
@@ -139,6 +140,26 @@ def test_offline_modifier_reference_keeps_october_manual_clause_separate(
         mappings = cast(list[dict[str, object]], result["dictionary_mappings"])
         assert mappings[0]["symbol"] == "M1"
         assert mappings[0]["coefficient_millionths"] == 1200000
+        # One reference serves every service date of its catalog release (#222).
+        october = resolve_ruleset(connection, date(2026, 10, 1), None)
+        reference = load_modifier_reference(
+            connection,
+            manifest,
+            require_modifier_binding(connection, october),
+            cast(str, october["release_id"]),
+        )
+        assert (
+            reviewed_group_modifiers(connection, manifest, ruleset, "A01", reference)
+            == result
+        )
+        for conflicting in (
+            replace(reference, catalog_release_id="other"),
+            replace(reference, modifier_release_id="other"),
+        ):
+            with pytest.raises(ArtifactError, match="conflicts with the ruleset"):
+                _ = reviewed_group_modifiers(
+                    connection, manifest, ruleset, "A01", conflicting
+                )
 
 
 def test_modifier_cli_uses_real_offline_binding_path(

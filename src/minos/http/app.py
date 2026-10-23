@@ -35,7 +35,11 @@ from minos.domain.search import (
 )
 from minos.grouper.pipeline import PreparedSources
 from minos.http.concepts import CONCEPT_ROUTE, register_concept_routes
-from minos.http.grouping import register_grouping_routes, warm_grouping
+from minos.http.grouping import (
+    grouping_phases,
+    register_grouping_routes,
+    warm_grouping,
+)
 from minos.http.jgp import (
     JGP_PAGE_ROUTE,
     JGP_ROUTE,
@@ -576,6 +580,8 @@ def create_app(
                         round((time.monotonic() - began) * 1000), 10_000
                     ),
                     "result_count": getattr(request.state, "result_count", None),
+                    # Where a grouping request spent its time (#222).
+                    "phases": grouping_phases(request),
                     "dataset_id": dataset_identity(
                         cast(ReferencePool, app.state.pool).manifest.dataset
                     ),

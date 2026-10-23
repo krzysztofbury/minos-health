@@ -67,19 +67,66 @@ class GroupingAdmission:
             self._active -= 1
 
 
-def evaluate(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> bytes:
+def evaluate(
+    pool: ReferencePool,
+    body: bytes,
+    prepared: PreparedSources,
+    marks: dict[str, float] | None = None,
+) -> bytes:
+    marks = marks if marks is not None else {}
+    marks["started"] = time.monotonic()
     request = parse_grouping_request(body)
+    marks["parsed"] = time.monotonic()
     with pool.borrow() as lease:
+        marks["leased"] = time.monotonic()
         outcome = group_request(
             lease.connection, pool.manifest.dataset, request, prepared
         )
+    marks["grouped"] = time.monotonic()
     answer = grouping_answer(pool.manifest, request, outcome)
     encoded = json.dumps(
         answer, ensure_ascii=False, sort_keys=True, separators=(",", ":")
     ).encode()
+    marks["encoded"] = time.monotonic()
     if len(encoded) > MAX_GROUPING_RESPONSE_BYTES:
         raise QueryLimitError("grouping response exceeds bound")
     return encoded
+
+
+def grouping_phases(request: Request) -> dict[str, int] | None:
+    """Milliseconds between the stamps one request reached; never content."""
+    marks = cast(
+        dict[str, float] | None, getattr(request.state, "grouping_marks", None)
+    )
+    if marks is None:
+        return None
+    order = (
+        "admitted",
+        "uploaded",
+        "started",
+        "parsed",
+        "leased",
+        "grouped",
+        "encoded",
+    )
+    # Each name covers the time after its stamp. The last reached phase runs
+    # until this log line, so a failed or timed-out phase keeps its own name;
+    # `respond_ms` is the handler's return after success, before the body is sent.
+    names = (
+        "upload_ms",
+        "queue_ms",
+        "parse_ms",
+        "borrow_ms",
+        "evaluate_ms",
+        "render_ms",
+        "respond_ms",
+    )
+    reached = [marks[name] for name in order if name in marks]
+    ends = [*reached[1:], time.monotonic()]
+    return {
+        name: min(round((end - start) * 1000), 60_000)
+        for name, start, end in zip(names, reached, ends, strict=False)
+    }
 
 
 # A child of the configured `minos.http` logger, so production prints it (#155).
@@ -176,6 +223,8 @@ def register_grouping_routes(
             return failure(415, "content_encoding_unsupported")
         if not admission.admit():
             return failure(429, "busy")
+        marks = {"admitted": time.monotonic()}
+        request.state.grouping_marks = marks
         body = bytearray()
         try:
             async with asyncio.timeout(2):
@@ -185,13 +234,18 @@ def register_grouping_routes(
                     body.extend(chunk)
         except TimeoutError:
             return failure(408, "request_timeout")
+        marks["uploaded"] = time.monotonic()
         if not admission.acquire():
             return failure(429, "busy")
         try:
             # AnyIO's default threadpool wait retains ownership until the worker
             # stops; a client abort must not start another unbounded CPU worker.
             encoded = await run_in_threadpool(
-                evaluate, cast(ReferencePool, app.state.pool), bytes(body), prepared
+                evaluate,
+                cast(ReferencePool, app.state.pool),
+                bytes(body),
+                prepared,
+                marks,
             )
             return Response(
                 encoded,

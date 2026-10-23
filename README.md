@@ -191,7 +191,8 @@ integrity-checked off-host backup in 1Password on 2026-09-23. An isolated
 Docker restore of that backup passed against the same pinned image without
 network or host ports. The watcher stack, DNS status route, watcher push
 delivery, full host-loss recovery, representative load, and public browser
-verification remain pending.
+verification remain pending. Load objectives and the measurements so far are
+in [the API load record](docs/validation/api-load.md) (#42).
 
 Object storage is one EU-jurisdiction Cloudflare R2 bucket whose lock rules
 refuse overwrites and deletes; the AWS stacks and their acceptance harness were

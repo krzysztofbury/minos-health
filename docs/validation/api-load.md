@@ -1,26 +1,33 @@
 # API Load And Startup Memory (#42, #198)
 
-Status: proposed objectives for owner review, local and public evidence.
-Not launch-capacity acceptance; #42 stays open.
+Status: objectives adopted 2026-10-23 (the owner delegated their review),
+local and public evidence. Not launch-capacity acceptance; #42 stays open.
 
-## Proposed Objectives
+## Objectives
 
-The owner reviews these before the public run counts against them. They
-describe the validation site with the MCP server (#216), not a paid service.
+They describe the free validation site with the MCP server (#216) on one
+host CPU and 2 GiB, not a paid service. Realistic demand is a few people at
+once, so the levels have distinct meanings: one user is the experience to
+protect, four users is a busy moment that may slow down but stays correct,
+and eight users is overload that must shed cleanly. Latency targets apply
+only up to four users.
 
-| Objective | Proposed threshold |
+| Kind | Objective |
 | --- | --- |
-| Server errors | No HTTP 5xx and no transport failures at concurrency up to 8; overload answers only as the closed `busy` (HTTP 429) or MCP `BUSY` |
+| Correctness, any concurrency | No edge-generated 5xx (an nginx 502, 503 or 504 without the API's JSON), no transport failure, no API 500 or `unavailable` 503 |
+| Shedding | Overload answers are closed: `busy` (429), MCP `BUSY`, or the API's JSON deadline answers `query_timeout` and `evaluation_timeout` (504). At four users these stay at most 5% per route; at eight users they are not bounded |
 | Readiness | `/readyz` ready after every run |
-| Single-user latency, public edge | Search p95 at most 500 ms; code and JGP pages p95 at most 1 s; Gruper p95 at most 2 s |
-| Four concurrent users, public edge | Search p95 at most 1.5 s; Gruper p95 at most 3 s; MCP `search_codes` p95 at most 4 s |
+| One user, public edge, p95 | Search at most 500 ms; code and JGP pages at most 1 s; Gruper at most 1 s; one MCP tool call at most 1.5 s |
+| Four users, public edge, p95 | Search at most 1.5 s; code and JGP pages at most 1.5 s; Gruper at most 1.5 s, half its 3 s evaluation deadline |
+| Four users, local at 0.25 CPU, p95 | MCP `search_codes` at most 4 s (local only: one client cannot fan MCP out past the edge limit, and the CPU share does not calibrate MCP latency, see Method) |
 | API memory | No OOM kill; process (anon) memory at most 400 MiB of the 512 MiB limit after load |
 | Host headroom | `available_mib` at least the deploy floor (300 MiB plus one API limit) before an activation |
-| Startup | Pool ready within the 120 s health start period; nine of ten activations ready on the first attempt (#198) |
+| Startup | Pool ready within the 120 s health start period; nine of the next ten deploys activate without a rollback in the deploy output, tracked in #198 comments |
 
-Page cache filling the API's cgroup is not a failure: it is reclaimed on
-demand, so `memory.peak` at the limit and thousands of `memory.events max`
-appear on every healthy start.
+A p95 at a deadline means most requests nearly time out, so no latency
+target equals a deadline. Page cache filling the API's cgroup is not a
+failure: it is reclaimed on demand, so `memory.peak` at the limit and
+thousands of `memory.events max` appear on every healthy start.
 
 ## Method
 
@@ -36,11 +43,24 @@ memory; never queries, codes or bodies.
   worker to emulate distinct agents, because the edge keys the MCP limit on it.
 - `public` sends 40 requests at concurrency 1, 120 at concurrency 4, then 12
   sequential MCP calls to `https://minoshealth.pl`, and stops at the first
-  5xx or transport failure. One client cannot exceed the edge's 60 per minute
+  transport failure or 5xx other than the API's closed deadline answers. One client cannot exceed the edge's 60 per minute
   MCP limit, so MCP fan-out under load is a local measurement only.
 
 Bundle copies for local runs are written with `O_DIRECT`, so the container,
 not the workstation, is charged for reading the database, as on the host.
+
+The host CPU is several times slower than a workstation core. `local
+--api-cpus 0.25` approximates it for the API: one-user Gruper cases take
+204 ms there against a 281 ms host median that includes the network. MCP does
+not scale the same way (host 882 ms against 186 ms locally for one
+`search_codes` call), so MCP latency at this share is not a host estimate.
+
+Each Gruper request logs its phases on the request line (#222): `upload_ms`,
+`queue_ms`, `parse_ms`, `borrow_ms`, `evaluate_ms`, `render_ms` and
+`respond_ms`, durations only. A failed or timed-out request charges its open
+interval to the phase that was running, so a 3 s timeout appears in
+`evaluate_ms`. Local reports add their percentiles per load phase as
+`grouping_phases`, timed-out and served requests together.
 
 ## Local Evidence, 2026-10-23
 
@@ -63,6 +83,41 @@ evidence. Report: `evidence/api-load/local-2026-10-23.json`.
   empty. Agents get `BUSY` and retry; this is the designed bound.
 - MCP `search_codes` is the slowest path: one call searches four
   dictionaries in turn.
+
+## Gruper Under Contention (#222)
+
+The public run's edge 504 came from Gruper cases sitting at their 3 s
+evaluation deadline. At 0.25 CPU with the release image, the phase log put
+nearly all of a four-user Gruper request in evaluation: `evaluate_ms` p50
+1,902 ms and p95 2,690 ms, every other phase near zero. A profile of one
+warm request showed 85% of its CPU in `reviewed_group_modifiers`, which
+validated and reconciled the whole MODTAR dictionary again on every request
+and for every valid group. Startup already validates it once per database
+digest, and the bundle is immutable and checked on every lease, so the
+grouper now keeps one validated reference per MODTAR and catalog release in
+its release-static cache. A warm request fell from 37.5 ms to 8.8 ms with
+identical answers.
+
+Same bundle, 0.25 CPU, release image against the fix. Reports:
+`evidence/api-load/local-cpu025-before-2026-10-23.json` (its phase names
+predate `parse_ms` and `respond_ms`) and `local-cpu025-after-2026-10-23.json`.
+
+| Phase | Gruper p95 | MCP `group_case` p95 | Search p95 | Search `query_timeout` |
+| --- | ---: | ---: | ---: | ---: |
+| Four users, before | 2,317 ms | 3,000 ms | 1,807 ms | 11 of 110 |
+| Four users, after | 598 ms | 501 ms | 1,687 ms | 1 of 110 |
+| Eight users, before | 3,106 ms, 1 `evaluation_timeout` | 3,195 ms | 2,194 ms | 8 of 110 |
+| Eight users, after | 1,396 ms | 1,495 ms | 2,291 ms | 7 of 110 |
+
+- No edge-generated 5xx, transport failure, API 500 or OOM kill in either
+  run; `/readyz` ready afterwards. Anon memory 278 MiB after startup and
+  302 MiB after the load.
+- Search at this share still answers some requests with its closed
+  `query_timeout`: 0.9% at four users, inside the objective, and more at
+  eight. Its one-second request budget and the four-dictionary MCP
+  `search_codes` fan-out are tracked separately (#225).
+- The local run never reproduced the host's edge 504 itself; #222 closes on
+  the four-user public rerun.
 
 ## Startup Memory (#198)
 
@@ -105,11 +160,12 @@ approval. Report: `evidence/api-load/public-2026-10-23.json`. Host
 | Concurrency 4, stopped at 64 of 120 | 1,296 ms | 1,204 ms | 1,345 ms | 3,577 ms | search `busy` 6, code `busy` 1, Gruper edge 504 1 |
 | 12 sequential MCP calls | 882 ms (`search_codes`) | 888 ms (`get_code`) | | 1,321 ms (`group_case`) | all answered |
 
-Single-user and MCP results meet the proposed objectives. Four concurrent
-users do not: one Gruper case outlasted the edge's 7 s timeout and the run
-stopped there, as designed. Served Gruper cases sat at their 3 s evaluation
-deadline (median 2,981 ms). #222 tracks finding where the time goes before any
-bound changes. Search refusals at four users are the closed `busy` answer.
+Single-user and MCP results met the proposed objectives of the time. Four
+concurrent users did not: one Gruper case outlasted the edge's 7 s timeout
+and the run stopped there, as designed. Served Gruper cases sat at their 3 s
+evaluation deadline (median 2,981 ms); the cause and its fix are under Gruper
+Under Contention. Search refusals at four users are the closed `busy` answer.
+The four-user rerun on the fixed release is recorded in #222.
 
 To repeat it:
 

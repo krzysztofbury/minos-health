@@ -60,6 +60,8 @@ from minos.store.grouper_bundle import (
 )
 from minos.store.grouper_rules import group_rules, group_titles
 from minos.store.jgp_modifier_binding import (
+    ModifierReference,
+    load_modifier_reference,
     require_modifier_binding,
     reviewed_group_modifiers,
 )
@@ -88,6 +90,9 @@ class PreparedSources:
         ] = {}
         # Keyed by catalog release; None records that its act has no pins.
         self._products: dict[str, ProductClassification | None] = {}
+        # Keyed by MODTAR and catalog release. Validating and reconciling them
+        # took most of a request's CPU when repeated per group (#222).
+        self._modifiers: dict[tuple[str, str], ModifierReference] = {}
         # Set once every sheet of the bundle is built; requests never wait on it.
         self.warmed = threading.Event()
 
@@ -119,6 +124,23 @@ class PreparedSources:
                     connection, catalog_release_id
                 )
             return self._products[catalog_release_id]
+
+    def modifiers(
+        self,
+        connection: sqlite3.Connection,
+        dataset: DatasetManifest,
+        binding: dict[str, object],
+        catalog_release_id: str,
+    ) -> ModifierReference:
+        key = (cast(str, binding["release_id"]), catalog_release_id)
+        with self._lock:
+            if key not in self._modifiers:
+                if len(self._modifiers) >= 64:
+                    raise GrouperError("MODTAR references exceed their bound")
+                self._modifiers[key] = load_modifier_reference(
+                    connection, dataset, binding, catalog_release_id
+                )
+            return self._modifiers[key]
 
 
 def _prepare(
@@ -250,6 +272,7 @@ def final_points(
     dataset: DatasetManifest,
     result: GroupingResult,
     declared: frozenset[str],
+    prepared: PreparedSources | None = None,
 ) -> tuple[FinalPoints, ...]:
     """Final points for every valid group, highest total first (#35).
 
@@ -263,11 +286,17 @@ def final_points(
     if ruleset["release_id"] != sources.catalog_release_id:
         raise GrouperError("final points ruleset conflicts with grouping sources")
     try:
-        _ = require_modifier_binding(connection, ruleset)
+        binding = require_modifier_binding(connection, ruleset)
     except SourceError as error:
         raise ModifierBindingUnbound(
             "final points need a reviewed MODTAR binding for the service date"
         ) from error
+    if not result.ranking:
+        return ()
+    prepared = prepared if prepared is not None else PreparedSources()
+    reference = prepared.modifiers(
+        connection, dataset, binding, sources.catalog_release_id
+    )
     points = {
         (c.catalog, c.group): p
         for c, p in zip(result.candidates.candidates, result.points, strict=True)
@@ -275,7 +304,9 @@ def final_points(
     answers: list[FinalPoints] = []
     for catalog, group in result.ranking:
         checkpoint()
-        reviewed = reviewed_group_modifiers(connection, dataset, ruleset, group)
+        reviewed = reviewed_group_modifiers(
+            connection, dataset, ruleset, group, reference
+        )
         mappings = [
             *cast(list[dict[str, object]], reviewed["dictionary_mappings"]),
             *cast(list[dict[str, object]], reviewed["legal_supplements"]),
@@ -331,7 +362,7 @@ def group_request(
             return ProductCatalogMissing()
         try:
             finals = final_points(
-                connection, dataset, result, request.declared_modifiers
+                connection, dataset, result, request.declared_modifiers, prepared
             )
             bound = True
         except ModifierBindingUnbound:

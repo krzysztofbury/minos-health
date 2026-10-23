@@ -354,7 +354,21 @@ def select_reviewed_mappings(
 ) -> tuple[tuple[Mapping, str | None], ...]:
     """Mappings applying on the date, each with the group code it resolves to
     in the catalog governing that date (None for a group-less record)."""
-    overlay = reconcile_legal_overlay(release, overlay, catalog_windows=catalog_windows)
+    return select_reconciled_mappings(
+        reconcile_legal_overlay(release, overlay, catalog_windows=catalog_windows),
+        service_date,
+        catalog_windows=catalog_windows,
+    )
+
+
+def select_reconciled_mappings(
+    overlay: LegalOverlay,
+    service_date: date,
+    *,
+    catalog_windows: tuple[CatalogWindow, ...],
+) -> tuple[tuple[Mapping, str | None], ...]:
+    """`select_reviewed_mappings` for an overlay already returned by
+    `reconcile_legal_overlay` with these windows; it is not re-checked."""
     if service_date.year != overlay.year:
         raise SourceError("MODTAR service date is not covered by this binding")
     windows = governing_windows(catalog_windows, service_date, service_date)

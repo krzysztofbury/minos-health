@@ -386,12 +386,14 @@ def test_post_privacy_for_valid_invalid_exception_and_url_paths(
         assert response.status_code == 503 and secret not in response.text
     logs = [record.message for record in caplog.records if record.name == "minos.http"]
     assert len(logs) == 5
+    assert sum('"phases": null' in message for message in logs) == 2
     for message in logs:
         assert all(
             value not in message
             for value in (secret, "G60.4", "100.01", "2026-10-05", str(tmp_path))
         )
-        assert set(cast(dict[str, object], json.loads(message))) == {
+        logged = cast(dict[str, object], json.loads(message))
+        assert set(logged) == {
             "request_id",
             "route",
             "method",
@@ -401,7 +403,27 @@ def test_post_privacy_for_valid_invalid_exception_and_url_paths(
             "duration_ms",
             "result_count",
             "dataset_id",
+            "phases",
         }
+        # Phases are named durations, never request content (#222).
+        phases = cast(dict[str, object] | None, logged["phases"])
+        if phases is None:
+            # The JSON check and the URL-query guard refuse before admission.
+            assert logged["status_code"] in (400, 415)
+            continue
+        assert phases is not None
+        assert set(phases) <= {
+            "upload_ms",
+            "queue_ms",
+            "parse_ms",
+            "borrow_ms",
+            "evaluate_ms",
+            "render_ms",
+            "respond_ms",
+        }
+        assert all(type(value) is int for value in phases.values())
+        if logged["status_code"] == 200:
+            assert {"evaluate_ms", "render_ms", "respond_ms"} <= set(phases)
 
 
 @pytest.mark.parametrize(
@@ -465,13 +487,18 @@ def test_grouping_admission_preserves_search_capacity_and_recovers(
     release = Event()
     original = grouping.evaluate
 
-    def held(pool: ReferencePool, body: bytes, prepared: PreparedSources) -> bytes:
+    def held(
+        pool: ReferencePool,
+        body: bytes,
+        prepared: PreparedSources,
+        marks: dict[str, float] | None = None,
+    ) -> bytes:
         # A real leased worker is busy, rather than a fabricated busy response.
         with pool.borrow():
             position = 0 if not started[0].is_set() else 1
             started[position].set()
             assert release.wait(5)
-        return original(pool, body, prepared)
+        return original(pool, body, prepared, marks)
 
     with TestClient(create_app(grouping_bundle(tmp_path))) as client:
         monkeypatch.setattr(grouping, "evaluate", held)
