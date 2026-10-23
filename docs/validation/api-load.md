@@ -112,12 +112,49 @@ predate `parse_ms` and `respond_ms`) and `local-cpu025-after-2026-10-23.json`.
 - No edge-generated 5xx, transport failure, API 500 or OOM kill in either
   run; `/readyz` ready afterwards. Anon memory 278 MiB after startup and
   302 MiB after the load.
-- Search at this share still answers some requests with its closed
+- Search at this share still answered some requests with its closed
   `query_timeout`: 0.9% at four users, inside the objective, and more at
-  eight. Its one-second request budget and the four-dictionary MCP
-  `search_codes` fan-out are tracked separately (#225).
+  eight. The next section removes that (#225).
 - The local run never reproduced the host's edge 504 itself; #222 closes on
   the four-user public rerun.
+
+## Release-Static Work Under Contention (#225)
+
+Search itself was cheap: about 5 ms of CPU per request in process. At four
+users the one CPU was full, and much of it was work that depends only on the
+immutable bundle, repeated per request. CPU per browser-and-MCP cycle, measured
+through the real app on one thread:
+
+| Repeated work | Where | Fix |
+| --- | --- | --- |
+| `dataset_identity` serialised the 111 KB dataset manifest (about 1.1 ms) | every request log line, MCP's in-process calls included | remembered per frozen manifest, guarded by a weak reference |
+| `MEMBERSHIP_SQL` rebuilt every group's selector reachability from condition JSON (about 9 ms) | code pages, dated JGP lists, MCP `get_code` | reachability cached per release and catalog; the per-code SQL is unchanged and an equivalence test compares it with the full query for every listed code |
+| `map_rows` scanned half of `icd11_map_row` per code (3.8 ms) because bundles carry no planner statistics (#228) | code pages, MCP `get_code` | `INDEXED BY` the matching map index (0.004 ms) |
+| `membership_counts` re-parsed the conditions manifests and the code count table | every word search | both cached; the dated selection still runs per request |
+
+The caches belong to the API's verified pool and reach requests through its
+leases, never a module-global release cache. One cycle fell from 129 ms to
+75 ms of CPU: code page 6.8 to 1.0 ms, MCP `get_code` 28 to 6 ms, MCP
+`search_codes` 31 to 19 ms.
+
+Same bundle, 0.25 CPU, against the #222 report above. Report:
+`evidence/api-load/local-cpu025-release-static-2026-10-23.json`.
+
+| Phase | Search p95 | Search `query_timeout` | MCP `search_codes` p95 | Phase duration |
+| --- | ---: | ---: | ---: | ---: |
+| Four users, before | 1,687 ms | 1 of 110 | 3,498 ms | 40.9 s |
+| Four users, after | 203 ms | 0 of 110 | 1,203 ms | 11.7 s |
+| Eight users, before | 2,291 ms | 7 of 110 | 4,902 ms | 30.8 s |
+| Eight users, after | 509 ms | 0 of 110 | 1,691 ms | 12.0 s |
+
+- No edge 5xx, API 500 or OOM kill; `/readyz` ready afterwards; anon memory
+  296 MiB after the load.
+- The same requests now finish about 3.5 times faster, so the Gruper's
+  process-wide admission (two per second) refuses more of them: `busy` 9 of 22
+  at four users. That is its designed bound, unchanged.
+- The host already met the four-user search objective before this change
+  (977 ms, no deadline answers), so the 0.25 CPU share is harsher on search
+  than the host. A public rerun needs the owner's approval.
 
 ## Startup Memory (#198)
 

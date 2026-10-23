@@ -465,6 +465,17 @@ signed-release and deployment-acceptance gates remain #41/#27.
   now each release shares the 30 s preload deadline, still failing closed
   before readiness. Memory was ruled out: limits down to 288 MiB start
   normally and 256 MiB ends in an OOM kill, not exit code 3.
+- Search no longer answers with deadline timeouts under concurrent load
+  (#225). The one CPU was full of work that depends only on the immutable
+  bundle, redone per request: serialising the dataset manifest for every log
+  line, rebuilding every JGP group's selector reachability for each code page,
+  re-reading search membership counts, and an ICD-11 map lookup that scanned
+  half its table because bundles carry no planner statistics (#228). The API's
+  verified pool now caches them, and a test compares the cached JGP lists with
+  the full query for every listed code. A browser-and-MCP cycle takes 75 ms of
+  CPU instead of 129 ms; at a host-like 0.25 CPU, four users see search p95
+  203 ms instead of 1,687 ms and no deadline answers, eight users none instead
+  of 7 of 110.
 - Gruper cases no longer pile up at the 3 s deadline under concurrent load
   (#222). Every request revalidated and reconciled the whole MODTAR modifier
   dictionary for each valid group, 85% of its CPU, although startup already
