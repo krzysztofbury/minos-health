@@ -426,3 +426,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - Earlier reframe retained for history: from Polish drug substitution to a
   medical terminology platform, with AWS Lambda as the primary production
   target.
+
+### Fixed
+
+- API logs no longer carry MCP tool arguments (#220). The MCP SDK called
+  `logging.basicConfig` on startup, so the in-process client's request lines,
+  whose URLs hold codes from `get_code`, `browse_codes` and the JGP tools,
+  reached stdout, and every Minos log line appeared twice. The server now
+  restores the root logger, `httpx`/`httpcore` log at WARNING only, and `/mcp`
+  requests log under their own route name. Query text and encounter data were
+  never logged; they travel in POST bodies.

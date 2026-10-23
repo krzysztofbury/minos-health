@@ -11,6 +11,7 @@ silent cut, and generated schema titles are dropped to keep the catalog small
 
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from pathlib import Path
@@ -959,13 +960,24 @@ def create_mcp(
 ) -> tuple[MinosServer, Callable[[], Awaitable[None]]]:
     """The MCP server and the closer of its in-process API client."""
     api = _Api(app)
-    server = MinosServer(
-        "minos-health",
-        title="Minos Health",
-        version="1",
-        website_url=SITE + DOCS_PATH,
-        instructions=INSTRUCTIONS,
-    )
+    # The SDK calls logging.basicConfig on construction. A root handler would
+    # print the in-process client's request lines, whose URLs carry tool
+    # arguments such as codes, and repeat every Minos log line (#220).
+    root = logging.getLogger()
+    handlers, level = list(root.handlers), root.level
+    try:
+        server = MinosServer(
+            "minos-health",
+            title="Minos Health",
+            version="1",
+            website_url=SITE + DOCS_PATH,
+            instructions=INSTRUCTIONS,
+        )
+    finally:
+        root.handlers[:] = handlers
+        root.setLevel(level)
+    for name in ("httpx", "httpcore"):
+        logging.getLogger(name).setLevel(logging.WARNING)
     tools = _Tools(api, public, server.list_tools)
     read = ToolAnnotations(
         read_only_hint=True,
