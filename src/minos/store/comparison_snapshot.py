@@ -21,9 +21,10 @@ MAX_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_GROUPS = 2000
 MAX_SCHEDULE_ROWS = 4000
 MAX_RETAINED_BYTES = 64 * 1024 * 1024
-# Startup work, not a request: the host took 3.5 s alone and crossed 5 s while
-# the previous colour shared its one CPU (#198). Still well inside the 120 s
-# health start period, so a stuck preload fails closed before readiness.
+# Startup work, not a request: the host took 3.5 s for five releases alone,
+# and activation shares its one CPU with the previous colour (#198). Still
+# well inside the 120 s health start period, so a stuck preload fails closed
+# before readiness.
 MAX_PRELOAD_SECONDS = 30.0
 
 type GroupKey = tuple[str, str]
@@ -102,7 +103,10 @@ def _size(value: object) -> int:
 
 
 def _release(connection: sqlite3.Connection, release: str) -> Snapshot:
-    with query_budget(connection) as budget:
+    # Only the startup preload builds snapshots. A nested budget is enforced
+    # alongside the preload's, so the one-second request default would still
+    # fail activation while the previous colour holds the CPU (#198).
+    with query_budget(connection, seconds=MAX_PRELOAD_SECONDS) as budget:
         projection = Projection(
             budget, max_facts=MAX_GROUPS, max_bytes=MAX_SOURCE_BYTES
         )

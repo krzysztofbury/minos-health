@@ -10,6 +10,7 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -20,9 +21,9 @@ from minos.http import reference as reference_http
 from minos.http.app import create_app
 from minos.http.jgp_comparison_pages import comparison_path
 from minos.ingest.reference_artifact import build_reference_artifact
-from minos.store import comparison_snapshot
+from minos.store import comparison_snapshot, query_budget
 from minos.store.artifact import ArtifactManifest, dataset_identity
-from minos.store.jgp_comparison import scope_identity
+from minos.store.jgp_comparison import catalog_versions, scope_identity
 from minos.store.reference import open_reference_bundle, read_artifact_manifest
 from tests.fixtures.jgp_catalog import (
     Row,
@@ -280,6 +281,27 @@ def test_preload_limits_fail_startup_and_close_verified_readers(
     for connection in opened:
         with pytest.raises(sqlite3.ProgrammingError, match="closed"):
             _ = connection.execute("SELECT 1")
+
+
+def test_a_release_slower_than_a_request_budget_still_preloads(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A shared host CPU stretches each release past the one-second request
+    # budget during activation (#198); only the preload deadline applies.
+    clock = [0.0]
+
+    def monotonic() -> float:
+        clock[0] += 0.4
+        return clock[0]
+
+    monkeypatch.setattr(query_budget, "time", SimpleNamespace(monotonic=monotonic))
+    with open_reference_bundle(lineage_bundle(tmp_path)) as (connection, _):
+        releases = tuple(item.release for item in catalog_versions(connection))
+
+        cache = comparison_snapshot.build_comparison_cache(connection, releases)
+
+    assert len(releases) == 2
+    assert set(cache.releases) == set(releases)
 
 
 def test_cached_comparisons_are_bundle_local_and_preserve_runtime_identity_checks(

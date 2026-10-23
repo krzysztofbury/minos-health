@@ -447,11 +447,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
   restores the root logger, `httpx`/`httpcore` log at WARNING only, and `/mcp`
   requests log under their own route name. Query text and encounter data were
   never logged; they travel in POST bodies.
-- Intermittent API activation failures (#198): the JGP comparison preload ran
-  under a 5 s startup deadline, which the one-CPU host crossed while the
-  previous API colour was still running (`QueryTimeoutError`, exit code 3).
-  The deadline is now 30 s, still failing closed before readiness. Memory was
-  ruled out: limits down to 288 MiB start normally and 256 MiB ends in an OOM
-  kill, not exit code 3.
+- Intermittent API activation failures (#198): each release in the JGP
+  comparison preload ran under the one-second request budget, nested inside
+  a 5 s total, and the one-CPU host crossed it while the previous API colour
+  was still running (`QueryTimeoutError`, exit code 3). Raising only the total
+  to 30 s (#223) did not help, and the next activation failed the same way;
+  now each release shares the 30 s preload deadline, still failing closed
+  before readiness. Memory was ruled out: limits down to 288 MiB start
+  normally and 256 MiB ends in an OOM kill, not exit code 3.
 - `opentelemetry-api` 1.45.1 fixes CVE-2026-114603 in a FastAPI and MCP
   dependency; the API image runs with the OpenTelemetry SDK disabled.
