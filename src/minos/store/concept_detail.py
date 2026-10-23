@@ -11,6 +11,7 @@ from minos.domain.reference import ArtifactError, QueryLimitError, ReferenceErro
 from minos.domain.search import SearchInputError
 from minos.ingest.reference_manifest import SourceManifest
 from minos.store.artifact import ArtifactManifest, dataset_identity
+from minos.store.bundle_cache import BundleCache
 from minos.store.icd11_maps import map_rows
 from minos.store.jgp_condition_reference import code_memberships
 from minos.store.komunikat import procedure_rank_evidence
@@ -120,6 +121,7 @@ def dated_memberships(
     day: date,
     catalog: Literal["1a", "1ae"] | None,
     page: int,
+    cache: BundleCache | None = None,
 ) -> dict[str, object]:
     answers: list[dict[str, object]] = []
     for selected in (catalog,) if catalog else ("1a", "1ae"):
@@ -133,6 +135,7 @@ def dated_memberships(
                 selected,
                 day,
                 page,
+                cache,
             )
             evidence = cast(dict[str, object], result["source"])
             bound = next(
@@ -180,6 +183,7 @@ def concept_detail(
     service_date: date | None = None,
     catalog: Literal["1a", "1ae"] | None = None,
     page: int = 1,
+    cache: BundleCache | None = None,
 ) -> bytes:
     """One shared SQL/Python deadline; fail closed instead of truncating facts."""
     with query_budget(connection) as budget:
@@ -243,7 +247,7 @@ def concept_detail(
             and system in ("icd10-pl", "icd11-pl")
             else None,
             "jgp": dated_memberships(
-                connection, manifest, source, code, service_date, catalog, page
+                connection, manifest, source, code, service_date, catalog, page, cache
             )
             if service_date
             else None,

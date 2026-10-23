@@ -18,13 +18,14 @@ from minos.domain.jgp_ruleset import (
 from minos.domain.reference import ArtifactError
 from minos.domain.search import SearchRequest
 from minos.ingest.jgp_conditions_manifest import ConditionsManifest
+from minos.store.bundle_cache import BundleCache
 from minos.store.query_budget import query_budget
 
 
-def _selected_manifest(
-    connection: sqlite3.Connection, day: date
-) -> ConditionsManifest | None:
-    # The caller owns the aggregate search budget, including this selection.
+def _conditions_manifests(
+    connection: sqlite3.Connection,
+) -> tuple[str, tuple[ConditionsManifest, ...]] | None:
+    # The caller owns the aggregate search budget, including this read.
     horizon = cast(
         tuple[str] | None,
         connection.execute("SELECT as_of FROM characteristics_knowledge").fetchone(),
@@ -46,6 +47,20 @@ def _selected_manifest(
     except ValidationError as error:
         # Bundle data, not the user's request, is wrong here.
         raise ArtifactError("characteristics release manifest is invalid") from error
+    return horizon[0], manifests
+
+
+def _selected_manifest(
+    connection: sqlite3.Connection, day: date, cache: BundleCache | None
+) -> ConditionsManifest | None:
+    known = (
+        cache.get(("conditions_manifests",), lambda: _conditions_manifests(connection))
+        if cache is not None
+        else _conditions_manifests(connection)
+    )
+    if known is None:
+        return None
+    horizon, manifests = known
     windows = tuple(
         ReleaseWindow(
             item.release_id, item.valid_from, item.published_on, item.supersedes
@@ -53,7 +68,7 @@ def _selected_manifest(
         for item in manifests
     )
     try:
-        chosen = resolve_release(windows, day, date.fromisoformat(horizon[0]))
+        chosen = resolve_release(windows, day, date.fromisoformat(horizon))
     except NoRulesetForDate:
         return None
     selected = next(item for item in manifests if item.release_id == chosen.release_id)
@@ -62,9 +77,29 @@ def _selected_manifest(
     )
 
 
+def _counts(
+    connection: sqlite3.Connection, sources: str, system: str
+) -> dict[str, int]:
+    rows = cast(
+        list[tuple[str, int]],
+        connection.execute(
+            """SELECT c.code,sum(c.group_count) FROM json_each(?) s
+        JOIN search_jgp_count c ON c.release_id=json_extract(s.value,'$.release') AND c.catalog=json_extract(s.value,'$.catalog')
+        WHERE c.system=? GROUP BY c.code ORDER BY c.code LIMIT 32001""",
+            (sources, system),
+        ).fetchall(),
+    )
+    if len(rows) > 32000:
+        raise ArtifactError("search membership signal exceeds bound")
+    return dict(rows)
+
+
 def membership_counts(
-    connection: sqlite3.Connection, request: SearchRequest
+    connection: sqlite3.Connection,
+    request: SearchRequest,
+    cache: BundleCache | None = None,
 ) -> tuple[dict[str, int], date | None]:
+    """Groups listing each code; static per source, so a pool caches them (#225)."""
     if (
         request.query.code_like
         or connection.execute("PRAGMA user_version").fetchone()[0] < 8
@@ -74,7 +109,7 @@ def membership_counts(
     # source drops the counts instead of failing the whole search.
     try:
         day = request.service_date or today_in_poland()
-        manifest = _selected_manifest(connection, day)
+        manifest = _selected_manifest(connection, day, cache)
     except TimeZoneUnavailable, AmbiguousRuleset:
         return {}, None
     if manifest is None:
@@ -92,18 +127,16 @@ def membership_counts(
             sources.append({"release": manifest.release_id, "catalog": catalog})
     if not sources:
         return {}, None
-    rows = cast(
-        list[tuple[str, int]],
-        connection.execute(
-            """SELECT c.code,sum(c.group_count) FROM json_each(?) s
-        JOIN search_jgp_count c ON c.release_id=json_extract(s.value,'$.release') AND c.catalog=json_extract(s.value,'$.catalog')
-        WHERE c.system=? GROUP BY c.code ORDER BY c.code LIMIT 32001""",
-            (json.dumps(sources), request.system),
-        ).fetchall(),
+    encoded = json.dumps(sources)
+    counts = (
+        cache.get(
+            ("search_counts", encoded, request.system),
+            lambda: _counts(connection, encoded, request.system),
+        )
+        if cache is not None
+        else _counts(connection, encoded, request.system)
     )
-    if len(rows) > 32000:
-        raise ArtifactError("search membership signal exceeds bound")
-    return dict(rows), day
+    return counts, day
 
 
 def shared_procedures(
@@ -119,7 +152,7 @@ def _shared_procedures(
     if connection.execute("PRAGMA user_version").fetchone()[0] < 8:
         return []
     result: list[dict[str, object]] = []
-    manifest = _selected_manifest(connection, day)
+    manifest = _selected_manifest(connection, day, None)
     if manifest is None or manifest.icd10_release_id != icd10_release:
         return []
     for catalog in ("1a", "1ae"):

@@ -12,6 +12,7 @@ from minos.domain.reference import ArtifactError
 from minos.domain.search import SearchInputError
 from minos.ingest.jgp_conditions_codec import decode_condition, decode_selector, encode
 from minos.ingest.jgp_conditions_manifest import ConditionsManifest
+from minos.store.bundle_cache import BundleCache
 from minos.store.jgp_conditions import resolve_characteristics
 from minos.store.jgp_ruleset import POINTS_KIND, POINTS_LABEL, catalog_group
 from minos.store.query_budget import query_budget
@@ -433,6 +434,87 @@ FROM grouped ORDER BY title_row,code LIMIT :limit OFFSET :offset
 """
 
 
+# The selector reachability above depends only on the release and catalog,
+# yet it parsed every condition of the catalog on each request (#225). The
+# cached path computes it once and keeps the per-code part of the query.
+_REACHABLE, _LINKED = MEMBERSHIP_SQL.split("), linked AS (", 1)
+_SELECTOR_LISTS_TAIL = """)
+SELECT DISTINCT r.group_code,lists.value,typeof(lists.value) FROM reachable r
+  JOIN condition_selector s ON s.release_id=:release AND s.catalog=:catalog
+    AND s.id=r.selector_id, json_each(s.payload_json,'$.body.list_ids') lists
+LIMIT 200001
+"""
+_PAIRS_HEAD = """WITH pairs(group_code,list_id) AS (
+  SELECT json_extract(value,'$[0]'),json_extract(value,'$[1]') FROM json_each(:pairs)
+), linked AS (
+  SELECT DISTINCT p.group_code,m.list_id FROM pairs p
+    JOIN directional_member m ON m.release_id=:release AND m.catalog=:catalog
+       AND m.list_id=p.list_id AND m.system=:system AND m.code=:code
+  UNION"""
+# Both are composed from this module's constant SQL only, never from input.
+SELECTOR_LISTS_SQL = _REACHABLE + _SELECTOR_LISTS_TAIL  # nosec B608
+CACHED_MEMBERSHIP_SQL = _PAIRS_HEAD + _LINKED.split("  UNION", 1)[1]  # nosec B608
+
+
+def selector_lists(
+    connection: sqlite3.Connection, release: str, catalog: Catalog
+) -> dict[int, frozenset[str]]:
+    """Each directional list id with the groups whose selectors reach it."""
+    with query_budget(connection):
+        rows = cast(
+            list[tuple[str, object, str]],
+            connection.execute(
+                SELECTOR_LISTS_SQL, {"release": release, "catalog": catalog}
+            ).fetchall(),
+        )
+    if len(rows) > 200_000:
+        raise ArtifactError("selector list reachability exceeds bound")
+    groups: dict[int, set[str]] = {}
+    for group, list_id, kind in rows:
+        # Integer ids compare in Python exactly as the SQL join compared them.
+        if kind != "integer" or not isinstance(list_id, int):
+            raise ArtifactError("selector list id is not an integer")
+        groups.setdefault(list_id, set()).add(group)
+    return {list_id: frozenset(names) for list_id, names in groups.items()}
+
+
+def _membership_rows(
+    connection: sqlite3.Connection,
+    parameters: dict[str, object],
+    cache: BundleCache | None,
+) -> list[tuple[str, int, str, str, int, int]]:
+    if cache is None:
+        return cast(
+            list[tuple[str, int, str, str, int, int]],
+            connection.execute(MEMBERSHIP_SQL, parameters).fetchall(),
+        )
+    release, catalog = (
+        cast(str, parameters["release"]),
+        cast(Catalog, parameters["catalog"]),
+    )
+    reach = cache.get(
+        ("selector_lists", release, catalog),
+        lambda: selector_lists(connection, release, catalog),
+    )
+    lists = cast(
+        list[tuple[int]],
+        connection.execute(
+            """SELECT DISTINCT list_id FROM directional_member WHERE release_id=:release
+            AND catalog=:catalog AND system=:system AND code=:code LIMIT 100001""",
+            parameters,
+        ).fetchall(),
+    )
+    pairs = sorted(
+        (group, list_id) for (list_id,) in lists for group in reach.get(list_id, ())
+    )
+    return cast(
+        list[tuple[str, int, str, str, int, int]],
+        connection.execute(
+            CACHED_MEMBERSHIP_SQL, parameters | {"pairs": json.dumps(pairs)}
+        ).fetchall(),
+    )
+
+
 def code_memberships(
     connection: sqlite3.Connection,
     system: c.System,
@@ -440,24 +522,23 @@ def code_memberships(
     catalog: Catalog,
     service_date: date,
     page: int = 1,
+    cache: BundleCache | None = None,
 ) -> Json:
     if not 1 <= page <= 20:
         raise SearchInputError("invalid characteristics membership page")
     source = selected_source(connection, catalog, service_date)
     with query_budget(connection):
-        rows = cast(
-            list[tuple[str, int, str, str, int, int]],
-            connection.execute(
-                MEMBERSHIP_SQL,
-                {
-                    "release": source["release_id"],
-                    "catalog": catalog,
-                    "system": system,
-                    "code": code,
-                    "limit": PAGE_SIZE,
-                    "offset": (page - 1) * PAGE_SIZE,
-                },
-            ).fetchall(),
+        rows = _membership_rows(
+            connection,
+            {
+                "release": source["release_id"],
+                "catalog": catalog,
+                "system": system,
+                "code": code,
+                "limit": PAGE_SIZE,
+                "offset": (page - 1) * PAGE_SIZE,
+            },
+            cache,
         )
     if not rows and page != 1:
         raise SearchInputError("characteristics membership page is absent")

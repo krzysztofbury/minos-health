@@ -10,6 +10,7 @@ from minos.domain.search import SearchRequest, prepare_query
 from minos.http.app import create_app
 from minos.ingest.jgp_conditions_manifest import ConditionsExpectation
 from minos.ingest.reference_artifact import build_reference_artifact
+from minos.store.bundle_cache import BundleCache
 from minos.store.reference import open_reference_bundle, read_artifact_manifest
 from minos.store.search import search_reference
 from minos.store.search_jgp import shared_procedures
@@ -76,6 +77,20 @@ def test_search_counts_are_dated_exact_membership_not_classification_families(
             hit.jgp_group_count == 0 and hit.jgp_service_date is None
             for hit in early.hits
         )
+        # One pool cache answers every date exactly as the uncached reads (#225).
+        cache = BundleCache()
+        for day, uncached in ((date(2026, 7, 1), result), (date(2026, 1, 1), early)):
+            for _ in range(2):
+                assert (
+                    search_reference(
+                        connection,
+                        SearchRequest(
+                            "icd10-pl", prepare_query("wariant"), service_date=day
+                        ),
+                        cache=cache,
+                    )
+                    == uncached
+                )
         assert (
             shared_procedures(
                 connection, "E11", date(2026, 7, 1), "icd10-synthetic-v1"

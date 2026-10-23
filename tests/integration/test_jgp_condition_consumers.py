@@ -6,11 +6,15 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from fastapi.testclient import TestClient
 
+from minos.domain import jgp_conditions as c
 from minos.domain.jgp_ruleset import NoRulesetForDate
+from minos.domain.search import SearchInputError
 from minos.http.app import create_app
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
+from minos.store.bundle_cache import BundleCache
 from minos.store.jgp_condition_reference import (
+    Catalog,
     code_memberships,
     group_conditions,
     list_members,
@@ -522,3 +526,47 @@ def test_source_position_counts_agree_in_polish(count: int, text: str) -> None:
     from minos.http.jgp_condition_pages import source_positions
 
     assert source_positions(count) == text
+
+
+@pytest.mark.parametrize(
+    "variant", [{}, {"unsupported": True}, {"many_groups": True}], ids=str
+)
+def test_cached_memberships_equal_the_sql_answer_for_every_listed_code(
+    tmp_path: Path, variant: dict[str, bool]
+) -> None:
+    # The cache replaces per-request selector reachability (#225); the full
+    # SQL stays the reference for every code, catalog, page and status.
+    bundle = consumer_bundle(tmp_path, **variant)
+    cache = BundleCache()
+    with open_reference_bundle(bundle) as (connection, _):
+        listed = cast(
+            list[tuple[str, str]],
+            connection.execute(
+                "SELECT DISTINCT system,code FROM directional_member ORDER BY 1,2"
+            ).fetchall(),
+        )
+        assert listed
+        totals: list[int] = []
+        for system, code in [*listed, ("icd10-pl", "Z99.9")]:
+            catalogs: tuple[Catalog, ...] = ("1a", "1ae")
+            for catalog in catalogs:
+                for page in (1, 2):
+                    arguments = (
+                        connection,
+                        cast(c.System, system),
+                        code,
+                        catalog,
+                        date(2026, 7, 1),
+                        page,
+                    )
+                    try:
+                        expected = code_memberships(*arguments)
+                    except (NoRulesetForDate, SearchInputError) as error:
+                        with pytest.raises(type(error)):
+                            _ = code_memberships(*arguments, cache)
+                        continue
+                    assert code_memberships(*arguments, cache) == expected
+                    totals.append(cast(int, expected["total"]))
+        assert any(total > 0 for total in totals)
+        if variant.get("many_groups"):
+            assert max(totals) > 100  # the second page holds groups

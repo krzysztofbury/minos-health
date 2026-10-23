@@ -201,6 +201,7 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
                 service_date=payload.service_date,
             ),
             analyzer=lease.analyzer,
+            cache=lease.cache,
         )
         answer = search_envelope(result, pool.manifest, disclaimer=DISCLAIMER)
         answer["api"] = 1
@@ -356,6 +357,7 @@ def render_code(
                         catalog,
                         day,
                         membership_page if membership_catalog == catalog else 1,
+                        lease.cache,
                     )
                     memberships.append({"status": "covered", **answer})
                 except NoRulesetForDate:

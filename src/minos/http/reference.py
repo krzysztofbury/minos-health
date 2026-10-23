@@ -13,6 +13,7 @@ from typing import NamedTuple, final
 from minos.domain.morphology import PolishMorphology
 from minos.domain.reference import ArtifactError
 from minos.store.artifact import DATABASE_NAME, ArtifactManifest
+from minos.store.bundle_cache import BundleCache
 from minos.store.comparison_snapshot import build_comparison_cache
 from minos.store.jgp_comparison import catalog_versions
 from minos.store.jgp_search import GroupIndex, build_group_index
@@ -28,6 +29,8 @@ class CapacityError(Exception):
 class Lease(NamedTuple):
     connection: sqlite3.Connection
     analyzer: PolishMorphology
+    # Shared by every lease of this pool, which owns exactly one bundle.
+    cache: BundleCache
 
 
 @final
@@ -42,6 +45,7 @@ class ReferencePool:
         self._database = bundle / DATABASE_NAME
         self._leases: list[Lease] = []
         self.manifest: ArtifactManifest
+        cache = BundleCache()
         try:
             for _ in range(capacity):
                 connection, manifest = self._stack.enter_context(
@@ -50,7 +54,7 @@ class ReferencePool:
                 # Load each verified native dictionary before readiness. Cold
                 # loading exceeded the host's request budget; one analyzer per
                 # exclusive lease keeps concurrent requests independent.
-                self._leases.append(Lease(connection, PolishMorphology()))
+                self._leases.append(Lease(connection, PolishMorphology(), cache))
                 self.manifest = manifest
             self.group_index: GroupIndex = {}
             if self.manifest.dataset.catalogs:
