@@ -1,7 +1,7 @@
       <div class="shell page-head">
-        <p class="page-meta">Dokument obowiązuje od 01.10.2026</p>
+        <p class="page-meta">Dokument obowiązuje od 23.10.2026</p>
         <h1>Regulamin serwisu</h1>
-        <p class="page-lead">Regulamin określa zasady korzystania z minoshealth.pl. Obecna wersja serwisu obejmuje niekomercyjną wyszukiwarkę i przeglądanie słowników ICD-9 PL oraz ICD-10 PL, strony informacyjne i rejestr pochodzenia danych. Nie udostępnia produktu medycznego, kont użytkowników ani usług płatnych.</p>
+        <p class="page-lead">Regulamin określa zasady korzystania z minoshealth.pl. Obecna wersja serwisu obejmuje niekomercyjną wyszukiwarkę i przeglądanie słowników ICD-9 PL, ICD-10 PL i ICD-11 PL, grupy JGP z warunkami grupowania i punktami bazowymi, Gruper dla zanonimizowanego pobytu, serwer MCP dla agentów AI, strony informacyjne i rejestr pochodzenia danych. Nie udostępnia produktu medycznego, kont użytkowników ani usług płatnych.</p>
       </div>
       <article class="shell prose">
       <section>
@@ -24,13 +24,34 @@
           strony i kończy po jej opuszczeniu.
         </p>
         <p>
-          Serwis nie umożliwia rejestracji, logowania, przesyłania danych
-          pacjentów, pobierania prywatnego archiwum Minos, zakupu ani zawarcia
-          odpłatnej umowy. Wyszukiwarka na stronie głównej, strony słowników
-          i ich API zwracają ograniczone wyniki z wybranej, przypiętej wersji
-          ICD-9 PL lub ICD-10 PL. Wyszukiwanie i słowniki pozostają bezpłatne
-          i niekomercyjne. To publiczna walidacja, nie pełne wydanie produktu. Linki do pobrania oficjalnych plików
-          prowadzą bezpośrednio do serwisów wydawców.
+          Serwis nie umożliwia rejestracji, logowania, pobierania prywatnego
+          archiwum Minos, zakupu ani zawarcia odpłatnej umowy. Wyszukiwarka na
+          stronie głównej, strony słowników i grup JGP oraz ich API zwracają
+          ograniczone wyniki z wybranych, przypiętych wersji źródeł.
+          Wyszukiwanie, słowniki, Gruper i serwer MCP pozostają bezpłatne i
+          niekomercyjne. To publiczna walidacja, nie pełne wydanie produktu.
+          Linki do pobrania oficjalnych plików prowadzą bezpośrednio do
+          serwisów wydawców.
+        </p>
+        <p>
+          ICD-11 PL to polska wersja przedostateczna z Rejestru Systemów
+          Kodowania. Nie obowiązuje jeszcze w Polsce i nie służy do rozliczeń
+          NFZ; wyszukiwarka uwzględnia ją dopiero po włączeniu filtra.
+        </p>
+        <p>
+          Gruper przyjmuje zanonimizowane fakty kliniczne pobytu: wiek, daty,
+          kody rozpoznań i procedur oraz kody oddziałów. Zwraca grupy JGP,
+          których warunki według katalogu NFZ spełnia pobyt, z punktami
+          bazowymi z katalogu. Dane przetwarzamy w pamięci na czas obliczenia
+          i nie zapisujemy ich.
+        </p>
+        <p>
+          Serwer MCP pod adresem <code>/mcp</code> udostępnia agentom AI i
+          modelom językowym te same funkcje tylko do odczytu, bez klucza.
+          Opis narzędzi i limity zapytań podaje strona
+          <a href="/dla-agentow">Dla agentów AI</a>. Za treść wysyłaną przez
+          agenta i za korzystanie z modelu odpowiada użytkownik i jego dostawca
+          modelu.
         </p>
         <p>
           Pole i filtry na stronie Źródła porządkują lokalnie wyłącznie
@@ -50,7 +71,9 @@
         <p>
           Informacje i wyniki walidacyjne mają charakter referencyjny. Nie należy
           podejmować na ich podstawie decyzji dotyczących zdrowia, leczenia,
-          rozliczenia świadczeń ani praw pacjenta.
+          rozliczenia świadczeń ani praw pacjenta. Wynik Grupera nie jest
+          rozstrzygnięciem NFZ, a punkty JGP to wartości z katalogu, nie
+          kwoty rozliczenia. Koduj wyłącznie udokumentowaną opiekę.
         </p>
       </section>
 
@@ -62,7 +85,8 @@
           HTTPS. Wyłączenie JavaScript nie blokuje strony głównej ani dokumentów
           prawnych, ale uniemożliwia wyszukiwanie, przeglądanie słowników,
           wyświetlenie rejestru pochodzenia na stronie Źródła oraz wysłanie
-          anonimowej statystyki odsłony.
+          anonimowej statystyki odsłony. Serwer MCP wymaga klienta obsługującego
+          protokół MCP przez Streamable HTTP.
         </p>
       </section>
 
@@ -73,6 +97,8 @@
           <li>korzystać z serwisu zgodnie z prawem i dobrymi obyczajami,</li>
           <li>nie podejmować prób zakłócania działania lub obchodzenia zabezpieczeń,</li>
           <li>nie używać serwisu do rozpowszechniania treści bezprawnych,</li>
+          <li>nie wpisywać do wyszukiwarki, Grupera ani narzędzi serwera MCP danych pozwalających zidentyfikować pacjenta, takich jak imię, nazwisko, numer PESEL czy adres,</li>
+          <li>nie obchodzić limitów zapytań,</li>
           <li>nie przesyłać pocztą danych pacjentów ani dokumentacji medycznej.</li>
         </ul>
       </section>
@@ -108,6 +134,20 @@
           jest wiążące i autentyczne. Minos zachowuje tekst i hierarchię,
           wyprowadza kody wyszukiwania z jawnego kontekstu i normalizuje klucze
           wyszukiwania. Treść RSK nie stanowi zależności funkcji odpłatnych.
+        </p>
+        <p>
+          ICD-11 PL: źródłem jest RSK, licencja
+          <a href="https://creativecommons.org/licenses/by-nd/4.0/" target="_blank" rel="noopener noreferrer">CC BY-ND 4.0</a>.
+          Tłumaczenie nie zostało dokonane przez WHO i WHO nie ponosi za nie
+          odpowiedzialności; wiążąca jest oryginalna wersja angielska. Minos
+          publikuje tytuły, włączenia i terminy indeksu bez zmian. Mapy
+          ICD-10/ICD-11 to tabele WHO publikowane bez zmian na licencji
+          <a href="https://creativecommons.org/licenses/by-nd/3.0/igo/" target="_blank" rel="noopener noreferrer">CC BY-ND 3.0 IGO</a>.
+        </p>
+        <p>
+          JGP: katalogi grup, charakterystyki i warunki grupowania pochodzą z
+          zarządzeń Prezesa NFZ i są prezentowane w opublikowanej postaci, z
+          odnośnikiem do aktu źródłowego.
         </p>
         <p>
           Nazwa, układ strony, teksty i materiały Minos Health są chronione

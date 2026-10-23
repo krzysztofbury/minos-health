@@ -21,7 +21,10 @@ MAX_SOURCE_BYTES = 2 * 1024 * 1024
 MAX_GROUPS = 2000
 MAX_SCHEDULE_ROWS = 4000
 MAX_RETAINED_BYTES = 64 * 1024 * 1024
-MAX_PRELOAD_SECONDS = 5.0
+# Startup work, not a request: the host took 3.5 s alone and crossed 5 s while
+# the previous colour shared its one CPU (#198). Still well inside the 120 s
+# health start period, so a stuck preload fails closed before readiness.
+MAX_PRELOAD_SECONDS = 30.0
 
 type GroupKey = tuple[str, str]
 

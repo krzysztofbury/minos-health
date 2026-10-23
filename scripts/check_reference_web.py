@@ -15,16 +15,27 @@ from urllib.parse import urlsplit
 
 
 def get_json(
-    base: str, route: str, body: Mapping[str, object] | None = None
+    base: str,
+    route: str,
+    body: Mapping[str, object] | None = None,
+    *,
+    headers: Mapping[str, str] | None = None,
+    timeout_s: float = 5,
 ) -> tuple[int, dict[str, object], float]:
     request = urllib.request.Request(
         base + route,
         data=json.dumps(body).encode() if body is not None else None,
-        headers={"Host": "minoshealth.pl", "Content-Type": "application/json"},
+        headers={
+            "Host": "minoshealth.pl",
+            "Content-Type": "application/json",
+            **(headers or {}),
+        },
     )
     began = time.perf_counter()
     try:
-        with cast(HTTPResponse, urllib.request.urlopen(request, timeout=5)) as response:
+        with cast(
+            HTTPResponse, urllib.request.urlopen(request, timeout=timeout_s)
+        ) as response:
             content = response.read(1_048_577)
             assert len(content) <= 1_048_576
             answer = cast(dict[str, object], json.loads(content))
