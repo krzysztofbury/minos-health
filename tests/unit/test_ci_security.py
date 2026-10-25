@@ -149,7 +149,7 @@ def test_scoped_workflows_keep_reporting_and_manual_publication_serialized() -> 
         }
         for step in steps:
             run = str(step.get("run", ""))
-            if "docker " in run or "terraform " in run:
+            if "docker " in run:
                 assert step.get("if") == "steps.scope.outputs.docs_only != 'true'"
             if "gitleaks-history" in run:
                 assert "if" not in step

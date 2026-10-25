@@ -62,7 +62,9 @@ operations and reads; an in-flight request can finish after the deadline, but
 its result is rejected. These are refusal limits, not measured throughput or
 capacity claims. Client creation uses the SDK credential chain, disables
 configured endpoint overrides and does not accept credentials in the selection.
-IAM, not the Python adapter, grants the protected workflow read-only access.
+Since #200 the bucket is on R2: tokens are bucket-scoped, bucket lock rules, not
+the adapter, refuse overwrites and deletes, and CI holds no object-store
+credential.
 
 Materialization owns one private temporary archive and removes it after success
 or failure. The existing builder copies/verifies each local source again, uses

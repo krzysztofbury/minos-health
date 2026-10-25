@@ -190,8 +190,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   catch-up, stale-claim expiry, pending-run reconciliation, capacity gates, and
   privacy-safe failure handling.
 - Hardened watcher Docker and Compose runtime, Mikr.us candidate preflight and
-  rollback-safe activation, watcher AWS Terraform, and an opt-in disposable AWS
-  acceptance harness.
+  rollback-safe activation. The watcher AWS Terraform and the disposable AWS
+  acceptance harness added then were retired with the move to R2 (#200).
 - Private, bounded RSK compatibility capture with schema-bounded response
   models, semantic `00CD10` XML selection, full metadata rotation detection,
   digest-addressed evidence, a privacy-safe checksum projection, and wholly
@@ -234,6 +234,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- AWS and Terraform leftovers after the R2 move are gone (#239): the unused
+  `mise.toml` pins for `aws-cli` and `terraform`, a CI-security check for a
+  Terraform step no workflow has, and present-tense AWS, IAM and Terraform
+  statements in this changelog and the archive, CI-budget and R2 documents;
+  the R2 cutover reads as the completed 2026-10-19 record.
 - SSH can leave the public internet (#227). `infra/ansible/ssh-tailnet.yml`
   joins the host to a Tailscale tailnet in userspace mode with a one-time
   tagged key, proves a login over it, and only then makes `sshd` listen on
@@ -333,8 +338,7 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - The validation edge image moved to the upstream NGINX 1.31.7 / Alpine 3.24.2
   rebuild, which fixes `CVE-2026-77214` (libexpat 2.9.0-r0) and
   `CVE-2026-88806` (libx11 1.8.14-r0) found by the image scan, and ships
-  tiff 4.7.2-r0, so the extra tiff layer is gone. FastAPI 0.143.2 and the
-  Terraform AWS provider 6.69.1 are included.
+  tiff 4.7.2-r0, so the extra tiff layer is gone. FastAPI 0.143.2 is included.
 - Validation releases start the new API colour (`reference-api-blue` or
   `reference-api-green`) beside the live one and retire the old colour only
   after the new API and edge are healthy (#192). The API startup (87 to 270
@@ -410,8 +414,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   and activation. Full release, capacity and ward-evidence gates remain open.
 - Replaced the planned Lambda, ECR, CloudFront, frontend-S3, and QNAP topology
   with one dedicated Mikr.us `3.0` Docker Compose host behind Cloudflare Tunnel;
-  AWS now provides only versioned source storage, narrow IAM, budgets, and
-  Terraform state.
+  AWS then provided only versioned source storage, narrow IAM, budgets, and
+  Terraform state, all retired for Cloudflare R2 in #200.
 - Replaced S3 sidecar and S3-hosted compare-and-swap watcher state with a mutable
   SQLite control plane on Mikr.us, revisioned S3 database recovery images, and
   APScheduler;
