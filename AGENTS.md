@@ -32,7 +32,8 @@ performance regression for developer convenience.
   decisions and risk boundaries.
 - Keep one reviewable purpose per commit and use short imperative subjects.
 - Update docs, CHANGELOG and README in the same PR as the change. Never open a
-  documentation-only follow-up PR; Actions minutes are limited. Open work lives
+  documentation-only follow-up PR; a change and its documentation are reviewed
+  together. Open work lives
   in GitHub issues, not in a TODO file: add, update or close the owning issue
   with the change. Record post-deployment evidence in issue comments and fold
   it into the next PR.
