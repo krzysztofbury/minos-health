@@ -459,6 +459,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- Small source and test cleanups (#237, #240): the XML streaming test now
+  checks the validator's element cap (accepted at the cap, refused one above)
+  instead of asserting nothing; two stale comments match the code (activation
+  outcomes are always pushed, and schema 7 answers carry the reviewed MODTAR
+  binding); `SearchResult.search_version` defaults to the current version; an
+  unreachable page label and an unused receipt pattern are gone.
 - The filter, conditions, JGP search and search-recovery browser harnesses read
   the Chromium DevTools port through the shared `waitForDevToolsPort` (#236),
   which refuses an empty or partial port line; they still read it themselves,

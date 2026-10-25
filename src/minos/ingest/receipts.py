@@ -11,7 +11,6 @@ receipts are unsigned and carry no release manifest; #41 still governs code.
 import base64
 import hashlib
 import json
-import re
 from collections.abc import Mapping
 from typing import Protocol, cast
 
@@ -25,7 +24,6 @@ from minos.domain.reference import SourceError
 PREFIX = "deployment-receipts/"
 MAX_RECEIPTS = 1000
 MAX_RECEIPT_BYTES = 16 * 1024
-_KEY = re.compile(r"deployment-receipts/([0-9]{20})\.json")
 
 
 class _Readable(Protocol):

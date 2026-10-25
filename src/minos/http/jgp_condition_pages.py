@@ -260,7 +260,6 @@ def conditions_section(answer: Json) -> str:
         return ""
     if status not in ("fully_interpreted", "not_yet_interpreted"):
         labels = {
-            "not_in_bundle": "Ten pakiet nie zawiera charakterystyki JGP.",
             "context_not_covered": "Brak zweryfikowanej charakterystyki dla tego dnia i katalogu.",
             "group_not_in_characteristics": "Grupy nie ma w wybranym wydaniu charakterystyki.",
         }
