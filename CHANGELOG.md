@@ -472,6 +472,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The validation edge pins Alpine `brotli-libs` 1.2.1-r0 for CVE-2026-111497
+  (HIGH): the newest upstream NGINX 1.31.7 digest still ships 1.2.0-r1, so a
+  package layer bridges until upstream rebuilds. The development dependency
+  `filelock` moves to 4.2.4 for CVE-2026-112907, -112913 and -112940; it ships
+  in no image.
 - Small source and test cleanups (#237, #240): the XML streaming test now
   checks the validator's element cap (accepted at the cap, refused one above)
   instead of asserting nothing; two stale comments match the code (activation
