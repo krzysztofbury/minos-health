@@ -443,3 +443,9 @@ test("BAW lineage requires verified original and introductory acts, not shared n
   assert.throws(() => sources.validateBawProjection(missing));
   assert.throws(() => sources.validateBawProjection({ ...valid, schema_version: 1 }));
 });
+
+test("BAW orders keep their own badge, distinct from NFZ publications", () => {
+  assert.equal(sources.sourceTag("rsk"), "RSK");
+  assert.equal(sources.sourceTag("baw"), "BAW NFZ");
+  assert.notEqual(sources.sourceTag("baw"), "NFZ");
+});

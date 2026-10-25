@@ -459,6 +459,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The source catalog badges BAW orders `BAW NFZ` instead of `NFZ` (#234), so
+  they no longer look like the NFZ / CZS / AOTMiT publication cards; the
+  no-JavaScript pages already named the three apart.
 - Host reference measurement cleanup no longer depends on a `docker ps` that can
   fail (#233): it removes the owned container by name and then its scratch
   directory, never raising, so neither stays behind and a finished
