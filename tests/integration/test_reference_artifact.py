@@ -150,6 +150,13 @@ def test_same_inputs_produce_identical_database_bytes(tmp_path: Path) -> None:
     assert (tmp_path / "first" / "minos.db").read_bytes() == (
         tmp_path / "second" / "minos.db"
     ).read_bytes()
+    # The bundle carries planner statistics, built from the final rows (#228).
+    with open_reference_connection(tmp_path / "first") as connection:
+        statistics = cast(
+            list[tuple[str]],
+            connection.execute("SELECT DISTINCT tbl FROM sqlite_stat1").fetchall(),
+        )
+    assert ("concept",) in statistics
 
 
 @pytest.mark.parametrize("damage", ["checksum", "size", "symlink", "fifo", "missing"])

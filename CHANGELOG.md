@@ -234,6 +234,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Reference bundles carry SQLite planner statistics (#228): the builder runs
+  `ANALYZE` on the final rows before hashing, and two builds of the same inputs
+  stay byte-identical. It applies from the next bundle build; the live bundle
+  and the `INDEXED BY` pin on ICD-11 map lookups are unchanged until then, when
+  request-path query plans get reviewed.
 - Status documents agree on what is open (#238): the README and Ansible
   runbook no longer call the delivered watcher, status route, push delivery and
   browser verification pending, and name the two open gates (the empty-host
