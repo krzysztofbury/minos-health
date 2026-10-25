@@ -43,3 +43,13 @@ remain in the password manager.
 GitHub Actions holds no object-store credentials. The bucket-scoped R2 watcher
 key on the Mikr.us host must not be stored in GitHub, `.env`, Compose YAML,
 logs, or container images; its recovery copy stays in the password manager.
+
+## Repository protections
+
+The default branch requires a pull request and both CI checks, and refuses
+force pushes and deletion. Secret scanning with push protection, Dependabot
+alerts and security updates, CodeQL default setup and private vulnerability
+reporting are enabled. Workflows default to a read-only token, pin actions to
+commit SHAs and need approval before running for outside contributors.
+Dependabot watches the uv locks, GitHub Actions and the digest-pinned base
+images weekly.

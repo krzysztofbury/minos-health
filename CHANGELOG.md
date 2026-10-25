@@ -234,6 +234,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Repository security baseline: Dependabot watches the uv locks (root and
+  standalone CLI), GitHub Actions and the digest-pinned base images instead of
+  `pip`; `virtualenv` and the standalone `setuptools` move past their advisories;
+  the JGP comparison link encodes each path segment (CodeQL `js/xss-through-dom`).
+  SECURITY.md lists the enabled protections.
 - Prepared the repository for public visibility (#244): the README states it
   holds no datasets or deployment credentials and how to run tests and a local
   site, a retired cloud account id is gone from two records, and the clean-path

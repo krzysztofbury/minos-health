@@ -17,7 +17,10 @@
     var button = document.getElementById("compare-go");
     var compare = function () {
       if (!before.checkValidity() || !after.checkValidity() || !DATE.test(before.value) || !DATE.test(after.value)) return;
-      window.location.assign("/jgp/porownaj/" + comparison.dataset.dataset + "/" + before.value + "/" + beforeRelease.value + "/" + after.value + "/" + afterRelease.value + "/" + scope.value + "/" + group.value);
+      // Each value is one path segment of a same-origin URL; encoding keeps a
+      // value from adding segments, a query or a fragment.
+      var segments = [comparison.dataset.dataset, before.value, beforeRelease.value, after.value, afterRelease.value, scope.value, group.value];
+      window.location.assign("/jgp/porownaj/" + segments.map(encodeURIComponent).join("/"));
     };
     button.hidden = false;
     button.addEventListener("click", compare);
