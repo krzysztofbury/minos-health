@@ -459,6 +459,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- Releases of one system that start on the same Polish day resolve to the
+  latest (owner decision 2026-10-25, #235): later validity instant, then source
+  creation, fetch time and release identity. Search refused that day while the
+  dictionary pages, MCP tools, search page and Gruper each guessed differently;
+  all now use the one rule, MCP calls it directly and the Gruper drops its CZS
+  override. Latent: current manifests have no shared start day.
 - API logs no longer carry MCP tool arguments (#220). The MCP SDK called
   `logging.basicConfig` on startup, so the in-process client's request lines,
   whose URLs hold codes from `get_code`, `browse_codes` and the JGP tools,

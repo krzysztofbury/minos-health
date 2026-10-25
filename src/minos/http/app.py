@@ -182,7 +182,7 @@ def lookup(pool: ReferencePool, payload: Lookup) -> dict[str, object]:
             payload.system, payload.service_date
         )
         if governing is None:
-            raise SearchInputError("no single release governs the service date")
+            raise SearchInputError("no release governs the service date")
         if release_id is None:
             release_id = governing.release_id
         elif release_id != governing.release_id:

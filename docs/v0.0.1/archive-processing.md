@@ -164,7 +164,9 @@ Release selection follows the owner's rule (2026-10-21): the latest release
 unless the question carries a date, and then the release in force that day.
 A release governs from its validity start, as a Polish calendar date, until
 the next release of its system starts; a day before every archived release
-falls to the earliest, and two releases with the same start are ambiguous.
+falls to the earliest. Two releases with the same start were ambiguous until
+the owner chose the latest on 2026-10-25 (#235): the later validity instant,
+then source creation, then fetch time, then release identity.
 `/api/v1/releases` therefore lists the release in force today first for each
 system and marks it `in_force`, so the website's first-release choice is
 today's. A search with `service_date` answers from the release in force that

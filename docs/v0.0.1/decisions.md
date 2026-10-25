@@ -826,7 +826,11 @@ closes at the new validity start, so earlier service dates keep their release.
 Licence approval is per source class: the reviewed policy file pins the
 publisher's licence statement, and a reworded statement goes to the owner.
 Users get the latest release unless a question carries a date; a dated
-question uses the release in force on that day (owner, 2026-10-21). A CZS
+question uses the release in force on that day (owner, 2026-10-21). Releases
+of one system starting on the same Polish day resolve to the latest, by
+validity instant, source creation, fetch time and release identity, and every
+surface uses that one rule (owner, 2026-10-25, #235; it supersedes treating
+them as ambiguous). A CZS
 ICD-9 generation governs from its earliest changed procedure date, never later
 than its publication day, with backdating bounded by the policy (92
 days, owner-confirmed 2026-10-21). For phase C (owner, 2026-10-21) the

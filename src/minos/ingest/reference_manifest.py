@@ -147,8 +147,11 @@ class DatasetManifest(BaseModel):
 
         A release governs from its validity start until the next one starts. A
         day before every archived release falls to the earliest, which is what
-        the bundle served before it held more than one. Two releases with the
-        same start are ambiguous and return None.
+        the bundle served before it held more than one. Releases starting on the
+        same Polish day are not ambiguous: the latest wins (owner decision
+        2026-10-25, #235), by validity instant, then source creation, then fetch
+        time, then release identity, so every caller picks the same one. None
+        only when the system has no canonical release.
         """
         releases = sorted(
             (
@@ -156,10 +159,8 @@ class DatasetManifest(BaseModel):
                 for source in self.sources
                 if source.system == system and source.context_for is None
             ),
-            key=_start_day,
+            key=_recency,
         )
-        if len({_start_day(source) for source in releases}) != len(releases):
-            return None
         governing = [source for source in releases if _start_day(source) <= day]
         return governing[-1] if governing else (releases[0] if releases else None)
 
@@ -377,3 +378,14 @@ def _start_day(source: SourceManifest) -> date:
     if source.valid_from is None:
         return date.min
     return polish_date(source.valid_from)
+
+
+def _recency(source: SourceManifest) -> tuple[date, datetime, datetime, datetime, str]:
+    """A total order of one system's releases: start day first, latest last."""
+    return (
+        _start_day(source),
+        source.valid_from or source.fetched_at,
+        source.source_created_at or source.fetched_at,
+        source.fetched_at,
+        source.release_id,
+    )

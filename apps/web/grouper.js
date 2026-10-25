@@ -758,10 +758,9 @@
   document.querySelector(".wizard").hidden = false;
   byId("group-availability").textContent = "Sprawdzamy dostępność zestawu reguł...";
   window.MinosRequest("/api/v1/releases", { cache: "no-store", credentials: "omit" }).then(function (data) {
-    // The API lists the release in force today first; without one, CZS leads ICD-9.
+    // The API lists the release in force today first; like search, take it (#235).
     data.releases.forEach(function (release) {
-      var held = releases[release.system];
-      if (!held || (!held.in_force && release.origin === "czs")) releases[release.system] = release;
+      if (!releases[release.system]) releases[release.system] = release;
     });
     var available = data.grouping && data.grouping.available;
     fields.disabled = !available;

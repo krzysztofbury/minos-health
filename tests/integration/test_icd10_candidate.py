@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 from datetime import UTC, date, datetime
@@ -5,6 +6,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from minos.cli.main import main
@@ -285,6 +287,84 @@ def _two_releases(root: Path, valid_from: str) -> tuple[Path, str]:
     bundle = root / "candidate"
     _ = build_reference_artifact(candidate, root, bundle)
     return bundle, candidate.sources[-1].release_id
+
+
+def _same_day(root: Path, later: str) -> tuple[Path, str]:
+    """Two canonical ICD-10 releases starting at the same instant, apart only
+    in source creation time; ``later`` names the one created last."""
+    base, _ = _live(root)
+    info = _basic_info(_CHANGED, validDateFrom="2026-01-01T00:00:00.000+00:00")
+    candidate = propose_icd10_release(
+        base,
+        root,
+        product_sha256=_archive(root, _CHANGED),
+        basic_info_sha256=_archive(root, json.dumps(info).encode()),
+        fetched_at=datetime(2025, 12, 2, tzinfo=UTC),
+        policy=_policy(),
+    )
+    start = datetime(2025, 12, 31, 23, tzinfo=UTC)  # 2026-01-01 in Poland
+    early, late = datetime(2025, 11, 1, tzinfo=UTC), datetime(2025, 11, 2, tzinfo=UTC)
+    new_id = candidate.sources[-1].release_id
+    sources = tuple(
+        source.model_copy(
+            update={
+                "valid_from": start,
+                "valid_to": None,
+                "source_created_at": late
+                if (source.release_id == new_id) == (later == "new")
+                else early,
+            }
+        )
+        if source.system == "icd10-pl" and source.context_for is None
+        else source
+        for source in candidate.sources
+    )
+    bundle = root / "same-day"
+    _ = build_reference_artifact(
+        candidate.model_copy(update={"sources": sources}), root, bundle
+    )
+    return bundle, new_id
+
+
+@pytest.mark.parametrize("later", ["new", "old"])
+def test_same_day_releases_resolve_to_the_latest_everywhere(
+    tmp_path: Path, later: str
+) -> None:
+    # Owner decision 2026-10-25 (#235): the latest release leads, and pages,
+    # MCP, the release list and dated search all name the same one.
+    from minos.http.mcp import _Api  # pyright: ignore[reportPrivateUsage]
+
+    bundle, new_id = _same_day(tmp_path, later)
+    winner = new_id if later == "new" else "icd10-synthetic-v1"
+
+    with TestClient(create_app(bundle)) as client:
+        listed = cast(
+            list[dict[str, object]], client.get("/api/v1/releases").json()["releases"]
+        )
+        page = client.get("/slowniki/icd-10/M00")
+        dated = client.post(
+            "/api/v1/search",
+            json={
+                "system": "icd10-pl",
+                "query": "druga kategoria",
+                "service_date": "2026-02-01",
+            },
+        )
+        api = _Api(cast(FastAPI, client.app))
+        try:
+            mcp = asyncio.run(api.release("icd10-pl", date(2026, 2, 1)))
+        finally:
+            asyncio.run(api.close())
+
+    icd10 = [item for item in listed if item["system"] == "icd10-pl"]
+    assert [item["release_id"] for item in icd10 if item["in_force"]] == [winner]
+    assert icd10[0]["release_id"] == winner
+    assert dated.status_code == 200
+    assert dated.json()["release_id"] == winner
+    assert mcp["release_id"] == winner
+    wording = "zmieniona" if later == "new" else "próbna"
+    assert page.status_code == 200
+    assert f"Druga kategoria {wording}" in page.text
 
 
 @pytest.mark.parametrize(
