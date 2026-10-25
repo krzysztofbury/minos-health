@@ -1,7 +1,8 @@
 version: 2
 updates:
-  - package-ecosystem: pip
-    directory: /
+  # uv projects: the root lock and the standalone CLI build's own lock.
+  - package-ecosystem: uv
+    directories: ["/", "/packaging/standalone"]
     schedule:
       interval: weekly
       day: monday
@@ -22,4 +23,18 @@ updates:
     open-pull-requests-limit: 5
     groups:
       github-actions:
+        patterns: ["*"]
+
+  # Digest-pinned base images. The validation edge carries a temporary
+  # brotli-libs layer; re-check it whenever the NGINX digest moves.
+  - package-ecosystem: docker
+    directories: ["/", "/packaging/api", "/packaging/validation-edge", "/packaging/standalone"]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: Europe/Warsaw
+    open-pull-requests-limit: 5
+    groups:
+      base-images:
         patterns: ["*"]
