@@ -459,6 +459,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The filter, conditions, JGP search and search-recovery browser harnesses read
+  the Chromium DevTools port through the shared `waitForDevToolsPort` (#236),
+  which refuses an empty or partial port line; they still read it themselves,
+  so the race behind hosted run 37361709208 stayed open there.
 - The source catalog badges BAW orders `BAW NFZ` instead of `NFZ` (#234), so
   they no longer look like the NFZ / CZS / AOTMiT publication cards; the
   no-JavaScript pages already named the three apart.

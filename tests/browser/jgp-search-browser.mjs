@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { waitForDevToolsPort } from "./devtools-port.mjs";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,9 +14,10 @@ browser.stdout.resume(); browser.stderr.resume();
 let socket;
 try {
   let target;
+  // The shared reader refuses an empty or partial port line (#236).
+  const port = await waitForDevToolsPort(browser, profile);
   for (let attempt = 0; attempt < 1200; attempt++) {
     try {
-      const port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0];
       target = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find(item => item.type === "page");
       if (target) break;
     } catch { if (browser.exitCode !== null) throw new Error("browser startup failed"); }
