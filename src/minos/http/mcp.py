@@ -15,7 +15,16 @@ import logging
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime
 from pathlib import Path
-from typing import Annotated, Any, ClassVar, Final, Literal, cast, override
+from typing import (
+    Annotated,
+    Any,
+    ClassVar,
+    Final,
+    Literal,
+    Protocol,
+    cast,
+    override,
+)
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -28,8 +37,9 @@ from mcp.types import CallToolResult, InputRequiredResult, TextContent, ToolAnno
 from mcp.types import Tool as MCPTool
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 
-from minos.http.reference import ReferencePool
+from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.encounter import EncounterInput
+from minos.store.tree import Hierarchy, find_code
 
 MCP_PATH: Final = "/mcp"
 DOCS_PATH: Final = "/dla-agentow"
@@ -60,6 +70,13 @@ type SearchSystem = Literal["icd10-pl", "icd9-pl", "icd11-pl", "jgp"]
 type Code = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9.\-]{0,15}$")]
 type GroupCode = Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9]{1,5}$")]
 type Catalog = Literal["1a", "1ae"]
+
+
+class _Browsed(Protocol):
+    """The part of the app's dictionary tree MCP reads: what it browses."""
+
+    @property
+    def hierarchy(self) -> Hierarchy: ...
 
 
 class ToolFailure(Exception):
@@ -379,6 +396,19 @@ class _Api:
             self._releases = await self.get("/api/v1/releases")
         return self._releases
 
+    def tree_ordinal(self, release_id: str, code: str) -> int | None:
+        """The node of ``code`` in the hierarchy the release's tree browses."""
+        trees = cast(dict[str, _Browsed], self._app.state.trees)
+        tree = trees.get(release_id)
+        if tree is None:
+            raise ToolFailure("NOT_FOUND")
+        pool = cast(ReferencePool, self._app.state.pool)
+        try:
+            with pool.borrow() as lease:
+                return find_code(lease.connection, tree.hierarchy, code.upper())
+        except CapacityError:
+            raise ToolFailure("BUSY") from None
+
     async def release(self, system: System, day: date) -> Json:
         """The canonical release of ``system`` in force on the Polish ``day``.
 
@@ -637,11 +667,32 @@ class _Tools:
         concept = await self._api.get(
             f"/api/v1/concepts/{system}/{release['release_id']}/{code.upper()}"
         )
-        ordinal = _obj(concept.get("concept")).get("node_ordinal")
-        if not isinstance(ordinal, int):
+        if not isinstance(_obj(concept.get("concept")).get("node_ordinal"), int):
             raise ToolFailure("NOT_FOUND")
-        tree = await self._api.get(f"/api/v1/tree/{release['release_id']}/{ordinal}")
-        return release, concept, tree
+        # The concept numbers its own release, but the ICD-9 tree browses the
+        # NFZ workbook's hierarchy with other numbers; resolve the code there,
+        # as the code page does (#242).
+        release_id = str(release["release_id"])
+        ordinal = await asyncio.to_thread(self._api.tree_ordinal, release_id, code)
+        if ordinal is not None:
+            tree = await self._api.get(f"/api/v1/tree/{release_id}/{ordinal}")
+            return release, concept, tree
+        roots = await self._api.get(f"/api/v1/tree/{release_id}/0")
+        unplaced = next(
+            (
+                item
+                for item in _objects(roots.get("unplaced"))
+                if item.get("code") == code.upper()
+            ),
+            None,
+        )
+        if unplaced is None:
+            raise ToolFailure("NOT_FOUND")
+        return (
+            release,
+            concept,
+            {"node": {**unplaced, "path": [], "notes": []}, "children": []},
+        )
 
     async def get_code(
         self, system: System, code: Code, service_date: date | None = None
@@ -706,9 +757,11 @@ class _Tools:
         release = await self._api.release(system, day)
         ordinal = node or 0
         if parent is not None:
-            _release, concept, _tree = await self._node(system, parent, day)
-            ordinal = cast(int, _obj(concept.get("concept")).get("node_ordinal"))
-        tree = await self._api.get(f"/api/v1/tree/{release['release_id']}/{ordinal}")
+            _release, _concept, tree = await self._node(system, parent, day)
+        else:
+            tree = await self._api.get(
+                f"/api/v1/tree/{release['release_id']}/{ordinal}"
+            )
         head = _obj(tree.get("node"))
         return Listing(
             notice=NOTICE,

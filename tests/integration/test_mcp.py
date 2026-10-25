@@ -5,6 +5,7 @@ from typing import cast
 
 import jsonschema  # type: ignore[import-untyped]
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from minos.http import mcp
@@ -268,3 +269,44 @@ def test_resources_and_prompts_are_listed(reference: TestClient) -> None:
         "explain-jgp-group",
     }
     assert "Nothing a caller sends is stored" in cast(str, about[0]["text"])
+
+
+def test_icd9_codes_resolve_in_the_hierarchy_the_tree_browses(
+    reference: TestClient,
+) -> None:
+    # ICD-9 trees browse the NFZ workbook's hierarchy, numbered apart from the
+    # CZS concepts; get_code answered with another code's node (#242).
+    from minos.http.app import Tree
+    from minos.http.reference import ReferencePool
+    from minos.store.tree import all_codes
+
+    app = cast(FastAPI, reference.app)
+    pool = cast(ReferencePool, app.state.pool)
+    trees = cast(dict[str, Tree], app.state.trees)
+    icd9 = next(tree for tree in trees.values() if tree.system == "icd9-pl")
+    assert icd9.hierarchy.supporting
+    with pool.borrow() as lease:
+        codes = all_codes(lease.connection, icd9.hierarchy)
+    assert {"A", "AA"} <= set(codes)  # their concept and tree numbers differ
+    release = next(key for key, tree in trees.items() if tree is icd9)
+    # get_code serves codes with a CZS concept; workbook-only rows are not codes.
+    served = [
+        code
+        for code in codes
+        if reference.get(f"/api/v1/concepts/icd9-pl/{release}/{code}").status_code
+        == 200
+    ]
+    assert {"A", "AA"} <= set(served)
+    for code in served:
+        failed, detail = _call(
+            reference, "get_code", {"system": "icd9-pl", "code": code}
+        )
+        assert not failed, code
+        assert detail["code"] == code
+    failed, listing = _call(
+        reference, "browse_codes", {"system": "icd9-pl", "parent": "A"}
+    )
+    assert not failed
+    assert cast(Json, listing["parent"])["code"] == "A"
+    children = [child["code"] for child in cast(list[Json], listing["children"])]
+    assert children and all(str(child).startswith("A") for child in children)

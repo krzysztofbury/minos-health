@@ -472,6 +472,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- MCP `get_code` and `browse_codes` answer with the requested ICD-9 code
+  (#242). They reused the CZS concept's node number in the tree, which for
+  ICD-9 browses the NFZ workbook's hierarchy with other numbers, so
+  `get_code(53.03)` returned the title, path and children of 53.8 beside 53.03's
+  rank and JGP lists. They now resolve the code in the browsed hierarchy, as the
+  code pages do. On the production bundle all 58,122 ICD-9, ICD-10 and ICD-11
+  codes resolve to themselves. Present since the MCP server shipped (#216).
 - The local and CI Compose watcher health check allows 30 s like production
   instead of 5 s; the check takes about 3 s on a workstation and intermittently
   timed out on slower CI runners.
