@@ -70,8 +70,22 @@ JGP utilization statistics, when integrated, come from the public NFZ API at
 <https://api.nfz.gov.pl> and require attribution to that source under its
 terms.
 
-No WHO ICD dataset is covered by these notices unless it is added later with
-its own reviewed terms.
+## ICD-11 PL And WHO Mapping Tables
+
+The pre-released Polish ICD-11 translation (MMS 2026-01) comes from the RSK
+resource HCD `99ICD1` and is licensed under CC BY-ND 4.0
+(<https://creativecommons.org/licenses/by-nd/4.0/>). The translation was not
+made by WHO, WHO is not responsible for it, and the English version is binding.
+Minos reproduces titles, inclusions and index terms word for word, with each
+item's code, title and WHO URI, and adds no ICD-11 text. It is not in force and
+not used for NFZ settlement.
+
+The ICD-10/ICD-11 mapping tables are WHO's own tables, published in the same
+RSK resource and licensed under CC BY-ND 3.0 IGO
+(<https://creativecommons.org/licenses/by-nd/3.0/igo/>). Minos republishes them
+verbatim, row for row, attributed to WHO and RSK, and produces no mappings of
+its own. Neither WHO nor RSK endorses Minos. The licensing analysis is in
+[decisions](docs/v0.0.1/decisions.md).
 
 ## Reviewed Polish WordNet Phrases
 
@@ -85,6 +99,21 @@ bundle review notices and exposed in release metadata. Medical sense selection
 and whole-query restrictions are Minos modifications, without endorsement by
 the source authors. The optional build-time `wn==1.1.1` library is MIT-licensed;
 it is not an API runtime dependency.
+
+## Polish Morphology
+
+Search uses Morfeusz2 (Copyright 2014-2021 Institute of Computer Science,
+Polish Academy of Sciences) with the embedded SGJP dictionary (Copyright
+2007-2026 Marcin Woliński, Zbigniew Bronk, Włodzimierz Gruszczyński, Witold
+Kieraś, Zygmunt Saloni, Danuta Skowrońska, Robert Wołosz), both under the
+BSD-2-Clause license. Their unmodified notices are in `src/minos/licenses/` and
+travel with the wheel and standalone builds. Upstream terms:
+<https://morfeusz.sgjp.pl/doc/license/en>.
+
+## Vendored JavaScript
+
+The website vendors MiniSearch 7.2.0 (MIT), unmodified, with its license in
+`apps/web/vendor/minisearch-LICENSE.txt`.
 
 ## Web Fonts
 

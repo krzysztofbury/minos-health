@@ -238,6 +238,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   holds no datasets or deployment credentials and how to run tests and a local
   site, a retired cloud account id is gone from two records, and the clean-path
   public load run (four-user search p95 214 ms, all objectives met) is recorded.
+  NOTICE.md now credits ICD-11 PL (CC BY-ND 4.0) and the WHO ICD-10/ICD-11
+  tables (CC BY-ND 3.0 IGO), Morfeusz2 with SGJP (BSD-2-Clause) and the vendored
+  MiniSearch (MIT); it still said no WHO dataset was included.
 - Cloudflare provider-retention audit re-read on 2026-10-25 (#28), read-only:
   no Logpush, retention control unavailable on Free, NEL, RUM and obfuscation
   off, Zaraz without tools and nothing injected into pages; the rollout record
