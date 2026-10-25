@@ -390,7 +390,7 @@ bind-mounted data. Do not run the two Kuma services concurrently.
      "$kuma_container"
    ```
 
-   From the workstation, use the same materialized host, mapped SSH port,
+   From the workstation, use the same materialized tailnet host and port,
    pinned identity, and strict known-hosts file as Ansible:
 
    ```sh
@@ -498,10 +498,9 @@ was restarted healthy. An isolated restore of the latest 1Password Document on
 the operator workstation started the same pinned image as UID `10003` from a
 disposable Docker volume without a network or host port. It became healthy,
 served the restored status page, and the test container and volume were removed.
-This verifies Kuma application recovery, not a full Mikr.us replacement. The
-watcher cutover, public DNS and tunnel routing, full host-loss recovery,
-representative host load, and public desktop/mobile browser verification remain
-pending.
+This verifies Kuma application recovery, not a full Mikr.us replacement. Still
+open: the complete empty-host recovery drill (#49) and launch-capacity load
+acceptance (#42).
 
 Inspect the deployed watcher through its read-only SQLite status path and a
 bounded window from Docker's local log store:

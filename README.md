@@ -189,14 +189,14 @@ account and 2FA, configured a private status page and paused watcher push
 monitor, tested a Telegram alert from Kuma, and stored a stopped
 integrity-checked off-host backup in 1Password on 2026-09-23. An isolated
 Docker restore of that backup passed against the same pinned image without
-network or host ports. The watcher stack, DNS status route, watcher push
-delivery, full host-loss recovery, representative load, and public browser
-verification remain pending. Load objectives and the measurements so far are
-in [the API load record](docs/validation/api-load.md) (#42).
+network or host ports. Two operational gates remain open: the complete
+empty-host recovery drill (#49) and launch-capacity load acceptance (#42).
+Load objectives and the measurements so far are in
+[the API load record](docs/validation/api-load.md).
 
 The site reaches the host only through the Cloudflare Tunnel. SSH, the one
-management path, moves to a Tailscale tailnet with no public listener (#227);
-the two-stage cutover is in [the Ansible runbook](infra/ansible/README.md).
+management path, runs over a Tailscale tailnet with no public listener since
+2026-10-23 (#227); the cutover is in [the Ansible runbook](infra/ansible/README.md).
 
 Object storage is one EU-jurisdiction Cloudflare R2 bucket whose lock rules
 refuse overwrites and deletes; the AWS stacks and their acceptance harness were

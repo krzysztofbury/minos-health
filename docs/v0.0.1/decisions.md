@@ -978,7 +978,8 @@ This accepts host patching and recovery responsibility in exchange for one
 small fixed annual cost and a much simpler system than separate Lambda,
 CloudFront, ECR, S3 frontend, and watcher-control services. The host is not a
 backup: mutable control SQLite is backed up consistently to R2, raw bytes are
-stored directly in R2, and complete empty-host recovery is tested.
+stored directly in R2, and a complete empty-host recovery drill is required
+before release; it has not run yet (#49, see operations.md).
 
 A managed application runtime can be reconsidered only if measured
 availability, capacity, or operational burden exceeds recorded limits.

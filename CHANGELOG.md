@@ -234,6 +234,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Status documents agree on what is open (#238): the README and Ansible
+  runbook no longer call the delivered watcher, status route, push delivery and
+  browser verification pending, and name the two open gates (the empty-host
+  recovery drill, #49, and launch-capacity load, #42); the decisions log no
+  longer says empty-host recovery was tested.
 - AWS and Terraform leftovers after the R2 move are gone (#239): the unused
   `mise.toml` pins for `aws-cli` and `terraform`, a CI-security check for a
   Terraform step no workflow has, and present-tense AWS, IAM and Terraform
