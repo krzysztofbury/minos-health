@@ -244,7 +244,7 @@ signed-release and deployment-acceptance gates remain #41/#27.
   Terraform step no workflow has, and present-tense AWS, IAM and Terraform
   statements in this changelog and the archive, CI-budget and R2 documents;
   the R2 cutover reads as the completed 2026-10-19 record.
-- SSH can leave the public internet (#227). `infra/ansible/ssh-tailnet.yml`
+- SSH left the public internet on 2026-10-23 (#227). `infra/ansible/ssh-tailnet.yml`
   joins the host to a Tailscale tailnet in userspace mode with a one-time
   tagged key, proves a login over it, and only then makes `sshd` listen on
   loopback and removes the firewall's SSH rule, rolling back on any failure
@@ -252,7 +252,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
   pins port 22 under the bare host name, as OpenSSH looks it up; `site.yml`
   keeps either state and never reopens SSH on a tailnet host. The tailnet
   policy is reviewed in `infra/tailscale/policy.hujson`. The site stays on the
-  Cloudflare Tunnel. The cutover itself is two owner-approved runs.
+  Cloudflare Tunnel. Both owner-approved stages ran: the provider IPv4 port
+  now times out, `sshd` listens on loopback only and UFW allows no inbound
+  traffic. The join stage's tmpfs staging now applies only to the remote auth
+  key copy (the first run stopped on the workstation-side check), and recovery
+  goes through Mikr.us M.A.R.I.A.N, not the panel's WebSSH.
 - Load objectives adopted (#42, `docs/validation/api-load.md`): one user is
   the experience to protect (public p95: search 500 ms, pages and Gruper 1 s,
   MCP call 1.5 s), four users may slow down but stay correct (search, pages
