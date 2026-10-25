@@ -227,6 +227,17 @@ Both owner-approved, same capped mix. Reports:
   `/cdn-cgi/trace`, answered by the edge alone, took up to 2.6 s. A latency
   rerun needs a clean client path (#225).
 
+## Public Rerun On A Clean Path, 2026-10-25
+
+Release `a8f8662` (#225 caches and #242), owner-approved, 0% loss and about
+8 ms to the Cloudflare address before and after. Report:
+`evidence/api-load/public-a8f8662-2026-10-25.json`. Every request answered, no
+5xx. One user p95: search 282 ms, code 426 ms, JGP 194 ms, Gruper 879 ms (the
+first case after the deploy builds its caches). Four users p95: search 214 ms,
+code 139 ms, JGP 204 ms, Gruper 172 ms, against 977, 896, 903 and 917 ms on
+`f9828a5`. Ten Gruper 429s came from the Cloudflare per-IP rule, since all
+workers share one IP. Every public objective is met.
+
 To repeat it:
 
 ```sh

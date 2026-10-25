@@ -159,7 +159,7 @@ open until their actual end-to-end acceptance gates pass.
 ## Disposable Real S3 Acceptance (2026-10-05)
 
 Eight focused tests in `tests/aws/test_archive_build.py` passed against the
-private tagged disposable stack in account `218375352108`, `eu-central-1`.
+private tagged disposable stack in the project's AWS account, `eu-central-1`.
 Only synthetic fixtures were uploaded, never real source bytes or owner diffs.
 The test reader used a 900-second session policy intersected with the bounded
 test role: only `s3:GetObjectVersion` on that bucket's `blobs/sha256/*`.

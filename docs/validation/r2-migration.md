@@ -140,8 +140,8 @@ NFZ and BAW added 15 blobs in total.
 
 ## AWS Retirement (2026-10-20)
 
-Owner-approved, exact names, in account 218375352108; the account's unrelated
-`data-craze` resources were not touched.
+Owner-approved, exact names, in the project's AWS account; the account's
+unrelated resources were not touched.
 
 - S3: the snapshots bucket (553 versions), the Terraform state bucket (38
   versions, 27 delete markers) and the empty acceptance bucket, emptied and

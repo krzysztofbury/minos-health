@@ -1,5 +1,9 @@
 # CI scope and Actions budget
 
+Since the repository became public (#244), GitHub-hosted Actions minutes on
+standard runners cost nothing, so the budget below no longer limits how often
+CI runs. The scope classifier stays: it keeps documentation-only runs fast.
+
 Issue: #174. First slice: documentation-only checks and obsolete PR cancellation,
 merged in #178 at `19082cf` on 2026-10-13. Full hosted PR verification passed.
 Documentation-only PR #179 passed both existing verification checks in 95 seconds

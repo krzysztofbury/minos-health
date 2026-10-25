@@ -219,7 +219,11 @@ All sources are public. Details, endpoints, and polling procedures live in
 | JGP utilization statistics | <https://api.nfz.gov.pl> (open data, attribution required) |
 
 Source snapshots and generated databases are artifacts, not repository
-materials, and must not be committed to Git. Every generated dataset carries
+materials, and must not be committed to Git. The repository therefore holds no
+datasets and no deployment credentials: the test suite runs on synthetic
+fixtures (`uv run pytest`), and running the site locally
+(`scripts/run_local_site.py`) needs a reference bundle you build from the public
+sources with the [offline commands](docs/v0.0.1/offline-search.md). Every generated dataset carries
 source identity, timestamps, checksums, transformation version, attribution,
 and required notices.
 
