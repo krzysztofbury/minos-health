@@ -665,11 +665,17 @@
     details.append(technicalDetails(doc, doc.files, "baw"));
     return details;
   }
+  // One badge per source, as the server pages name them (source_pages.NAMES);
+  // BAW orders are not the NFZ / CZS / AOTMiT publications (#234).
+  var SOURCE_TAGS = { rsk: "RSK", baw: "BAW NFZ" };
+  function sourceTag(source) {
+    return SOURCE_TAGS[source] || "NFZ";
+  }
   function renderCard(card, evidence) {
     if (card.source === "nfz") return renderNfzCard(card);
     var article = element("article", "source-card");
     var overline = element("div", "card-overline");
-    overline.append(element("span", "source-tag", card.source === "rsk" ? "RSK" : "NFZ"));
+    overline.append(element("span", "source-tag", sourceTag(card.source)));
     article.append(overline, element("h3", "", card.title), element("p", "card-lead", card.subtitle));
     if (state.sourcePages) {
       var datasetLink = element("a", "card-link", "Zestaw i obserwacje w Minos");
@@ -961,6 +967,7 @@
       readSelection: readSelection,
       selectionHash: selectionHash,
       catalogSelection: catalogSelection,
+      sourceTag: sourceTag,
     };
   }
 }());

@@ -62,7 +62,9 @@ operations and reads; an in-flight request can finish after the deadline, but
 its result is rejected. These are refusal limits, not measured throughput or
 capacity claims. Client creation uses the SDK credential chain, disables
 configured endpoint overrides and does not accept credentials in the selection.
-IAM, not the Python adapter, grants the protected workflow read-only access.
+Since #200 the bucket is on R2: tokens are bucket-scoped, bucket lock rules, not
+the adapter, refuse overwrites and deletes, and CI holds no object-store
+credential.
 
 Materialization owns one private temporary archive and removes it after success
 or failure. The existing builder copies/verifies each local source again, uses
@@ -164,7 +166,9 @@ Release selection follows the owner's rule (2026-10-21): the latest release
 unless the question carries a date, and then the release in force that day.
 A release governs from its validity start, as a Polish calendar date, until
 the next release of its system starts; a day before every archived release
-falls to the earliest, and two releases with the same start are ambiguous.
+falls to the earliest. Two releases with the same start were ambiguous until
+the owner chose the latest on 2026-10-25 (#235): the later validity instant,
+then source creation, then fetch time, then release identity.
 `/api/v1/releases` therefore lists the release in force today first for each
 system and marks it `in_force`, so the website's first-release choice is
 today's. A search with `service_date` answers from the release in force that

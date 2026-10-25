@@ -111,8 +111,6 @@ def execute_finalize(
     """Record an activation receipt in R2 and report the activation outcome."""
     try:
         selected = _FinalizeArguments.model_validate(arguments)
-        # Without a data-activation monitor yet, the push is skipped; the
-        # receipt is still written.
         targets = UptimeKumaTargets.load(selected.uptime_kuma_targets)
         with selected.outcome.open("rb") as source:
             outcome = Outcome.model_validate_json(source.read(64 * 1024))
@@ -132,6 +130,8 @@ def execute_finalize(
             # The new data is live; only its R2 record is missing.
             up, message = False, "activation failed: receipt"
             summary["receipt"] = "failed"
+    # Every outcome is pushed to the data-activation monitor; a failed push is
+    # recorded in the summary and fails the run.
     try:
         with kuma_factory(targets) as kuma:
             kuma.report(ACTIVATION_SOURCE, up=up, message=message)

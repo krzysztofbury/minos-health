@@ -594,15 +594,29 @@ def test_checked_index_validates_when_private_capture_id_differs(
     assert checked.capture_id != private.capture_id
 
 
-def test_xml_validator_streams_many_siblings_without_tree_retention() -> None:
-    body = (
-        b'<?xml version="1.0"?><synthetic>'
-        + (b"<item>invented</item>" * 50_000)
-        + b"</synthetic>"
-    )
+def test_xml_validator_accepts_the_element_cap_and_refuses_one_more(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The cap is the validator's real bound on a streamed document; the root
+    # counts as one element (#237).
+    monkeypatch.setattr(capture_module, "MAX_XML_ELEMENTS", 1_000)
+
+    def document(items: int) -> bytes:
+        return (
+            b'<?xml version="1.0"?><synthetic>'
+            + (b"<item>invented</item>" * items)
+            + b"</synthetic>"
+        )
+
+    at_cap = document(999)
     capture_module._validate_complete_xml(  # pyright: ignore[reportPrivateUsage]
-        BytesIO(body), len(body)
+        BytesIO(at_cap), len(at_cap)
     )
+    over = document(1_000)
+    with pytest.raises(RskProtocolError, match="structure exceeds"):
+        capture_module._validate_complete_xml(  # pyright: ignore[reportPrivateUsage]
+            BytesIO(over), len(over)
+        )
 
 
 def test_xml_validator_rejects_dtd_and_bounded_text(

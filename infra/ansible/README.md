@@ -97,9 +97,12 @@ Design:
   Git or the host's disk beyond a tmpfs copy removed after the join.
 - `infra/tailscale/policy.hujson` is the reviewed tailnet policy: admins reach
   the server tag on TCP 22 only, and the server starts nothing.
-- Break-glass: the Mikr.us panel console with the root password from 1Password.
-  The prior `sshd` configuration also listens on loopback, so a failed cutover
-  rolls back without losing the tailnet path.
+- Break-glass: Mikr.us M.A.R.I.A.N (panel, "Pomoc i diagnostyka") runs
+  commands typed into its form as root without SSH; a test run on 2026-10-23
+  reached the host. The panel's WebSSH is not a recovery path: it uses the
+  public SSH port with the root password, which `sshd` refuses and this change
+  closes. The prior `sshd` configuration also listens on loopback, so a failed
+  cutover rolls back without losing the tailnet path.
 
 Re-materialize the host variables before the next `site.yml` run after this
 change: the baseline now requires the derived `ssh_exposure` and refuses to run
@@ -112,15 +115,16 @@ Rollout, each production run approved separately:
    `infra/tailscale/policy.hujson`: own devices keep reaching each other, and
    the new `tag:minos-server` accepts SSH from admin devices only. Then
    generate a one-time, pre-authorised, non-ephemeral auth key with that tag
-   and store it in 1Password as `minos-production-tailscale`, field `auth key`.
-2. Prove a login through the Mikr.us panel console.
+   and store it in 1Password as item and field `minos-production-tailscale`.
+2. Prove that M.A.R.I.A.N reaches the host (a harmless command such as
+   `hostname`).
 3. Join, over the current public SSH (public SSH is unchanged):
 
    ```sh
    umask 077
    key_file="$(mktemp)"
    trap 'rm -f -- "$key_file"' EXIT
-   op read "op://MinosHealth/minos-production-tailscale/auth key" > "$key_file"
+   op read "op://MinosHealth/minos-production-tailscale/minos-production-tailscale" > "$key_file"
    ANSIBLE_CONFIG=infra/ansible/ansible.cfg \
      uvx --from ansible-core==2.21.4 ansible-playbook \
      infra/ansible/ssh-tailnet.yml -e ssh_tailnet_stage=join \
@@ -147,7 +151,7 @@ Rollout, each production run approved separately:
 6. From the workstation, prove the provider IPv4 port and IPv6 port 22 refuse,
    and record the evidence in #227.
 
-Reverting: over the tailnet or the Mikr.us console, run
+Reverting: over the tailnet or through M.A.R.I.A.N, run
 `ufw allow 22/tcp comment 'Minos SSH'`, delete the two `ListenAddress` lines
 from `/etc/ssh/sshd_config.d/10-minos-hardening.conf`, and restart
 `ssh.service`. Then set the provider address and mapped port back in the
@@ -356,9 +360,11 @@ separately reviewed, short-lived exception appended at the end of
 `/etc/ssh/sshd_config`: `Match User root`, `AllowTcpForwarding local`, and
 `PermitOpen <private-container-ip>:3001`. Verify all other effective SSH
 directives remain unchanged and schedule automatic removal before reloading
-SSH. Remove the exception immediately after operator setup using the reviewed
-`scripts/expire_kuma_ssh_setup.py`, verify the baseline, and close the local
-tunnel. Never leave an unrestricted SSH forwarder or publish a host port.
+SSH. Since #227 SSH is reached only over the tailnet. Remove the exception
+immediately after operator setup using the reviewed
+`scripts/expire_kuma_ssh_setup.py`; it reloads SSH even when the block is
+already gone, so a retry after a failed reload cannot report success while
+`sshd` still forwards (#231). Verify the baseline and close the local tunnel. Never leave an unrestricted SSH forwarder or publish a host port.
 Before the full Ansible apply,
 stop the standalone project with `docker compose --project-name
 minos-kuma-bootstrap --file /opt/minos/uptime-kuma-bootstrap.compose.yml down`.
@@ -384,15 +390,15 @@ bind-mounted data. Do not run the two Kuma services concurrently.
      "$kuma_container"
    ```
 
-   From the workstation, use the same materialized host, mapped SSH port,
+   From the workstation, use the same materialized tailnet host and port,
    pinned identity, and strict known-hosts file as Ansible:
 
    ```sh
    ssh -N -L 127.0.0.1:3001:<private-container-ip>:3001 \
-     -i ~/.ssh/minos_mikrus_ed25519 -p <provider-mapped-port> \
+     -i ~/.ssh/minos_mikrus_ed25519 -p 22 \
      -o StrictHostKeyChecking=yes \
      -o UserKnownHostsFile=infra/ansible/known_hosts \
-     root@<provider-hostname>
+     root@minos-production.<tailnet>.ts.net
    ```
 
    Open `http://127.0.0.1:3001`, create the admin with a strong unique password,
@@ -492,10 +498,9 @@ was restarted healthy. An isolated restore of the latest 1Password Document on
 the operator workstation started the same pinned image as UID `10003` from a
 disposable Docker volume without a network or host port. It became healthy,
 served the restored status page, and the test container and volume were removed.
-This verifies Kuma application recovery, not a full Mikr.us replacement. The
-watcher cutover, public DNS and tunnel routing, full host-loss recovery,
-representative host load, and public desktop/mobile browser verification remain
-pending.
+This verifies Kuma application recovery, not a full Mikr.us replacement. Still
+open: the complete empty-host recovery drill (#49) and launch-capacity load
+acceptance (#42).
 
 Inspect the deployed watcher through its read-only SQLite status path and a
 bounded window from Docker's local log store:

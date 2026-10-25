@@ -74,7 +74,10 @@ The copy is idempotent: an existing R2 object must already match. It runs again
 after the watcher cutover, so any object the old watcher wrote to S3 before the
 swap also reaches R2 before AWS is retired.
 
-## Cutover Procedure
+## Cutover Record
+
+The cutover ran once, on 2026-10-19, in these steps; it is a record, not a
+procedure to repeat, and the AWS rollback target it names no longer exists.
 
 1. Merge, then dispatch `ci.yml` and `publish-watcher.yml` on `main`.
 2. Plan the watcher release with the one-time storage migration. The key file

@@ -826,7 +826,11 @@ closes at the new validity start, so earlier service dates keep their release.
 Licence approval is per source class: the reviewed policy file pins the
 publisher's licence statement, and a reworded statement goes to the owner.
 Users get the latest release unless a question carries a date; a dated
-question uses the release in force on that day (owner, 2026-10-21). A CZS
+question uses the release in force on that day (owner, 2026-10-21). Releases
+of one system starting on the same Polish day resolve to the latest, by
+validity instant, source creation, fetch time and release identity, and every
+surface uses that one rule (owner, 2026-10-25, #235; it supersedes treating
+them as ambiguous). A CZS
 ICD-9 generation governs from its earliest changed procedure date, never later
 than its publication day, with backdating bounded by the policy (92
 days, owner-confirmed 2026-10-21). For phase C (owner, 2026-10-21) the
@@ -974,7 +978,8 @@ This accepts host patching and recovery responsibility in exchange for one
 small fixed annual cost and a much simpler system than separate Lambda,
 CloudFront, ECR, S3 frontend, and watcher-control services. The host is not a
 backup: mutable control SQLite is backed up consistently to R2, raw bytes are
-stored directly in R2, and complete empty-host recovery is tested.
+stored directly in R2, and a complete empty-host recovery drill is required
+before release; it has not run yet (#49, see operations.md).
 
 A managed application runtime can be reconsidered only if measured
 availability, capacity, or operational burden exceeds recorded limits.

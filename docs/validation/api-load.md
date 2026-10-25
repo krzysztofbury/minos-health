@@ -209,6 +209,24 @@ evaluation deadline (median 2,981 ms); the cause and its fix are under Gruper
 Under Contention. Search refusals at four users are the closed `busy` answer.
 The four-user rerun on the fixed release is recorded in #222.
 
+## Public Reruns After The Fixes, 2026-10-23
+
+Both owner-approved, same capped mix. Reports:
+`evidence/api-load/public-f9828a5-2026-10-23.json` and
+`public-0cde6b7-2026-10-23.json`.
+
+- `f9828a5` (#222 fix): 120 of 120 at four users, no 5xx. One user p95:
+  search 293 ms, code 197 ms, JGP 196 ms, Gruper 731 ms; four users: search
+  977 ms, code 896 ms, JGP 903 ms, Gruper 917 ms. Five Gruper 429s came from
+  the Cloudflare per-IP rule, because the four workers share one IP. Every
+  public objective met.
+- `0cde6b7` (#225 caches): every request answered (40, 120 and 12 MCP calls),
+  no 5xx, no deadline answer; correctness only. Its latencies are not
+  evidence: the workstation saw 20% loss and a 591 ms average round trip to the
+  Cloudflare address serving the site (0% and 8 ms to 1.1.1.1), and
+  `/cdn-cgi/trace`, answered by the edge alone, took up to 2.6 s. A latency
+  rerun needs a clean client path (#225).
+
 To repeat it:
 
 ```sh

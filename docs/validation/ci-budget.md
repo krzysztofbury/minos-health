@@ -34,7 +34,7 @@ limit per Git command, a 1 MiB read limit and a 10,000-path classification limit
 
 Documentation-only CI runs the locked dependency check, changed-file pre-commit
 checks and complete-history secret scanning. It omits unrelated Python/runtime,
-Terraform, Ansible, standalone and container builds. The validation job records
+Ansible, standalone and container builds. The validation job records
 the scope decision and completes successfully without container/browser work.
 The separate CI check remains responsible for document and secret acceptance.
 

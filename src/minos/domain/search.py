@@ -117,7 +117,7 @@ class SearchResult:
     suggestions: tuple[SpellingSuggestion, ...]
     index_used: str
     morphology: tuple[tuple[str, tuple[str, ...]], ...]
-    search_version: str = "lexical-2"
+    search_version: str = SEARCH_VERSION
 
 
 _WRAPPER = re.compile(

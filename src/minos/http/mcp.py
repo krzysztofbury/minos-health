@@ -28,6 +28,7 @@ from mcp.types import CallToolResult, InputRequiredResult, TextContent, ToolAnno
 from mcp.types import Tool as MCPTool
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 
+from minos.http.reference import ReferencePool
 from minos.ingest.encounter import EncounterInput
 
 MCP_PATH: Final = "/mcp"
@@ -345,6 +346,7 @@ class _Api:
     """The website's HTTP API, called in process."""
 
     def __init__(self, app: FastAPI) -> None:
+        self._app: FastAPI = app
         self._client: httpx.AsyncClient = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),
             base_url="http://minos.internal",
@@ -378,27 +380,18 @@ class _Api:
         return self._releases
 
     async def release(self, system: System, day: date) -> Json:
-        """The canonical release of ``system`` in force on the Polish ``day``."""
-        candidates = sorted(
-            (
-                item
-                for item in _objects((await self.releases()).get("releases"))
-                if item.get("system") == system
-            ),
-            key=lambda item: _text(item.get("valid_from")) or "",
-        )
-        if not candidates:
-            raise ToolFailure("NOT_FOUND")
-        governing = [
-            item
-            for item in candidates
-            if not item.get("valid_from")
-            or datetime.fromisoformat(str(item["valid_from"]))
-            .astimezone(_POLAND)
-            .date()
-            <= day
-        ]
-        return governing[-1] if governing else candidates[0]
+        """The canonical release of ``system`` in force on the Polish ``day``.
+
+        The same rule as dated search and the dictionary pages, not a local
+        copy of it, so every tool names the same release for a day (#235).
+        """
+        pool = cast(ReferencePool, self._app.state.pool)
+        governing = pool.manifest.dataset.release_in_force(system, day)
+        if governing is not None:
+            for item in _objects((await self.releases()).get("releases")):
+                if item.get("release_id") == governing.release_id:
+                    return item
+        raise ToolFailure("NOT_FOUND")
 
 
 def _hit(system: str, hit: Json) -> Json:

@@ -2,8 +2,9 @@
 
 Every answer carries the selected service and knowledge dates, the bundle's
 reviewed knowledge horizon, the governing release and its evidence, the row's
-own applicability evidence and the explicit unbound modifier state. Values are
-catalog base points without modifiers, never final settlement points.
+own applicability evidence and its modifier state: unbound, or since schema 7
+the reviewed MODTAR binding that governs the date. Values are catalog base
+points without modifiers, never final settlement points.
 """
 
 import sqlite3

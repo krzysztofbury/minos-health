@@ -548,6 +548,7 @@
     })
     .then(function (answer) {
       if (!answer || !Array.isArray(answer.releases)) throw new Error("invalid releases");
+      // The API lists the release in force today first; the grouper takes it too (#235).
       answer.releases.forEach(function (release) {
         if (SYSTEMS[release.system] && !releases[release.system]) releases[release.system] = release;
       });

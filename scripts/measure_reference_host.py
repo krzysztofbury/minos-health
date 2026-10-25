@@ -296,11 +296,7 @@ def measure(params: Parameters, stream: BinaryIO) -> dict[str, object]:
             "scope": "one isolated startup and sequential reference probes, not load suitability",
         }
     finally:
-        # Stop the exact owned container before removing its mounted files.
-        ids = run(["docker", "ps", "-aq", "--filter", "name=^/" + name + "$"]).split()
-        if ids:
-            _ = run(["docker", "rm", "--force", name])
-        shutil.rmtree(root)
+        remove_owned(name, root)
         if (
             snapshot() != before
             or Path("/opt/minos/compose.yaml").read_bytes() != compose_before
@@ -308,6 +304,25 @@ def measure(params: Parameters, stream: BinaryIO) -> dict[str, object]:
             raise RuntimeError(
                 "live service identities or Compose changed during observation"
             )
+
+
+def remove_owned(name: str, root: Path) -> None:
+    """Remove the owned container, then its mounted scratch files.
+
+    Best effort and never raising, so a cleanup hiccup cannot leave either
+    behind or discard a finished measurement (#233). `docker rm --force` on
+    the exact name needs no prior lookup and is a no-op once it is gone.
+    """
+    try:
+        _ = subprocess.run(
+            ["docker", "rm", "--force", name],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        pass
+    shutil.rmtree(root, ignore_errors=True)
 
 
 def interrupted(_signum: int, _frame: FrameType | None) -> None:

@@ -190,8 +190,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   catch-up, stale-claim expiry, pending-run reconciliation, capacity gates, and
   privacy-safe failure handling.
 - Hardened watcher Docker and Compose runtime, Mikr.us candidate preflight and
-  rollback-safe activation, watcher AWS Terraform, and an opt-in disposable AWS
-  acceptance harness.
+  rollback-safe activation. The watcher AWS Terraform and the disposable AWS
+  acceptance harness added then were retired with the move to R2 (#200).
 - Private, bounded RSK compatibility capture with schema-bounded response
   models, semantic `00CD10` XML selection, full metadata rotation detection,
   digest-addressed evidence, a privacy-safe checksum projection, and wholly
@@ -234,7 +234,17 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
-- SSH can leave the public internet (#227). `infra/ansible/ssh-tailnet.yml`
+- Status documents agree on what is open (#238): the README and Ansible
+  runbook no longer call the delivered watcher, status route, push delivery and
+  browser verification pending, and name the two open gates (the empty-host
+  recovery drill, #49, and launch-capacity load, #42); the decisions log no
+  longer says empty-host recovery was tested.
+- AWS and Terraform leftovers after the R2 move are gone (#239): the unused
+  `mise.toml` pins for `aws-cli` and `terraform`, a CI-security check for a
+  Terraform step no workflow has, and present-tense AWS, IAM and Terraform
+  statements in this changelog and the archive, CI-budget and R2 documents;
+  the R2 cutover reads as the completed 2026-10-19 record.
+- SSH left the public internet on 2026-10-23 (#227). `infra/ansible/ssh-tailnet.yml`
   joins the host to a Tailscale tailnet in userspace mode with a one-time
   tagged key, proves a login over it, and only then makes `sshd` listen on
   loopback and removes the firewall's SSH rule, rolling back on any failure
@@ -242,7 +252,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
   pins port 22 under the bare host name, as OpenSSH looks it up; `site.yml`
   keeps either state and never reopens SSH on a tailnet host. The tailnet
   policy is reviewed in `infra/tailscale/policy.hujson`. The site stays on the
-  Cloudflare Tunnel. The cutover itself is two owner-approved runs.
+  Cloudflare Tunnel. Both owner-approved stages ran: the provider IPv4 port
+  now times out, `sshd` listens on loopback only and UFW allows no inbound
+  traffic. The join stage's tmpfs staging now applies only to the remote auth
+  key copy (the first run stopped on the workstation-side check), and recovery
+  goes through Mikr.us M.A.R.I.A.N, not the panel's WebSSH.
 - Load objectives adopted (#42, `docs/validation/api-load.md`): one user is
   the experience to protect (public p95: search 500 ms, pages and Gruper 1 s,
   MCP call 1.5 s), four users may slow down but stay correct (search, pages
@@ -333,8 +347,7 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - The validation edge image moved to the upstream NGINX 1.31.7 / Alpine 3.24.2
   rebuild, which fixes `CVE-2026-77214` (libexpat 2.9.0-r0) and
   `CVE-2026-88806` (libx11 1.8.14-r0) found by the image scan, and ships
-  tiff 4.7.2-r0, so the extra tiff layer is gone. FastAPI 0.143.2 and the
-  Terraform AWS provider 6.69.1 are included.
+  tiff 4.7.2-r0, so the extra tiff layer is gone. FastAPI 0.143.2 is included.
 - Validation releases start the new API colour (`reference-api-blue` or
   `reference-api-green`) beside the live one and retire the old colour only
   after the new API and edge are healthy (#192). The API startup (87 to 270
@@ -410,8 +423,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   and activation. Full release, capacity and ward-evidence gates remain open.
 - Replaced the planned Lambda, ECR, CloudFront, frontend-S3, and QNAP topology
   with one dedicated Mikr.us `3.0` Docker Compose host behind Cloudflare Tunnel;
-  AWS now provides only versioned source storage, narrow IAM, budgets, and
-  Terraform state.
+  AWS then provided only versioned source storage, narrow IAM, budgets, and
+  Terraform state, all retired for Cloudflare R2 in #200.
 - Replaced S3 sidecar and S3-hosted compare-and-swap watcher state with a mutable
   SQLite control plane on Mikr.us, revisioned S3 database recovery images, and
   APScheduler;
@@ -459,6 +472,48 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The local and CI Compose watcher health check allows 30 s like production
+  instead of 5 s; the check takes about 3 s on a workstation and intermittently
+  timed out on slower CI runners.
+- The validation edge pins Alpine `brotli-libs` 1.2.1-r0 for CVE-2026-111497
+  (HIGH): the newest upstream NGINX 1.31.7 digest still ships 1.2.0-r1, so a
+  package layer bridges until upstream rebuilds. The development dependency
+  `filelock` moves to 4.2.4 for CVE-2026-112907, -112913 and -112940; it ships
+  in no image.
+- Small source and test cleanups (#237, #240): the XML streaming test now
+  checks the validator's element cap (accepted at the cap, refused one above)
+  instead of asserting nothing; two stale comments match the code (activation
+  outcomes are always pushed, and schema 7 answers carry the reviewed MODTAR
+  binding); `SearchResult.search_version` defaults to the current version; an
+  unreachable page label and an unused receipt pattern are gone.
+- The filter, conditions, JGP search and search-recovery browser harnesses read
+  the Chromium DevTools port through the shared `waitForDevToolsPort` (#236),
+  which refuses an empty or partial port line; they still read it themselves,
+  so the race behind hosted run 37361709208 stayed open there.
+- The source catalog badges BAW orders `BAW NFZ` instead of `NFZ` (#234), so
+  they no longer look like the NFZ / CZS / AOTMiT publication cards; the
+  no-JavaScript pages already named the three apart.
+- Host reference measurement cleanup no longer depends on a `docker ps` that can
+  fail (#233): it removes the owned container by name and then its scratch
+  directory, never raising, so neither stays behind and a finished
+  measurement is not discarded.
+- A failed or OOM-killed API start keeps its evidence when reading it outlasts
+  the startup deadline (#232); the handler replaced the whole record with a
+  generic timeout, dropping the #198 diagnostics exactly when they mattered.
+- `scripts/expire_kuma_ssh_setup.py` reloads SSH even when the temporary
+  forwarding block is already gone (#231). A failed reload after rewriting the
+  file left `sshd` forwarding, and the retry reported "Already absent" without
+  reloading. The Kuma tunnel snippet now uses the tailnet address (#227).
+- The data processor's cap of two activation attempts holds per database
+  (#230): it rewrote the attempt file with only the database it was trying, and
+  cleared the whole file on success, so a second database gave the first one
+  fresh attempts. Latent until unattended activation is enabled (#141).
+- Releases of one system that start on the same Polish day resolve to the
+  latest (owner decision 2026-10-25, #235): later validity instant, then source
+  creation, fetch time and release identity. Search refused that day while the
+  dictionary pages, MCP tools, search page and Gruper each guessed differently;
+  all now use the one rule, MCP calls it directly and the Gruper drops its CZS
+  override. Latent: current manifests have no shared start day.
 - API logs no longer carry MCP tool arguments (#220). The MCP SDK called
   `logging.basicConfig` on startup, so the in-process client's request lines,
   whose URLs hold codes from `get_code`, `browse_codes` and the JGP tools,

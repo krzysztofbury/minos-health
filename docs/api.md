@@ -80,8 +80,10 @@ Each listed release carries `valid_from`, `valid_to` and `in_force`. A release
 governs from its validity start (as a Polish calendar date) until the next
 release of its system starts; a day before every archived release falls to the
 earliest. For each system the release in force today is listed first, and the
-others keep manifest order. Two releases of one system with the same start are
-ambiguous: neither is in force, and a dated search is refused.
+others keep manifest order. Releases of one system starting on the same Polish
+day resolve to the latest: the later validity instant, then source creation,
+then fetch time, then release identity (owner decision 2026-10-25, #235). Search,
+the dictionary pages, MCP and the grouper use that one rule.
 
 Search returns `api: 1` plus the shared CLI v1 envelope: selected release and
 dataset identities, database/source checksums, search/morphology versions,

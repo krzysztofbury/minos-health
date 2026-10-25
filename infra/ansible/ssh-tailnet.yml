@@ -164,10 +164,6 @@
 
         - name: Join with the one-time tagged auth key
           when: (tailnet_before.stdout | from_json).BackendState != 'Running'
-          # The copy module stages its source in the remote temporary
-          # directory; keep that on tmpfs so the key never reaches disk.
-          vars:
-            ansible_remote_tmp: /run/minos-ansible-tmp
           block:
             - name: Require an auth key file argument
               ansible.builtin.assert:
@@ -192,7 +188,12 @@
                   Supply -e tailscale_auth_key_source=<file> holding a one-time,
                   pre-authorised key tagged tag:minos-server, mode 0400 or 0600.
 
+            # The copy module stages its source in the remote temporary
+            # directory; keep that on tmpfs so the key never reaches disk.
+            # Only this task: the workstation-side tasks keep their default.
             - name: Place the auth key on the host's tmpfs
+              vars:
+                ansible_remote_tmp: /run/minos-ansible-tmp
               ansible.builtin.copy:
                 src: "{{ tailscale_auth_key_source }}"
                 dest: "{{ tailscale_auth_key_path }}"
@@ -320,8 +321,8 @@
           ansible.builtin.debug:
             msg: >-
               Joined as {{ tailnet_ssh_host }} and logged in over the tailnet.
-              Public SSH is unchanged. Next: prove the Mikr.us console login,
-              set ansible_host={{ tailnet_ssh_host }} and ansible_port=22 in the
+              Public SSH is unchanged. Next: prove that M.A.R.I.A.N reaches the
+              host, set ansible_host={{ tailnet_ssh_host }} and ansible_port=22 in the
               1Password deployment item, re-materialize, then run
               -e ssh_tailnet_stage=private.
 

@@ -766,11 +766,13 @@ def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]
         )
         identifier = details.pop("candidate_id", None)
         if isinstance(identifier, str):
+            # A process or OOM failure keeps its own status and evidence even
+            # when reading the evidence outlasts the deadline (#232).
             details["candidate"] = {
                 **cast(dict[str, object], details["candidate"]),
                 **candidate_diagnostics(identifier),
             }
-        if time.monotonic() >= deadline and phase != "retire":
+        elif time.monotonic() >= deadline and phase != "retire":
             details = {"status": "startup_deadline", "failure_classes": ["timeout"]}
         return result(
             details or {"status": "startup_inspection_failed", "failure_classes": []}

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import final
+from typing import cast, final
 
 import pytest
 
@@ -34,11 +34,13 @@ class Startup:
         self.retire_bounds: list[float] = []
         self.retire_cost = 0.0
         self.log_reads: list[list[str]] = []
+        self.log_read_cost = 0.0
 
     def run(self, arguments: list[str], timeout_s: float) -> str:
         # Only the failed-candidate log read reaches run(); inspection is faked.
         assert timeout_s <= host.DIAGNOSTIC_TIMEOUT_S
         self.log_reads.append(arguments)
+        self.clock.sleep(self.log_read_cost)
         return "\n".join(
             [
                 '{"event": "comparison_preload", "status": "completed"}',
@@ -230,6 +232,23 @@ def test_failed_start_keeps_candidate_evidence_without_raw_logs(
     ]
     assert "candidate_id" not in result
     assert "PRIVATE_PATH" not in json.dumps(result)
+
+
+def test_a_slow_evidence_read_never_turns_a_failed_start_into_a_timeout(
+    startup: Startup, tmp_path: Path
+) -> None:
+    # The log read can outlast the grace window; the process failure and its
+    # evidence are what #198 needs, not a generic deadline (#232).
+    startup.fault = "oom"
+    startup.log_read_cost = host.DIAGNOSTIC_TIMEOUT_S
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert startup.clock.now >= 10
+    assert result["status"] == "startup_process_failed"
+    assert result["failure_classes"] == ["process_failure"]
+    candidate = cast(dict[str, object], result["candidate"])
+    assert (candidate["oom_killed"], candidate["error_class"]) == (True, "MemoryError")
 
 
 def test_startup_error_class_takes_only_a_valid_class_name() -> None:

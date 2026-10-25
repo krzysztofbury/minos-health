@@ -1,12 +1,19 @@
 import ast
 import hashlib
 import io
+import subprocess
 import tarfile
 from pathlib import Path
 
 import pytest
 
-from scripts.measure_reference_host import Parameters, Probe, unpack, validate_probe
+from scripts.measure_reference_host import (
+    Parameters,
+    Probe,
+    remove_owned,
+    unpack,
+    validate_probe,
+)
 
 
 @pytest.mark.parametrize("name", ["../minos.db", "/minos.db", "other.db"])
@@ -72,3 +79,28 @@ def test_measurement_refuses_failed_or_foreign_warm_probe(failure: str) -> None:
         result["lookups"][1]["conditions_status"] = "missing_conditions"
     with pytest.raises(RuntimeError):
         validate_probe(result, parameters)
+
+
+@pytest.mark.parametrize("failure", ["exit", "timeout"])
+def test_cleanup_removes_container_and_scratch_even_when_docker_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    # A failing docker call must neither raise from cleanup nor keep the
+    # scratch directory with its mounted bundle (#233).
+    root = tmp_path / "minos-reference-measure-x"
+    (root / "bundle").mkdir(parents=True)
+    _ = (root / "bundle" / "minos.db").write_bytes(b"db")
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        calls.append(argv)
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(argv, 30)
+        return subprocess.CompletedProcess(argv, 1, b"", b"daemon unavailable")
+
+    monkeypatch.setattr(subprocess, "run", run)
+
+    remove_owned("minos-measure-x", root)
+
+    assert calls == [["docker", "rm", "--force", "minos-measure-x"]]
+    assert not root.exists()
