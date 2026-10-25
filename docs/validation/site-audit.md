@@ -92,6 +92,14 @@ approved by the owner and checked live afterwards.
   so these Free-plan zones keep only Cloudflare's default security-event window.
 - Other zones in the account were not read or changed.
 
+Re-read on 2026-10-25, read-only, nothing changed: both zones still have no
+Logpush jobs (none at account level either), no Page Rules, RUM, Network Error
+Logging, Email Address Obfuscation and Rocket Loader off, the same managed and
+zone rulesets, and the retention control is unavailable on Free (HTTP 405).
+Zaraz is on with auto-inject but holds no tools, and the live home, sources and
+code pages carry no Zaraz or Cloudflare analytics script and no `nel` or
+`report-to` header; the CSP allows only same-origin scripts and Plausible.
+
 ## Indexing
 
 The domain property `sc-domain:minoshealth.pl` is new. On 2026-10-14 the

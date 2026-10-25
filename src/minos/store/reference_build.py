@@ -441,6 +441,10 @@ def finalize_reference(connection: sqlite3.Connection) -> dict[str, int]:
     _ = connection.execute(
         "INSERT INTO concept_description_fts(concept_description_fts, rank) VALUES ('integrity-check', 1)"
     )
+    # Planner statistics travel with the immutable bundle. Without them SQLite
+    # guessed index selectivity and scanned half a table per lookup (#228).
+    # ANALYZE reads the final rows only, so the bytes stay deterministic.
+    _ = connection.execute("ANALYZE")
     if connection.execute("PRAGMA integrity_check").fetchone() != ("ok",):
         raise ArtifactError("reference database integrity check failed")
     if connection.execute("PRAGMA foreign_key_check").fetchone() is not None:

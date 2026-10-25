@@ -234,6 +234,15 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Cloudflare provider-retention audit re-read on 2026-10-25 (#28), read-only:
+  no Logpush, retention control unavailable on Free, NEL, RUM and obfuscation
+  off, Zaraz without tools and nothing injected into pages; the rollout record
+  no longer says the zone was never audited.
+- Reference bundles carry SQLite planner statistics (#228): the builder runs
+  `ANALYZE` on the final rows before hashing, and two builds of the same inputs
+  stay byte-identical. It applies from the next bundle build; the live bundle
+  and the `INDEXED BY` pin on ICD-11 map lookups are unchanged until then, when
+  request-path query plans get reviewed.
 - Status documents agree on what is open (#238): the README and Ansible
   runbook no longer call the delivered watcher, status route, push delivery and
   browser verification pending, and name the two open gates (the empty-host
@@ -472,6 +481,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- MCP `get_code` and `browse_codes` answer with the requested ICD-9 code
+  (#242). They reused the CZS concept's node number in the tree, which for
+  ICD-9 browses the NFZ workbook's hierarchy with other numbers, so
+  `get_code(53.03)` returned the title, path and children of 53.8 beside 53.03's
+  rank and JGP lists. They now resolve the code in the browsed hierarchy, as the
+  code pages do. On the production bundle all 58,122 ICD-9, ICD-10 and ICD-11
+  codes resolve to themselves. Present since the MCP server shipped (#216).
 - The local and CI Compose watcher health check allows 30 s like production
   instead of 5 s; the check takes about 3 s on a workstation and intermittently
   timed out on slower CI runners.

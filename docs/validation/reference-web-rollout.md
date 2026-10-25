@@ -57,9 +57,11 @@ controls are not a guarantee about provider retention. Its documented Security
 Events retention is 24 hours for Free/Pro, three days for Business and 30 days
 for Enterprise; Security Analytics retention is respectively seven, seven,
 31 and 90 days. This rollout does not enable Logpush, Logpull retention,
-payload logging or DLP forensic copies. The active zone's detailed retention
-settings have not been independently audited, so the full #28 provider-retention
-acceptance remains open. Never submit patient data. Documentation checked on
+payload logging or DLP forensic copies. The zones' actual settings were read
+through the Cloudflare API on 2026-10-14 and again on 2026-10-25 (no Logpush,
+retention control unavailable on Free, no analytics or reporting injected); see
+the Cloudflare section of [the site audit](site-audit.md). Never submit patient
+data. Documentation checked on
 2026-10-01: [Security Events](https://developers.cloudflare.com/waf/analytics/security-events/)
 and [Logpull retention](https://developers.cloudflare.com/logs/logpull/enabling-log-retention/).
 
