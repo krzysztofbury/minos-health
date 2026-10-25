@@ -339,6 +339,42 @@ def test_two_failed_starts_exhaust_the_budget_for_that_database(
     assert (processor / "accepted" / _DATABASE).is_dir()
 
 
+def test_another_database_never_resets_an_exhausted_budget(
+    layout: tuple[Path, Path],
+) -> None:
+    # The cap is per database: activating a second one in between, even
+    # successfully, must not give the first two fresh attempts (#230).
+    root, processor = layout
+    _accept(processor, ["icd9-pl"])
+    first = _Activator(failures=["activate", "activate"])
+    assert host.run_once(root, processor, _Docker(processor / "work"), first) == (
+        "failed"
+    )
+
+    shutil.rmtree(processor / "accepted")
+    (processor / "accepted").mkdir()
+    other = "c" * 64
+    (processor / "accepted" / other).mkdir()
+    request = {"version": 1, "system": "icd9-pl", "database_sha256": other,
+               "release_id": "icd9-czs-5-90-gen-95-0a1b2c3d4e5f", "dataset_id": _DATASET}  # fmt: skip
+    _ = (processor / "accepted/request.json").write_text(json.dumps(request))
+    second = _Activator()
+    assert host.run_once(root, processor, _Docker(processor / "work"), second) == (
+        "activated"
+    )
+
+    _accept(processor, None)
+    again = _Activator()
+    assert host.run_once(root, processor, _Docker(processor / "work"), again) == (
+        "failed"
+    )
+    assert again.calls == []
+    assert _outcome(processor)["stage"] == "retries_exhausted"
+    assert json.loads((processor / "activation/attempts.json").read_text()) == {
+        _DATABASE: 2
+    }
+
+
 def test_a_release_the_public_site_does_not_serve_is_rolled_back(
     layout: tuple[Path, Path],
 ) -> None:

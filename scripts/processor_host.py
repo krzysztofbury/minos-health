@@ -281,7 +281,9 @@ def activate_accepted(
     while isinstance(used, int) and used < MAX_ATTEMPTS:
         used += 1
         # Counted before the attempt, so a crash mid-transition is not free.
-        _write_private(attempts_path, json.dumps({database: used}).encode())
+        # Other databases keep their counts, or a second one resets the cap.
+        attempts[database] = used
+        _write_private(attempts_path, json.dumps(attempts, sort_keys=True).encode())
         started = time.monotonic()
         try:
             staged = activator.stage(accepted / database, database)
@@ -329,7 +331,11 @@ def activate_accepted(
             # The new data serves; the outcome still records the activation.
             pass
         _clear(accepted)
-        attempts_path.unlink(missing_ok=True)
+        _ = attempts.pop(database, None)
+        if attempts:
+            _write_private(attempts_path, json.dumps(attempts, sort_keys=True).encode())
+        else:
+            attempts_path.unlink(missing_ok=True)
         return {
             "version": 1,
             "status": "activated",

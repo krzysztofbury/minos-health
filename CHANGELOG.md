@@ -459,6 +459,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The data processor's cap of two activation attempts holds per database
+  (#230): it rewrote the attempt file with only the database it was trying, and
+  cleared the whole file on success, so a second database gave the first one
+  fresh attempts. Latent until unattended activation is enabled (#141).
 - Releases of one system that start on the same Polish day resolve to the
   latest (owner decision 2026-10-25, #235): later validity instant, then source
   creation, fetch time and release identity. Search refused that day while the
