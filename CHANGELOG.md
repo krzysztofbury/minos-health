@@ -234,6 +234,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Cloudflare provider-retention audit re-read on 2026-10-25 (#28), read-only:
+  no Logpush, retention control unavailable on Free, NEL, RUM and obfuscation
+  off, Zaraz without tools and nothing injected into pages; the rollout record
+  no longer says the zone was never audited.
 - Reference bundles carry SQLite planner statistics (#228): the builder runs
   `ANALYZE` on the final rows before hashing, and two builds of the same inputs
   stay byte-identical. It applies from the next bundle build; the live bundle
