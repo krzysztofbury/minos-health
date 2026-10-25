@@ -472,6 +472,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The local and CI Compose watcher health check allows 30 s like production
+  instead of 5 s; the check takes about 3 s on a workstation and intermittently
+  timed out on slower CI runners.
 - The validation edge pins Alpine `brotli-libs` 1.2.1-r0 for CVE-2026-111497
   (HIGH): the newest upstream NGINX 1.31.7 digest still ships 1.2.0-r1, so a
   package layer bridges until upstream rebuilds. The development dependency
