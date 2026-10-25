@@ -459,6 +459,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- `scripts/expire_kuma_ssh_setup.py` reloads SSH even when the temporary
+  forwarding block is already gone (#231). A failed reload after rewriting the
+  file left `sshd` forwarding, and the retry reported "Already absent" without
+  reloading. The Kuma tunnel snippet now uses the tailnet address (#227).
 - The data processor's cap of two activation attempts holds per database
   (#230): it rewrote the attempt file with only the database it was trying, and
   cleared the whole file on success, so a second database gave the first one

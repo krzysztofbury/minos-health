@@ -47,6 +47,9 @@ def expire(path: Path = SSH_CONFIG, *, expected: bytes = EXCEPTION) -> bool:
     if b"# BEGIN MINOS TEMP KUMA SETUP" not in content:
         if b"# END MINOS TEMP KUMA SETUP" in content:
             raise RuntimeError("Kuma SSH exception has an orphaned end marker")
+        # An earlier run may have rewritten the file and then failed to
+        # reload, leaving sshd forwarding; absent is only true once reloaded.
+        _reload()
         return False
     restored = without_exception(content, expected)
     temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
@@ -79,8 +82,12 @@ def expire(path: Path = SSH_CONFIG, *, expected: bytes = EXCEPTION) -> bool:
         if descriptor >= 0:
             os.close(descriptor)
         temporary.unlink(missing_ok=True)
-    _ = subprocess.run(["systemctl", "reload", "ssh"], check=True, timeout=15)
+    _reload()
     return True
+
+
+def _reload() -> None:
+    _ = subprocess.run(["systemctl", "reload", "ssh"], check=True, timeout=15)
 
 
 def main() -> int:
@@ -93,7 +100,11 @@ def main() -> int:
     except _EXPIRY_ERRORS:
         print("Kuma SSH exception expiry failed; inspect SSH config", file=sys.stderr)
         return 1
-    print("Kuma SSH forwarding exception removed" if changed else "Already absent")
+    print(
+        "Kuma SSH forwarding exception removed"
+        if changed
+        else "Already absent; SSH reloaded"
+    )
     return 0
 
 

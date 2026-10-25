@@ -360,9 +360,11 @@ separately reviewed, short-lived exception appended at the end of
 `/etc/ssh/sshd_config`: `Match User root`, `AllowTcpForwarding local`, and
 `PermitOpen <private-container-ip>:3001`. Verify all other effective SSH
 directives remain unchanged and schedule automatic removal before reloading
-SSH. Remove the exception immediately after operator setup using the reviewed
-`scripts/expire_kuma_ssh_setup.py`, verify the baseline, and close the local
-tunnel. Never leave an unrestricted SSH forwarder or publish a host port.
+SSH. Since #227 SSH is reached only over the tailnet. Remove the exception
+immediately after operator setup using the reviewed
+`scripts/expire_kuma_ssh_setup.py`; it reloads SSH even when the block is
+already gone, so a retry after a failed reload cannot report success while
+`sshd` still forwards (#231). Verify the baseline and close the local tunnel. Never leave an unrestricted SSH forwarder or publish a host port.
 Before the full Ansible apply,
 stop the standalone project with `docker compose --project-name
 minos-kuma-bootstrap --file /opt/minos/uptime-kuma-bootstrap.compose.yml down`.
@@ -393,10 +395,10 @@ bind-mounted data. Do not run the two Kuma services concurrently.
 
    ```sh
    ssh -N -L 127.0.0.1:3001:<private-container-ip>:3001 \
-     -i ~/.ssh/minos_mikrus_ed25519 -p <provider-mapped-port> \
+     -i ~/.ssh/minos_mikrus_ed25519 -p 22 \
      -o StrictHostKeyChecking=yes \
      -o UserKnownHostsFile=infra/ansible/known_hosts \
-     root@<provider-hostname>
+     root@minos-production.<tailnet>.ts.net
    ```
 
    Open `http://127.0.0.1:3001`, create the admin with a strong unique password,
