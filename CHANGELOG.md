@@ -459,6 +459,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- Host reference measurement cleanup no longer depends on a `docker ps` that can
+  fail (#233): it removes the owned container by name and then its scratch
+  directory, never raising, so neither stays behind and a finished
+  measurement is not discarded.
 - A failed or OOM-killed API start keeps its evidence when reading it outlasts
   the startup deadline (#232); the handler replaced the whole record with a
   generic timeout, dropping the #198 diagnostics exactly when they mattered.
