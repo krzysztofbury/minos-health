@@ -459,6 +459,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- A failed or OOM-killed API start keeps its evidence when reading it outlasts
+  the startup deadline (#232); the handler replaced the whole record with a
+  generic timeout, dropping the #198 diagnostics exactly when they mattered.
 - `scripts/expire_kuma_ssh_setup.py` reloads SSH even when the temporary
   forwarding block is already gone (#231). A failed reload after rewriting the
   file left `sshd` forwarding, and the retry reported "Already absent" without
