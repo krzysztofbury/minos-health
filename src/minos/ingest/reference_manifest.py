@@ -146,8 +146,8 @@ class DatasetManifest(BaseModel):
         """The canonical release of ``system`` that governs the Polish ``day``.
 
         A release governs from its validity start until the next one starts. A
-        day before every archived release falls to the earliest, which is what
-        the bundle served before it held more than one. Releases starting on the
+        day before every archived release falls to the earliest start day, which
+        is what the bundle served before it held more than one. Releases starting on the
         same Polish day are not ambiguous: the latest wins (owner decision
         2026-10-25, #235), by validity instant, then source creation, then fetch
         time, then release identity, so every caller picks the same one. None
@@ -161,8 +161,14 @@ class DatasetManifest(BaseModel):
             ),
             key=_recency,
         )
+        if not releases:
+            return None
         governing = [source for source in releases if _start_day(source) <= day]
-        return governing[-1] if governing else (releases[0] if releases else None)
+        if governing:
+            return governing[-1]
+        # Before every start: the earliest day, and within it the latest.
+        first = _start_day(releases[0])
+        return [source for source in releases if _start_day(source) == first][-1]
 
     @model_validator(mode="after")
     def validate_releases(self) -> Self:

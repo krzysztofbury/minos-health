@@ -342,26 +342,37 @@ def test_same_day_releases_resolve_to_the_latest_everywhere(
             list[dict[str, object]], client.get("/api/v1/releases").json()["releases"]
         )
         page = client.get("/slowniki/icd-10/M00")
-        dated = client.post(
-            "/api/v1/search",
-            json={
-                "system": "icd10-pl",
-                "query": "druga kategoria",
-                "service_date": "2026-02-01",
-            },
-        )
+        # After the shared start and before it: the same release both times.
+        dated = {
+            day: client.post(
+                "/api/v1/search",
+                json={
+                    "system": "icd10-pl",
+                    "query": "druga kategoria",
+                    "service_date": day,
+                },
+            )
+            for day in ("2026-02-01", "2025-06-01")
+        }
         api = _Api(cast(FastAPI, client.app))
         try:
-            mcp = asyncio.run(api.release("icd10-pl", date(2026, 2, 1)))
+            mcp = [
+                asyncio.run(api.release("icd10-pl", day))
+                for day in (date(2026, 2, 1), date(2025, 6, 1))
+            ]
         finally:
             asyncio.run(api.close())
 
     icd10 = [item for item in listed if item["system"] == "icd10-pl"]
     assert [item["release_id"] for item in icd10 if item["in_force"]] == [winner]
     assert icd10[0]["release_id"] == winner
-    assert dated.status_code == 200
-    assert dated.json()["release_id"] == winner
-    assert mcp["release_id"] == winner
+    assert {
+        day: (r.status_code, r.json()["release_id"]) for day, r in dated.items()
+    } == {
+        "2026-02-01": (200, winner),
+        "2025-06-01": (200, winner),
+    }
+    assert [item["release_id"] for item in mcp] == [winner, winner]
     wording = "zmieniona" if later == "new" else "próbna"
     assert page.status_code == 200
     assert f"Druga kategoria {wording}" in page.text
