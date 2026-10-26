@@ -27,20 +27,8 @@
   function button(parent, text, cls, callback) { var node = el("button", text, cls); node.type = "button"; node.addEventListener("click", callback); parent.append(node); return node; }
   function chip(text, cls) { return el("span", text, "code-chip" + (cls ? " " + cls : "")); }
 
-  /* Dates are typed as DD.MM.RRRR whatever the browser language; the API receives ISO. */
-  function iso(text) {
-    var m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec((text || "").trim()); if (!m) return "";
-    var d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
-    return d.getUTCFullYear() === +m[3] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[1] ? m[3] + "-" + m[2] + "-" + m[1] : "";
-  }
-  function isoMonth(text) { var m = /^(0[1-9]|1[0-2])\.(\d{4})$/.exec((text || "").trim()); return m ? m[2] + "-" + m[1] : ""; }
-  function pl(isoDate) { var p = (isoDate || "").split("-"); return p.length === 3 ? p[2] + "." + p[1] + "." + p[0] : ""; }
-  function plMonth(isoDate) { var p = (isoDate || "").split("-"); return p.length >= 2 ? p[1] + "." + p[0] : ""; }
-  function mask(input, groups) {
-    var digits = input.value.replace(/\D/g, "").slice(0, groups.reduce(function (a, b) { return a + b; }, 0)), parts = [], at = 0;
-    groups.forEach(function (size) { if (digits.length > at) parts.push(digits.slice(at, at + size)); at += size; });
-    input.value = parts.join(".");
-  }
+  /* Dates are typed as DD.MM.RRRR whatever the browser language; the API receives ISO (datepicker.js). */
+  var DATES = window.MinosDates, iso = DATES.iso, isoMonth = DATES.isoMonth, pl = DATES.pl, plMonth = DATES.plMonth, mask = DATES.mask;
   /* One field anatomy everywhere: a label row (label, optional marker, ? tip) above
      the control, so controls in a row always start at the same height. */
   function field(parent, title, options) {
@@ -94,88 +82,7 @@
   document.addEventListener("focusout", function (event) { if (event.target.classList && event.target.classList.contains("tip")) hideTip(true); });
 
   /* Calendar in Polish whatever the browser language; typing stays the fast path. */
-  var picker = byId("picker"), pickerInput = null, pickerKind = "date", view = { year: 2026, month: 0 }, cursor = "";
-  var MONTHS = ["styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec", "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień"];
-  var MONTHS_OF = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
-  var WEEKDAYS = ["pn", "wt", "śr", "cz", "pt", "so", "nd"];
-  function isoOf(y, m, d) { var date = new Date(Date.UTC(y, m, d)); return date.toISOString().slice(0, 10); }
-  function todayIso() { var now = new Date(); return isoOf(now.getFullYear(), now.getMonth(), now.getDate()); }
-  function openPicker(button) {
-    hideTip(true);
-    pickerInput = button.parentElement.querySelector("input"); pickerKind = button.dataset.picker;
-    var chosen = pickerKind === "date" ? iso(pickerInput.value) : (isoMonth(pickerInput.value) ? isoMonth(pickerInput.value) + "-01" : "");
-    cursor = chosen || iso(value("discharged")) || iso(value("admitted")) || todayIso();
-    view = { year: +cursor.slice(0, 4), month: +cursor.slice(5, 7) - 1 };
-    renderPicker(); picker.hidden = false;
-    var r = pickerInput.parentElement.getBoundingClientRect(), width = picker.offsetWidth;
-    picker.style.left = Math.max(16, Math.min(r.left, document.documentElement.clientWidth - width - 16)) + window.scrollX + "px";
-    picker.style.top = r.bottom + window.scrollY + 6 + "px";
-    var focus = picker.querySelector("[data-value='" + (pickerKind === "date" ? cursor : cursor.slice(0, 7)) + "']"); if (focus) focus.focus();
-  }
-  function closePicker(restore) { if (picker.hidden) return; picker.hidden = true; picker.replaceChildren(); if (restore && pickerInput) pickerInput.focus(); }
-  function choosePicked(valueIso) {
-    pickerInput.value = pickerKind === "date" ? pl(valueIso) : plMonth(valueIso);
-    pickerInput.dispatchEvent(new Event("input", { bubbles: true }));
-    closePicker(true);
-  }
-  function renderPicker() {
-    picker.replaceChildren();
-    var head = el("div", undefined, "picker-head"), title = el("p", pickerKind === "date" ? MONTHS[view.month] + " " + view.year : String(view.year), "picker-title");
-    title.setAttribute("aria-live", "polite");
-    var prev = el("button", "‹", "picker-nav"), nextButton = el("button", "›", "picker-nav");
-    prev.type = nextButton.type = "button";
-    prev.setAttribute("aria-label", pickerKind === "date" ? "Poprzedni miesiąc" : "Poprzedni rok"); nextButton.setAttribute("aria-label", pickerKind === "date" ? "Następny miesiąc" : "Następny rok");
-    prev.addEventListener("click", function () { shiftView(-1); }); nextButton.addEventListener("click", function () { shiftView(1); });
-    head.append(prev, title, nextButton); picker.append(head);
-    var grid = el("div", undefined, pickerKind === "date" ? "picker-days" : "picker-months"); grid.setAttribute("role", "grid");
-    var today = todayIso(), selected = pickerKind === "date" ? iso(pickerInput.value) : isoMonth(pickerInput.value);
-    if (pickerKind === "date") {
-      WEEKDAYS.forEach(function (name) { var cell = el("span", name, "picker-weekday"); cell.setAttribute("aria-hidden", "true"); grid.append(cell); });
-      var first = new Date(Date.UTC(view.year, view.month, 1)), offset = (first.getUTCDay() + 6) % 7, days = new Date(Date.UTC(view.year, view.month + 1, 0)).getUTCDate();
-      for (var blank = 0; blank < offset; blank++) grid.append(el("span", "", "picker-blank"));
-      for (var day = 1; day <= days; day++) {
-        var at = isoOf(view.year, view.month, day), cell = el("button", String(day), "picker-cell");
-        cell.type = "button"; cell.dataset.value = at; cell.tabIndex = at === cursor ? 0 : -1;
-        cell.setAttribute("aria-label", day + " " + MONTHS_OF[view.month] + " " + view.year);
-        if (at === today) cell.classList.add("is-today"); if (at === selected) { cell.classList.add("is-selected"); cell.setAttribute("aria-pressed", "true"); }
-        grid.append(cell);
-      }
-    } else {
-      MONTHS.forEach(function (name, index) {
-        var at = view.year + "-" + String(index + 1).padStart(2, "0"), cell = el("button", name, "picker-cell");
-        cell.type = "button"; cell.dataset.value = at; cell.tabIndex = at === cursor.slice(0, 7) ? 0 : -1;
-        cell.setAttribute("aria-label", name + " " + view.year);
-        if (at === today.slice(0, 7)) cell.classList.add("is-today"); if (at === selected) { cell.classList.add("is-selected"); cell.setAttribute("aria-pressed", "true"); }
-        grid.append(cell);
-      });
-    }
-    picker.append(grid);
-  }
-  function shiftView(step) {
-    if (pickerKind === "date") { var d = new Date(Date.UTC(view.year, view.month + step, 1)); view = { year: d.getUTCFullYear(), month: d.getUTCMonth() }; cursor = isoOf(view.year, view.month, Math.min(+cursor.slice(8, 10) || 1, new Date(Date.UTC(view.year, view.month + 1, 0)).getUTCDate())); }
-    else { view = { year: view.year + step, month: view.month }; cursor = view.year + cursor.slice(4); }
-    renderPicker();
-  }
-  function moveCursor(delta) {
-    if (pickerKind === "date") { var d = new Date(cursor + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + delta); cursor = d.toISOString().slice(0, 10); }
-    else { var month = +cursor.slice(5, 7) - 1 + delta, year = +cursor.slice(0, 4) + Math.floor(month / 12); month = ((month % 12) + 12) % 12; cursor = year + "-" + String(month + 1).padStart(2, "0") + "-01"; }
-    view = { year: +cursor.slice(0, 4), month: +cursor.slice(5, 7) - 1 };
-    renderPicker();
-    var focus = picker.querySelector("[data-value='" + (pickerKind === "date" ? cursor : cursor.slice(0, 7)) + "']"); if (focus) focus.focus();
-  }
-  picker.addEventListener("click", function (event) { var cell = event.target.closest && event.target.closest(".picker-cell"); if (cell) choosePicked(cell.dataset.value); });
-  picker.addEventListener("keydown", function (event) {
-    var cell = event.target.classList && event.target.classList.contains("picker-cell"), date = pickerKind === "date";
-    var moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: date ? -7 : -3, ArrowDown: date ? 7 : 3 };
-    if (event.key === "Escape") { event.preventDefault(); closePicker(true); }
-    else if (cell && moves[event.key] !== undefined) { event.preventDefault(); moveCursor(moves[event.key]); }
-    else if (cell && (event.key === "PageUp" || event.key === "PageDown")) { event.preventDefault(); if (date) { shiftView(event.key === "PageUp" ? -1 : 1); } else { shiftView(event.key === "PageUp" ? -1 : 1); } var focus = picker.querySelector("[data-value='" + (date ? cursor : cursor.slice(0, 7)) + "']"); if (focus) focus.focus(); }
-  });
-  document.addEventListener("click", function (event) {
-    var opener = event.target.closest && event.target.closest(".picker-button");
-    if (opener) { if (!picker.hidden && pickerInput === opener.parentElement.querySelector("input")) closePicker(true); else openPicker(opener); return; }
-    if (!picker.hidden && !(event.target.closest && event.target.closest(".picker"))) closePicker(false);
-  });
+  var calendar = DATES.attach({ beforeOpen: function () { hideTip(true); }, fallback: function () { return iso(value("discharged")) || iso(value("admitted")); } });
 
   function serviceDate() { return radio("service-mode") === "discharge" ? iso(value("discharged")) : radio("service-mode") === "other" ? iso(value("service-date")) : ""; }
   function reportingMonth() { var d = iso(value("discharged")); return radio("month-mode") === "discharge" ? (d ? d.slice(0, 7) : "") : radio("month-mode") === "other" ? isoMonth(value("reporting-month")) : ""; }
@@ -187,6 +94,8 @@
     byId("service-date").parentElement.hidden = radio("service-mode") !== "other";
     byId("reporting-month").parentElement.hidden = radio("month-mode") !== "other";
     byId("discharge-other").hidden = byId("discharge-select").value !== "other";
+    var chosen = byId("discharge-select").selectedOptions[0], full = chosen && chosen.dataset.full;
+    byId("discharge-full").hidden = !full; byId("discharge-full").textContent = full ? chosen.value + ": " + full : "";
     byId("product-list").hidden = radio("product-report") !== "present";
   }
 
@@ -404,11 +313,25 @@
       }
     };
   }
-  /* Official names for specialties and discharge modes; older bundles keep the interim choices. */
+  /* Official names for specialties and discharge modes; older bundles keep the interim choices.
+     Annex 4 names of up to 204 characters overflow a select, so the list shows a
+     short label and the full official text appears under it once chosen. A short
+     label applies only while the official name still starts as reviewed. */
+  var DISCHARGE_SHORT = {
+    4: ["skierowanie do dalszego leczenia w innym niż szpital zakładzie", "dalsze leczenie w innym zakładzie (nie szpital)"],
+    7: ["osoba leczona samowolnie opuściła podmiot leczniczy", "samowolne opuszczenie przed zakończeniem leczenia lub diagnostyki"],
+    8: ["wypisanie na podstawie art. 29 ust. 1 pkt 3 ustawy", "wypis z art. 29 ust. 1 pkt 3 ustawy o działalności leczniczej"],
+    10: ["osoba leczona, przyjęta w trybie oznaczonym kodem", "samowolne opuszczenie po przyjęciu w trybie 9 lub 10"],
+    11: ["wypisanie na podstawie art. 47 ustawy", "wypis z art. 47 ustawy o postępowaniu wobec osób z zaburzeniami psychicznymi"]
+  };
   function dischargeOptions(modes) {
     var select = byId("discharge-select"), old = select.value;
     select.replaceChildren(new Option("Nie podano", ""));
-    if (modes) modes.forEach(function (mode) { select.append(new Option(mode.code + ": " + mode.name, String(mode.code))); });
+    if (modes) modes.forEach(function (mode) {
+      var short = DISCHARGE_SHORT[mode.code], option = new Option(mode.code + ": " + mode.name, String(mode.code));
+      if (short && mode.name.indexOf(short[0]) === 0) { option.text = mode.code + ": " + short[1]; option.dataset.full = mode.name; option.title = mode.name; }
+      select.append(option);
+    });
     else { select.append(new Option("9: zgon pacjenta", "9")); select.append(new Option("Inny kod", "other")); }
     select.value = old; if (select.selectedIndex < 0) select.value = "";
   }
@@ -418,7 +341,7 @@
         return { code: entry.code, name: entry.name, section: entry.section, derived: entry.derived, position: specialties.length, folded: fold(entry.code + " " + entry.name), rank: (entry.section.indexOf("Oddziały szpitalne") === 0 ? 0 : 2) + (entry.derived ? 1 : 0) };
       });
       specialties.forEach(function (entry, index) { entry.position = index; specialtyByCode[entry.code] = entry; });
-      dischargeOptions(data.discharge_modes.entries);
+      dischargeOptions(data.discharge_modes.entries); syncChoices();
     }).catch(function () { dischargeOptions(null); });
   }
   function addCode(kind) {
@@ -725,7 +648,7 @@
     [principal].concat(secondary, procedures).filter(Boolean).forEach(function (r) { r.search.close(); });
     form.reset(); wards = []; secondary = []; procedures = []; products = []; principal = null; declared = []; reached = 0;
     ["wards", "principal", "secondary", "procedures", "products"].forEach(function (id) { byId(id).replaceChildren(); });
-    hideTip(true); closePicker(false);
+    hideTip(true); calendar.close(false);
     addWard(); addCode("principal"); syncChoices(); showStep(0, false);
   }
 

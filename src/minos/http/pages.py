@@ -90,6 +90,34 @@ def display_date(value: object) -> str:
     return text
 
 
+CALENDAR_ICON: Final = (
+    '<svg viewBox="0 0 20 20" aria-hidden="true" focusable="false">'
+    + '<rect x="2.5" y="4" width="15" height="13.5" rx="2" fill="none"'
+    + ' stroke="currentColor" stroke-width="1.6"/>'
+    + '<path d="M2.5 8h15M6.5 2v4M13.5 2v4" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.6" stroke-linecap="round"/></svg>'
+)
+
+
+def polish_date_input(
+    input_id: str, day: str, label: str, attributes: str = "", *, input_class: str = ""
+) -> str:
+    """A DD.MM.RRRR text field with the Polish calendar of datepicker.js.
+
+    A native date input follows the browser locale (10/26/2026 in an en-US
+    browser), so the visible value is Polish and scripts read it as ISO.
+    """
+    return (
+        '<div class="control control-picker">'
+        + f'<input id="{_e(input_id)}" class="{_e(("date-pl " + input_class).strip())}"'
+        + ' type="text" inputmode="numeric"'
+        + f' maxlength="10" placeholder="DD.MM.RRRR" value="{_e(display_date(day))}"'
+        + f' data-iso="{_e(day)}"{attributes}>'
+        + '<button class="picker-button" type="button" data-picker="date"'
+        + f' aria-label="{_e(label)}: wybierz z kalendarza">{CALENDAR_ICON}</button></div>'
+    )
+
+
 def _json_ld(value: object) -> str:
     text = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     return (
@@ -432,6 +460,7 @@ def code_page(
         ]
     )
     if jgp_section:
+        head += '    <script src="/datepicker.js" defer></script>\n'
         head += '    <script src="/jgp.js" defer></script>\n'
     context = next(
         (cast(str, step["label"]) for step in path if step.get("code")), dictionary.name

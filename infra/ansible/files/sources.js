@@ -2812,6 +2812,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     if (location.hash !== fragment) history.replaceState(null, "", location.pathname + fragment);
   }
   function render() {
+    // Clear and reset appear only when they would change something.
+    var searched = state.query.trim() !== "";
+    document.getElementById("reset-search").hidden = !searched;
+    document.getElementById("reset-catalog").hidden = !searched && state.source === "all" && state.publisher === "all" && state.format === "all" && state.sort === "relevance";
     document.querySelectorAll("[data-fallback-source]").forEach(function (section) {
       var source = section.getAttribute("data-fallback-source");
       section.hidden = state[source] !== null || (state.source !== "all" && state.source !== source);

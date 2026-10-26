@@ -5,6 +5,11 @@
   "use strict";
 
   var DATE = /^20\d{2}-\d{2}-\d{2}$/;
+  // Dates are typed and picked as DD.MM.RRRR whatever the browser language
+  // (datepicker.js); URLs keep ISO.
+  var DATES = window.MinosDates;
+  if (DATES) DATES.attach({ mask: true });
+  function isoOf(input) { return DATES ? DATES.iso(input.value) : input.dataset.iso || ""; }
 
   var comparison = document.querySelector(".compare-controls");
   if (comparison) {
@@ -16,10 +21,11 @@
     var group = document.getElementById("compare-group");
     var button = document.getElementById("compare-go");
     var compare = function () {
-      if (!before.checkValidity() || !after.checkValidity() || !DATE.test(before.value) || !DATE.test(after.value)) return;
+      var beforeDay = isoOf(before), afterDay = isoOf(after);
+      if (!DATE.test(beforeDay) || !DATE.test(afterDay)) return;
       // Each value is one path segment of a same-origin URL; encoding keeps a
       // value from adding segments, a query or a fragment.
-      var segments = [comparison.dataset.dataset, before.value, beforeRelease.value, after.value, afterRelease.value, scope.value, group.value];
+      var segments = [comparison.dataset.dataset, beforeDay, beforeRelease.value, afterDay, afterRelease.value, scope.value, group.value];
       window.location.assign("/jgp/porownaj/" + segments.map(encodeURIComponent).join("/"));
     };
     button.hidden = false;
@@ -33,20 +39,17 @@
 
   var dateInput = document.getElementById("jgp-date");
   if (dateInput instanceof HTMLInputElement) {
-    var current = dateInput.value;
-    // Keyboard edits pass through valid intermediate dates (typing "15" is
-    // "1" first), so they navigate on Enter or blur; a picker choice at once.
-    var typing = false;
+    var current = dateInput.dataset.iso || "";
+    // Typing navigates on Enter or blur once the date is complete; a calendar
+    // choice at once. Days before the earliest covered one stay put.
     var go = function () {
-      typing = false;
-      if (!DATE.test(dateInput.value) || dateInput.value === current) return;
-      window.location.assign((dateInput.dataset.prefix || "/jgp/") + dateInput.value + (dateInput.dataset.suffix || ""));
+      var day = isoOf(dateInput);
+      if (!DATE.test(day) || day === current || (dateInput.dataset.min && day < dateInput.dataset.min)) return;
+      window.location.assign((dateInput.dataset.prefix || "/jgp/") + day + (dateInput.dataset.suffix || ""));
     };
-    dateInput.addEventListener("keydown", function (event) {
-      if (event.key === "Enter") go(); else typing = true;
-    });
-    dateInput.addEventListener("change", function () { if (!typing) go(); });
-    dateInput.addEventListener("blur", function () { if (typing) go(); });
+    dateInput.addEventListener("keydown", function (event) { if (event.key === "Enter") go(); });
+    dateInput.addEventListener("blur", go);
+    dateInput.addEventListener("minos:picked", go);
   }
 
   var box = document.querySelector(".jgp-filter");

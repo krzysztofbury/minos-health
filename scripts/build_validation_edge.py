@@ -23,6 +23,7 @@ PAGE_ROUTES = (
 )
 ASSET_ROUTES = (
     "/grouper.js",
+    "/datepicker.js",
     "/request.js",
     "/search.js",
     "/dictionary.js",

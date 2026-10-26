@@ -429,6 +429,8 @@ def render_page(page: Page, mode: Mode) -> str:
     if page.script:
         if page.script in ("/search.js", "/dictionary.js", "/grouper.js"):
             scripts += '    <script defer src="/request.js"></script>\n'
+        if page.script == "/grouper.js":
+            scripts += '    <script defer src="/datepicker.js"></script>\n'
         scripts += f'    <script defer src="{page.script}"></script>\n'
     rendered = _fill(
         layout,
@@ -477,6 +479,7 @@ def render_site(mode: Mode) -> dict[str, bytes]:
         ).read_bytes()
         for name in (
             "request.js",
+            "datepicker.js",
             "search.js",
             "dictionary.js",
             "jgp.js",

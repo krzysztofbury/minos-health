@@ -234,6 +234,20 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Design re-check fixes (#255). The JGP date controls (catalog, group and
+  comparison pages) are DD.MM.RRRR fields with the grouper's Polish calendar,
+  now shared in `datepicker.js`, instead of a native date input that showed
+  `10/26/2026` in an en-US browser; the catalog heading names the day. The
+  grouper lists annex 4 discharge modes 4, 7, 8, 10 and 11 by short labels
+  and shows the full official text under the select once chosen (a short
+  label applies only while the official name starts as reviewed). The
+  service day and reporting month are pills like the hospitalization mode and
+  stay unselected until chosen, as `grouping-interface.md` records. The step
+  bar has five columns for five steps, the `?` buttons are 24 px, Źródła
+  shows Wyczyść and Resetuj filtry only when they would change something and
+  its glossary is a plain definition list, Słowniki marks ICD-11 with a "Nie
+  do rozliczeń NFZ" badge and links the JGP catalog, Gruper and sources, and
+  the legal pages' body shares the heading's left edge.
 - Tailnet hardening after the "Tailworm" report (#253). The report spreads
   through policy-granted Tailscale SSH, which the server never ran
   (`--ssh=false`, OpenSSH only, no grant from the server). The policy now drops
