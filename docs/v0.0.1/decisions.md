@@ -478,7 +478,9 @@ rather than repurposed; no issue tracked it.
    presentation decision above. Lowercase codes redirect permanently to the
    uppercase URL.
 - Pages are server-rendered from one bundle lease per request and complete
-  without JavaScript. `jgp.js` adds the date picker and a local code/name
+  without JavaScript. `jgp.js` adds the date picker (a DD.MM.RRRR field with
+  the Polish calendar shared with the grouper in `datepicker.js`, since a
+  native date input follows the browser locale, #255) and a local code/name
   filter (case and Polish diacritics folded) that sends no request, writes no
   URL and stores nothing. The zakres filter is a server-side page because it
   must use the scope markers of the row valid on the date: a section 4(5)

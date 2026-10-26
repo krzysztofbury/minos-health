@@ -73,7 +73,7 @@ try {
     assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
     const reverseImage = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
     await writeFile(path.join(output, `membership-${name}.png`), Buffer.from(reverseImage.data, "base64"));
-    await evaluate("const input = document.getElementById('jgp-date'); input.value = '2026-07-11'; input.dispatchEvent(new Event('change'))");
+    await evaluate("const input = document.getElementById('jgp-date'); input.value = '11.07.2026'; input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))");
     await wait("location.pathname === '/slowniki/icd-10/E11.0/jgp/2026-07-11' && document.querySelector('.jgp-memberships')");
     assert.equal(await evaluate("document.querySelector('.jgp-memberships a[href*=\"/A01\"]').getAttribute('href')"), "/jgp/2026-07-11/A01");
     await navigate("/jgp/2026-07-10/N09", ".jgp-conditions");
