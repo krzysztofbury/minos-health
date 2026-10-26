@@ -254,6 +254,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
   the 1.2.1-r0 layer stays). Dependabot no longer proposes Python 3.15
   (`requires-python` is `<3.15`) or image-only uv bumps, which would drift from
   the `setup-uv` pins.
+- The validation API image pins Debian's fixed OpenSSL 3.0.22-1~deb12u2
+  (CVE-2026-84782, high) beside the PCRE2 and Perl fixes, because the pinned
+  Python 3.14.7 bookworm base still ships 3.0.20 and the container gate refused
+  it.
 - Prepared the repository for public visibility (#244): the README states it
   holds no datasets or deployment credentials and how to run tests and a local
   site, a retired cloud account id is gone from two records, and the clean-path

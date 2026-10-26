@@ -18,11 +18,13 @@ LABEL org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.title="Minos validation reference API" \
       org.opencontainers.image.licenses="MIT OR Apache-2.0"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/nonexistent OTEL_SDK_DISABLED=true
-# The pinned base predates the PCRE2 and Perl security updates.
-# Keep both Debian fixes pinned until the upstream base is refreshed.
+# The pinned base predates the PCRE2, Perl and OpenSSL (CVE-2026-84782)
+# security updates. Keep the Debian fixes pinned until the upstream base is
+# refreshed.
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
-      "libpcre2-8-0=10.42-1+deb12u2" "perl-base=5.36.0-7+deb12u4" && \
+      "libpcre2-8-0=10.42-1+deb12u2" "perl-base=5.36.0-7+deb12u4" \
+      "libssl3=3.0.22-1~deb12u2" "openssl=3.0.22-1~deb12u2" && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=builder /build/.venv /build/.venv
 # The host processor (#141 B3) judges candidates in this image under these
