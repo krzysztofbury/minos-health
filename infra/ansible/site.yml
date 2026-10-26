@@ -3211,6 +3211,7 @@
               - "'x11forwarding no' in sshd_effective.stdout"
               - "'allowagentforwarding no' in sshd_effective.stdout"
               - "'allowtcpforwarding no' in sshd_effective.stdout"
+              - "'allowstreamlocalforwarding no' in sshd_effective.stdout"
               - "'denyusers root' not in sshd_effective.stdout"
 
         - name: Reload SSH only after effective validation
