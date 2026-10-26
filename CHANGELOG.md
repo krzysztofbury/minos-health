@@ -256,6 +256,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   path parameters or the raw request, and bodies go through Minos' own
   Pydantic models), so no validation moved. Ruff 0.17 also formats Python
   blocks in Markdown.
+- Patch updates (#257): FastAPI 0.161.1, boto3 1.43.118, Ruff 0.17.2 and
+  Hypothesis 6.170.8.
 - Base images are pinned by tag and digest. An untagged digest made Dependabot
   propose `latest`: Debian trixie for the standalone CLI builder and
   Debian-based NGINX for the validation edge, where `apk` cannot run. The
