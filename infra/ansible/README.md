@@ -169,6 +169,38 @@ from `/etc/ssh/sshd_config.d/10-minos-hardening.conf`, and restart
 over the tailnet unchanged. In `tailnet` mode the baseline refuses to run unless
 the session itself arrived over the tailnet, and never re-adds the SSH rule.
 
+### Tailnet Lock (#258)
+
+Without Tailnet Lock, the Tailscale coordination server alone decides which
+devices join, so a compromise there could add a device to the tailnet. With it
+on, a device is trusted only once a signing node signs it. The owner's devices
+are the signing nodes. The server never signs anything.
+
+Enabling, by the owner, once:
+
+1. In the admin console (Settings > Device management), choose Enable Tailnet
+   Lock and select at least two signing nodes: the workstation and one more
+   device the owner keeps, so one lost device does not lock the tailnet.
+2. Run the `tailscale lock init` command the console shows on one of them
+   (`sudo` on the workstation). It prints ten disablement secrets once; store
+   them in 1Password as item `minos-tailnet-lock-disablement`. One secret
+   disables the lock if every signing node is lost.
+3. Run `tailscale lock status` on `minos-production` (over SSH) and on each
+   device. A device that reports it is locked out is signed with the
+   `tailscale lock sign nodekey:... ` command printed there, run on a signing
+   node.
+
+Rejoining the server under the lock (a replacement host, or a removed node):
+create the one-time, pre-authorised `tag:minos-server` key as in step 1 of the
+rollout above, then on a signing node run
+`tailscale lock sign file:<key file>` and store the printed key in
+`minos-production-tailscale` in its place. Pass that key to the join stage as
+usual; the stage accepts the longer pre-signed form. The printed key wraps a
+signing key, so it is as sensitive as a signing node: keep it only in
+1Password and the tmpfs copy the stage removes, and generate a new one for
+each join. The join still ends with a fresh tailnet login, which fails if the
+server came up unsigned.
+
 ## Apply
 
 A fresh-host production apply is blocked until the open GHCR task installs a

@@ -234,6 +234,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Tailnet Lock preparation (#258). The tailnet join stage accepts an auth key
+  pre-signed with `tailscale lock sign` (up to 1024 bytes; a plain key was
+  capped at 256), so the server can rejoin once the lock is on. The Ansible
+  README documents enabling the lock with two owner signing nodes, storing
+  the disablement secrets, signing existing devices, and the pre-signed
+  rejoin, whose key wraps a signing key and is handled like one.
 - Tailnet hardening after the "Tailworm" report (#253). The report spreads
   through policy-granted Tailscale SSH, which the server never ran
   (`--ssh=false`, OpenSSH only, no grant from the server). The policy now drops
