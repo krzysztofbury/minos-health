@@ -234,6 +234,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Tailnet hardening after the "Tailworm" report (#253). The report spreads
+  through policy-granted Tailscale SSH, which the server never ran
+  (`--ssh=false`, OpenSSH only, no grant from the server). The policy now drops
+  its unused `ssh` section, so Tailscale SSH is denied tailnet-wide, and `sshd`
+  refuses Unix-socket forwarding (`AllowStreamLocalForwarding no`, asserted in
+  the effective configuration) beside the TCP forwarding it already refused.
+  The runbook names deleting the node in the admin console as the compromise
+  response.
 - Repository security baseline: Dependabot watches the uv locks (root and
   standalone CLI), GitHub Actions and the digest-pinned base images instead of
   `pip`; `virtualenv` and the standalone `setuptools` move past their advisories;

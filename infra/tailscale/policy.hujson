@@ -17,14 +17,8 @@
 		{"src": ["autogroup:admin"], "dst": ["tag:minos-server"], "ip": ["tcp:22"]},
 	],
 
-	// Tailscale SSH into one's own devices, kept from the default policy. The
-	// tagged server is never "self", so OpenSSH there keeps the pinned key.
-	"ssh": [
-		{
-			"action": "check",
-			"src":    ["autogroup:member"],
-			"dst":    ["autogroup:self"],
-			"users":  ["autogroup:nonroot", "root"],
-		},
-	],
+	// No "ssh" section, so Tailscale SSH is denied on every device. The server
+	// runs OpenSSH with a pinned host key and joins with --ssh=false, and no
+	// device needs the Tailscale SSH server; a rule would only add a path a
+	// compromised node could follow.
 }
