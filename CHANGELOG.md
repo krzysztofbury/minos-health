@@ -239,6 +239,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
   `pip`; `virtualenv` and the standalone `setuptools` move past their advisories;
   the JGP comparison link encodes each path segment (CodeQL `js/xss-through-dom`).
   SECURITY.md lists the enabled protections.
+- Dependency updates: FastAPI 0.160.0, Pydantic 2.14.1, MCP 2.3.0, HTTPX2
+  2.16.0, boto3 1.43.117 and the dev tools (Ruff 0.17.1, mypy 2.4.0,
+  BasedPyright 1.40.2). FastAPI 0.160 stops validating omitted `Query`,
+  `Header`, `Cookie` and `Form` defaults; Minos uses none of them (routes take
+  path parameters or the raw request, and bodies go through Minos' own
+  Pydantic models), so no validation moved. Ruff 0.17 also formats Python
+  blocks in Markdown.
 - Base images are pinned by tag and digest. An untagged digest made Dependabot
   propose `latest`: Debian trixie for the standalone CLI builder and
   Debian-based NGINX for the validation edge, where `apk` cannot run. The

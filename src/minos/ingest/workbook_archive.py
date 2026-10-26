@@ -5,7 +5,7 @@ import stat
 import struct
 import zlib
 from dataclasses import dataclass
-from typing import BinaryIO, NoReturn, cast, final
+from typing import BinaryIO, NoReturn, final
 from xml.parsers import expat
 from zipfile import ZIP_DEFLATED, ZIP_STORED, BadZipFile, ZipFile, ZipInfo
 
@@ -76,9 +76,17 @@ def _central_directory(source: BinaryIO, limits: WorkbookLimits) -> int:
     offset = tail.rfind(b"PK\x05\x06")
     if offset < 0 or len(tail) - offset < 22:
         _fail("ZIP end record is missing or truncated")
-    _, disk, central_disk, disk_entries, entries, length, position, comment = cast(
-        tuple[bytes, int, int, int, int, int, int, int],
-        struct.unpack_from("<4s4H2IH", tail, offset),
+    # mypy types unpack_from as tuple[Any, ...] while basedpyright reads the
+    # format string, so declared names satisfy both where a cast satisfies one.
+    disk: int
+    central_disk: int
+    disk_entries: int
+    entries: int
+    length: int
+    position: int
+    comment: int
+    _, disk, central_disk, disk_entries, entries, length, position, comment = (
+        struct.unpack_from("<4s4H2IH", tail, offset)
     )
     if disk or central_disk or disk_entries != entries:
         _fail("multi-disk ZIP is unsupported")
@@ -96,9 +104,10 @@ def _central_directory(source: BinaryIO, limits: WorkbookLimits) -> int:
     for _ in range(entries):
         if central[cursor : cursor + 4] != b"PK\x01\x02" or len(central) - cursor < 46:
             _fail("ZIP central record is invalid")
-        name, extra, note = cast(
-            tuple[int, int, int], struct.unpack_from("<3H", central, cursor + 28)
-        )
+        name: int
+        extra: int
+        note: int
+        name, extra, note = struct.unpack_from("<3H", central, cursor + 28)
         if not 1 <= name <= 512 or extra > 4096 or note > 256:
             _fail("ZIP central field exceeds limit")
         cursor += 46 + name + extra + note
