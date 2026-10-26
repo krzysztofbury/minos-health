@@ -13,7 +13,11 @@ from minos.http.jgp_pages import (
     points_pl,
     provenance,
 )
-from minos.http.pages import _e, display_date  # pyright: ignore[reportPrivateUsage]
+from minos.http.pages import (
+    _e,  # pyright: ignore[reportPrivateUsage]
+    display_date,
+    polish_date_input,
+)
 from minos.store.comparison_snapshot import Entry, GroupKey
 from minos.store.jgp_comparison import (
     CatalogComparison,
@@ -229,13 +233,17 @@ def comparison_page(
     codes = sorted({key[1] for key in comparison.left.keys() | comparison.right.keys()})
     controls = (
         f'<div class="compare-controls" data-dataset="{dataset}">'
-        f'<label>Przed: dzień świadczenia<input id="compare-before" type="date" value="{before}"></label>'
-        f'<label>Po: dzień świadczenia<input id="compare-after" type="date" value="{after}"></label>'
-        f'<label>Przed: wydanie źródłowe<select id="compare-before-release">{options(version_labels, before_release)}</select></label>'
-        f'<label>Po: wydanie źródłowe<select id="compare-after-release">{options(version_labels, after_release)}</select></label>'
-        f'<label>Zakres ze źródła<select id="compare-scope">{options({ALL: "Wszystkie zakresy", **comparison.scopes}, scope)}</select></label>'
-        f'<label>Grupa<select id="compare-group">{options({ALL: "Wszystkie grupy", **{code: code for code in codes}}, group)}</select></label>'
-        '<button id="compare-go" type="button" hidden>Pokaż porównanie</button></div>'
+        + '<label for="compare-before">Przed: dzień świadczenia'
+        + polish_date_input("compare-before", before, "Przed: dzień świadczenia")
+        + "</label>"
+        + '<label for="compare-after">Po: dzień świadczenia'
+        + polish_date_input("compare-after", after, "Po: dzień świadczenia")
+        + "</label>"
+        + f'<label>Przed: wydanie źródłowe<select id="compare-before-release">{options(version_labels, before_release)}</select></label>'
+        + f'<label>Po: wydanie źródłowe<select id="compare-after-release">{options(version_labels, after_release)}</select></label>'
+        + f'<label>Zakres ze źródła<select id="compare-scope">{options({ALL: "Wszystkie zakresy", **comparison.scopes}, scope)}</select></label>'
+        + f'<label>Grupa<select id="compare-group">{options({ALL: "Wszystkie grupy", **{code: code for code in codes}}, group)}</select></label>'
+        + '<button id="compare-go" type="button" hidden>Pokaż porównanie</button></div>'
     )
     quick = "".join(
         f'<li><a href="{_e(comparison_path(dataset, item.service_from.isoformat(), item.service_from.isoformat(), item.supersedes, item.release))}">{_e(item.label)}</a></li>'

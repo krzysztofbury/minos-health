@@ -19,6 +19,7 @@ from minos.http.pages import (
     _e,  # pyright: ignore[reportPrivateUsage]
     _page,  # pyright: ignore[reportPrivateUsage]
     display_date,
+    polish_date_input,
 )
 from minos.ingest.jgp_catalog_layout import (
     LEGEND,
@@ -73,7 +74,8 @@ def _jgp_page(*, title: str, description: str, path: str, content: str) -> str:
         description=description,
         path=path,
         content=content,
-        head='    <script src="/jgp.js" defer></script>\n',
+        head='    <script src="/datepicker.js" defer></script>\n'
+        + '    <script src="/jgp.js" defer></script>\n',
         robots=ROBOTS,
         template=SHELL,
     )
@@ -118,8 +120,14 @@ def date_bar(
         '        <div class="jgp-date">\n'
         + '          <label class="tree-search-label" for="jgp-date">Dzień udzielenia świadczenia</label>\n'
         + '          <div class="jgp-date-row">'
-        + f'<input class="tree-search-input" type="date" id="jgp-date" value="{_e(service_date)}"'
-        + f' min="{_e(calendar[0])}" data-prefix="{_e(prefix)}" data-suffix="{_e(suffix)}">'
+        + polish_date_input(
+            "jgp-date",
+            service_date,
+            "Dzień udzielenia świadczenia",
+            f' data-min="{_e(calendar[0])}" data-prefix="{_e(prefix)}"'
+            + f' data-suffix="{_e(suffix)}"',
+            input_class="tree-search-input",
+        )
         + (
             f'<ul class="jgp-quick" aria-label="Dni zmian w katalogu">{links}</ul>'
             if links
@@ -213,7 +221,7 @@ def index_page(
     )
     parts = [
         _head(crumbs),
-        "        <h1>Katalog grup JGP</h1>\n",
+        f"        <h1>Katalog grup JGP na {_e(display_date(service_date))}</h1>\n",
         f'        <p class="page-lead">{lead}</p>\n',
         '        <div class="jgp-controls">\n',
         date_bar(service_date, suffix, calendar),
