@@ -72,7 +72,7 @@ try {
     await visit("/jgp/2026-12-31", "document.querySelector('a[href^=\"/jgp/porownaj/\"]')");
     await evaluate("document.querySelector('a[href^=\"/jgp/porownaj/\"]').click()");
     await wait("document.readyState === 'complete' && document.getElementById('compare-go')?.hidden === false");
-    await evaluate("document.getElementById('compare-before').value = '2026-12-31'; document.getElementById('compare-after').value = '2027-01-01'; document.getElementById('compare-before-release').value = document.getElementById('compare-after-release').value; document.getElementById('compare-group').value = 'H21'; document.getElementById('compare-go').focus()");
+    await evaluate("document.getElementById('compare-before').value = '31.12.2026'; document.getElementById('compare-after').value = '01.01.2027'; document.getElementById('compare-before-release').value = document.getElementById('compare-after-release').value; document.getElementById('compare-group').value = 'H21'; document.getElementById('compare-go').focus()");
     await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     // Server-rendered rows arrive before the deferred script binds the controls.
@@ -147,16 +147,24 @@ try {
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.jgp-chapter')].map(chapter => chapter.id + ':' + chapter.open + ':' + chapter.hidden)"), ["k-1a-1:false:false", "k-1ae-1:true:false"]);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.jgp-catalog-part > details')].map(branch => branch.open)"), [false, true]);
 
-    // Keyboard date change navigates by path, never by query string.
-    await send("Runtime.evaluate", { expression: "document.getElementById('jgp-date').focus()" });
-    await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 });
-    await send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowUp", code: "ArrowUp", windowsVirtualKeyCode: 38 });
-    // A keyboard edit alone waits for Enter: "1" of "15" is not a choice yet.
+    // The date is DD.MM.RRRR whatever the browser language; typed digits are
+    // masked, and a keyboard edit waits for Enter. It navigates by path, never
+    // by query string.
+    assert.equal(await evaluate("document.getElementById('jgp-date').value"), "10.07.2026");
+    await send("Runtime.evaluate", { expression: "const field = document.getElementById('jgp-date'); field.focus(); field.select()" });
+    await send("Input.insertText", { text: "11072026" });
+    assert.equal(await evaluate("document.getElementById('jgp-date').value"), "11.07.2026");
     await new Promise(resolve => setTimeout(resolve, 300));
     assert.equal(await evaluate("location.pathname"), "/jgp/2026-07-10");
     await send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-    await wait("/^\\/jgp\\/2026-\\d{2}-\\d{2}$/.test(location.pathname) && location.pathname !== '/jgp/2026-07-10' && document.querySelector('.jgp-row')");
+    await wait("location.pathname === '/jgp/2026-07-11' && document.querySelector('.jgp-row')");
+    assert.ok((await evaluate("document.querySelector('h1').textContent")).includes("11.07.2026"));
+    // The Polish calendar picks a day and navigates at once.
+    await evaluate("document.querySelector('.jgp-date .picker-button').click()");
+    await wait("!document.getElementById('picker').hidden && document.querySelector('#picker .picker-title').textContent === 'lipiec 2026'");
+    await evaluate("document.querySelector('#picker [data-value=\"2026-07-10\"]').click()");
+    await wait("location.pathname === '/jgp/2026-07-10' && document.querySelector('.jgp-row')");
 
     // The zakres picker opens over the page without widening it.
     await visit("/jgp/2026-07-10", "document.querySelector('.jgp-scopes')");
