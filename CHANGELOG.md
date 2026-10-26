@@ -261,6 +261,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   current `1.31.7-alpine` rebuild. That leaves brotli-libs and curl, which the
   static configuration loads no module for. Apply `site.yml` before the next
   validation deployment: the renderer refuses a base with another edge digest.
+- The validation API image moves to Python 3.14.9 (`3.14.9-slim-bookworm`), a
+  patch release on the 3.14 line Dependabot may now propose (#256).
 - The validation API image pins Debian's fixed OpenSSL 3.0.22-1~deb12u2
   (CVE-2026-84782, high) beside the PCRE2 and Perl fixes, because the pinned
   Python 3.14.7 bookworm base still ships 3.0.20 and the container gate refused
