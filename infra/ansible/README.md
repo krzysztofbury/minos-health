@@ -96,7 +96,15 @@ Design:
   `tag:minos-server`; tagged devices do not expire. The key file never enters
   Git or the host's disk beyond a tmpfs copy removed after the join.
 - `infra/tailscale/policy.hujson` is the reviewed tailnet policy: admins reach
-  the server tag on TCP 22 only, and the server starts nothing.
+  the server tag on TCP 22 only, and the server starts nothing. It has no
+  `ssh` section, so Tailscale SSH is denied tailnet-wide (#253); the
+  "Tailworm" report (October 2026, no vendor advisory) spreads through
+  policy-granted Tailscale SSH, which this tailnet does not grant.
+- `sshd` refuses TCP and Unix-socket forwarding (`AllowStreamLocalForwarding
+  no`; `AllowTcpForwarding` does not cover sockets), outside the reviewed
+  short-lived Kuma exception below.
+- A compromised host or device is removed by deleting its node in the
+  Tailscale admin console. Reimaging alone does not revoke a copied node key.
 - Break-glass: Mikr.us M.A.R.I.A.N (panel, "Pomoc i diagnostyka") runs
   commands typed into its form as root without SSH; a test run on 2026-10-23
   reached the host. The panel's WebSSH is not a recovery path: it uses the

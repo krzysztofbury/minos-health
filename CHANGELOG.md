@@ -234,6 +234,16 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Tailnet hardening after the "Tailworm" report (#253). The report spreads
+  through policy-granted Tailscale SSH, which the server never ran
+  (`--ssh=false`, OpenSSH only, no grant from the server). The policy now drops
+  its unused `ssh` section, so Tailscale SSH is denied tailnet-wide, and `sshd`
+  refuses Unix-socket forwarding (`AllowStreamLocalForwarding no`, asserted in
+  the effective configuration) beside the TCP forwarding it already refused.
+  The runbook names deleting the node in the admin console as the compromise
+  response. On the running host the drop-in lands through the
+  `ssh-tailnet.yml` private stage, not `site.yml`, which never runs over an
+  active validation deployment.
 - Repository security baseline: Dependabot watches the uv locks (root and
   standalone CLI), GitHub Actions and the digest-pinned base images instead of
   `pip`; `virtualenv` and the standalone `setuptools` move past their advisories;
@@ -259,8 +269,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   validation deployment replaces it) moves from its 2026-09-18 Alpine 3.24.1
   digest, with eight fixable high findings and not scanned in CI, to the
   current `1.31.7-alpine` rebuild. That leaves brotli-libs and curl, which the
-  static configuration loads no module for. Apply `site.yml` before the next
-  validation deployment: the renderer refuses a base with another edge digest.
+  static configuration loads no module for. It takes effect at the next
+  maintenance `site.yml` run, which never runs over an active validation
+  deployment; a later first cutover renders against the same digest.
 - The validation API image pins Debian's fixed OpenSSL 3.0.22-1~deb12u2
   (CVE-2026-84782, high) beside the PCRE2 and Perl fixes, because the pinned
   Python 3.14.7 bookworm base still ships 3.0.20 and the container gate refused
