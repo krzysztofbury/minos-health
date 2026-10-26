@@ -234,6 +234,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Request-path query plans reviewed against planner statistics (#228): a
+  copy of the production bundle with `ANALYZE` ran 948 request statements of
+  84 shapes with no full scan of a large table on a per-request lookup, and
+  request medians matched the bundle without statistics. The `INDEXED BY`
+  pins on ICD-11 map lookups stay: with statistics they cost nothing, and
+  without them, unpinned lookups take 2 to 3.5 ms instead of 0.01 ms, while
+  application and bundle releases deploy independently. Details in
+  `docs/validation/api-load.md`.
 - Tailnet hardening after the "Tailworm" report (#253). The report spreads
   through policy-granted Tailscale SSH, which the server never ran
   (`--ssh=false`, OpenSSH only, no grant from the server). The policy now drops
