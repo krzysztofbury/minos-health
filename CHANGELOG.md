@@ -239,6 +239,32 @@ signed-release and deployment-acceptance gates remain #41/#27.
   `pip`; `virtualenv` and the standalone `setuptools` move past their advisories;
   the JGP comparison link encodes each path segment (CodeQL `js/xss-through-dom`).
   SECURITY.md lists the enabled protections.
+- Dependency updates: FastAPI 0.160.0, Pydantic 2.14.1, MCP 2.3.0, HTTPX2
+  2.16.0, boto3 1.43.117 and the dev tools (Ruff 0.17.1, mypy 2.4.0,
+  BasedPyright 1.40.2). FastAPI 0.160 stops validating omitted `Query`,
+  `Header`, `Cookie` and `Form` defaults; Minos uses none of them (routes take
+  path parameters or the raw request, and bodies go through Minos' own
+  Pydantic models), so no validation moved. Ruff 0.17 also formats Python
+  blocks in Markdown.
+- Base images are pinned by tag and digest. An untagged digest made Dependabot
+  propose `latest`: Debian trixie for the standalone CLI builder and
+  Debian-based NGINX for the validation edge, where `apk` cannot run. The
+  builder and its smoke OS move together to the current `bookworm-slim`, the
+  edge to the current `1.31.7-alpine` rebuild. It still ships brotli-libs
+  1.2.0-r1 and curl 8.22.0-r0 (CVE-2026-92392, high), so its layer pins
+  brotli-libs 1.2.1-r0 and curl and libcurl 8.23.0-r0. Dependabot no longer proposes Python 3.15
+  (`requires-python` is `<3.15`) or image-only uv bumps, which would drift from
+  the `setup-uv` pins.
+- The maintenance edge (the stock NGINX that `site.yml` runs before a
+  validation deployment replaces it) moves from its 2026-09-18 Alpine 3.24.1
+  digest, with eight fixable high findings and not scanned in CI, to the
+  current `1.31.7-alpine` rebuild. That leaves brotli-libs and curl, which the
+  static configuration loads no module for. Apply `site.yml` before the next
+  validation deployment: the renderer refuses a base with another edge digest.
+- The validation API image pins Debian's fixed OpenSSL 3.0.22-1~deb12u2
+  (CVE-2026-84782, high) beside the PCRE2 and Perl fixes, because the pinned
+  Python 3.14.7 bookworm base still ships 3.0.20 and the container gate refused
+  it.
 - Prepared the repository for public visibility (#244): the README states it
   holds no datasets or deployment credentials and how to run tests and a local
   site, a retired cloud account id is gone from two records, and the clean-path

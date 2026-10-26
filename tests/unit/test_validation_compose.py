@@ -28,7 +28,7 @@ def maintenance() -> dict[str, object]:
             "cloudflared": {"image": "unchanged-tunnel"},
             "uptime-kuma": {"image": "unchanged-monitoring"},
             "edge": {
-                "image": "docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972",
+                "image": "docker.io/nginxinc/nginx-unprivileged@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e",
                 "volumes": [
                     {
                         "target": "/etc/nginx/nginx.conf",

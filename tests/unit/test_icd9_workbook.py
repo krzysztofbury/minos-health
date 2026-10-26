@@ -1,7 +1,6 @@
 import struct
 from dataclasses import replace
 from io import BytesIO
-from typing import cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import openpyxl
@@ -184,7 +183,7 @@ def test_malformed_archives_fail_before_workbook_reader(
         content = content[:-10]
     elif damage == "deflate":
         corrupted = bytearray(content)
-        name, extra = cast(tuple[int, int], struct.unpack_from("<HH", corrupted, 26))
+        name, extra = struct.unpack_from("<HH", corrupted, 26)
         corrupted[30 + name + extra] = 0xFF
         content = bytes(corrupted)
     elif damage == "crc":

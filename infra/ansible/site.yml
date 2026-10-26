@@ -1356,7 +1356,7 @@
           - /opt/minos/candidate/edge/sources.js:/usr/share/nginx/html/sources.js:ro
           - --volume
           - /opt/minos/candidate/edge/terms.html:/usr/share/nginx/html/terms.html:ro
-          - docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972
+          - docker.io/nginxinc/nginx-unprivileged@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
           - -t
       changed_when: false
       when: not ansible_check_mode
@@ -2788,7 +2788,7 @@
             ['cloudflared', 'edge', 'uptime-kuma', 'watcher']
           - minos_edge_boundary[0] == "healthy"
           - minos_edge_boundary[1] == "{}"
-          - minos_edge_boundary[2] == "docker.io/nginxinc/nginx-unprivileged@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972"
+          - minos_edge_boundary[2] == "docker.io/nginxinc/nginx-unprivileged@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e"
           - minos_edge_boundary[3] == "minos_edge"
           - minos_edge_boundary[4] == "101:101"
           - minos_edge_boundary[5] == "true"

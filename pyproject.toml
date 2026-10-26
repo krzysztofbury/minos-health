@@ -23,15 +23,15 @@ minos = "minos.cli.main:main"
 
 [project.optional-dependencies]
 reference = ["morfeusz2==1.99.15", "openpyxl==3.1.5"]
-api = ["fastapi==0.143.2", "uvicorn==0.54.0", "mcp==2.2.0"]
+api = ["fastapi==0.160.0", "uvicorn==0.54.0", "mcp==2.3.0"]
 dictionary-tools = ["wn==1.1.1"]
 
 [dependency-groups]
 dev = [
-    "fastapi==0.143.2",
+    "fastapi==0.160.0",
     "uvicorn==0.54.0",
-    "mcp==2.2.0",
-    "httpx2==2.13.1",
+    "mcp==2.3.0",
+    "httpx2==2.16.0",
     "morfeusz2==1.99.15",
     "openpyxl==3.1.5",
     "bandit[toml]>=1.9,<2",
@@ -45,7 +45,7 @@ dev = [
     "pyyaml>=6,<7",
     "ruff>=0.12",
     "types-defusedxml>=0.7.0.20260504",
-    "types-openpyxl==3.1.5.20260827",
+    "types-openpyxl==3.1.5.20261017",
     "types-pyyaml>=6,<7",
     "zizmor>=1.30,<2",
     "hypothesis>=6,<7",

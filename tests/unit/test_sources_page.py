@@ -14,7 +14,7 @@ STATIC_ROOT = ROOT / "infra" / "ansible" / "files"
 OUTPUT_ROOT = ROOT / "test-output"
 _NGINX_IMAGE = (
     "docker.io/nginxinc/nginx-unprivileged@sha256:"
-    "b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972"
+    "b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e"
 )
 _UUIDS = (
     "00000000-0000-4000-8000-000000000011",

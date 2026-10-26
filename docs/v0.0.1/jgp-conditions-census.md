@@ -52,9 +52,7 @@ SIGNALS = {
         r"dwukro|pięciokro|min\.\s*3 krotnie|min 2 razy"
     ),
     "procedure_all_members": r"wszystkich procedur|obu procedur",
-    "procedure_list_coverage": (
-        r"procedur pochodzących z (?:różnych|rożnych) list"
-    ),
+    "procedure_list_coverage": (r"procedur pochodzących z (?:różnych|rożnych) list"),
     "procedure_date_relation": r"w innym terminie",
     "procedure_laterality": r"jednokrotnie dla piersi prawej",
     "procedure_duration": r"czas trwania min 24h",
@@ -112,7 +110,8 @@ with path.open("rb") as stream:
             inventory = {
                 code: {
                     kind: [
-                        row for row, text in labels
+                        row
+                        for row, text in labels
                         if re.search(pattern, text, re.IGNORECASE)
                     ]
                     for kind, pattern in SIGNALS.items()
@@ -123,19 +122,27 @@ with path.open("rb") as stream:
                 kind: sum(bool(kinds[kind]) for kinds in inventory.values())
                 for kind in SIGNALS
             }
-            print(json.dumps({
-                "document": document_id,
-                "sheet": sheet.title,
-                "groups": len(groups),
-                "counts": counts,
-                "rare_feature_cells": {
-                    kind: {
-                        code: kinds[kind]
-                        for code, kinds in inventory.items() if kinds[kind]
-                    }
-                    for kind in SIGNALS if counts[kind] <= 12
-                },
-            }, ensure_ascii=False, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "document": document_id,
+                        "sheet": sheet.title,
+                        "groups": len(groups),
+                        "counts": counts,
+                        "rare_feature_cells": {
+                            kind: {
+                                code: kinds[kind]
+                                for code, kinds in inventory.items()
+                                if kinds[kind]
+                            }
+                            for kind in SIGNALS
+                            if counts[kind] <= 12
+                        },
+                    },
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
     finally:
         book.close()
 ```

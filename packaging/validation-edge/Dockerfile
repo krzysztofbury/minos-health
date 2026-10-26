@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1.7
 # Nginx 1.31.7 / Alpine 3.24.2 linux/amd64, with libexpat 2.9.0-r0, libx11 1.8.14-r0 and tiff 4.7.2-r0.
-FROM docker.io/nginxinc/nginx-unprivileged@sha256:c3bcf3d1a53a027bfa515b9fe4fbbe7bf6b791476a5af853de439ad494b145bd
-# CVE-2026-111497: the newest upstream digest still ships brotli-libs 1.2.0-r1.
-# Pin the fixed Alpine package until upstream rebuilds, then drop this layer.
+FROM docker.io/nginxinc/nginx-unprivileged:1.31.7-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
+# CVE-2026-111497 and CVE-2026-92392: the newest upstream digest still ships
+# brotli-libs 1.2.0-r1 and curl 8.22.0-r0. Pin the fixed Alpine packages until
+# upstream rebuilds, then drop this layer.
 USER root
-RUN apk add --no-cache "brotli-libs=1.2.1-r0"
+RUN apk add --no-cache "brotli-libs=1.2.1-r0" "curl=8.23.0-r0" "libcurl=8.23.0-r0"
 USER 101
 ARG VCS_REF=unknown
 LABEL org.opencontainers.image.revision="${VCS_REF}" \
