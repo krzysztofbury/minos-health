@@ -239,6 +239,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
   `pip`; `virtualenv` and the standalone `setuptools` move past their advisories;
   the JGP comparison link encodes each path segment (CodeQL `js/xss-through-dom`).
   SECURITY.md lists the enabled protections.
+- Base images are pinned by tag and digest. An untagged digest made Dependabot
+  propose `latest`: Debian trixie for the standalone CLI builder and
+  Debian-based NGINX for the validation edge, where `apk` cannot run. The
+  builder and its smoke OS move together to the current `bookworm-slim`, the
+  edge to the current `1.31.7-alpine` rebuild (brotli-libs still 1.2.0-r1, so
+  the 1.2.1-r0 layer stays). Dependabot no longer proposes Python 3.15
+  (`requires-python` is `<3.15`) or image-only uv bumps, which would drift from
+  the `setup-uv` pins.
 - Prepared the repository for public visibility (#244): the README states it
   holds no datasets or deployment credentials and how to run tests and a local
   site, a retired cloud account id is gone from two records, and the clean-path

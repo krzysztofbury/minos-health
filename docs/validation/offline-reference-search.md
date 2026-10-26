@@ -89,7 +89,7 @@ apart from the explicitly different `index_used`, matched across indexes.
 The synthetic smoke also asserts a genuine morphological `etykietą` match.
 
 ```text
-debian@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
+debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
 ```
 
 The committed synthetic smoke independently checks that no Python executable is

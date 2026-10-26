@@ -25,8 +25,12 @@ updates:
       github-actions:
         patterns: ["*"]
 
-  # Digest-pinned base images. The validation edge carries a temporary
-  # brotli-libs layer; re-check it whenever the NGINX digest moves.
+  # Digest-pinned base images. Each FROM names its tag, because an untagged
+  # digest is tracked as `latest` (trixie, Debian-based NGINX). Python stays on
+  # the 3.14 line that requires-python allows. uv moves together with the
+  # setup-uv `version` pins, which Dependabot cannot update. The validation
+  # edge carries a temporary brotli-libs layer; re-check it whenever the NGINX
+  # digest moves.
   - package-ecosystem: docker
     directories: ["/", "/packaging/api", "/packaging/validation-edge", "/packaging/standalone"]
     schedule:
@@ -35,6 +39,10 @@ updates:
       time: "06:30"
       timezone: Europe/Warsaw
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: library/python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: astral-sh/uv
     groups:
       base-images:
         patterns: ["*"]
