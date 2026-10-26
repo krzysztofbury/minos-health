@@ -250,8 +250,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   propose `latest`: Debian trixie for the standalone CLI builder and
   Debian-based NGINX for the validation edge, where `apk` cannot run. The
   builder and its smoke OS move together to the current `bookworm-slim`, the
-  edge to the current `1.31.7-alpine` rebuild (brotli-libs still 1.2.0-r1, so
-  the 1.2.1-r0 layer stays). Dependabot no longer proposes Python 3.15
+  edge to the current `1.31.7-alpine` rebuild. It still ships brotli-libs
+  1.2.0-r1 and curl 8.22.0-r0 (CVE-2026-92392, high), so its layer pins
+  brotli-libs 1.2.1-r0 and curl and libcurl 8.23.0-r0. Dependabot no longer proposes Python 3.15
   (`requires-python` is `<3.15`) or image-only uv bumps, which would drift from
   the `setup-uv` pins.
 - The validation API image pins Debian's fixed OpenSSL 3.0.22-1~deb12u2
