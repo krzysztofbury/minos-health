@@ -183,10 +183,14 @@
                 that:
                   - tailscale_auth_key_file.stat.isreg | default(false)
                   - tailscale_auth_key_file.stat.mode | default('') in ['0400', '0600']
-                  - tailscale_auth_key_file.stat.size | default(0) in range(20, 257)
+                  # A key pre-signed with `tailscale lock sign` for Tailnet Lock
+                  # (#258) carries a signature and a wrapped signing key, so it
+                  # is longer than a plain auth key.
+                  - tailscale_auth_key_file.stat.size | default(0) in range(20, 1025)
                 fail_msg: >-
                   Supply -e tailscale_auth_key_source=<file> holding a one-time,
-                  pre-authorised key tagged tag:minos-server, mode 0400 or 0600.
+                  pre-authorised key tagged tag:minos-server, mode 0400 or 0600;
+                  under Tailnet Lock, the key printed by `tailscale lock sign`.
 
             # The copy module stages its source in the remote temporary
             # directory; keep that on tmpfs so the key never reaches disk.
