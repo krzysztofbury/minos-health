@@ -161,6 +161,35 @@ Same bundle, 0.25 CPU, against the #222 report above. Report:
   (977 ms, no deadline answers), so the 0.25 CPU share is harsher on search
   than the host. A public rerun needs the owner's approval.
 
+## Planner Statistics Review (#228)
+
+On 2026-10-26 the production bundle (`b8a7ffdb112b`, built 2026-10-22 without
+statistics) was copied and given `ANALYZE`, as the builder now does, and the
+real app was driven in process through search in every system, ICD-10, ICD-9
+and ICD-11 code pages, JGP API, catalog and group pages, grouping
+dictionaries, a grouping and the three MCP tools: 948 statements of 84 shapes.
+`EXPLAIN QUERY PLAN` for each found no full scan of a large table on a
+per-request lookup. Two passes over whole small sets remain and are measured:
+the JGP date calendar unions `catalog_release` and the 3,627 rows of
+`group_definition` (0.55 ms, with or without statistics), and word search
+walks the `concept` covering index inside its ranked query (search medians 2
+to 6 ms, unchanged).
+
+Request medians on one lease, analyzed copy against the original bundle,
+were within noise for every path (for example ICD-10 text search 6.2 against
+6.1 ms, JGP catalog page 8.0 against 9.6 ms, code pages under 1 ms). The two
+`INDEXED BY` pins on ICD-11 map lookups:
+
+| Lookup | Pinned, statistics | Unpinned, statistics | Pinned, none | Unpinned, none |
+| --- | --- | --- | --- | --- |
+| ICD-10 to ICD-11 | 0.011 ms | 0.011 ms | 0.025 ms | 3.5 ms |
+| ICD-11 to ICD-10 | 0.009 ms | 0.009 ms | 0.008 ms | 2.0 ms |
+
+With statistics the planner picks the pinned indexes on its own, so the pins
+cost nothing; without them, the bundle in production today, dropping the pins
+makes each lookup about 140 to 220 times slower. Application and bundle
+releases deploy independently, so the pins stay.
+
 ## Startup Memory (#198)
 
 The same bundle, each API started alone; two probes per image at 512 MiB, one per tighter limit:

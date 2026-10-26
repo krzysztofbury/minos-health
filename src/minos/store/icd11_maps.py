@@ -69,8 +69,10 @@ def map_rows(
     connection: sqlite3.Connection, maps: Icd11Maps, system: str, code: str
 ) -> list[dict[str, object]]:
     """Published rows naming ``code`` on its side, table by table, in row order."""
-    # Bundles carry no planner statistics, so SQLite preferred the primary key
-    # to skip a sort and scanned half the table per code (#225, #228).
+    # Without planner statistics SQLite prefers the primary key to skip a sort
+    # and scans half the table per code (3.5 ms against 0.01 ms). Bundles built
+    # since #228 carry statistics and choose these indexes unpinned, but the API
+    # and the bundle deploy separately, so the pin keeps either bundle fast.
     if system == "icd10-pl":
         query = """SELECT kind, source_row, icd10_code, icd10_title, icd11_code,
             icd11_uri, icd11_title FROM icd11_map_row
