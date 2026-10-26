@@ -255,6 +255,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
   brotli-libs 1.2.1-r0 and curl and libcurl 8.23.0-r0. Dependabot no longer proposes Python 3.15
   (`requires-python` is `<3.15`) or image-only uv bumps, which would drift from
   the `setup-uv` pins.
+- The maintenance edge (the stock NGINX that `site.yml` runs before a
+  validation deployment replaces it) moves from its 2026-09-18 Alpine 3.24.1
+  digest, with eight fixable high findings and not scanned in CI, to the
+  current `1.31.7-alpine` rebuild. That leaves brotli-libs and curl, which the
+  static configuration loads no module for. Apply `site.yml` before the next
+  validation deployment: the renderer refuses a base with another edge digest.
 - The validation API image pins Debian's fixed OpenSSL 3.0.22-1~deb12u2
   (CVE-2026-84782, high) beside the PCRE2 and Perl fixes, because the pinned
   Python 3.14.7 bookworm base still ships 3.0.20 and the container gate refused
