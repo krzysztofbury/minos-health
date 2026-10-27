@@ -4,9 +4,11 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
@@ -604,18 +606,35 @@ def test_host_refusal_and_empty_answers_surface_as_errors() -> None:
         _ = parse_host_answer("\n", "stage")
 
 
-@pytest.mark.parametrize(
-    "program",
-    [
-        HOST_PROGRAM,
-        ROOT / "scripts/watcher_host.py",
-        ROOT / "scripts/tunnel_host.py",
-        ROOT / "scripts/processor_host.py",
-    ],
-)
-def test_host_program_parses_as_host_python(program: Path) -> None:
-    # The production host runs Ubuntu 24.04's Python 3.12.
-    _ = ast.parse(program.read_text(), feature_version=(3, 12))
+def host_python_programs() -> set[str]:
+    configured = cast(
+        dict[str, str],
+        tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["ruff"][
+            "per-file-target-version"
+        ],
+    )
+    return {path for path, target in configured.items() if target == "py312"}
+
+
+def test_every_shipped_host_program_targets_host_python() -> None:
+    # Ruff formats to the target it is given; a host program missing from the
+    # py312 list is rewritten with 3.14-only syntax (#272).
+    sources = [
+        *(ROOT / "scripts").glob("*.py"),
+        *(ROOT / "infra/ansible").glob("*.yml"),
+    ]
+    shipped: set[str] = set()
+    for source in sources:
+        if source.name.startswith(("smoke_", "test_")):
+            continue
+        names: list[str] = re.findall(
+            r"scripts[\"/ ]+(\w+_host\.py)", source.read_text()
+        )
+        shipped.update("scripts/" + name for name in names if name != source.name)
+    assert shipped == host_python_programs()
+    for program in shipped:
+        # The production host runs Ubuntu 24.04's Python 3.12.
+        _ = ast.parse((ROOT / program).read_text(), feature_version=(3, 12))
 
 
 @pytest.mark.parametrize("change_operational", [False, True])

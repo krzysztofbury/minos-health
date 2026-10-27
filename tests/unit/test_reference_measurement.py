@@ -1,4 +1,3 @@
-import ast
 import hashlib
 import io
 import subprocess
@@ -42,11 +41,6 @@ def test_measurement_verifies_database_before_running_any_container(
     _ = stream.seek(0)
     with pytest.raises(RuntimeError, match="checksum"):
         _ = unpack(stream, tmp_path, hashlib.sha256(b"different").hexdigest())
-
-
-def test_host_measurement_program_has_python_312_compatible_grammar() -> None:
-    source = Path("scripts/measure_reference_host.py").read_text()
-    _ = ast.parse(source, feature_version=(3, 12))
 
 
 @pytest.mark.parametrize("failure", ["http", "dataset", "conditions"])
