@@ -199,7 +199,7 @@ def test_release_gate_binds_successful_main_build_to_artifact(
                 [
                     {
                         "conclusion": "failure" if changed == "ci" else "success",
-                        # Main CI runs by dispatch since #174.
+                        # Main CI runs on push again since #272.
                         "event": "workflow_dispatch"
                         if changed == "dispatch"
                         else "push",

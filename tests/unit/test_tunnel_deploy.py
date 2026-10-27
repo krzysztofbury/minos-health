@@ -255,7 +255,7 @@ def test_activation_refuses_a_changed_preserved_service_before_up(
     assert not ups(tunnel)
 
 
-@pytest.mark.parametrize("changed", ["none", "main", "digest", "ci"])
+@pytest.mark.parametrize("changed", ["none", "push", "main", "digest", "ci", "pr"])
 def test_plan_binds_the_digest_to_the_pin_on_remote_main(
     monkeypatch: pytest.MonkeyPatch, changed: str
 ) -> None:
@@ -274,8 +274,12 @@ def test_plan_binds_the_digest_to_the_pin_on_remote_main(
             return template
         if arguments[:2] == ["gh", "run"]:
             assert arguments[arguments.index("--commit") + 1] == head
-            passed = {"conclusion": "success", "event": "workflow_dispatch"}
-            return json.dumps([] if changed == "ci" else [passed])
+            event = {"push": "push", "pr": "pull_request"}.get(
+                changed, "workflow_dispatch"
+            )
+            failed = {"conclusion": "failure", "event": "workflow_dispatch"}
+            passed = {"conclusion": "success", "event": event}
+            return json.dumps([failed] if changed == "ci" else [failed, passed])
         return ""
 
     monkeypatch.setattr(deploy_tunnel, "run", run)
@@ -285,7 +289,7 @@ def test_plan_binds_the_digest_to_the_pin_on_remote_main(
         version=VERSION,
         compose_sha256="c" * 64,
     )
-    if changed == "none":
+    if changed in ("none", "push"):
         deploy_tunnel.reviewed(plan)
     else:
         with pytest.raises(DeployError):

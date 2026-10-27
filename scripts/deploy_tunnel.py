@@ -94,7 +94,11 @@ def reviewed(plan: TunnelPlan) -> None:
             )
         ),
     )
-    if {"conclusion": "success", "event": "workflow_dispatch"} not in checks:
+    passed = (
+        {"conclusion": "success", "event": "push"},
+        {"conclusion": "success", "event": "workflow_dispatch"},
+    )
+    if not any(check in passed for check in checks):
         raise DeployError("tunnel main CI has not passed")
 
 

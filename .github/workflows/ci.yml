@@ -1,17 +1,21 @@
 name: CI
 
-# No push trigger: squash merges re-ran tested PRs on main (a quarter of the
-# October 2026 minutes). A release dispatches full CI on its commit instead.
+# A main push always runs full CI and is never cancelled: deploy tooling takes
+# its success as evidence for that exact commit (#272).
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A queued run in the same group is cancelled even without
+  # cancel-in-progress, so each main push gets its own group.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:

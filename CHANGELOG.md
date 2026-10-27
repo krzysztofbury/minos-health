@@ -261,6 +261,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Full CI runs on every push to `main` again (#272): the minutes that removed
+  the trigger in #174 are free since the repository went public, and the
+  manual dispatch it required was missed for #265. A main push never takes the
+  documentation-only path or gets cancelled, and `deploy_tunnel` accepts its
+  success like `deploy_watcher`.
+
 - Request-path query plans reviewed against planner statistics (#228): a
   copy of the production bundle with `ANALYZE` ran 948 request statements of
   84 shapes with no full scan of a large table on a per-request lookup, and

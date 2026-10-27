@@ -181,12 +181,12 @@ the Docker socket.
 ### Release
 
 1. Merge the reviewed change to `main`.
-2. Dispatch full CI and `reference-validation.yml` on `main` and wait for both
-   to succeed. CI no longer runs on pushes to `main` (#174), so this is the only
-   full check of merged PRs combined, including any merged while behind `main`:
+2. Wait for the full CI run that the push to `main` starts (#272); it checks
+   the merged PRs combined, including any merged while behind `main`, and is
+   never cancelled. Dispatch `reference-validation.yml` on `main`, which
+   publishes the images, and wait for both to succeed:
 
    ```sh
-   gh workflow run ci.yml --ref main
    gh workflow run reference-validation.yml --ref main
    gh run list --branch main --limit 2
    ```
@@ -436,7 +436,8 @@ uv run python -m scripts.deploy_tunnel activate --plan test-output/tunnel/<versi
 ```
 
 - `plan` records the live Compose SHA-256 and refuses a digest that is not the
-  pin on remote `main` or a revision without successful dispatched main CI.
+  pin on remote `main` or a revision without a successful full main CI run
+  (push or dispatch).
 - `stage` refuses unless all five services are healthy, pulls the image, and
   checks without network that it is `linux/amd64`, that its binary reports the
   planned version and that it validates the live ingress configuration. Its
