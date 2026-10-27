@@ -895,6 +895,11 @@ release over a hand-run upgrade or a temporary second replica.
   accepted for the validation site; a replica stays possible if that changes.
 - A test keeps every `cloudflared` pin equal; the origins are plain HTTP, so
   the stricter trust store cannot reject them.
+- Follow-up (#273): `packaging/runtime-pins/Dockerfile` gives Dependabot a
+  tagged `cloudflared` pin that every other pin must equal, and a Docker
+  Compose smoke in CI exercises recovery and rollback with a stand-in image.
+  Uptime Kuma stays outside Dependabot: its pin is a platform digest and its
+  image changes are gated on preserved data (#274).
 
 ### MCP Registry Listing (#264, 2026-10-27)
 

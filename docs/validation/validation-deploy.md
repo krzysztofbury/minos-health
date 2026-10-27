@@ -218,9 +218,10 @@ script (see [the site audit](site-audit.md)).
 `prune --keep 1 --apply`. It stops at the first failure with one JSON `failed`
 event; every step can be rerun on its own with `--revision <sha>`. Every event
 of a run is also appended in full to
-`test-output/validation-deploy/events/<UTC time>-<command>.jsonl`; an event
-longer than 2,000 characters, such as `pruned`, prints its scalar fields with
-the log path and the names of the omitted fields (#272). Run the command
+`test-output/validation-deploy/events/<UTC time>-<command>.jsonl`; a `pruned`
+event longer than 2,000 characters prints its scalar fields with the log path
+and the names of the omitted fields (#272). Every other event, such as
+`inspected`, `planned` or a receipt, prints in full. Run the command
 without `| tail` or `grep`, so the approved command and its output stay
 complete.
 
@@ -431,8 +432,18 @@ deployment lock it already holds.
 `scripts/deploy_tunnel.py` replaces only the `cloudflared` image, for example a
 Cloudflare security release, under the same deployment lock. The digest must
 first be the pin in `infra/ansible/templates/minos-compose.yml.j2` on remote
-`main`; `site.yml` and CI carry the same digest, and a test keeps all pins
-equal because Dependabot reads none of these files.
+`main`; `site.yml` and CI carry the same digest. Dependabot reads none of
+these files, so `packaging/runtime-pins/Dockerfile` names the image with its
+tag for Dependabot, and a test requires every pin to equal it (#273): a
+Dependabot PR fails until the other pins move with it.
+
+`scripts/smoke_tunnel_deploy.py` runs activation, automatic recovery, failed
+recovery followed by explicit rollback, and a clean activation and rollback
+against Docker Compose in CI, with a stand-in image that answers the
+cloudflared commands (the real `tunnel ready` needs a connected tunnel). It
+also checks the premise of rollback's `--force-recreate`: Compose leaves an
+unhealthy container on unchanged configuration in place. Staging's pull,
+platform, version and ingress checks run only against the real image.
 
 ```sh
 uv run python -m scripts.deploy_tunnel plan --plan test-output/tunnel/<version>/plan.json \

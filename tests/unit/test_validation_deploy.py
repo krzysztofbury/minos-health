@@ -1233,7 +1233,7 @@ def test_long_events_print_a_summary_and_keep_every_event_in_the_log(
     monkeypatch.setattr(deploy_validation, "event_log", log)
     removed = [f"sha256:{index:064x}" for index in range(100)]
     deploy_validation.report("pruned", {"removed": removed, "apply": True})
-    deploy_validation.report("staged", {"revision": NEW_REVISION})
+    deploy_validation.report("inspected", {"live_sources": removed})
     deploy_validation.report("failed", {"error": "nope", "details": {"r": removed}})
     printed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert printed[0] == {
@@ -1242,11 +1242,11 @@ def test_long_events_print_a_summary_and_keep_every_event_in_the_log(
         "log": str(log),
         "omitted": ["removed"],
     }
-    assert printed[1] == {"event": "staged", "revision": NEW_REVISION}
+    assert printed[1] == {"event": "inspected", "live_sources": removed}
     assert printed[2]["details"] == {"r": removed}
     logged = [
         cast(dict[str, object], json.loads(line))
         for line in log.read_text().splitlines()
     ]
-    assert [event["event"] for event in logged] == ["pruned", "staged", "failed"]
+    assert [event["event"] for event in logged] == ["pruned", "inspected", "failed"]
     assert logged[0]["removed"] == removed

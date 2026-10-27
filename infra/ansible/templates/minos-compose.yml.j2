@@ -112,8 +112,8 @@ services:
         max-size: 10m
 
   cloudflared:
-    # cloudflared 2026.10.4. Dependabot does not read this file; change every pin
-    # together and update a live host with scripts/deploy_tunnel.py (#270).
+    # cloudflared 2026.10.4. Dependabot updates packaging/runtime-pins; change
+    # every pin with it and update a live host with scripts/deploy_tunnel.py.
     image: docker.io/cloudflare/cloudflared@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
     pull_policy: missing
     restart: unless-stopped

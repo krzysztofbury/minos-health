@@ -41,6 +41,9 @@ WORK_ROOT = ROOT / "test-output" / "validation-deploy"
 # a summary naming this log, so the output never needs a pipe (#272).
 event_log: Path | None = None
 PRINT_LIMIT = 2000
+# Only events of bulk records are summarized; identities, plans and receipts
+# always print in full for the owner to read.
+SUMMARIZED = frozenset({"pruned"})
 PUBLIC_BASE = "https://minoshealth.pl"
 PUBLISH_WORKFLOW = "Verify and publish reference validation"
 RELEASE_ARTIFACT = "validation-release"
@@ -686,7 +689,7 @@ def report(event: str, details: dict[str, object]) -> None:
     if event_log is not None:
         with event_log.open("a") as log:
             _ = log.write(line + "\n")
-    if event_log is not None and event != "failed" and len(line) > PRINT_LIMIT:
+    if event_log is not None and event in SUMMARIZED and len(line) > PRINT_LIMIT:
         nested = {
             key for key, value in details.items() if isinstance(value, (dict, list))
         }

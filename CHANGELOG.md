@@ -15,6 +15,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- Tunnel release evidence and update alerts (#273): CI runs
+  `scripts/smoke_tunnel_deploy.py`, which drives activation, automatic
+  recovery, failed recovery with explicit rollback, and activation with
+  rollback through Docker Compose using a stand-in `cloudflared` image, and
+  checks that Compose keeps an unhealthy container on unchanged configuration
+  (why rollback forces recreation). `packaging/runtime-pins/Dockerfile` lets
+  Dependabot propose `cloudflared` releases; a test requires every pin to
+  equal it, and the nginx pins to equal the validation edge's base image.
 - `cloudflared` 2026.10.4 and a tunnel-only release (#270): Cloudflare asked
   every tunnel to move to 2026.10.2 or later because older releases trust
   eMudhra intermediate certificates with weak keys; production ran 2026.9.1.
@@ -269,9 +277,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   programs the deploy tools and playbooks ship, and parses each as 3.12
   (#272); it replaces two hand-kept lists.
 - `deploy_validation` keeps every event of a run in
-  `test-output/validation-deploy/events/` and prints long events, such as
-  `pruned`, as a summary naming that log (#272), so deploy output no longer
-  needs a pipe that drops events.
+  `test-output/validation-deploy/events/` and prints a long `pruned` event as
+  a summary naming that log (#272), so deploy output no longer needs a pipe
+  that drops events; every other event prints in full.
 - Full CI runs on every push to `main` again (#272): the minutes that removed
   the trigger in #174 are free since the repository went public, and the
   manual dispatch it required was missed for #265. A main push never takes the
