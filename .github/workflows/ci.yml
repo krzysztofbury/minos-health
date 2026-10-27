@@ -145,6 +145,29 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         run: uv run python scripts/build_site.py --check
 
+      - name: Install cosign
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # The owner publishes server.json by hand (docs/v0.0.1/operations.md);
+      # CI proves the registry accepts it with the same verified publisher.
+      - name: Validate the MCP Registry listing
+        if: steps.scope.outputs.docs_only != 'true'
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.5
+        run: |
+          base="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" "$base/$archive"
+          curl -fsSL -o "$RUNNER_TEMP/$archive.sigstore.json" "$base/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$RUNNER_TEMP/$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$RUNNER_TEMP/$archive"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" mcp-publisher
+          "$RUNNER_TEMP/mcp-publisher" validate server.json
+
       - name: Scan complete Git history for secrets
         run: uv run pre-commit run gitleaks-history --hook-stage manual --all-files
 

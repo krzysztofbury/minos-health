@@ -44,6 +44,8 @@ from minos.store.tree import Hierarchy, find_code
 MCP_PATH: Final = "/mcp"
 DOCS_PATH: Final = "/dla-agentow"
 SITE: Final = "https://minoshealth.pl"
+# The MCP Registry listing in server.json carries the same version (#264).
+VERSION: Final = "1.0.0"
 MAX_RESULT_BYTES: Final = 256 * 1024
 MAX_NOTES: Final = 100
 MAX_SOURCE_ITEMS: Final = 200
@@ -1015,7 +1017,7 @@ def create_mcp(
         server = MinosServer(
             "minos-health",
             title="Minos Health",
-            version="1",
+            version=VERSION,
             website_url=SITE + DOCS_PATH,
             instructions=INSTRUCTIONS,
         )
@@ -1031,21 +1033,21 @@ def create_mcp(
         idempotent_hint=True,
         open_world_hint=False,
     )
-    for handler in (
-        tools.get_service_info,
-        tools.search_codes,
-        tools.get_code,
-        tools.browse_codes,
-        tools.map_icd10_icd11,
-        tools.get_jgp_group,
-        tools.get_jgp_list,
-        tools.browse_jgp_catalog,
-        tools.compare_jgp_group,
-        tools.get_case_dictionaries,
-        tools.group_case,
-        tools.get_source_status,
+    for handler, title in (
+        (tools.get_service_info, "Service and releases"),
+        (tools.search_codes, "Search codes"),
+        (tools.get_code, "Code details"),
+        (tools.browse_codes, "Browse a classification"),
+        (tools.map_icd10_icd11, "WHO ICD-10 and ICD-11 map"),
+        (tools.get_jgp_group, "JGP group"),
+        (tools.get_jgp_list, "JGP list"),
+        (tools.browse_jgp_catalog, "Browse the JGP catalog"),
+        (tools.compare_jgp_group, "Compare a JGP group between dates"),
+        (tools.get_case_dictionaries, "Hospital stay dictionaries"),
+        (tools.group_case, "Group a hospital stay"),
+        (tools.get_source_status, "Source status"),
     ):
-        _ = server.tool(annotations=read)(handler)
+        _ = server.tool(title=title, annotations=read)(handler)
 
     async def releases() -> str:
         """The live dictionary releases and grouping availability."""

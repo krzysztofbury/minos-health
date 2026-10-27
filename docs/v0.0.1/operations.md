@@ -448,6 +448,52 @@ Cloudflare WAF rule that blocks `/mcp`; the website is unaffected. A quick
 check from the workstation:
 `claude mcp add --transport http minos-health https://minoshealth.pl/mcp`.
 
+### MCP Registry Listing (#264)
+
+The official MCP Registry lists the server as `pl.minoshealth/mcp` from the
+root `server.json`: one Streamable HTTP remote, no packages. The registry
+stores only that metadata, so a deployment never needs a new listing. Publish
+again only when `server.json` changes, with its `version` raised together with
+`VERSION` in `src/minos/http/mcp.py` (a test keeps them equal, and the registry
+refuses a version it already has). CI runs `mcp-publisher validate` on every
+change.
+
+The namespace is proven by DNS: an Ed25519 public key in a TXT record at the
+`minoshealth.pl` apex. The private key lives only in the password manager, as
+the document `minos-mcp-registry-key`; no CI job, secret or host holds it.
+
+One-time setup on the workstation:
+
+```bash
+umask 077
+key_dir=$(mktemp -d)
+openssl genpkey -algorithm Ed25519 -out "$key_dir/key.pem"
+op document create "$key_dir/key.pem" --title minos-mcp-registry-key
+openssl pkey -in "$key_dir/key.pem" -pubout -outform DER | tail -c 32 | base64
+rm -rf "$key_dir"
+```
+
+Add the printed public key as a DNS-only TXT record on the apex, next to the
+existing records: `v=MCPv1; k=ed25519; p=<public key>`.
+
+Publish, with `mcp-publisher` from the version CI pins, verified with cosign
+as the CI step does:
+
+```bash
+mcp-publisher login dns --domain minoshealth.pl --private-key "$(op document get minos-mcp-registry-key \
+  | openssl pkey -noout -text | grep -A3 'priv:' | tail -n +2 | tr -d ' :\n')"
+mcp-publisher publish server.json
+mcp-publisher logout
+curl -fsS 'https://registry.modelcontextprotocol.io/v0.1/servers?search=pl.minoshealth' \
+  | jq '.servers[].server | {name, version, remotes}'
+```
+
+The key is a command argument for the length of the login, visible to local
+processes of the same user. Each remote URL can belong to one registry name
+only; retiring the listing means deprecating this version, not renaming it.
+Registry clients and aggregators read the listing; the tool catalog they show
+comes from the live `tools/list`.
+
 ## Logging
 
 Watcher lifecycle and RSK transport events use allowlisted Loguru fields. Docker

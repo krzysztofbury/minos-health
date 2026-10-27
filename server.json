@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "pl.minoshealth/mcp",
+  "title": "Minos Health",
+  "description": "Polish ICD-10, ICD-9 PL, ICD-11 PL codes and NFZ JGP hospital grouping from official sources.",
+  "repository": {
+    "url": "https://github.com/krzysztofbury/minos-health",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "websiteUrl": "https://minoshealth.pl/dla-agentow",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://minoshealth.pl/mcp"
+    }
+  ]
+}

@@ -879,6 +879,28 @@ traffic shows otherwise.
 - Measured on the live bundle: API anonymous memory 271 MiB with MCP (245
   without), under the 512 MiB limit.
 
+### MCP Registry Listing (#264, 2026-10-27)
+
+The owner asked to list the public MCP server in the official MCP Registry,
+like librus-mcp, and chose the domain namespace.
+
+- Remote only: `server.json` names `https://minoshealth.pl/mcp` and no package.
+  Minos answers from the licensed reference bundle on its own host, so there is
+  no PyPI package, image or bundle to list, unlike librus-mcp.
+- Name `pl.minoshealth/mcp`, proven by an Ed25519 key in the apex TXT record.
+  The registry recommends a domain namespace for a remote on that domain and
+  binds each remote URL to one name, so the choice is permanent. GitHub OIDC
+  (`io.github.krzysztofbury/...`) would have needed no key but names an account
+  rather than the service.
+- The owner publishes by hand when `server.json` changes; the registry holds
+  only metadata, so publishes are rare and the signing key stays in the
+  password manager instead of CI secrets. CI validates the file with a
+  Sigstore-verified `mcp-publisher`.
+- Listing version 1.0.0 is also the MCP `serverInfo` version, which was `1`.
+- Every tool gains a `title`, shown by registry clients and on `/dla-agentow`.
+  Parameter descriptions stay out of input schemas until measured against the
+  compact catalog bound above.
+
 ### ICD-11 PL Search And WHO Maps (#53, 2026-10-22)
 
 The owner resumed #53, reversing its deferral: ICD-11 is still not an NFZ

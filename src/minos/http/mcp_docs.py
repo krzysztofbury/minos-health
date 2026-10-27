@@ -199,7 +199,7 @@ def reference_html(tools: list[MCPTool]) -> str:
         )
         sections.append(
             f'        <section class="mcp-tool" id="{html.escape(tool.name)}">'
-            + f"<h3><code>{html.escape(tool.name)}</code></h3>"
+            + f"<h3>{html.escape(tool.title or '')} <code>{html.escape(tool.name)}</code></h3>"
             + f"<p>{html.escape(tool.description or '')}</p>"
             + _inputs(tool)
             + (_stay_fields(tool) if tool.name == "group_case" else "")

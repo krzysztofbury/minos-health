@@ -15,6 +15,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- MCP Registry listing (#264): `server.json` lists the public MCP server as
+  `pl.minoshealth/mcp`, a Streamable HTTP remote with no packages, proven by a
+  DNS key at the domain apex and published by the owner
+  (`docs/v0.0.1/operations.md`). CI validates it with a Sigstore-verified
+  `mcp-publisher`, a test keeps its URL, documentation link, title and version
+  equal to the server's own, every tool has a `title`, and the MCP server
+  version is now `1.0.0`.
 - Bounded API load measurement (#42): `scripts/measure_api_load.py` drives a
   browser-shaped mix plus MCP calls through a disposable local runtime at the
   production limits, or a capped public run that stops at the first server
