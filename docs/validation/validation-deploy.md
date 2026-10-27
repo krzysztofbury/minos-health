@@ -436,12 +436,15 @@ equal because Dependabot reads none of these files.
 
 ```sh
 uv run python -m scripts.deploy_tunnel plan --plan test-output/tunnel/<version>/plan.json \
-  --revision <main sha> --image docker.io/cloudflare/cloudflared@sha256:<digest> --version <version>
+  --version <version>
 uv run python -m scripts.deploy_tunnel stage --plan test-output/tunnel/<version>/plan.json
 uv run python -m scripts.deploy_tunnel activate --plan test-output/tunnel/<version>/plan.json
 ```
 
-- `plan` records the live Compose SHA-256 and refuses a digest that is not the
+- `plan` takes the revision from remote `main` and the image from that
+  revision's template pin unless `--revision` or `--image` is given, and
+  prints both (#272), so no one retypes a SHA or digest. It records the live
+  Compose SHA-256 and refuses a digest that is not the
   pin on remote `main` or a revision without a successful full main CI run
   (push or dispatch).
 - `stage` refuses unless all five services are healthy, pulls the image, and

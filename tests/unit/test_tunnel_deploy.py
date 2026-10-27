@@ -311,3 +311,39 @@ def test_every_cloudflared_pin_is_the_same_digest() -> None:
         assert found, path
         pins.update(found)
     assert len(pins) == 1
+
+
+def test_plan_takes_revision_and_image_from_remote_main(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    head = "a" * 40
+    pinned = "docker.io/cloudflare/cloudflared@sha256:" + "7" * 64
+
+    def run(arguments: list[str]) -> str:
+        if arguments[1] == "ls-remote":
+            return head + "\trefs/heads/main\n"
+        if arguments[1] == "show":
+            assert arguments[2] == f"{head}:{deploy_tunnel.TEMPLATE}"
+            return f"  cloudflared:\n    image: {pinned}\n"
+        if arguments[:2] == ["gh", "run"]:
+            return json.dumps([{"conclusion": "success", "event": "push"}])
+        return ""
+
+    class Inspecting:
+        def call(self, command: str, _params: dict[str, object]) -> dict[str, object]:
+            assert command == "inspect"
+            return {"compose_sha256": "c" * 64}
+
+    monkeypatch.setattr(deploy_tunnel, "run", run)
+    monkeypatch.setattr(deploy_tunnel, "Host", Inspecting)
+    path = tmp_path / "plan.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["deploy_tunnel", "plan", "--plan", str(path), "--version", VERSION],
+    )
+    deploy_tunnel.main()
+    plan = deploy_tunnel.TunnelPlan.model_validate_json(path.read_bytes())
+    assert (plan.revision, plan.image) == (head, pinned)
+    printed = cast(dict[str, object], json.loads(capsys.readouterr().out))
+    assert printed["revision"] == head and printed["image"] == pinned

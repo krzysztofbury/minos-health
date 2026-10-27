@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import time
 from pathlib import Path
 from typing import ClassVar, Literal, cast, final
@@ -23,6 +24,7 @@ TEMPLATE = "infra/ansible/templates/minos-compose.yml.j2"
 # paced, before calling public ingress failed.
 PROBES = 5
 PROBE_INTERVAL_S = 3.0
+PIN = re.compile(r"docker\.io/cloudflare/cloudflared@sha256:[0-9a-f]{64}")
 
 
 class TunnelPlan(BaseModel):
@@ -63,14 +65,28 @@ sys.exit(common.main(sys.argv))
 """.encode()
 
 
+def remote_main() -> str:
+    return run(["git", "ls-remote", "origin", "refs/heads/main"]).split()[0]
+
+
+def template(revision: str) -> str:
+    _ = run(["git", "fetch", "--quiet", "origin", "main"])
+    return run(["git", "show", f"{revision}:{TEMPLATE}"])
+
+
+def pinned(revision: str) -> str:
+    found: set[str] = set(PIN.findall(template(revision)))
+    found = set(PIN.findall(template(revision)))
+    if len(found) != 1:
+        raise DeployError("template does not pin exactly one cloudflared image")
+    return found.pop()
+
+
 def reviewed(plan: TunnelPlan) -> None:
     """The digest is the one reviewed into the Compose template on remote main."""
-    head = run(["git", "ls-remote", "origin", "refs/heads/main"]).split()[0]
-    if head != plan.revision:
+    if remote_main() != plan.revision:
         raise DeployError("tunnel revision is not current remote main")
-    _ = run(["git", "fetch", "--quiet", "origin", "main"])
-    template = run(["git", "show", f"{plan.revision}:{TEMPLATE}"])
-    if f"    image: {plan.image}\n" not in template:
+    if f"    image: {plan.image}\n" not in template(plan.revision):
         raise DeployError("cloudflared digest is not the pin on remote main")
     checks = cast(
         list[dict[str, object]],
@@ -138,11 +154,12 @@ def main() -> None:
     try:
         host = Host()
         if command == "plan":
+            revision = arguments.revision or remote_main()
             facts = host.call("inspect", {})
             plan = TunnelPlan.model_validate(
                 {
-                    "revision": arguments.revision,
-                    "image": arguments.image,
+                    "revision": revision,
+                    "image": arguments.image or pinned(revision),
                     "version": arguments.version,
                     "compose_sha256": facts["compose_sha256"],
                 }
@@ -151,7 +168,14 @@ def main() -> None:
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             with path.open("x") as target:
                 _ = target.write(plan.model_dump_json(indent=2) + "\n")
-            print(json.dumps({"event": "tunnel_planned", "version": plan.version}))
+            print(
+                json.dumps(
+                    {
+                        "event": "tunnel_planned",
+                        **plan.model_dump(exclude={"compose_sha256"}),
+                    }
+                )
+            )
             return
         plan = TunnelPlan.model_validate_json(path.read_bytes())
         if command != "rollback":

@@ -261,6 +261,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- `deploy_tunnel plan` defaults `--revision` to remote `main` and `--image`
+  to that revision's template pin, and prints both (#272).
 - `deploy_validation` keeps every event of a run in
   `test-output/validation-deploy/events/` and prints long events, such as
   `pruned`, as a summary naming that log (#272), so deploy output no longer
