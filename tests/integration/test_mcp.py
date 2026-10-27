@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import cast
@@ -17,6 +18,7 @@ from tests.integration.test_icd11_reference import icd11_bundle
 from tests.integration.test_source_pages import publish, rsk
 
 type Json = dict[str, object]
+_TOOL_VERBS = ("get_", "search_", "browse_", "map_", "compare_", "group_")
 _HEADERS = {
     "Accept": "application/json, text/event-stream",
     "Content-Type": "application/json",
@@ -67,7 +69,8 @@ def test_catalog_is_read_only_typed_compact_and_documented(
 
     names = sorted(cast(str, tool["name"]) for tool in tools)
     assert names == sorted(EXAMPLES)
-    # 17.5 KiB on 2026-10-22, 20.1 KiB with parameter descriptions (#266);
+    # 17.5 KiB on 2026-10-22, 20.1 KiB with parameter descriptions (#266),
+    # 19.9 KiB after the description rewrite (#268);
     # a doubling fails here.
     assert len(json.dumps(tools).encode()) < 32 * 1024
     for tool in tools:
@@ -85,6 +88,13 @@ def test_catalog_is_read_only_typed_compact_and_documented(
             EXAMPLES[cast(str, tool["name"])], cast(Json, tool["inputSchema"])
         )
     assert sorted(tool.name for tool in catalog()) == names
+    # Every description routes to a sibling, and only to tools that exist.
+    for tool in tools:
+        description = cast(str, tool["description"])
+        mentioned: set[str] = set(re.findall(r"\b[a-z]+(?:_[a-z0-9]+)+\b", description))
+        siblings = {name for name in mentioned if name.startswith(_TOOL_VERBS)}
+        assert siblings - {tool["name"]}, tool["name"]
+        assert siblings <= set(names), (tool["name"], siblings - set(names))
 
 
 def test_the_registry_listing_names_this_server(reference: TestClient) -> None:

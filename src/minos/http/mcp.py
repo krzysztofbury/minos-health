@@ -621,7 +621,7 @@ class _Tools:
         self._catalog: Callable[[], Awaitable[list[MCPTool]]] = catalog
 
     async def get_service_info(self) -> ServiceInfo:
-        """What Minos serves: live dictionary releases (ICD-10 PL, ICD-9 PL, ICD-11 PL) with versions, validity and licences, JGP grouping availability and knowledge horizon, the tool list and the disclaimer."""
+        """Get the releases Minos serves: ICD-10 PL, ICD-9 PL and ICD-11 PL versions, validity and licences, JGP grouping availability and knowledge horizon, and the disclaimer. Call it first to learn which service dates are covered; use get_source_status to see what publishers released since."""
         answer = await self._api.releases()
         return ServiceInfo(
             notice=NOTICE,
@@ -670,7 +670,7 @@ class _Tools:
             int, Field(ge=1, le=20, description="Hits per dictionary.")
         ] = 10,
     ) -> SearchResult:
-        """Search Polish medical codes by code or Polish words (diacritics optional), like the minoshealth.pl search: ICD-10 PL diagnoses, ICD-9 PL procedures, JGP groups and, on request, pre-released ICD-11 PL. service_date (default today in Poland) picks the release in force; JGP groups are always searched in today's catalog. Each hit has its code, title, path and the number of JGP groups listing it."""
+        """Search ICD-10 PL diagnoses, ICD-9 PL procedures, JGP groups and, when asked, pre-released ICD-11 PL by code or Polish words (diacritics optional). Each hit has its code, title, path and JGP group count; JGP groups are always searched in today's catalog. Open a hit with get_code or get_jgp_group; walk a hierarchy with browse_codes."""
         day = service_date or today()
         outcomes: list[SystemHits] = []
         for system in dict.fromkeys(systems):
@@ -743,7 +743,7 @@ class _Tools:
         ],
         service_date: ServiceDate = None,
     ) -> CodeDetail:
-        """Everything the code page shows for one ICD-10 PL, ICD-9 PL or ICD-11 PL code: title, place in the hierarchy (ICD-11 blocks included), child codes, notes (includes, excludes, index terms; counted), attributes (English name, CZS status and dates, WHO URI, definition), ICD-9 procedure rank, WHO ICD-10/ICD-11 map rows and, for ICD-10 and ICD-9, the JGP groups whose attachment 9 lists name the code on service_date (default today in Poland)."""
+        """Get one ICD-10 PL, ICD-9 PL or ICD-11 PL code as its page shows it: title, hierarchy, children, notes, attributes, ICD-9 rank, WHO map rows and, for ICD-10 and ICD-9, the JGP groups whose attachment 9 lists name it on service_date. Find the code with search_codes first; open a listed group with get_jgp_group."""
         day = service_date or today()
         release, concept, tree = await self._node(system, code, day)
         node = _obj(tree.get("node"))
@@ -805,7 +805,7 @@ class _Tools:
             ),
         ] = None,
     ) -> Listing:
-        """List one level of a classification: the chapters when parent and node are omitted, else the children of the parent code or of a node id from an earlier listing (ICD-11 blocks have a node id but no code). Each child says whether it has children. Long levels stop at 400 entries with truncated=true."""
+        """List one level of ICD-10 PL, ICD-9 PL or ICD-11 PL: the chapters when parent and node are omitted, else the children of parent or of a node id from an earlier listing (ICD-11 blocks have a node id, no code). Levels stop at 400 entries with truncated=true. Use search_codes for words, get_code for one code's details."""
         if parent is not None and node is not None:
             raise ToolFailure("INVALID_INPUT")
         day = today()
@@ -854,7 +854,7 @@ class _Tools:
             Field(description="Which WHO tables to read."),
         ],
     ) -> MapResult:
-        """WHO ICD-10/ICD-11 mapping table rows for one code, verbatim: to_icd11 reads both 10-to-11 tables for a Polish ICD-10 code, to_icd10 the 11-to-10 table for an ICD-11 code. Rows give the WHO table, source row, codes, titles and the ICD-11 URI; WHO states no match type. The tables' ICD-10 side is WHO ICD-10 2019, not the Polish 2008 edition, and ICD-11 is not in force in Poland."""
+        """Read the WHO ICD-10/ICD-11 mapping rows for one code, verbatim: to_icd11 for a Polish ICD-10 code, to_icd10 for an ICD-11 code. WHO states no match type, its ICD-10 side is the 2019 edition, not Polish 2008, and ICD-11 is not in force in Poland: treat a row as a lead and confirm the target with get_code."""
         system: System = "icd10-pl" if direction == "to_icd11" else "icd11-pl"
         release = await self._api.release(system, today())
         concept = await self._api.get(
@@ -878,7 +878,7 @@ class _Tools:
     async def get_jgp_group(
         self, code: GroupParam, service_date: ServiceDate = None
     ) -> Document:
-        """One JGP group in the catalog in force on service_date (default today in Poland): name, product code, base points per catalog column, scopes, the act and release behind it, the knowledge horizon, and its grouping conditions from the characteristics with the directional lists they name (read a list with get_jgp_list)."""
+        """Get one JGP group from the catalog in force on service_date: name, product code, base points per column, scopes, the act and release, the knowledge horizon and its grouping conditions with the directional lists they name. Pass a named list's id and catalog to get_jgp_list for its codes; use compare_jgp_group for changes between dates."""
         answer = await self._group(code, service_date or today())
         return Document.model_validate({**answer, "notice": NOTICE})
 
@@ -895,7 +895,7 @@ class _Tools:
         page: Annotated[int, Field(ge=1, le=20, description="Page, from 1.")] = 1,
         service_date: ServiceDate = None,
     ) -> Document:
-        """The codes of one directional diagnosis or procedure list from the JGP characteristics (attachment 9), by the list id and catalog that get_jgp_group names, one page at a time, on service_date (default today in Poland)."""
+        """List the codes of one directional diagnosis or procedure list from JGP attachment 9, one page at a time. Take list_id from conditions.lists[].id and catalog from group.catalog of a get_jgp_group answer, with the same service_date. For the groups that name a given code, use get_code instead."""
         day = service_date or today()
         answer = await self._api.get(
             f"/api/v1/jgp/{day.isoformat()}/lists/{catalog}/{list_id}/pages/{page}"
@@ -916,7 +916,7 @@ class _Tools:
         ] = None,
         service_date: ServiceDate = None,
     ) -> Document:
-        """Browse the JGP catalog in force on service_date (default today in Poland): without a section, the sections of catalogs 1a and 1ae with their group counts; with catalog and section, that section's groups with base points."""
+        """Browse the JGP catalog in force on service_date: without catalog and section, the sections of catalogs 1a and 1ae with group counts; with both, that section's groups and base points. Find a group by words with search_codes; open one with get_jgp_group."""
         if (catalog is None) != (section is None):
             raise ToolFailure("INVALID_INPUT")
         path = f"/api/v1/jgp/{(service_date or today()).isoformat()}/sections"
@@ -935,7 +935,7 @@ class _Tools:
             date, Field(description="Later day of care, YYYY-MM-DD.")
         ],
     ) -> Comparison:
-        """Compare one JGP group between the catalogs in force on two service dates: act and release on each side, name, base points, scopes and the names of the directional lists its conditions use, plus the list of fields that changed. Read full conditions with get_jgp_group."""
+        """Compare one JGP group between the catalogs in force on two service dates: act, release, name, base points, scopes and condition list names on each side, plus the fields that changed. Use get_jgp_group for the full conditions on one date."""
         sides: list[Json] = []
         for day in (before_date, after_date):
             answer = await self._group(code, day)
@@ -979,7 +979,7 @@ class _Tools:
             Field(description="hospital: ward codes 4000-4951; all: every section."),
         ] = "hospital",
     ) -> CaseDictionaries:
-        """The legal dictionaries a stay for group_case needs: ward specialty codes (the VIII part of a department code; hospital wards 4000-4951 by default, wards="all" for every section) and discharge modes, each with its legal act, plus the accepted hospitalization types and product reporting values."""
+        """List the values a group_case stay needs: ward specialty codes (part VIII of a department code; hospital wards 4000-4951, or every section with wards="all") and discharge modes, each with its legal act, plus hospitalization types and product reporting values. Call it before building the case for group_case."""
         answer = await self._api.get("/api/v1/grouping/dictionaries")
         specialties = _obj(answer.get("specialties"))
         entries = _objects(specialties.get("entries"))
@@ -1036,7 +1036,7 @@ class _Tools:
             Field(description="trace adds the full routing trace."),
         ] = "summary",
     ) -> Document:
-        """Run the Minos Gruper (JGP SZP, supported rule subset) on one anonymised hospital stay: candidate groups with status and reasons, the ranking, base and final points with tariff modifiers when bound, the preparation (procedure outcomes, ward-adjusted days, products), underivable groups and limitations. service_date defaults to the discharge day and reporting_month to its month; detail="trace" adds the full routing trace. Send clinical facts only (age, dates, codes, ward codes), never names, PESEL or addresses; nothing is stored."""
+        """Group one anonymised hospital stay with the Minos Gruper (JGP SZP, supported rule subset): candidate groups with reasons, ranking, base and final points, preparation and limitations. Build case from get_case_dictionaries and codes confirmed with get_code. Send clinical facts only, never names, PESEL or addresses; nothing is stored. Reference, not an NFZ decision."""
         if service_date is None:
             try:
                 service_date = date.fromisoformat(str(case.get("discharged_on")))
@@ -1065,7 +1065,7 @@ class _Tools:
             ),
         ],
     ) -> SourceStatus:
-        """What a watched publisher shows now, as Minos last observed it: RSK (Rejestr Systemów Kodowania) resources and files, BAW NFZ orders and their attachments, or NFZ dictionaries and notices, with versions, publication dates and observation times. Compare with get_service_info for the versions Minos serves."""
+        """Show what a watched publisher lists now, as Minos last observed it: RSK resources and files, BAW NFZ orders and attachments, or NFZ dictionaries and notices, with versions and dates. Reads Minos's last snapshot and never calls the publisher. Compare with get_service_info to see whether Minos serves the newest release."""
         from minos.http.source_reader import SourceUnavailable, load_snapshot
 
         try:

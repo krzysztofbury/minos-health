@@ -15,6 +15,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- MCP tool descriptions rewritten for tool selection (#268): each opens with
+  a verb and what it returns, names the sibling tool to use instead, states how
+  outputs feed the next call and what the tool does not do, in 250 to 365
+  bytes (catalog 20.1 to 19.9 KiB). A test requires every description to name
+  an existing sibling.
 - MCP Registry listing 1.1.0 (#266): every tool parameter has a short
   description in `tools/list` and on `/dla-agentow` (catalog 18.1 to 20.1 KiB),
   and the listing and MCP `serverInfo` name a 512x512 PNG icon served at
