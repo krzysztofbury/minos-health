@@ -33,7 +33,13 @@ from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import CallToolResult, InputRequiredResult, TextContent, ToolAnnotations
+from mcp.types import (
+    CallToolResult,
+    Icon,
+    InputRequiredResult,
+    TextContent,
+    ToolAnnotations,
+)
 from mcp.types import Tool as MCPTool
 from pydantic import BaseModel, ConfigDict, Field, WithJsonSchema
 
@@ -45,7 +51,8 @@ MCP_PATH: Final = "/mcp"
 DOCS_PATH: Final = "/dla-agentow"
 SITE: Final = "https://minoshealth.pl"
 # The MCP Registry listing in server.json carries the same version (#264).
-VERSION: Final = "1.0.0"
+VERSION: Final = "1.1.0"
+ICON: Final = SITE + "/icon-512.png"
 MAX_RESULT_BYTES: Final = 256 * 1024
 MAX_NOTES: Final = 100
 MAX_SOURCE_ITEMS: Final = 200
@@ -72,6 +79,17 @@ type SearchSystem = Literal["icd10-pl", "icd9-pl", "icd11-pl", "jgp"]
 type Code = Annotated[str, Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9.\-]{0,15}$")]
 type GroupCode = Annotated[str, Field(pattern=r"^[A-Z][A-Z0-9]{1,5}$")]
 type Catalog = Literal["1a", "1ae"]
+# Parameter descriptions reach agents through tools/list and /dla-agentow; keep
+# them short, the catalog size is bounded in the MCP tests. Plain aliases:
+# Pydantic drops a Field description declared inside a `type` statement.
+ServiceDate = Annotated[
+    date | None,
+    Field(
+        description="Day of care, YYYY-MM-DD; picks the release in force. Default today in Poland."
+    ),
+]
+SystemParam = Annotated[System, Field(description="Classification of the code.")]
+GroupParam = Annotated[GroupCode, Field(description="JGP group code, e.g. F72.")]
 
 
 class _Browsed(Protocol):
@@ -224,9 +242,16 @@ def inline_refs(schema: Json) -> Json:
     return cast(Json, walk(schema))
 
 
-# The API validates the stay strictly; the tool publishes that model's schema.
-type CaseInput = Annotated[
-    Json, WithJsonSchema(inline_refs(EncounterInput.model_json_schema()))
+# The API validates the stay strictly; the tool publishes that model's schema,
+# inline (a `type` alias would publish a $ref without the description).
+CaseInput = Annotated[
+    Json,
+    WithJsonSchema(
+        {
+            **inline_refs(EncounterInput.model_json_schema()),
+            "description": "The anonymised stay; get_case_dictionaries lists accepted values.",
+        }
+    ),
 ]
 
 # JSON Schema keywords whose values are schemas, maps of schemas or schema lists.
@@ -624,12 +649,26 @@ class _Tools:
 
     async def search_codes(
         self,
-        query: Annotated[str, Field(min_length=1, max_length=120)],
+        query: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=120,
+                description="A code or Polish words, e.g. J18.9 or zapalenie płuc.",
+            ),
+        ],
         systems: Annotated[
-            tuple[SearchSystem, ...], Field(min_length=1, max_length=4)
+            tuple[SearchSystem, ...],
+            Field(
+                min_length=1,
+                max_length=4,
+                description="Dictionaries to search; add icd11-pl only when asked.",
+            ),
         ] = ("icd10-pl", "icd9-pl", "jgp"),
-        service_date: date | None = None,
-        limit: Annotated[int, Field(ge=1, le=20)] = 10,
+        service_date: ServiceDate = None,
+        limit: Annotated[
+            int, Field(ge=1, le=20, description="Hits per dictionary.")
+        ] = 10,
     ) -> SearchResult:
         """Search Polish medical codes by code or Polish words (diacritics optional), like the minoshealth.pl search: ICD-10 PL diagnoses, ICD-9 PL procedures, JGP groups and, on request, pre-released ICD-11 PL. service_date (default today in Poland) picks the release in force; JGP groups are always searched in today's catalog. Each hit has its code, title, path and the number of JGP groups listing it."""
         day = service_date or today()
@@ -697,7 +736,12 @@ class _Tools:
         )
 
     async def get_code(
-        self, system: System, code: Code, service_date: date | None = None
+        self,
+        system: SystemParam,
+        code: Annotated[
+            Code, Field(description="The code as printed, e.g. J18.9, 53.03 or BA00.")
+        ],
+        service_date: ServiceDate = None,
     ) -> CodeDetail:
         """Everything the code page shows for one ICD-10 PL, ICD-9 PL or ICD-11 PL code: title, place in the hierarchy (ICD-11 blocks included), child codes, notes (includes, excludes, index terms; counted), attributes (English name, CZS status and dates, WHO URI, definition), ICD-9 procedure rank, WHO ICD-10/ICD-11 map rows and, for ICD-10 and ICD-9, the JGP groups whose attachment 9 lists name the code on service_date (default today in Poland)."""
         day = service_date or today()
@@ -748,9 +792,18 @@ class _Tools:
 
     async def browse_codes(
         self,
-        system: System,
-        parent: Code | None = None,
-        node: Annotated[int, Field(ge=1, le=10_000_000)] | None = None,
+        system: SystemParam,
+        parent: Annotated[
+            Code | None, Field(description="Code whose children to list.")
+        ] = None,
+        node: Annotated[
+            int | None,
+            Field(
+                ge=1,
+                le=10_000_000,
+                description="Node id from an earlier listing, for ICD-11 blocks without a code.",
+            ),
+        ] = None,
     ) -> Listing:
         """List one level of a classification: the chapters when parent and node are omitted, else the children of the parent code or of a node id from an earlier listing (ICD-11 blocks have a node id but no code). Each child says whether it has children. Long levels stop at 400 entries with truncated=true."""
         if parent is not None and node is not None:
@@ -789,7 +842,17 @@ class _Tools:
         )
 
     async def map_icd10_icd11(
-        self, code: Code, direction: Literal["to_icd11", "to_icd10"]
+        self,
+        code: Annotated[
+            Code,
+            Field(
+                description="An ICD-10 PL code for to_icd11, an ICD-11 code for to_icd10."
+            ),
+        ],
+        direction: Annotated[
+            Literal["to_icd11", "to_icd10"],
+            Field(description="Which WHO tables to read."),
+        ],
     ) -> MapResult:
         """WHO ICD-10/ICD-11 mapping table rows for one code, verbatim: to_icd11 reads both 10-to-11 tables for a Polish ICD-10 code, to_icd10 the 11-to-10 table for an ICD-11 code. Rows give the WHO table, source row, codes, titles and the ICD-11 URI; WHO states no match type. The tables' ICD-10 side is WHO ICD-10 2019, not the Polish 2008 edition, and ICD-11 is not in force in Poland."""
         system: System = "icd10-pl" if direction == "to_icd11" else "icd11-pl"
@@ -813,7 +876,7 @@ class _Tools:
         return await self._api.get(f"/api/v1/jgp/{day.isoformat()}/groups/{code}")
 
     async def get_jgp_group(
-        self, code: GroupCode, service_date: date | None = None
+        self, code: GroupParam, service_date: ServiceDate = None
     ) -> Document:
         """One JGP group in the catalog in force on service_date (default today in Poland): name, product code, base points per catalog column, scopes, the act and release behind it, the knowledge horizon, and its grouping conditions from the characteristics with the directional lists they name (read a list with get_jgp_list)."""
         answer = await self._group(code, service_date or today())
@@ -821,10 +884,16 @@ class _Tools:
 
     async def get_jgp_list(
         self,
-        list_id: Annotated[int, Field(ge=1, le=100_000)],
-        catalog: Catalog = "1a",
-        page: Annotated[int, Field(ge=1, le=20)] = 1,
-        service_date: date | None = None,
+        list_id: Annotated[
+            int,
+            Field(ge=1, le=100_000, description="List id that get_jgp_group names."),
+        ],
+        catalog: Annotated[
+            Catalog,
+            Field(description="Catalog that get_jgp_group names with the list."),
+        ] = "1a",
+        page: Annotated[int, Field(ge=1, le=20, description="Page, from 1.")] = 1,
+        service_date: ServiceDate = None,
     ) -> Document:
         """The codes of one directional diagnosis or procedure list from the JGP characteristics (attachment 9), by the list id and catalog that get_jgp_group names, one page at a time, on service_date (default today in Poland)."""
         day = service_date or today()
@@ -835,9 +904,17 @@ class _Tools:
 
     async def browse_jgp_catalog(
         self,
-        catalog: Catalog | None = None,
-        section: Annotated[int, Field(ge=1, le=200)] | None = None,
-        service_date: date | None = None,
+        catalog: Annotated[
+            Catalog | None,
+            Field(
+                description="Catalog of the section; omit with section for the index."
+            ),
+        ] = None,
+        section: Annotated[
+            int | None,
+            Field(ge=1, le=200, description="Section number from the index."),
+        ] = None,
+        service_date: ServiceDate = None,
     ) -> Document:
         """Browse the JGP catalog in force on service_date (default today in Poland): without a section, the sections of catalogs 1a and 1ae with their group counts; with catalog and section, that section's groups with base points."""
         if (catalog is None) != (section is None):
@@ -849,7 +926,14 @@ class _Tools:
         return Document.model_validate({**answer, "notice": NOTICE})
 
     async def compare_jgp_group(
-        self, code: GroupCode, before_date: date, after_date: date
+        self,
+        code: GroupParam,
+        before_date: Annotated[
+            date, Field(description="Earlier day of care, YYYY-MM-DD.")
+        ],
+        after_date: Annotated[
+            date, Field(description="Later day of care, YYYY-MM-DD.")
+        ],
     ) -> Comparison:
         """Compare one JGP group between the catalogs in force on two service dates: act and release on each side, name, base points, scopes and the names of the directional lists its conditions use, plus the list of fields that changed. Read full conditions with get_jgp_group."""
         sides: list[Json] = []
@@ -889,7 +973,11 @@ class _Tools:
         )
 
     async def get_case_dictionaries(
-        self, wards: Literal["hospital", "all"] = "hospital"
+        self,
+        wards: Annotated[
+            Literal["hospital", "all"],
+            Field(description="hospital: ward codes 4000-4951; all: every section."),
+        ] = "hospital",
     ) -> CaseDictionaries:
         """The legal dictionaries a stay for group_case needs: ward specialty codes (the VIII part of a department code; hospital wards 4000-4951 by default, wards="all" for every section) and discharge modes, each with its legal act, plus the accepted hospitalization types and product reporting values."""
         answer = await self._api.get("/api/v1/grouping/dictionaries")
@@ -924,10 +1012,29 @@ class _Tools:
     async def group_case(
         self,
         case: CaseInput,
-        service_date: date | None = None,
-        reporting_month: date | None = None,
-        declared_modifiers: Annotated[tuple[str, ...], Field(max_length=64)] = (),
-        detail: Literal["summary", "trace"] = "summary",
+        service_date: Annotated[
+            date | None,
+            Field(
+                description="Day of care for the catalog, YYYY-MM-DD. Default the discharge day."
+            ),
+        ] = None,
+        reporting_month: Annotated[
+            date | None,
+            Field(
+                description="Reporting month, YYYY-MM-DD (day ignored). Default the service month."
+            ),
+        ] = None,
+        declared_modifiers: Annotated[
+            tuple[str, ...],
+            Field(
+                max_length=64,
+                description="Tariff modifier symbols the provider declares; unapplied ones are listed.",
+            ),
+        ] = (),
+        detail: Annotated[
+            Literal["summary", "trace"],
+            Field(description="trace adds the full routing trace."),
+        ] = "summary",
     ) -> Document:
         """Run the Minos Gruper (JGP SZP, supported rule subset) on one anonymised hospital stay: candidate groups with status and reasons, the ranking, base and final points with tariff modifiers when bound, the preparation (procedure outcomes, ward-adjusted days, products), underivable groups and limitations. service_date defaults to the discharge day and reporting_month to its month; detail="trace" adds the full routing trace. Send clinical facts only (age, dates, codes, ward codes), never names, PESEL or addresses; nothing is stored."""
         if service_date is None:
@@ -950,7 +1057,13 @@ class _Tools:
         return Document.model_validate({**kept, "notice": NOTICE})
 
     async def get_source_status(
-        self, source: Literal["rsk", "baw", "nfz"]
+        self,
+        source: Annotated[
+            Literal["rsk", "baw", "nfz"],
+            Field(
+                description="rsk: RSK resources; baw: NFZ orders; nfz: NFZ dictionaries and notices."
+            ),
+        ],
     ) -> SourceStatus:
         """What a watched publisher shows now, as Minos last observed it: RSK (Rejestr Systemów Kodowania) resources and files, BAW NFZ orders and their attachments, or NFZ dictionaries and notices, with versions, publication dates and observation times. Compare with get_service_info for the versions Minos serves."""
         from minos.http.source_reader import SourceUnavailable, load_snapshot
@@ -1019,6 +1132,7 @@ def create_mcp(
             title="Minos Health",
             version=VERSION,
             website_url=SITE + DOCS_PATH,
+            icons=[Icon(src=ICON, mime_type="image/png", sizes=["512x512"])],
             instructions=INSTRUCTIONS,
         )
     finally:

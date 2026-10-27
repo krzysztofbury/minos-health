@@ -900,6 +900,11 @@ like librus-mcp, and chose the domain namespace.
 - Every tool gains a `title`, shown by registry clients and on `/dla-agentow`.
   Parameter descriptions stay out of input schemas until measured against the
   compact catalog bound above.
+- Listing 1.1.0 (#266): every tool parameter has a one-line description, which
+  grows `tools/list` from 18.1 to 20.1 KiB, under the 32 KiB test bound. The
+  listing and `serverInfo` name a 512x512 PNG icon rendered from the favicon at
+  `/icon-512.png`; registry clients must support PNG, SVG only optionally. The
+  owner republishes after the deployment that serves the icon.
 
 ### ICD-11 PL Search And WHO Maps (#53, 2026-10-22)
 

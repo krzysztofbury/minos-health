@@ -29,6 +29,7 @@ ASSET_ROUTES = (
     "/dictionary.js",
     "/jgp.js",
     "/social-preview-v1.png",
+    "/icon-512.png",
 )
 
 

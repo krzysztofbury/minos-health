@@ -584,6 +584,8 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .mcp-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .mcp-table th, .mcp-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .mcp-table td:last-child { overflow-wrap: anywhere; }
+.mcp-table td:first-child { min-width: 12rem; }
+.mcp-note { display: block; margin-top: 0.15rem; color: var(--muted); }
 .prose address { font-style: normal; }
 .prose .callout { padding: 1rem 1.1rem; border-left: 4px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; background: var(--accent-tint); }
 

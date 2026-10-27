@@ -15,6 +15,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- MCP Registry listing 1.1.0 (#266): every tool parameter has a short
+  description in `tools/list` and on `/dla-agentow` (catalog 18.1 to 20.1 KiB),
+  and the listing and MCP `serverInfo` name a 512x512 PNG icon served at
+  `/icon-512.png`. MCP server version 1.1.0.
 - MCP Registry listing (#264): `server.json` lists the public MCP server as
   `pl.minoshealth/mcp`, a Streamable HTTP remote with no packages, proven by a
   DNS key at the domain apex and published by the owner

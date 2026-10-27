@@ -67,7 +67,8 @@ def test_catalog_is_read_only_typed_compact_and_documented(
 
     names = sorted(cast(str, tool["name"]) for tool in tools)
     assert names == sorted(EXAMPLES)
-    # 17.5 KiB on 2026-10-22; a doubling fails here.
+    # 17.5 KiB on 2026-10-22, 20.1 KiB with parameter descriptions (#266);
+    # a doubling fails here.
     assert len(json.dumps(tools).encode()) < 32 * 1024
     for tool in tools:
         annotations = cast(Json, tool["annotations"])
@@ -75,6 +76,9 @@ def test_catalog_is_read_only_typed_compact_and_documented(
         assert annotations["destructiveHint"] is False
         assert tool["outputSchema"]
         assert tool["title"]
+        properties = cast(Json, cast(Json, tool["inputSchema"]).get("properties", {}))
+        for name, argument in properties.items():
+            assert cast(Json, argument).get("description"), (tool["name"], name)
         assert '"title"' not in json.dumps(tool["inputSchema"])
         # The page's example call is valid against the published schema.
         jsonschema.validate(
@@ -104,6 +108,7 @@ def test_the_registry_listing_names_this_server(reference: TestClient) -> None:
     assert listing["websiteUrl"] == info["websiteUrl"] == mcp.SITE + mcp.DOCS_PATH
     assert listing["title"] == info["title"]
     assert listing["version"] == info["version"]
+    assert listing["icons"] == info["icons"]
     # /dla-agentow names the listing that registry clients search for.
     page = Path("apps/web/site/pages/agents.html").read_text()
     assert cast(str, listing["name"]) in page
