@@ -29,7 +29,8 @@ pre-screen was performed on 2026-08-06 (see
 The public validation site serves terminology/JGP search, dated group and code
 pages, the stepped encounter builder at [minoshealth.pl/gruper](https://minoshealth.pl/gruper),
 and a public MCP server for agents at `https://minoshealth.pl/mcp`
-([documentation](https://minoshealth.pl/dla-agentow)).
+([documentation](https://minoshealth.pl/dla-agentow)), listed in the official
+MCP Registry as `pl.minoshealth/mcp`.
 The latest recorded verified validation deployment is `b0dee0d` (activated
 2026-10-19T11:42:10Z, bundle `5cea0d5d` unchanged) with the patched NGINX 1.31.7
 edge base (#197). `2b6e26b` activated blue/green API colours earlier that day

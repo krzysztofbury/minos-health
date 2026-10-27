@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Iterator
+from pathlib import Path
 from typing import cast
 
 import jsonschema  # type: ignore[import-untyped]
@@ -73,12 +74,39 @@ def test_catalog_is_read_only_typed_compact_and_documented(
         assert annotations["readOnlyHint"] is True
         assert annotations["destructiveHint"] is False
         assert tool["outputSchema"]
+        assert tool["title"]
         assert '"title"' not in json.dumps(tool["inputSchema"])
         # The page's example call is valid against the published schema.
         jsonschema.validate(
             EXAMPLES[cast(str, tool["name"])], cast(Json, tool["inputSchema"])
         )
     assert sorted(tool.name for tool in catalog()) == names
+
+
+def test_the_registry_listing_names_this_server(reference: TestClient) -> None:
+    listing = cast(Json, json.loads(Path("server.json").read_text()))
+    info = cast(
+        Json,
+        _rpc(
+            reference,
+            "initialize",
+            {
+                "protocolVersion": "2025-11-25",
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "0"},
+            },
+        )["serverInfo"],
+    )
+
+    assert listing["remotes"] == [
+        {"type": "streamable-http", "url": mcp.SITE + mcp.MCP_PATH}
+    ]
+    assert listing["websiteUrl"] == info["websiteUrl"] == mcp.SITE + mcp.DOCS_PATH
+    assert listing["title"] == info["title"]
+    assert listing["version"] == info["version"]
+    # /dla-agentow names the listing that registry clients search for.
+    page = Path("apps/web/site/pages/agents.html").read_text()
+    assert cast(str, listing["name"]) in page
 
 
 def test_terminology_tools_answer_like_the_pages(reference: TestClient) -> None:
