@@ -396,14 +396,24 @@ def test_changed_live_compose_and_wrong_image_build_are_refused(
                                                       "api_image": API[:-8] + ":latest"}})  # fmt: skip
 
 
-@pytest.mark.parametrize("watcher_record", [None, "previous.json", "candidate.json"])
+@pytest.mark.parametrize(
+    "watcher_record",
+    [
+        None,
+        f"watcher-stage/{NEW_REVISION}/previous.json",
+        f"watcher-stage/{NEW_REVISION}/candidate.json",
+        # A tunnel rollback needs the previous cloudflared image (#270).
+        f"tunnel-stage/{'9' * 64}/previous.json",
+        f"tunnel-stage/{'9' * 64}/candidate.json",
+    ],
+)
 def test_prune_keeps_live_rollback_chain_and_foreign_images(
     site: tuple[Path, Path, Path],
     watcher_record: str | None,
 ) -> None:
     root, _, _ = site
     if watcher_record is not None:
-        record = root / "watcher-stage" / NEW_REVISION / watcher_record
+        record = root / watcher_record
         record.parent.mkdir(parents=True)
         _ = record.write_text(
             json.dumps({"services": {"watcher": {"image": STALE_WATCHER}}})
@@ -599,6 +609,7 @@ def test_host_refusal_and_empty_answers_surface_as_errors() -> None:
     [
         HOST_PROGRAM,
         ROOT / "scripts/watcher_host.py",
+        ROOT / "scripts/tunnel_host.py",
         ROOT / "scripts/processor_host.py",
     ],
 )

@@ -18,7 +18,9 @@ An update replaces exactly three identities on the Mikr.us host:
 - the read-only reference bundle, selected by its database SHA-256.
 
 Everything else stays as it is: `watcher`, `cloudflared`, `uptime-kuma`, their
-volumes, secrets, schedules and control state. No watcher database is restored
+volumes, secrets, schedules and control state. Watcher and `cloudflared` images
+change only through their own bounded releases (`deploy_watcher`, and
+`deploy_tunnel` in [Tunnel Updates](#tunnel-updates-270)). No watcher database is restored
 and the maintenance-only Ansible playbook is never run over an active
 validation deployment.
 
@@ -418,6 +420,51 @@ release identities as `live_sources`; `plan` refuses a bundle without all of
 them. The processor runner calls these functions in-process under the
 deployment lock it already holds.
 
+### Tunnel Updates (#270)
+
+`scripts/deploy_tunnel.py` replaces only the `cloudflared` image, for example a
+Cloudflare security release, under the same deployment lock. The digest must
+first be the pin in `infra/ansible/templates/minos-compose.yml.j2` on remote
+`main`; `site.yml` and CI carry the same digest, and a test keeps all pins
+equal because Dependabot reads none of these files.
+
+```sh
+uv run python -m scripts.deploy_tunnel plan --plan test-output/tunnel/<version>/plan.json \
+  --revision <main sha> --image docker.io/cloudflare/cloudflared@sha256:<digest> --version <version>
+uv run python -m scripts.deploy_tunnel stage --plan test-output/tunnel/<version>/plan.json
+uv run python -m scripts.deploy_tunnel activate --plan test-output/tunnel/<version>/plan.json
+```
+
+- `plan` records the live Compose SHA-256 and refuses a digest that is not the
+  pin on remote `main` or a revision without successful dispatched main CI.
+- `stage` refuses unless all five services are healthy, pulls the image, and
+  checks without network that it is `linux/amd64`, that its binary reports the
+  planned version and that it validates the live ingress configuration. Its
+  write-once records stay in `tunnel-stage/<digest>-<compose SHA-256>/`, so a
+  new plan after any Compose change starts fresh, and `prune` keeps their
+  images.
+- `activate` writes the staged Compose, which differs only in the `cloudflared`
+  image, recreates only that service (`--no-deps --wait`, 120 seconds), and
+  requires every other container unchanged with the same restart count, all
+  five healthy and the new tunnel on the planned image. On failure it restores
+  the previous Compose and tunnel. The workstation then records the host
+  receipt and requires public `/readyz` within five paced probes; if they fail,
+  the new tunnel stays in place: check `activate-receipt.json`, probe again, or
+  roll back.
+- `rollback --plan` restores the exact previous Compose bytes and recreates the
+  tunnel even when its configuration already matches, judging the other
+  services as they run at rollback time. It works while the live Compose is the
+  staged previous or candidate file.
+
+There is one tunnel instance, so the public site is unreachable while it
+restarts, up to its 20-second stop grace period plus the new connection.
+Administrative SSH uses the tailnet and is unaffected. A validation `rollback`
+accepts only its candidate or retained Compose, so after a tunnel update it
+refuses releases deployed before it, exactly as after a watcher release. It
+works again once `deploy_tunnel rollback` restores the prior bytes or the next
+validation deployment starts from the new Compose; run that deployment soon
+after a tunnel update.
+
 ### Retention
 
 `prune` keeps:
@@ -426,8 +473,9 @@ deployment lock it already holds.
 - the rollback chain: `validation-rollback/<live revision>`, then the rollback
   file of the release it restores, up to `--keep` steps (1 to 5);
 - everything referenced by Compose files owned by other procedures:
-  `rollback/`, `candidate/`, `catalog-deploy/*/*/` and `*.compose.yml`
-  (watcher, maintenance edge, Kuma bootstrap);
+  `rollback/`, `candidate/`, `catalog-deploy/*/*/`, `watcher-stage/*/`,
+  `tunnel-stage/*/` and `*.compose.yml` (watcher, tunnel, maintenance edge,
+  Kuma bootstrap);
 - every image used by any container, running or stopped, and every image
   without a registry digest.
 
