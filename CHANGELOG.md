@@ -277,9 +277,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   programs the deploy tools and playbooks ship, and parses each as 3.12
   (#272); it replaces two hand-kept lists.
 - `deploy_validation` keeps every event of a run in
-  `test-output/validation-deploy/events/` and prints long events, such as
-  `pruned`, as a summary naming that log (#272), so deploy output no longer
-  needs a pipe that drops events.
+  `test-output/validation-deploy/events/` and prints a long `pruned` event as
+  a summary naming that log (#272), so deploy output no longer needs a pipe
+  that drops events; every other event prints in full.
 - Full CI runs on every push to `main` again (#272): the minutes that removed
   the trigger in #174 are free since the repository went public, and the
   manual dispatch it required was missed for #265. A main push never takes the

@@ -218,9 +218,10 @@ script (see [the site audit](site-audit.md)).
 `prune --keep 1 --apply`. It stops at the first failure with one JSON `failed`
 event; every step can be rerun on its own with `--revision <sha>`. Every event
 of a run is also appended in full to
-`test-output/validation-deploy/events/<UTC time>-<command>.jsonl`; an event
-longer than 2,000 characters, such as `pruned`, prints its scalar fields with
-the log path and the names of the omitted fields (#272). Run the command
+`test-output/validation-deploy/events/<UTC time>-<command>.jsonl`; a `pruned`
+event longer than 2,000 characters prints its scalar fields with the log path
+and the names of the omitted fields (#272). Every other event, such as
+`inspected`, `planned` or a receipt, prints in full. Run the command
 without `| tail` or `grep`, so the approved command and its output stay
 complete.
 
