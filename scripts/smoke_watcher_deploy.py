@@ -254,10 +254,14 @@ def main(output: Path, image: str) -> None:
         )
 
 
-if __name__ == "__main__":
+def cli() -> None:
     _ = signal.signal(signal.SIGTERM, terminate)
     parser = argparse.ArgumentParser(description=__doc__)
     _ = parser.add_argument("output", type=Path)
     _ = parser.add_argument("--image", default="minos-health-watcher:local")
     arguments = parser.parse_args()
     main(cast(Path, arguments.output), cast(str, arguments.image))
+
+
+if __name__ == "__main__":
+    cli()

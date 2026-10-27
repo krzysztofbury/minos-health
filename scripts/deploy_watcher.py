@@ -125,7 +125,7 @@ def reviewed(plan: WatcherPlan) -> None:
             )
         ),
     )
-    # Main CI runs by dispatch since #174; older releases ran it on push.
+    # Main CI ran by dispatch only from #174 until #272 restored push.
     passed = (
         {"conclusion": "success", "event": "push"},
         {"conclusion": "success", "event": "workflow_dispatch"},

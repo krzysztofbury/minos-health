@@ -181,12 +181,12 @@ the Docker socket.
 ### Release
 
 1. Merge the reviewed change to `main`.
-2. Dispatch full CI and `reference-validation.yml` on `main` and wait for both
-   to succeed. CI no longer runs on pushes to `main` (#174), so this is the only
-   full check of merged PRs combined, including any merged while behind `main`:
+2. Wait for the full CI run that the push to `main` starts (#272); it checks
+   the merged PRs combined, including any merged while behind `main`, and is
+   never cancelled. Dispatch `reference-validation.yml` on `main`, which
+   publishes the images, and wait for both to succeed:
 
    ```sh
-   gh workflow run ci.yml --ref main
    gh workflow run reference-validation.yml --ref main
    gh run list --branch main --limit 2
    ```
@@ -216,7 +216,13 @@ script (see [the site audit](site-audit.md)).
 
 `deploy` runs `plan`, `stage`, `activate`, `verify` and, unless `--no-prune`,
 `prune --keep 1 --apply`. It stops at the first failure with one JSON `failed`
-event; every step can be rerun on its own with `--revision <sha>`.
+event; every step can be rerun on its own with `--revision <sha>`. Every event
+of a run is also appended in full to
+`test-output/validation-deploy/events/<UTC time>-<command>.jsonl`; an event
+longer than 2,000 characters, such as `pruned`, prints its scalar fields with
+the log path and the names of the omitted fields (#272). Run the command
+without `| tail` or `grep`, so the approved command and its output stay
+complete.
 
 ### Commands
 
@@ -430,13 +436,17 @@ equal because Dependabot reads none of these files.
 
 ```sh
 uv run python -m scripts.deploy_tunnel plan --plan test-output/tunnel/<version>/plan.json \
-  --revision <main sha> --image docker.io/cloudflare/cloudflared@sha256:<digest> --version <version>
+  --version <version>
 uv run python -m scripts.deploy_tunnel stage --plan test-output/tunnel/<version>/plan.json
 uv run python -m scripts.deploy_tunnel activate --plan test-output/tunnel/<version>/plan.json
 ```
 
-- `plan` records the live Compose SHA-256 and refuses a digest that is not the
-  pin on remote `main` or a revision without successful dispatched main CI.
+- `plan` takes the revision from remote `main` and the image from that
+  revision's template pin unless `--revision` or `--image` is given, and
+  prints both (#272), so no one retypes a SHA or digest. It records the live
+  Compose SHA-256 and refuses a digest that is not the
+  pin on remote `main` or a revision without a successful full main CI run
+  (push or dispatch).
 - `stage` refuses unless all five services are healthy, pulls the image, and
   checks without network that it is `linux/amd64`, that its binary reports the
   planned version and that it validates the live ingress configuration. Its

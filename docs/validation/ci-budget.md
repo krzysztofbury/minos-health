@@ -177,6 +177,19 @@ full CI on the release commit beside the publication run
 unverified combination. Merges between releases stay unverified on `main` until
 that dispatch.
 
+## Main-push CI restored (2026-10-27)
+
+The minutes that justified the section above no longer cost anything (#244),
+and the dispatch step it added was missed in practice: #265 merged on
+2026-10-27 and never ran CI on `main`. CI runs on every push to `main` again
+(#272). A main push always takes the full path, because deploy tooling
+(`deploy_tunnel`, `deploy_watcher`) accepts its success as evidence for that
+exact commit, and a documentation-only run would vouch for unchecked commits
+beneath it. Each main push has its own concurrency group and is never
+cancelled, since GitHub cancels a queued run in the same group even without
+`cancel-in-progress`. Image publication (`reference-validation.yml`,
+`publish-watcher.yml`) stays a deliberate dispatch.
+
 ## Measured per-change budget (2026-10-13)
 
 Rounded job minutes from Actions receipts after #178, #183 and #186:

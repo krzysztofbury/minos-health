@@ -91,8 +91,11 @@ def classify(repository: Path, *, event: str, base: str, head: str) -> Scope:
         context = Context.model_validate({"event": event, "base": base, "head": head})
     except ValidationError:
         return Scope(reason="invalid event context")
-    if context.event == "workflow_dispatch" or not context.base.strip("0"):
-        return Scope(reason="manual run or missing baseline")
+    # CI runs on push only for main, where a success is release evidence for
+    # that exact commit (#272); a docs-only shortcut would vouch for the commits
+    # beneath it.
+    if context.event != "pull_request" or not context.base.strip("0"):
+        return Scope(reason="main, manual run or missing baseline")
     try:
         if git(repository, "rev-parse", "--verify", "HEAD").strip().decode() != head:
             return Scope(reason="checkout differs from event revision")

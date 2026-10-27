@@ -56,7 +56,7 @@ The no-JS source-catalog and durable RSK/BAW citation slice from
 recovery and public/browser acceptance; source filters, sorting and shareable
 views followed at `736ba9f` (#185), and broader #80 remains open. Bounded startup
 readiness (#181) passed its first production activation. Actions usage is measured
-in #174; full CI no longer re-runs on pushes to `main`.
+in #174; full CI runs on every push to `main` again since #272.
 
 The initial golden suite has 9 synthetic and 5 pinned-source derived cases.
 Practitioner builder acceptance (#158), real ward agreement (#38), and full

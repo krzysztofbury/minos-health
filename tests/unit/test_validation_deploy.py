@@ -4,9 +4,11 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import stat
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
@@ -604,18 +606,35 @@ def test_host_refusal_and_empty_answers_surface_as_errors() -> None:
         _ = parse_host_answer("\n", "stage")
 
 
-@pytest.mark.parametrize(
-    "program",
-    [
-        HOST_PROGRAM,
-        ROOT / "scripts/watcher_host.py",
-        ROOT / "scripts/tunnel_host.py",
-        ROOT / "scripts/processor_host.py",
-    ],
-)
-def test_host_program_parses_as_host_python(program: Path) -> None:
-    # The production host runs Ubuntu 24.04's Python 3.12.
-    _ = ast.parse(program.read_text(), feature_version=(3, 12))
+def host_python_programs() -> set[str]:
+    configured = cast(
+        dict[str, str],
+        tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["ruff"][
+            "per-file-target-version"
+        ],
+    )
+    return {path for path, target in configured.items() if target == "py312"}
+
+
+def test_every_shipped_host_program_targets_host_python() -> None:
+    # Ruff formats to the target it is given; a host program missing from the
+    # py312 list is rewritten with 3.14-only syntax (#272).
+    sources = [
+        *(ROOT / "scripts").glob("*.py"),
+        *(ROOT / "infra/ansible").glob("*.yml"),
+    ]
+    shipped: set[str] = set()
+    for source in sources:
+        if source.name.startswith(("smoke_", "test_")):
+            continue
+        names: list[str] = re.findall(
+            r"scripts[\"/ ]+(\w+_host\.py)", source.read_text()
+        )
+        shipped.update("scripts/" + name for name in names if name != source.name)
+    assert shipped == host_python_programs()
+    for program in shipped:
+        # The production host runs Ubuntu 24.04's Python 3.12.
+        _ = ast.parse((ROOT / program).read_text(), feature_version=(3, 12))
 
 
 @pytest.mark.parametrize("change_operational", [False, True])
@@ -1202,3 +1221,32 @@ def test_verify_mcp_requires_the_catalog_and_a_real_search(
     else:
         with pytest.raises(DeployError, match="public MCP"):
             _ = deploy_validation.verify_mcp("https://example.test")
+
+
+def test_long_events_print_a_summary_and_keep_every_event_in_the_log(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    # Operators piped deploy output through tail and lost events (#272).
+    log = tmp_path / "events.jsonl"
+    monkeypatch.setattr(deploy_validation, "event_log", log)
+    removed = [f"sha256:{index:064x}" for index in range(100)]
+    deploy_validation.report("pruned", {"removed": removed, "apply": True})
+    deploy_validation.report("staged", {"revision": NEW_REVISION})
+    deploy_validation.report("failed", {"error": "nope", "details": {"r": removed}})
+    printed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert printed[0] == {
+        "event": "pruned",
+        "apply": True,
+        "log": str(log),
+        "omitted": ["removed"],
+    }
+    assert printed[1] == {"event": "staged", "revision": NEW_REVISION}
+    assert printed[2]["details"] == {"r": removed}
+    logged = [
+        cast(dict[str, object], json.loads(line))
+        for line in log.read_text().splitlines()
+    ]
+    assert [event["event"] for event in logged] == ["pruned", "staged", "failed"]
+    assert logged[0]["removed"] == removed

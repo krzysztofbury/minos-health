@@ -261,6 +261,22 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- `deploy_tunnel plan` defaults `--revision` to remote `main` and `--image`
+  to that revision's template pin, and prints both (#272).
+- `scripts/` is type-checked by basedpyright and mypy, and the Python hooks run
+  on commits that change only scripts (#272).
+- One test requires the Ruff Python 3.12 target list to name exactly the host
+  programs the deploy tools and playbooks ship, and parses each as 3.12
+  (#272); it replaces two hand-kept lists.
+- `deploy_validation` keeps every event of a run in
+  `test-output/validation-deploy/events/` and prints long events, such as
+  `pruned`, as a summary naming that log (#272), so deploy output no longer
+  needs a pipe that drops events.
+- Full CI runs on every push to `main` again (#272): the minutes that removed
+  the trigger in #174 are free since the repository went public, and the
+  manual dispatch it required was missed for #265. A main push never takes the
+  documentation-only path or gets cancelled, and `deploy_tunnel` accepts its
+  success like `deploy_watcher`.
 - Request-path query plans reviewed against planner statistics (#228): a
   copy of the production bundle with `ANALYZE` ran 948 request statements of
   84 shapes with no full scan of a large table on a per-request lookup, and
@@ -589,6 +605,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- msgpack 1.2.4 in the development lock (#272): CVE-2026-114613 in 1.2.2,
+  reached through `pip-audit`'s cache, failed the dependency audit.
 - MCP `get_code` and `browse_codes` answer with the requested ICD-9 code
   (#242). They reused the CZS concept's node number in the tree, which for
   ICD-9 browses the NFZ workbook's hierarchy with other numbers, so

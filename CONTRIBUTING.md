@@ -131,7 +131,7 @@ uv run pre-commit run --all-files
 uv run ruff format --check .
 uv run ruff check .
 uv run basedpyright
-uv run mypy src
+uv run mypy src tests scripts
 uv run pytest
 ```
 

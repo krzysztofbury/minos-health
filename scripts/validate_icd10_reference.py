@@ -50,9 +50,9 @@ def main() -> int:
             assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
             assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
         with open_reference(bundle) as reader:
-            for source in manifest.sources:
-                assert reader.concept(source.release_id, "E11") is not None
-                assert reader.hierarchy(source.release_id, 1, max_nodes=10_000)
+            for release in manifest.sources:
+                assert reader.concept(release.release_id, "E11") is not None
+                assert reader.hierarchy(release.release_id, 1, max_nodes=10_000)
         print(
             json.dumps(
                 {

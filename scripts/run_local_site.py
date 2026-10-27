@@ -71,11 +71,14 @@ def snapshot(origin: str) -> Path:
             payload = response.read(8 * 1024 * 1024 + 1)
         if len(payload) > 8 * 1024 * 1024:
             raise ValueError("public projection exceeds the local copy bound")
-        projection = {
+        models: dict[
+            str, type[RskProvenanceProjection | BawProjection | NfzProjection]
+        ] = {
             "rsk": RskProvenanceProjection,
             "baw": BawProjection,
             "nfz": NfzProjection,
-        }[source].model_validate_json(payload)
+        }
+        projection = models[source].model_validate_json(payload)
         identity = (
             f"{projection.through_state_revision}-{hashlib.sha256(payload).hexdigest()}"
         )

@@ -78,8 +78,9 @@ def test_earlier_runtime_commit_cannot_be_hidden_by_docs_followup(
     _ = (repository / "README.md").write_text("# Follow-up\n")
     head = commit(repository)
 
-    for event in ("pull_request", "push"):
-        assert not classify(repository, event=event, base=base, head=head).docs_only
+    assert not classify(
+        repository, event="pull_request", base=base, head=head
+    ).docs_only
 
 
 @pytest.mark.parametrize("change", ["rename", "symlink", "mode", "delete-readme"])
@@ -103,7 +104,9 @@ def test_non_content_and_cross_boundary_changes_keep_full_checks(
             raise AssertionError(change)
     head = commit(repository)
 
-    assert not classify(repository, event="push", base=base, head=head).docs_only
+    assert not classify(
+        repository, event="pull_request", base=base, head=head
+    ).docs_only
 
 
 def test_document_removal_and_rename_are_safe(repository: Path) -> None:
@@ -116,19 +119,20 @@ def test_document_removal_and_rename_are_safe(repository: Path) -> None:
     (repository / "docs/remove.md").unlink()
     head = commit(repository)
 
-    assert classify(repository, event="push", base=base, head=head).docs_only
+    assert classify(repository, event="pull_request", base=base, head=head).docs_only
 
 
 @pytest.mark.parametrize(
     ("event", "baseline"),
     [
         ("workflow_dispatch", "valid"),
+        ("push", "valid"),
         ("schedule", "valid"),
         ("pull_request", ""),
-        ("push", "0" * 40),
+        ("pull_request", "0" * 40),
         ("pull_request", "f" * 40),
-        ("push", "--help"),
-        ("push", "abc\ndocs_only=true"),
+        ("pull_request", "--help"),
+        ("pull_request", "abc\ndocs_only=true"),
     ],
 )
 def test_uncertain_context_never_skips_runtime(
@@ -148,10 +152,14 @@ def test_uncertain_context_never_skips_runtime(
 
 def test_wrong_checkout_and_empty_diff_never_skip_runtime(repository: Path) -> None:
     base = git(repository, "rev-parse", "HEAD")
-    assert not classify(repository, event="push", base=base, head=base).docs_only
+    assert not classify(
+        repository, event="pull_request", base=base, head=base
+    ).docs_only
     _ = (repository / "README.md").write_text("# Update\n")
     _ = commit(repository)
-    assert not classify(repository, event="push", base=base, head=base).docs_only
+    assert not classify(
+        repository, event="pull_request", base=base, head=base
+    ).docs_only
 
 
 def test_invalid_packaged_readme_keeps_build_checks(repository: Path) -> None:
@@ -159,7 +167,9 @@ def test_invalid_packaged_readme_keeps_build_checks(repository: Path) -> None:
     _ = (repository / "README.md").write_bytes(b"\xff\xfe")
     head = commit(repository)
 
-    assert not classify(repository, event="push", base=base, head=head).docs_only
+    assert not classify(
+        repository, event="pull_request", base=base, head=head
+    ).docs_only
 
 
 def test_workflow_entry_point_emits_validated_outputs(repository: Path) -> None:
@@ -174,7 +184,7 @@ def test_workflow_entry_point_emits_validated_outputs(repository: Path) -> None:
         cwd=repository,
         env={
             **os.environ,
-            "CI_EVENT": "push",
+            "CI_EVENT": "pull_request",
             "CI_BASE": base,
             "CI_HEAD": head,
             "GITHUB_OUTPUT": str(output),

@@ -116,7 +116,7 @@ def test_partial_watcher_replacement_restores_prior_image(
 ) -> None:
     original = (staged[0] / "compose.yaml").read_bytes()
     state = docker_state(staged)
-    state["fail_after_watcher"] = True
+    state["fail_after_watcher"] = 1
     _ = (staged[2] / "docker-state.json").write_text(json.dumps(state))
     with pytest.raises(DeployError, match="activation failed") as failure:
         _ = call(staged, "activate")
@@ -199,7 +199,7 @@ def test_release_gate_binds_successful_main_build_to_artifact(
                 [
                     {
                         "conclusion": "failure" if changed == "ci" else "success",
-                        # Main CI runs by dispatch since #174.
+                        # Main CI runs on push again since #272.
                         "event": "workflow_dispatch"
                         if changed == "dispatch"
                         else "push",
@@ -374,7 +374,7 @@ def test_failed_storage_activation_restores_the_previous_key(
 ) -> None:
     params = _storage_site(staged)
     state = docker_state(staged)
-    state["fail_after_watcher"] = True
+    state["fail_after_watcher"] = 1
     _ = (staged[2] / "docker-state.json").write_text(json.dumps(state))
 
     with pytest.raises(DeployError, match="activation failed"):

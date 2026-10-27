@@ -36,25 +36,25 @@ repos:
         entry: uv run ruff format --check .
         language: system
         pass_filenames: false
-        files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+        files: ^(?:src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)
       - id: ruff-check
         name: ruff check
         entry: uv run ruff check .
         language: system
         pass_filenames: false
-        files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+        files: ^(?:src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)
       - id: mypy
         name: mypy
-        entry: uv run mypy src tests
+        entry: uv run mypy src tests scripts
         language: system
         pass_filenames: false
-        files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+        files: ^(?:src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)
       - id: basedpyright
         name: basedpyright
         entry: uv run basedpyright
         language: system
         pass_filenames: false
-        files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+        files: ^(?:src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)
       - id: bandit
         name: bandit
         entry: uv run bandit -q -r src
@@ -66,7 +66,7 @@ repos:
         entry: uv run pytest
         language: system
         pass_filenames: false
-        files: ^(?:src/|tests/|pyproject\.toml$|uv\.lock$)
+        files: ^(?:src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)
       - id: uv-lock
         name: uv lock is current
         entry: uv lock --check

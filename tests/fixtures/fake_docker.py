@@ -84,7 +84,7 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             "health": "healthy",
             "config": config,
         }
-        # True fails once; an integer fails that many consecutive ups.
+        # Fails that many consecutive ups, then succeeds.
         if service in ("watcher", "cloudflared") and state.get(f"fail_after_{service}"):
             state[f"fail_after_{service}"] = (
                 cast(int, state[f"fail_after_{service}"]) - 1
