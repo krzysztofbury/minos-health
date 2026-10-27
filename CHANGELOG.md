@@ -15,6 +15,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- Tunnel release evidence and update alerts (#273): CI runs
+  `scripts/smoke_tunnel_deploy.py`, which drives activation, automatic
+  recovery, failed recovery with explicit rollback, and activation with
+  rollback through Docker Compose using a stand-in `cloudflared` image, and
+  checks that Compose keeps an unhealthy container on unchanged configuration
+  (why rollback forces recreation). `packaging/runtime-pins/Dockerfile` lets
+  Dependabot propose `cloudflared` releases; a test requires every pin to
+  equal it, and the nginx pins to equal the validation edge's base image.
 - `cloudflared` 2026.10.4 and a tunnel-only release (#270): Cloudflare asked
   every tunnel to move to 2026.10.2 or later because older releases trust
   eMudhra intermediate certificates with weak keys; production ran 2026.9.1.

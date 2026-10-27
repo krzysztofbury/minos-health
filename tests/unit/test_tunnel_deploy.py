@@ -296,20 +296,45 @@ def test_plan_binds_the_digest_to_the_pin_on_remote_main(
             deploy_tunnel.reviewed(plan)
 
 
-def test_every_cloudflared_pin_is_the_same_digest() -> None:
-    # Dependabot reads none of these files, so a bump must change all of them.
+# Dependabot updates only the Dockerfile that names each image; these files
+# pin the same digest and change in the same PR (#273).
+PINNED = (
+    deploy_tunnel.TEMPLATE,
+    "infra/ansible/site.yml",
+    "infra/ansible/uptime-kuma-bootstrap.compose.yml",
+    ".github/workflows/ci.yml",
+)
+
+
+def digests(image: str, path: str) -> set[str]:
+    pattern = re.escape(image) + r"(?::[\w.-]+)?@sha256:([0-9a-f]{64})"
+    found: list[str] = re.findall(pattern, (ROOT / path).read_text())
+    return set(found)
+
+
+@pytest.mark.parametrize(
+    ("image", "stub"),
+    [
+        ("docker.io/cloudflare/cloudflared", "packaging/runtime-pins/Dockerfile"),
+        (
+            "docker.io/nginxinc/nginx-unprivileged",
+            "packaging/validation-edge/Dockerfile",
+        ),
+    ],
+)
+def test_infrastructure_pins_follow_the_dependabot_stub(image: str, stub: str) -> None:
+    source = digests(image, stub)
+    assert len(source) == 1
+    found = {path: digests(image, path) for path in PINNED}
+    assert any(found.values())
+    assert {path: pins for path, pins in found.items() if pins - source} == {}
+
+
+def test_uptime_kuma_pins_agree() -> None:
+    # A platform digest that Dependabot cannot track (#274).
     pins: set[str] = set()
-    for path in (
-        deploy_tunnel.TEMPLATE,
-        "infra/ansible/site.yml",
-        ".github/workflows/ci.yml",
-    ):
-        found = re.findall(
-            r"docker\.io/cloudflare/cloudflared@sha256:([0-9a-f]{64})",
-            (ROOT / path).read_text(),
-        )
-        assert found, path
-        pins.update(found)
+    for path in PINNED:
+        pins |= digests("louislam/uptime-kuma", path)
     assert len(pins) == 1
 
 

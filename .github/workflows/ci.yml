@@ -371,6 +371,13 @@ jobs:
           trap 'find "$smoke_root" -type d -exec chmod u+rwx {} +; rm -rf "$smoke_root"' EXIT
           uv run python -m scripts.smoke_watcher_deploy "$smoke_root/host"
 
+      - name: Verify tunnel-only recovery and rollback with Docker Compose
+        if: steps.scope.outputs.docs_only != 'true'
+        run: |
+          smoke_root="$(mktemp -d)"
+          trap 'rm -rf "$smoke_root"' EXIT
+          uv run python -m scripts.smoke_tunnel_deploy "$smoke_root/host"
+
       - name: Scan the final watcher image
         if: steps.scope.outputs.docs_only != 'true'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
