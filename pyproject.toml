@@ -63,7 +63,7 @@ packages = ["src/minos"]
 "database/reference/sqlite" = "minos/database/reference/sqlite"
 
 [tool.basedpyright]
-include = ["src", "tests"]
+include = ["src", "tests", "scripts"]
 pythonVersion = "3.14"
 typeCheckingMode = "strict"
 

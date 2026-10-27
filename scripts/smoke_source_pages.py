@@ -268,8 +268,7 @@ def smoke(root: Path, output: Path, selected_bundle: Path | None) -> None:
             _ = subprocess.run(["docker", "image", "rm", image], capture_output=True)
 
 
-if __name__ == "__main__":
-
+def cli() -> None:
     def terminate(_signum: int, _frame: object) -> None:
         raise KeyboardInterrupt
 
@@ -283,3 +282,7 @@ if __name__ == "__main__":
         cast(Path, arguments.output).resolve(),
         cast(Path | None, arguments.bundle),
     )
+
+
+if __name__ == "__main__":
+    cli()

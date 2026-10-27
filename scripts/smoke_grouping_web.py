@@ -268,7 +268,7 @@ class Arguments(argparse.Namespace):
     chromium: str = "chromium"
 
 
-if __name__ == "__main__":
+def cli() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     _ = parser.add_argument("output", type=Path)
     _ = parser.add_argument("--bundle", type=Path)
@@ -280,3 +280,7 @@ if __name__ == "__main__":
     args = Arguments()
     _ = parser.parse_args(namespace=args)
     smoke(args.output, args.bundle, args.api_image, args.edge_image, args.chromium)
+
+
+if __name__ == "__main__":
+    cli()
