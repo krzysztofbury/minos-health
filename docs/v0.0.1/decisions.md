@@ -905,6 +905,12 @@ like librus-mcp, and chose the domain namespace.
   listing and `serverInfo` name a 512x512 PNG icon rendered from the favicon at
   `/icon-512.png`; registry clients must support PNG, SVG only optionally. The
   owner republishes after the deployment that serves the icon.
+- Tool descriptions (#268) follow what Glama's tool definition quality score
+  rewards, as measured on librus-mcp (3.1 to 4.1/5 over 31 tools): a verb and
+  resource first, the sibling to use instead, how one tool's output feeds the
+  next call, and behavior beyond the annotations, in 250 to 365 bytes. A test
+  requires every description to name an existing sibling. The listing version
+  stays 1.1.0, since `server.json` does not change.
 
 ### ICD-11 PL Search And WHO Maps (#53, 2026-10-22)
 
