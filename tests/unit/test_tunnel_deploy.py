@@ -200,7 +200,7 @@ def test_failed_activation_restores_the_previous_tunnel(
     values = params(tunnel)
     _ = call(tunnel, "stage", values)
     state = docker_state(tunnel)
-    state["fail_after_cloudflared"] = True
+    state["fail_after_cloudflared"] = 1
     _ = (tunnel[2] / "docker-state.json").write_text(json.dumps(state))
     with pytest.raises(DeployError, match="tunnel activation failed") as failure:
         _ = call(tunnel, "activate", values)
