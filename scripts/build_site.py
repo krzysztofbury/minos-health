@@ -477,6 +477,8 @@ def render_site(mode: Mode) -> dict[str, bytes]:
         files["social-preview-v1.png"] = (
             WEB / "social" / "social-preview-v1.png"
         ).read_bytes()
+        # The MCP server and its registry listing name this raster icon (#266).
+        files["icon-512.png"] = (WEB / "social" / "icon-512.png").read_bytes()
         for name in (
             "request.js",
             "datepicker.js",

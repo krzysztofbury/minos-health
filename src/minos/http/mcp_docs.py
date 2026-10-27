@@ -149,8 +149,15 @@ def _inputs(tool: MCPTool) -> str:
             if "default" in field
             else ""
         )
+        note = field.get("description")
         rows.append(
-            f"<tr><td><code>{html.escape(name)}</code></td><td>{html.escape(kind)}</td>"
+            f"<tr><td><code>{html.escape(name)}</code>"
+            + (
+                f'<span class="mcp-note">{html.escape(note)}</span>'
+                if isinstance(note, str)
+                else ""
+            )
+            + f"</td><td>{html.escape(kind)}</td>"
             + f"<td>{'yes' if name in required else 'no'}</td><td>{default}</td>"
             + f"<td>{html.escape(_constraints(field))}</td></tr>"
         )

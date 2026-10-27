@@ -180,10 +180,10 @@ async function checkMetadata() {
   assert.ok(metadata.preferences.includes("Przywróć domyślne filtry"));
   assert.equal(metadata.privacy, "/polityka-prywatnosci");
   // Probe this stack's route, not the canonical public host when testing locally.
-  const raster = await evaluate(`(async () => {
+  const rasters = await evaluate(`(async () => {
     const result = [];
-    for (const method of ['GET', 'HEAD']) {
-      const response = await fetch('/social-preview-v1.png', {method, credentials:'omit'});
+    for (const [path, method] of [['/social-preview-v1.png', 'GET'], ['/social-preview-v1.png', 'HEAD'], ['/icon-512.png', 'GET']]) {
+      const response = await fetch(path, {method, credentials:'omit'});
       const bytes = new Uint8Array(await response.arrayBuffer());
       result.push({method, status:response.status, type:response.headers.get('Content-Type'), length:bytes.length,
         signature:Array.from(bytes.slice(0,8)), width:bytes.length >= 24 ? new DataView(bytes.buffer).getUint32(16) : null,
@@ -191,10 +191,13 @@ async function checkMetadata() {
     }
     return result;
   })()`);
-  for (const response of raster) { assert.equal(response.status, 200); assert.equal(response.type, "image/png"); }
-  assert.deepEqual(raster[0].signature, [137, 80, 78, 71, 13, 10, 26, 10]);
-  assert.equal(raster[0].width, 1200); assert.equal(raster[0].height, 630);
-  assert.equal(raster[1].length, 0);
+  for (const response of rasters) { assert.equal(response.status, 200); assert.equal(response.type, "image/png"); }
+  assert.deepEqual(rasters[0].signature, [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(rasters[0].width, 1200); assert.equal(rasters[0].height, 630);
+  assert.equal(rasters[1].length, 0);
+  // The MCP icon that server.json and serverInfo name.
+  assert.deepEqual(rasters[2].signature, [137, 80, 78, 71, 13, 10, 26, 10]);
+  assert.equal(rasters[2].width, 512); assert.equal(rasters[2].height, 512);
   await send("Page.navigate", { url: new URL(metadata.privacy, home).href });
   await wait("location.pathname === '/polityka-prywatnosci' && document.querySelector('article')");
   const policy = await evaluate("document.querySelector('article').textContent.replace(/\\s+/g, ' ')");

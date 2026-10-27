@@ -456,7 +456,8 @@ stores only that metadata, so a deployment never needs a new listing. Publish
 again only when `server.json` changes, with its `version` raised together with
 `VERSION` in `src/minos/http/mcp.py` (a test keeps them equal, and the registry
 refuses a version it already has). CI runs `mcp-publisher validate` on every
-change.
+change. The listing names `https://minoshealth.pl/icon-512.png`; publish a
+listing with a new icon only after the deployment that serves it.
 
 The namespace is proven by DNS: an Ed25519 public key in a TXT record at the
 `minoshealth.pl` apex. The private key lives only in the password manager, as
