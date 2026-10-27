@@ -261,6 +261,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- `deploy_validation` keeps every event of a run in
+  `test-output/validation-deploy/events/` and prints long events, such as
+  `pruned`, as a summary naming that log (#272), so deploy output no longer
+  needs a pipe that drops events.
 - Full CI runs on every push to `main` again (#272): the minutes that removed
   the trigger in #174 are free since the repository went public, and the
   manual dispatch it required was missed for #265. A main push never takes the

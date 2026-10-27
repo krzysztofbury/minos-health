@@ -37,6 +37,10 @@ HOST_VARS = ROOT / "infra/ansible/inventory/host_vars/minos-production.yml"
 KNOWN_HOSTS = ROOT / "infra/ansible/known_hosts"
 SSH_KEY = Path.home() / ".ssh" / "minos_mikrus_ed25519"
 WORK_ROOT = ROOT / "test-output" / "validation-deploy"
+# Every event of a command run is appended here in full; long events print as
+# a summary naming this log, so the output never needs a pipe (#272).
+event_log: Path | None = None
+PRINT_LIMIT = 2000
 PUBLIC_BASE = "https://minoshealth.pl"
 PUBLISH_WORKFLOW = "Verify and publish reference validation"
 RELEASE_ARTIFACT = "validation-release"
@@ -678,7 +682,25 @@ def write_receipt(value: Plan, checks: dict[str, object]) -> None:
 
 
 def report(event: str, details: dict[str, object]) -> None:
-    print(json.dumps({"event": event, **details}, sort_keys=True), flush=True)
+    line = json.dumps({"event": event, **details}, sort_keys=True)
+    if event_log is not None:
+        with event_log.open("a") as log:
+            _ = log.write(line + "\n")
+    if event_log is not None and event != "failed" and len(line) > PRINT_LIMIT:
+        nested = {
+            key for key, value in details.items() if isinstance(value, (dict, list))
+        }
+        summary = {key: value for key, value in details.items() if key not in nested}
+        line = json.dumps(
+            {
+                "event": event,
+                **summary,
+                "log": str(event_log),
+                "omitted": sorted(nested),
+            },
+            sort_keys=True,
+        )
+    print(line, flush=True)
 
 
 @final
@@ -760,6 +782,9 @@ def main(arguments: Arguments) -> None:
 if __name__ == "__main__":
     namespace = Arguments()
     _ = parser().parse_args(namespace=namespace)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    event_log = WORK_ROOT / "events" / f"{stamp}-{namespace.command}.jsonl"
+    event_log.parent.mkdir(parents=True, exist_ok=True)
     try:
         main(namespace)
     except DeployError as error:

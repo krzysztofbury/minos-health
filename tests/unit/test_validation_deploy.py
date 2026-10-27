@@ -1221,3 +1221,32 @@ def test_verify_mcp_requires_the_catalog_and_a_real_search(
     else:
         with pytest.raises(DeployError, match="public MCP"):
             _ = deploy_validation.verify_mcp("https://example.test")
+
+
+def test_long_events_print_a_summary_and_keep_every_event_in_the_log(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    # Operators piped deploy output through tail and lost events (#272).
+    log = tmp_path / "events.jsonl"
+    monkeypatch.setattr(deploy_validation, "event_log", log)
+    removed = [f"sha256:{index:064x}" for index in range(100)]
+    deploy_validation.report("pruned", {"removed": removed, "apply": True})
+    deploy_validation.report("staged", {"revision": NEW_REVISION})
+    deploy_validation.report("failed", {"error": "nope", "details": {"r": removed}})
+    printed = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert printed[0] == {
+        "event": "pruned",
+        "apply": True,
+        "log": str(log),
+        "omitted": ["removed"],
+    }
+    assert printed[1] == {"event": "staged", "revision": NEW_REVISION}
+    assert printed[2]["details"] == {"r": removed}
+    logged = [
+        cast(dict[str, object], json.loads(line))
+        for line in log.read_text().splitlines()
+    ]
+    assert [event["event"] for event in logged] == ["pruned", "staged", "failed"]
+    assert logged[0]["removed"] == removed
