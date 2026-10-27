@@ -35,8 +35,10 @@ performance regression for developer convenience.
   documentation-only follow-up PR; a change and its documentation are reviewed
   together. Open work lives
   in GitHub issues, not in a TODO file: add, update or close the owning issue
-  with the change. Record post-deployment evidence in issue comments and fold
-  it into the next PR.
+  with the change. Write `Closes #N` only when the merge itself finishes the
+  issue; when an owner step follows the merge (a publish, a deploy, external
+  evidence), write `Refs #N` and close the issue after that step. Record
+  post-deployment evidence in issue comments and fold it into the next PR.
 - Never modify or discard user changes outside the agreed chunk.
 
 ## Implementation
