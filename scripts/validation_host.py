@@ -88,6 +88,8 @@ FOREIGN_COMPOSE_GLOBS = (
     "catalog-deploy/*/*/compose.yaml",
     "watcher-stage/*/previous.json",
     "watcher-stage/*/candidate.json",
+    "tunnel-stage/*/previous.json",
+    "tunnel-stage/*/candidate.json",
     "*.compose.yml",
 )
 

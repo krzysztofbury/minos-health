@@ -59,7 +59,7 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
     selected = tuple(
         argument
         for argument in arguments[arguments.index("up") + 1 :]
-        if argument in (*API_SERVICES, "edge", "watcher")
+        if argument in (*API_SERVICES, "edge", "watcher", "cloudflared")
     )
     for service in selected:
         image = compose["services"][service]["image"]
@@ -72,6 +72,7 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             if (
                 containers[old].get("config") == config
                 and containers[old]["health"] in RUNNING
+                and "--force-recreate" not in arguments
             ):
                 continue
             del containers[old]
@@ -83,8 +84,11 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             "health": "healthy",
             "config": config,
         }
-        if service == "watcher" and state.get("fail_after_watcher"):
-            state["fail_after_watcher"] = False
+        # True fails once; an integer fails that many consecutive ups.
+        if service in ("watcher", "cloudflared") and state.get(f"fail_after_{service}"):
+            state[f"fail_after_{service}"] = (
+                cast(int, state[f"fail_after_{service}"]) - 1
+            )
             containers[f"{service}-{state['sequence']}"]["health"] = "unhealthy"
             return 1
         if service in API_SERVICES and state.get("fail_after_api"):
@@ -180,6 +184,8 @@ def main(arguments: list[str]) -> int:
                     "size": 1,
                     "revision": cast(dict[str, str], state["registry"])[reference],
                 }
+        case ["image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", _]:
+            output = [cast(str, state.get("platform", "linux/amd64"))]
         case ["image", "inspect", "--format", _, reference]:
             output = [f"linux/amd64 {images[image_id(state, reference)]['revision']}"]
         case ["image", "ls", "-q", "--no-trunc"]:
@@ -210,6 +216,12 @@ def main(arguments: list[str]) -> int:
                 status = 1
         case ["rm", identifier]:
             del containers[identifier]
+        case ["run", "--rm", *rest] if rest[-1] == "--version":
+            output = [
+                f"cloudflared version {state['cloudflared_version']} (built fixture)"
+            ]
+        case ["run", "--rm", *rest] if rest[-2:] == ["ingress", "validate"]:
+            status = 1 if state.get("invalid_ingress") else 0
         case ["compose", *rest] if "up" in rest:
             status = compose_up(state, rest)
         case _:

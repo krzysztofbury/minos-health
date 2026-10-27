@@ -15,6 +15,17 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- `cloudflared` 2026.10.4 and a tunnel-only release (#270): Cloudflare asked
+  every tunnel to move to 2026.10.2 or later because older releases trust
+  eMudhra intermediate certificates with weak keys; production ran 2026.9.1.
+  The pin changes in the Compose template, `site.yml` and CI, with a test that
+  keeps them equal (Dependabot reads none of them).
+  `scripts/deploy_tunnel.py` with `scripts/tunnel_host.py` replaces only the
+  `cloudflared` image on the live host: the digest must be the pin on remote
+  `main`, staging checks platform, reported version and the live ingress with
+  the new binary offline, activation recreates only that service with every
+  other container unchanged and restores the previous tunnel on failure, and
+  `prune` keeps tunnel rollback images.
 - MCP tool descriptions rewritten for tool selection (#268): each opens with
   a verb and what it returns, names the sibling tool to use instead, states how
   outputs feed the next call and what the tool does not do, in 250 to 365

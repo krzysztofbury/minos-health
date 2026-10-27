@@ -879,6 +879,23 @@ traffic shows otherwise.
 - Measured on the live bundle: API anonymous memory 271 MiB with MCP (245
   without), under the 512 MiB limit.
 
+### Tunnel-Only cloudflared Releases (#270, 2026-10-27)
+
+Cloudflare asked every tunnel operator to run `cloudflared` 2026.10.2 or later
+(eMudhra intermediates with weak keys); production ran 2026.9.1, unnoticed
+because Dependabot reads neither the Jinja Compose template, the playbook nor
+the CI step that pin it. Validation deployments keep the tunnel unchanged and
+the maintenance playbook never runs over them, so the owner chose a bounded
+release over a hand-run upgrade or a temporary second replica.
+
+- `deploy_tunnel` mirrors `deploy_watcher`: the digest must be the pin on
+  remote `main`, staging verifies the binary offline, activation changes only
+  the `cloudflared` image and service and restores it on failure.
+- One tunnel instance means a short public outage during the restart,
+  accepted for the validation site; a replica stays possible if that changes.
+- A test keeps every `cloudflared` pin equal; the origins are plain HTTP, so
+  the stricter trust store cannot reject them.
+
 ### MCP Registry Listing (#264, 2026-10-27)
 
 The owner asked to list the public MCP server in the official MCP Registry,
