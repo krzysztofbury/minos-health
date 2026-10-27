@@ -605,6 +605,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- msgpack 1.2.4 in the development lock (#272): CVE-2026-114613 in 1.2.2,
+  reached through `pip-audit`'s cache, failed the dependency audit.
 - MCP `get_code` and `browse_codes` answer with the requested ICD-9 code
   (#242). They reused the CZS concept's node number in the tree, which for
   ICD-9 browses the NFZ workbook's hierarchy with other numbers, so
