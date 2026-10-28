@@ -218,10 +218,11 @@ def checked(
     layout: host.Layout, expected: list[list[str]], image: str
 ) -> dict[str, object]:
     result = state(layout, expected, image)
-    host.require(
-        all(value is True for value in result.values()),
-        "watcher transition did not pass health/isolation checks",
-    )
+    if not all(value is True for value in result.values()):
+        # Name the failed check; the booleans carry no host paths or output.
+        raise host.HostError(
+            "watcher transition did not pass health/isolation checks", result
+        )
     return result
 
 

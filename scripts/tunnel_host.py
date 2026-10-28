@@ -128,10 +128,11 @@ def checked(
     fresh: bool = True,
 ) -> dict[str, object]:
     result = state(layout, expected, image, name, fresh=fresh)
-    host.require(
-        all(value is True for value in result.values()),
-        f"{name} transition did not pass health/isolation checks",
-    )
+    if not all(value is True for value in result.values()):
+        # Name the failed check; the booleans carry no host paths or output.
+        raise host.HostError(
+            f"{name} transition did not pass health/isolation checks", result
+        )
     return result
 
 

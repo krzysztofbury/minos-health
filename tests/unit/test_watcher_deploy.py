@@ -157,6 +157,12 @@ def test_unrelated_compose_and_changed_preserved_service_cannot_claim_recovery(
     with pytest.raises(DeployError) as failure:
         _ = call(staged, "activate")
     assert failure.value.details["recovery"] == {"restored": False}
+    # The failed check is named, not an empty envelope.
+    assert failure.value.details["failure"] == {
+        "preserved": False,
+        "healthy": True,
+        "watcher_image_matches": True,
+    }
     with pytest.raises(DeployError):
         _ = call(staged, "rollback")
     with (staged[0] / "compose.yaml").open("ab") as target:
