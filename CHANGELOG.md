@@ -288,6 +288,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- `infra/tailscale/policy.hujson` is the Minos part of the tailnet policy; the
+  console adds the owner's other servers under the same admin-only TCP 22
+  grant, outside this public repository, with no path to or from the Minos
+  server (#227).
 - Tunnel release receipts report `image_matches` instead of
   `cloudflared_image_matches`; the single-service health and recreation steps
   in `scripts/tunnel_host.py` now also serve the Kuma release (#274).
