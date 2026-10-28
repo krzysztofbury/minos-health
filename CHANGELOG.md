@@ -15,6 +15,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- Agent operator checks (#279): `AGENTS.md` names the production health and
+  release entrypoints and their human gates (a host-changing command runs only
+  after the owner approves that exact command in `/permissions`; Ansible,
+  secrets and account settings stay owner-run). `scripts/check_monitoring.py`
+  reads the public Kuma status page and `/readyz` without credentials: the same
+  six monitors that alert Telegram, plus a Kuma that stopped checking (a stale
+  edge heartbeat, when no alert can be sent) and an unreachable status page. A
+  test keeps every path, module and link in `AGENTS.md` resolvable.
 - Uptime Kuma 2.5.8 and a Kuma-only release (#274): production pinned 2.5.5
   while 2.5.7 (rejects the leaked eMudhra intermediate) and 2.5.8 (admin-only
   RCE, GHSA-v2p3-6f5h-6hhf) were out, and Ansible refuses image changes over

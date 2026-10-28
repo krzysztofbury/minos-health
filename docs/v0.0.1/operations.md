@@ -629,9 +629,19 @@ The public-edge HTTP monitor checks every 60 seconds and retries 3 times at
 minute. Validation releases avoid the API startup outage (#192); see
 [colour activation](../validation/validation-deploy.md#colour-activation-without-downtime-192).
 
+Every monitor notifies the single Telegram destination: the public edge, the
+RSK, BAW and NFZ watcher pushes (26-hour window) and the data update and
+activation pushes (8 hours), all active (read from the stopped 2026-10-28
+backup). All six are on the public status page, so
+`uv run python -m scripts.check_monitoring` (#279) reads them without
+credentials, together with public `/readyz`. It also reports a Kuma that
+stopped checking, from an edge heartbeat older than 10 minutes, since such a
+Kuma sends no alert.
+
 Because Kuma is on the same Mikr.us host, it cannot detect or notify for a total
 host, network, or power outage. This limitation is accepted for now. There is no
-paid external monitoring SaaS in the accepted design.
+paid external monitoring SaaS in the accepted design. The check above exits 2
+when the status page is unreachable, but only when someone runs it.
 
 Empty log output is not evidence of health until the service, container, and log
 filter are confirmed against actually running resources.
