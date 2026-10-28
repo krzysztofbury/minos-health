@@ -96,6 +96,11 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             "health": "healthy",
             "config": config,
         }
+        if service == "uptime-kuma" and state.get("kuma_created_only"):
+            # Created but never started: an OCI or mount error.
+            state["kuma_created_only"] = False
+            containers[f"{service}-{state['sequence']}"]["health"] = "created"
+            return 1
         if service == "uptime-kuma":
             # Every start writes to the data directory, as Kuma's SQLite does.
             with kuma_database(arguments).open("a") as database:
@@ -255,7 +260,12 @@ def main(arguments: list[str]) -> int:
                 state["fail_kuma_stop"] = False
                 status = 1
             for container in containers.values():
-                if container["service"] == "uptime-kuma" and status == 0:
+                # Like Docker, stop leaves a created container created.
+                if (
+                    container["service"] == "uptime-kuma"
+                    and container["health"] in RUNNING
+                    and status == 0
+                ):
                     container["health"] = "exited"
                     # A clean shutdown checkpoints the SQLite WAL into kuma.db.
                     with kuma_database(rest).open("a") as database:

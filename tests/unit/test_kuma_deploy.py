@@ -266,15 +266,34 @@ def test_a_failure_before_kuma_starts_keeps_its_data_and_a_retry_backs_up_again(
         "data_restored": False,
     }
     assert marker(kuma) == OLD_KUMA
+    assert NEW_KUMA.encode() not in (data(kuma) / "kuma.db").read_bytes()
+    # The old image kept the data, so a rollback now must not rewind it to a
+    # copy the failed attempt took.
+    assert call(kuma, "rollback", values)["data_restored"] is False
     database = (data(kuma) / "kuma.db").read_bytes()
-    assert NEW_KUMA.encode() not in database
-    # The retry replaces any copy the failed attempt left with the data the
-    # old image has written since, and rollback returns exactly that.
+    # A retry backs up the data as it is now, and rollback returns exactly that.
     assert call(kuma, "activate", values)["image_matches"] is True
     assert call(kuma, "rollback", values)["data_restored"] is True
     assert (data(kuma) / "kuma.db").read_bytes() == (
         database + CHECKPOINT + f"{OLD_KUMA}\n".encode()
     )
+
+
+def test_a_candidate_that_never_starts_is_recovered_from_the_copy(
+    kuma: Site,
+) -> None:
+    values = params(kuma)
+    _ = call(kuma, "stage", values)
+    update(kuma, kuma_created_only=True)
+    with pytest.raises(DeployError, match="Uptime Kuma activation failed") as failure:
+        _ = call(kuma, "activate", values)
+    assert failure.value.details["recovery"] == {
+        "preserved": True,
+        "healthy": True,
+        "image_matches": True,
+        "data_restored": True,
+    }
+    assert marker(kuma) == OLD_KUMA
 
 
 def test_failed_recovery_leaves_explicit_rollback_possible(kuma: Site) -> None:

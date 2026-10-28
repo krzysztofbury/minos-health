@@ -519,13 +519,23 @@ uv run python -m scripts.deploy_kuma activate --plan test-output/kuma/<version>/
   seconds). Every other container must stay unchanged, all five healthy and
   Kuma on the planned image. On failure, once the candidate has started,
   recovery stops it, puts the copy back and starts the previous image;
-  `data_restored` in the recovery says which happened. A retry takes a new
-  copy, replacing one an earlier attempt left.
+  `data_restored` in the recovery says which happened. If the candidate never
+  started, the copy is set aside as `data-unused-<time>`, so a later rollback
+  cannot rewind the data the previous image kept writing. A retry takes a new
+  copy. A Kuma container that was created but never started counts as stopped.
 - `rollback --plan` puts the copy back and recreates the previous image. Kuma
   then holds its data as at activation: monitors, heartbeats or settings
   written since are discarded. The replaced directory stays in
   `replaced-rollback-<time>` in the stage directory. The copy is used once, so
-  a second rollback only recreates the previous image.
+  a second rollback only recreates the previous image. Rollback accepts only
+  the staged previous or candidate Compose: once a validation, watcher or
+  tunnel release changes the live Compose, it refuses, and the way back is a
+  new Kuma release of the previous digest (which needs that digest pinned on
+  `main` again).
+- After a rollback the data marker names the previous image while `main` pins
+  the new one, so `site.yml` refuses to run until either a new Kuma release
+  succeeds or every Kuma pin is reverted to the previous digest. That is the
+  intended guard: Ansible never starts an image the data was not released to.
 
 Each release briefly stops Kuma: the status page is down and watcher pushes
 fail without blocking the watchers (Kuma treats a missing push as down after

@@ -34,6 +34,12 @@ MAX_MARKER_BYTES = 256
 # before it reports an unhealthy Kuma.
 WAIT_TIMEOUT_S = 180
 COPY_TIMEOUT_S = 300
+# Not running, so nothing holds SQLite; a candidate that failed to start stays
+# created.
+STOPPED = {"exited", "created"}
+# What activation, recovery and rollback turn into a recovery or refusal; a
+# parsing error must not skip recovery and leave Kuma stopped.
+FAILURES = (host.HostError, OSError, KeyError, TypeError, ValueError)
 
 
 def service(document: dict[str, object]) -> dict[str, object]:
@@ -93,8 +99,16 @@ def data_source(document: dict[str, object]) -> Path:
             sources.append(cast(str, entry["source"]))
     host.require(len(sources) == 1, "Uptime Kuma data mount differs")
     source = Path(sources[0])
+    host.require(source.is_absolute(), "Uptime Kuma data directory is invalid")
     host.require(
-        source.is_absolute() and source.is_dir() and not source.is_symlink(),
+        not any(
+            source.with_name(f".{source.name}.{state}").exists()
+            for state in ("restoring", "replaced")
+        ),
+        "an interrupted Kuma restore needs inspection",
+    )
+    host.require(
+        source.is_dir() and not source.is_symlink(),
         "Uptime Kuma data directory is invalid",
     )
     return source
@@ -109,22 +123,38 @@ def render(document: dict[str, object], image: str) -> dict[str, object]:
 
 
 def marker(data: Path) -> str:
-    path = data / MARKER
-    details = path.lstat()
-    host.require(
-        stat.S_ISREG(details.st_mode) and details.st_size <= MAX_MARKER_BYTES,
-        "Uptime Kuma data image marker is invalid",
-    )
-    return path.read_text().strip()
+    # Kuma writes this directory: never follow a link or block on a FIFO it
+    # planted, and read at most the bound.
+    descriptor = os.open(data / MARKER, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as source:
+        details = os.fstat(source.fileno())
+        host.require(
+            stat.S_ISREG(details.st_mode) and details.st_size <= MAX_MARKER_BYTES,
+            "Uptime Kuma data image marker is invalid",
+        )
+        return source.read(MAX_MARKER_BYTES).decode().strip()
 
 
 def write_marker(data: Path, image: str) -> None:
     """Replace the marker atomically, keeping the owner and mode Ansible set."""
     path = data / MARKER
     details = path.lstat()
+    host.require(
+        stat.S_ISREG(details.st_mode), "Uptime Kuma data image marker is invalid"
+    )
     temporary = data / f".{MARKER}.partial"
+    if temporary.is_symlink() or temporary.exists():
+        # Only an interrupted write of ours is removed; Kuma cannot create a
+        # file owned by this process's user unless it runs as that user.
+        leftover = temporary.lstat()
+        host.require(
+            stat.S_ISREG(leftover.st_mode) and leftover.st_uid == os.geteuid(),
+            "Uptime Kuma data image marker is invalid",
+        )
+        temporary.unlink()
+    # O_EXCL: anything created at this name since is refused, not opened.
     descriptor = os.open(
-        temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600
+        temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
     )
     with os.fdopen(descriptor, "wb") as target:
         _ = target.write(f"{image}\n".encode())
@@ -155,7 +185,17 @@ def require_space(data: Path, target: Path) -> None:
 def copy_tree(source: Path, destination: Path) -> None:
     # cp -a keeps the owner, mode and timestamps of every file, which a
     # restored Kuma needs; the host has GNU coreutils but only the stdlib.
+    # The copy is flushed before anything writes the live data again.
     _ = host.run(["cp", "-a", "--", str(source), str(destination)], COPY_TIMEOUT_S)
+    _ = host.run(["sync", "-f", str(destination)], COPY_TIMEOUT_S)
+
+
+def sync_directory(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 def stop(layout: host.Layout, record: Path) -> None:
@@ -176,7 +216,10 @@ def stop(layout: host.Layout, record: Path) -> None:
         raise host.HostError("Uptime Kuma stop failed", result)
     rows = [row for row in host.containers(layout) if row[0] == NAME]
     # The data directory is copied only while no Kuma process holds SQLite.
-    host.require(len(rows) == 1 and rows[0][3] == "exited", "Uptime Kuma did not stop")
+    host.require(
+        len(rows) <= 1 and all(row[3] in STOPPED for row in rows),
+        "Uptime Kuma did not stop",
+    )
 
 
 def back_up(data: Path, target: Path) -> None:
@@ -188,6 +231,7 @@ def back_up(data: Path, target: Path) -> None:
             shutil.rmtree(stale)
     copy_tree(data, partial)
     os.rename(partial, backup)
+    sync_directory(target)
 
 
 def restore(data: Path, target: Path, label: str) -> None:
@@ -201,6 +245,7 @@ def restore(data: Path, target: Path, label: str) -> None:
     copy_tree(backup, staging)
     os.rename(data, replaced)
     os.rename(staging, data)
+    sync_directory(data.parent)
     stamp = time.time_ns()
     # The backup is consumed: a later rollback must not rewind data again.
     os.rename(backup, target / f"data-restored-{label}-{stamp}")
@@ -281,8 +326,13 @@ def recover(
         if started:
             stop(layout, target / "automatic-rollback-stop.json")
             restore(data, target, "activation")
-        elif marker(data) != image:
-            write_marker(data, image)
+        else:
+            if marker(data) != image:
+                write_marker(data, image)
+            # The previous image keeps writing to the untouched data, so the
+            # copy must not be restored by a later rollback.
+            if (target / "data").exists():
+                os.rename(target / "data", target / f"data-unused-{time.time_ns()}")
         host.write_private(layout.compose, previous)
         single.up(
             layout,
@@ -295,7 +345,7 @@ def recover(
             **single.checked(layout, expected, image, NAME),
             "data_restored": started,
         }
-    except (host.HostError, OSError):
+    except FAILURES:
         return {"restored": False}
 
 
@@ -325,6 +375,8 @@ def activate(layout: host.Layout, params: dict[str, object]) -> dict[str, object
         marker(data) == service(old)["image"],
         "Uptime Kuma data marker differs from live image",
     )
+    # Earlier failed attempts leave copies in the stage directory.
+    require_space(data, target)
     started = False
     try:
         stop(layout, target / "stop.json")
@@ -334,7 +386,7 @@ def activate(layout: host.Layout, params: dict[str, object]) -> dict[str, object
         started = True
         single.up(layout, target / "activate.json", name=NAME, wait_s=WAIT_TIMEOUT_S)
         result = single.checked(layout, expected, image, NAME)
-    except (host.HostError, OSError) as error:
+    except FAILURES as error:
         raise host.HostError(
             "Uptime Kuma activation failed",
             {
