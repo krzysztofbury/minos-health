@@ -108,7 +108,7 @@ def source_files(manifest: DatasetManifest) -> Iterator[BlobIdentity]:
     if manifest.icd11_maps is not None:
         yield from manifest.icd11_maps.files
     if manifest.jgp_statistics is not None:
-        yield from manifest.jgp_statistics.reports
+        yield from (report.extract for report in manifest.jgp_statistics.reports)
 
 
 class ArchiveS3Client(Protocol):

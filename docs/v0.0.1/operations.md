@@ -842,6 +842,13 @@ it serves those workbooks brings the monitor up. `manual icd11 <version>` is
 the same for a new RSK `99ICD1` ICD-11 PL export or map workbook: download
 the files, add them to the manifest and the archive, upload them to R2
 create-once with the operator key and release a reviewed bundle.
+A new NFZ monthly JGP report (#283) ships as reference data: pin the raw
+report in `manifests/sources/jgp-statistics.json` from the `dane.gov.pl` API
+(resource ID, publication date, SHA-256, size, reviewed row counts), put it in
+`data/archive`, run `uv run python -m scripts.extract_jgp_statistics`, copy
+the raw report and its extract to R2 create-once with the operator key, and
+release a reviewed bundle; without the extract in R2 the processor reports
+`failed: fetch`.
 `manual eli <dictionary>` means the Dziennik Ustaw act behind the ward
 specialty or discharge-mode dictionary has a new amendment, consolidated text
 or status (#282; `/zrodla` lists the findings): check the annex, then either

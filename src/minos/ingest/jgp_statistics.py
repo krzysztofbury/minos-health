@@ -20,7 +20,7 @@ from xml.etree.ElementTree import Element  # nosec B405 - types only; defusedxml
 from defusedxml.ElementTree import iterparse
 
 from minos.domain.reference import SourceError
-from minos.ingest.jgp_statistics_manifest import MonthlyReport
+from minos.ingest.jgp_statistics_manifest import ReportPin
 
 _NS = "{urn:schemas-microsoft-com:office:spreadsheet}"
 _MONTHS = (
@@ -37,7 +37,7 @@ _MONTHS = (
     "Listopad",
     "Grudzień",
 )
-_LEVELS = frozenset(
+LEVELS = frozenset(
     {
         "POZA PSZ",
         "SZPITAL I STOPNIA",
@@ -98,7 +98,8 @@ class ReportFigures:
     sections: tuple[SectionFigure, ...]
 
 
-def _month(report: str, age: int) -> str:
+def month_before(report: str, age: int) -> str:
+    """The month ``age`` months before the reporting month."""
     year, month = (int(part) for part in report.split("-"))
     index = year * 12 + month - 1 - age
     return f"{index // 12:04d}-{index % 12 + 1:02d}"
@@ -176,7 +177,7 @@ def _require_header(
             raise SourceError("monthly report header differs from the reviewed layout")
 
 
-def parse_report(source: BinaryIO, pin: MonthlyReport) -> ReportFigures:
+def parse_report(source: BinaryIO, pin: ReportPin) -> ReportFigures:
     """Every Table 2 and Table 4 figure of the report, in source order."""
     content = source.read(pin.size_bytes + 1)
     if (
@@ -184,7 +185,7 @@ def parse_report(source: BinaryIO, pin: MonthlyReport) -> ReportFigures:
         or hashlib.sha256(content).hexdigest() != pin.sha256
     ):
         raise SourceError("monthly report bytes differ from the pin")
-    months = [_label(_month(pin.month, age)) for age in AGES]
+    months = [_label(month_before(pin.month, age)) for age in AGES]
     headers: dict[str, dict[int, dict[int, str]]] = {"Tabela 2": {}, "Tabela 4": {}}
     groups: list[GroupFigure] = []
     sections: list[SectionFigure] = []
@@ -258,12 +259,12 @@ def parse_report(source: BinaryIO, pin: MonthlyReport) -> ReportFigures:
 
 def _group_row(
     cells: dict[int, str],
-    pin: MonthlyReport,
+    pin: ReportPin,
     groups: list[GroupFigure],
     seen: set[tuple[str, str]],
 ) -> None:
     section, code, level = cells.get(2), cells.get(3), cells.get(4)
-    if section is None or code is None or level not in _LEVELS:
+    if section is None or code is None or level not in LEVELS:
         raise SourceError("monthly report group row is incomplete")
     if not code.isascii() or not code.isalnum() or not 2 <= len(code) <= 8:
         raise SourceError("monthly report group code is invalid")
@@ -280,14 +281,14 @@ def _group_row(
             continue
         groups.append(
             GroupFigure(
-                section, code, level, _month(pin.month, age), age, count, points
+                section, code, level, month_before(pin.month, age), age, count, points
             )
         )
 
 
 def _section_row(
     cells: dict[int, str],
-    pin: MonthlyReport,
+    pin: ReportPin,
     sections: list[SectionFigure],
     seen: set[tuple[str, str, str]],
 ) -> None:
@@ -313,7 +314,7 @@ def _section_row(
                 section,
                 admission,
                 character,
-                _month(pin.month, age),
+                month_before(pin.month, age),
                 age,
                 count,
                 stay,

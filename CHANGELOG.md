@@ -20,7 +20,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   stay and age figures, each with its month and its age at the report,
   suppressed counts kept apart from missing ones (#283). Reference schema 12
   stores every figure of the twelve pinned reports (September 2025 to August
-  2026) with its report month and publication date.
+  2026) with its report month and publication date, built from small reviewed
+  per-report extracts (`scripts/extract_jgp_statistics.py`) so the processor
+  does not download the 743 MB of raw reports on every run.
 - `GET /api/v1/grouping/dictionaries` and the `get_case_dictionaries` MCP tool
   cite each legal dictionary's Dziennik Ustaw act (`eli`) and its authentic
   pinned PDF (`source_url`), and a reviewed snapshot of the served MCP tool

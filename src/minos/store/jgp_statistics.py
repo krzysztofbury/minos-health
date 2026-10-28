@@ -6,7 +6,7 @@ from typing import cast
 
 from minos.domain.reference import ArtifactError
 from minos.ingest.archive_source import verified_source
-from minos.ingest.jgp_statistics import parse_report
+from minos.ingest.jgp_statistics_extract import read_extract
 from minos.ingest.jgp_statistics_manifest import JgpStatistics
 from minos.store.artifact import canonical_json
 from minos.store.query_budget import query_budget
@@ -26,8 +26,9 @@ def import_jgp_statistics(
         (release, canonical_json(statistics).decode()),
     )
     for pin in statistics.reports:
-        with verified_source(archive, pin, staging_directory=staging) as source:
-            figures = parse_report(source, pin)
+        # The reviewed extract, not the 60 MB raw report (#283).
+        with verified_source(archive, pin.extract, staging_directory=staging) as source:
+            figures = read_extract(source, pin)
         _ = connection.execute(
             "INSERT INTO jgp_statistics_report VALUES (?, ?, ?, ?)",
             (release, pin.month, pin.published_on.isoformat(), pin.sha256),

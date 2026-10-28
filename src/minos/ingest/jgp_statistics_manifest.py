@@ -20,7 +20,22 @@ _URL = re.compile(
 )
 
 
-class MonthlyReport(BaseModel):
+class ReportExtract(BaseModel):
+    """The canonical parsed figures of one report; what builds read."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid", frozen=True, strict=True
+    )
+
+    sha256: Digest
+    size_bytes: int = Field(ge=1, le=16 * 1024 * 1024)
+    group_figures: int = Field(ge=1, le=60_000)
+    section_figures: int = Field(ge=1, le=3_000)
+
+
+class ReportPin(BaseModel):
+    """The raw report as published: provenance and the parser's input."""
+
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid", frozen=True, strict=True
     )
@@ -45,8 +60,13 @@ class MonthlyReport(BaseModel):
         if f"{match.group(1)}-{int(match.group(2)):02d}" != self.month:
             raise ValueError("monthly report URL names another month")
         if self.published_on.isoformat()[:7] <= self.month:
-            raise ValueError("monthly report is published after its month")
+            raise ValueError("monthly report must be published after its month")
         return self
+
+
+class MonthlyReport(ReportPin):
+    # The raw report is provenance; builds read this extract (#283).
+    extract: ReportExtract
 
 
 class JgpStatistics(BaseModel):
@@ -66,4 +86,7 @@ class JgpStatistics(BaseModel):
         months = [report.month for report in self.reports]
         if months != sorted(set(months)):
             raise ValueError("monthly reports must be unique and in month order")
+        published = [report.published_on for report in self.reports]
+        if published != sorted(published):
+            raise ValueError("monthly reports must be published in month order")
         return self

@@ -19,7 +19,13 @@
       "size_bytes": 62345911,
       "fetched_at": "2026-10-28T16:58:08Z",
       "group_rows": 3916,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "e8f3ad2f812cc73748d0622096a2b1644887c6a1035c16112f01292ab095f56e",
+        "size_bytes": 2173779,
+        "group_figures": 10915,
+        "section_figures": 210
+      }
     },
     {
       "month": "2025-10",
@@ -30,7 +36,13 @@
       "size_bytes": 62891776,
       "fetched_at": "2026-10-28T16:57:46Z",
       "group_rows": 3941,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "411aff41c03227d8aa3f992d8fa25f9091715e081fa798a32bfdb7e28be3d94f",
+        "size_bytes": 2186609,
+        "group_figures": 10976,
+        "section_figures": 210
+      }
     },
     {
       "month": "2025-11",
@@ -41,7 +53,13 @@
       "size_bytes": 62166633,
       "fetched_at": "2026-10-28T16:57:24Z",
       "group_rows": 3908,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "d709831e161cec17fa3e903752b7db7d6a54eff4f708f7b986dac03902d2c03a",
+        "size_bytes": 2165869,
+        "group_figures": 10873,
+        "section_figures": 210
+      }
     },
     {
       "month": "2025-12",
@@ -52,7 +70,13 @@
       "size_bytes": 61536102,
       "fetched_at": "2026-10-28T16:57:00Z",
       "group_rows": 3899,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "f2e14d0a49b8739d3e8f796cf0119cd2fad552abbe2ab485964807d6aa21b67a",
+        "size_bytes": 2153715,
+        "group_figures": 10812,
+        "section_figures": 209
+      }
     },
     {
       "month": "2026-01",
@@ -63,7 +87,13 @@
       "size_bytes": 62821131,
       "fetched_at": "2026-10-28T16:56:42Z",
       "group_rows": 4012,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "62366fa28121b7f7d233507b310d446dbc32895e986c8f43da52867ec572f72e",
+        "size_bytes": 2165912,
+        "group_figures": 10869,
+        "section_figures": 210
+      }
     },
     {
       "month": "2026-02",
@@ -74,7 +104,13 @@
       "size_bytes": 62685719,
       "fetched_at": "2026-10-28T16:56:20Z",
       "group_rows": 4023,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "01a680f0ebbead9b1f219499ae53401d84b1f4b6f343c69fffedddb6d2aabf54",
+        "size_bytes": 2176283,
+        "group_figures": 10919,
+        "section_figures": 210
+      }
     },
     {
       "month": "2026-03",
@@ -85,7 +121,13 @@
       "size_bytes": 63395979,
       "fetched_at": "2026-10-28T16:56:01Z",
       "group_rows": 4029,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "85e45c6b1ca5d02fdab29a55496d6f43c82ee3992b2aab5025eaf0acab3d4bbe",
+        "size_bytes": 2195713,
+        "group_figures": 11019,
+        "section_figures": 209
+      }
     },
     {
       "month": "2026-04",
@@ -96,7 +138,13 @@
       "size_bytes": 63567315,
       "fetched_at": "2026-10-28T16:55:35Z",
       "group_rows": 4027,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "60738690cb4f2316888b7560b4b14979dade49329e60126ae3725a51a21b3e79",
+        "size_bytes": 2194819,
+        "group_figures": 11013,
+        "section_figures": 208
+      }
     },
     {
       "month": "2026-05",
@@ -107,7 +155,13 @@
       "size_bytes": 64691584,
       "fetched_at": "2026-10-28T16:55:17Z",
       "group_rows": 4042,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "bdfa809877f6a594e868aafd67129d93f20b3749c6439cc72fad70ced4ff7f00",
+        "size_bytes": 2195549,
+        "group_figures": 11016,
+        "section_figures": 210
+      }
     },
     {
       "month": "2026-06",
@@ -118,7 +172,13 @@
       "size_bytes": 63112176,
       "fetched_at": "2026-10-28T16:54:56Z",
       "group_rows": 4022,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "2685bce5a67f5c9764bddfe0e1a442fc9dc0ca68b5c9ae12d39409c117ef6f75",
+        "size_bytes": 2184493,
+        "group_figures": 10962,
+        "section_figures": 209
+      }
     },
     {
       "month": "2026-07",
@@ -129,7 +189,13 @@
       "size_bytes": 56717345,
       "fetched_at": "2026-10-28T16:54:27Z",
       "group_rows": 4846,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "5592bf1e304239299d47cd9a6dc3fba5943d679dfcb83448d583a0853641a206",
+        "size_bytes": 2306569,
+        "group_figures": 11583,
+        "section_figures": 208
+      }
     },
     {
       "month": "2026-08",
@@ -140,7 +206,13 @@
       "size_bytes": 57567445,
       "fetched_at": "2026-10-28T16:53:59Z",
       "group_rows": 4918,
-      "section_rows": 70
+      "section_rows": 70,
+      "extract": {
+        "sha256": "f5195feef4569ec8b5505a9af3e27ebd81e315eef3765e15ad8a71f6d62b3353",
+        "size_bytes": 2317225,
+        "group_figures": 11627,
+        "section_figures": 210
+      }
     }
   ]
 }
