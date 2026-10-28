@@ -476,7 +476,11 @@ consolidates (`DU/2012/594` for specialties, `DU/2019/1207` for discharge
 modes), so the watcher compares the base act's "Akty zmieniające" and "Inf. o
 tekście jednolitym" with the reviewed sets in
 `src/minos/ingest/watchers/eli/client.py`, and the in-force status of both
-acts. Any difference is one `eli_legal_dictionary` change for review; the pin
+acts. A repeal ("Uchylenia wynikające z", listed before its effective date
+changes the status), a correction ("Sprostowanie") or a Constitutional Tribunal
+ruling ("Orzeczenie TK") on either act is a finding too. Only these sections
+are validated; others may name Monitor Polski acts and are not read. Any
+difference is one `eli_legal_dictionary` change for review; the pin
 and the manifest change only through a reviewed re-pin. A base act that no
 longer lists the pinned text, or an HTTP 200 that is not ELI JSON (a firewall
 in front of the API answers with an HTML page), stops the run without

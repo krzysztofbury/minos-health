@@ -1,9 +1,11 @@
+import gzip
 import json
 from pathlib import Path
 from typing import cast
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from minos.ingest.watchers.eli.client import (
     WATCHED,
@@ -76,6 +78,14 @@ DISCHARGE = next(item for item in WATCHED if item.name == "discharge_modes")
           "reference_removed:DU/2025/985", "reference_removed:DU/2026/1113",
           "reference_removed:DU/2026/270", "reference_removed:DU/2026/822"]),
         ({"inForce": "NOT_IN_FORCE"}, {}, ["not_in_force:pinned:NOT_IN_FORCE"]),
+        ({}, {"inForce": "NOT_IN_FORCE"}, ["not_in_force:base:NOT_IN_FORCE"]),
+        # A repeal is listed before its effective date flips inForce.
+        ({}, _references("DU/2019/1207", "Uchylenia wynikające z", "DU/2026/2001"),
+         ["repeal:base:DU/2026/2001"]),
+        (_references("DU/2025/1588", "Sprostowanie", "MP/2026/12"), {},
+         ["correction:pinned:MP/2026/12"]),
+        # Sections the watch does not read may name Monitor Polski acts.
+        ({}, _references("DU/2019/1207", "Akty wykonawcze", "MP/2026/866"), []),
     ],
 )  # fmt: skip
 def test_each_difference_from_the_review_is_named(
@@ -87,10 +97,33 @@ def test_each_difference_from_the_review_is_named(
     )
 
 
-def test_base_act_that_no_longer_lists_the_pin_fails_closed() -> None:
-    base = _act("DU/2019/1207", {"references": {}})
-    with pytest.raises(EliSourceError, match="no longer lists the pinned text"):
-        _ = findings(DISCHARGE, _act("DU/2025/1588"), base)
+@pytest.mark.parametrize(
+    ("base", "message"),
+    [
+        ({"references": {}}, "no longer lists the pinned text"),
+        (_references("DU/2019/1207", "Akty zmieniające", "xDU/2026/15000z"),
+         "identifier is invalid"),
+        ({"references": {
+            "Inf. o tekście jednolitym": [{"id": "DU/2025/1588"}],
+            "Akty zmieniające": [{"id": f"DU/2027/{n}"} for n in range(1, 40)]}},
+         "exceed their bound"),
+    ],
+)  # fmt: skip
+def test_unusable_base_act_sections_fail_closed(
+    base: dict[str, object], message: str
+) -> None:
+    with pytest.raises(EliSourceError, match=message):
+        _ = findings(DISCHARGE, _act("DU/2025/1588"), _act("DU/2019/1207", base))
+
+
+def test_act_fields_must_match_whole_values() -> None:
+    changes: tuple[dict[str, object], ...] = (
+        {"ELI": "xDU/2025/1588z"},
+        {"inForce": "in force IN_FORCE"},
+    )
+    for change in changes:
+        with pytest.raises(ValidationError):
+            _ = _act("DU/2025/1588", change)
 
 
 def _fetch(response: httpx.Response, eli: str = "DU/2025/1588") -> EliAct:
@@ -115,6 +148,8 @@ JSON = {"content-type": "application/json"}
          EliSourceError, "metadata is invalid"),
         (httpx.Response(404, content=b"", headers=JSON), EliSourceError, "rejected"),
         (httpx.Response(503, content=b"", headers=JSON), EliRetryableError, "temporarily"),
+        (httpx.Response(200, content=gzip.compress(b"{}"), headers={**JSON, "content-encoding": "gzip"}),
+         EliSourceError, "encoding"),
     ],
 )  # fmt: skip
 def test_unexpected_answers_fail_closed(

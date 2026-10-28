@@ -865,12 +865,15 @@ class NfzSourceCollector:
             if found and known.get(watched.name) != state:
                 changes.append(
                     ChangeDraft(
+                        # The run's observation keeps a finding that returns
+                        # after it cleared from reusing a committed change ID.
                         _digest(
                             [
                                 "eli_legal_dictionary",
                                 context.source_id,
                                 watched.name,
                                 list(found),
+                                observation.observation_id,
                             ]
                         ),
                         observation.observation_id,

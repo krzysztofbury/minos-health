@@ -12,9 +12,18 @@ _HOST = "api.sejm.gov.pl"
 _BASE = f"https://{_HOST}/eli/acts/"
 _MAX_BYTES = 256 * 1024
 _ELI = re.compile(r"DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}")
-# Reference sections of the base act that change what the pinned text means.
+# Referenced acts may also be Monitor Polski entries.
+_REFERENCE = re.compile(r"(DU|MP)/(19|20)[0-9]{2}/[1-9][0-9]{0,4}")
+# Reference sections of the base act compared with the reviewed sets.
 AMENDMENTS = "Akty zmieniające"
 CONSOLIDATED = "Inf. o tekście jednolitym"
+# Sections that are empty for a reviewed pin: any entry, on either act, is a
+# finding. A repeal is listed here before its effective date flips inForce.
+UNEXPECTED = {
+    "Uchylenia wynikające z": "repeal",
+    "Sprostowanie": "correction",
+    "Orzeczenie TK": "tribunal",
+}
 MAX_FINDINGS = 32
 
 
@@ -78,14 +87,15 @@ WATCHED = (
 
 class _Reference(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", strict=True)
-    id: str = Field(pattern=_ELI.pattern)
+    # Opaque here: only the sections the watch reads are checked, in ids().
+    id: str = Field(min_length=1, max_length=64)
 
 
 class EliAct(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="ignore", strict=True)
-    ELI: str = Field(pattern=_ELI.pattern)
+    ELI: str = Field(pattern="^" + _ELI.pattern + "$")
     status: str = Field(min_length=1, max_length=128)
-    inForce: str = Field(pattern=r"[A-Z_]{1,32}")  # noqa: N815 - ELI field name
+    inForce: str = Field(pattern=r"^[A-Z_]{1,32}$")  # noqa: N815 - ELI field name
     changeDate: str | None = Field(default=None, max_length=32)  # noqa: N815
     references: dict[str, list[_Reference]] = Field(default_factory=dict, max_length=64)
 
@@ -93,6 +103,8 @@ class EliAct(BaseModel):
         items = self.references.get(section, [])
         if len(items) > 256:
             raise EliSourceError("ELI reference section exceeds its bound")
+        if any(_REFERENCE.fullmatch(item.id) is None for item in items):
+            raise EliSourceError("ELI reference identifier is invalid")
         return frozenset(item.id for item in items)
 
 
@@ -208,6 +220,8 @@ def findings(watched: WatchedDictionary, pinned: EliAct, base: EliAct) -> list[s
         )
     ]
     for role, act in (("pinned", pinned), ("base", base)):
+        for section, label in UNEXPECTED.items():
+            result += [f"{label}:{role}:{item}" for item in sorted(act.ids(section))]
         if act.inForce != "IN_FORCE":
             result.append(f"not_in_force:{role}:{act.inForce}")
     if len(result) > MAX_FINDINGS:

@@ -897,15 +897,16 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         assert _query(
             database, "SELECT count(*) FROM source_changes WHERE source_id = 'nfz'"
         ) == [(9,)]
-        # A new amendment of a pinned legal dictionary is one review item.
-        eli_state["new_amendment"] = True
-        for _ in range(2):
+        # A new amendment of a pinned legal dictionary is one review item; one
+        # that clears and returns is a second item, never a reused change ID.
+        for present in (True, True, False, True):
+            eli_state["new_amendment"] = present
             amended = store.claim_manual("nfz")
             _ = orchestrator.run_claim(amended, amended.retry_policy)
         assert _query(
             database,
             "SELECT change_category,summary_json FROM source_changes WHERE change_category = 'eli_legal_dictionary'",
-        ) == [
+        ) == 2 * [
             (
                 "eli_legal_dictionary",
                 '{"dictionary":"discharge_modes","findings":["amendment:DU/2026/1500"],"pinned_eli":"DU/2025/1588"}',

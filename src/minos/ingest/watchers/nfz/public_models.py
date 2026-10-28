@@ -219,7 +219,7 @@ type EliIdentifier = Annotated[
 type EliFinding = Annotated[
     str,
     Field(
-        pattern=r"^((amendment|consolidated_text|reference_removed):DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}|not_in_force:(pinned|base):[A-Z_]{1,32})$",
+        pattern=r"^((amendment|consolidated_text|reference_removed):DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}|(repeal|correction|tribunal):(pinned|base):(DU|MP)/(19|20)[0-9]{2}/[1-9][0-9]{0,4}|not_in_force:(pinned|base):[A-Z_]{1,32})$",
         max_length=64,
     ),
 ]

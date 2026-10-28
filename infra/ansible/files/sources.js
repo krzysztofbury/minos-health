@@ -2269,8 +2269,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   var ELI_ACTS = "https://api.sejm.gov.pl/eli/acts/";
   var ELI_PATTERN = /^DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}$/;
-  var ELI_FINDING_PATTERN = /^((amendment|consolidated_text|reference_removed):DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}|not_in_force:(pinned|base):[A-Z_]{1,32})$/;
-  var ELI_FINDINGS = { amendment: "nowa zmiana aktu", consolidated_text: "nowy tekst jednolity", reference_removed: "usunięte powiązanie", not_in_force: "akt nie obowiązuje" };
+  var ELI_FINDING_PATTERN = /^((amendment|consolidated_text|reference_removed):DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}|(repeal|correction|tribunal):(pinned|base):(DU|MP)\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}|not_in_force:(pinned|base):[A-Z_]{1,32})$/;
+  var ELI_FINDINGS = { amendment: "nowa zmiana aktu", consolidated_text: "nowy tekst jednolity", reference_removed: "usunięte powiązanie", not_in_force: "akt nie obowiązuje", repeal: "uchylenie", correction: "sprostowanie", tribunal: "orzeczenie TK" };
   function eliAddress(eli) {
     var parts = eli.split("/");
     return "Dz.U. " + parts[1] + " poz. " + parts[2];
@@ -2281,7 +2281,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function eliFinding(item) {
     var parts = item.split(":");
-    return ELI_FINDINGS[parts[0]] + ": " + (parts[0] === "not_in_force" ? parts[2] : eliAddress(parts[1]));
+    if (parts[0] === "not_in_force") return ELI_FINDINGS[parts[0]] + ": " + parts[2];
+    var act = parts.length === 3 ? parts[2] : parts[1];
+    var address = (act.startsWith("MP/") ? "M.P. " + act.split("/")[1] + " poz. " + act.split("/")[2] : eliAddress(act));
+    return ELI_FINDINGS[parts[0]] + ": " + address + (parts.length === 3 ? (parts[1] === "base" ? " (akt bazowy)" : " (tekst jednolity)") : "");
   }
   function expectNfzEvidence(value, channel, fence) {
     expectNfzUrl(value.source_url, channel);
