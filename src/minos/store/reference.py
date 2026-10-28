@@ -218,6 +218,12 @@ def open_reference_bundle(
                 from minos.store.icd11_maps import validate_icd11_map_binding
 
                 validate_icd11_map_binding(connection, manifest.dataset.icd11_maps)
+            if manifest.schema_version >= 12:
+                from minos.store.jgp_statistics import validate_jgp_statistics_binding
+
+                validate_jgp_statistics_binding(
+                    connection, manifest.dataset.jgp_statistics
+                )
             expected = {
                 source.release_id: source.context_for
                 for source in manifest.dataset.sources

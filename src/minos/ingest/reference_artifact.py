@@ -184,6 +184,12 @@ def _build_database(
             import_product_catalogs(
                 connection, manifest.product_catalogs, archive_root, database.parent
             )
+        if manifest.jgp_statistics is not None:
+            from minos.store.jgp_statistics import import_jgp_statistics
+
+            import_jgp_statistics(
+                connection, manifest.jgp_statistics, archive_root, database.parent
+            )
         if manifest.icd11_maps is not None:
             from minos.store.icd11_maps import import_icd11_maps
 
@@ -333,6 +339,13 @@ def _review_summary(
         lines.extend(
             f"Pinned {item.kind}: {item.sha256} / {item.size_bytes} / {item.expected_rows} rows"
             for item in manifest.icd11_maps.files
+        )
+    if manifest.jgp_statistics is not None:
+        lines.append(f"NFZ monthly JGP reports: {manifest.jgp_statistics.release_id}")
+        lines.extend(
+            f"Pinned report {item.month}: {item.sha256} / {item.size_bytes} / "
+            + f"{item.group_rows} group rows / {item.section_rows} section rows"
+            for item in manifest.jgp_statistics.reports
         )
     from minos.ingest.search_synonyms import dictionary_notice
 

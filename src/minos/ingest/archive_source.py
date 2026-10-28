@@ -18,6 +18,7 @@ from minos.ingest.jgp_catalog_manifest import CatalogFile
 from minos.ingest.jgp_conditions_manifest import ConditionsFile
 from minos.ingest.jgp_modifier_binding_manifest import LegalOverlayFile
 from minos.ingest.jgp_modifiers_manifest import DisplayFile, ModifierFile
+from minos.ingest.jgp_statistics_manifest import ReportExtract, ReportPin
 from minos.ingest.komunikat_manifest import KomunikatFile
 from minos.ingest.product_catalogs_manifest import ProductCatalogFile
 from minos.ingest.reference_manifest import SourceManifest
@@ -60,6 +61,8 @@ def verified_source(
     | LegalActFile
     | ProductCatalogFile
     | Icd11MapFile
+    | ReportPin
+    | ReportExtract
     | ArchivedBlob,
     *,
     staging_directory: Path,

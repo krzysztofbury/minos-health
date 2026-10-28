@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "transform_version": "jgp-reference-conditions-products-v6",
+  "transform_version": "jgp-reference-statistics-v7",
   "lockfile_sha256": "2343f00e7db876cc5c6920c2e87126b10ef9f7383c8295b6b559d3690133c203",
   "search_profile": "polish-folded-1",
   "search_synonyms": [
@@ -3573,6 +3573,224 @@
         "size_bytes": 1149313,
         "fetched_at": "2026-10-22T10:50:56Z",
         "expected_rows": 17943
+      }
+    ]
+  },
+  "jgp_statistics": {
+    "release_id": "jgp-statistics-2581-2025-09-2026-08",
+    "dataset": "https://dane.gov.pl/pl/dataset/2581",
+    "publisher": "Narodowy Fundusz Zdrowia",
+    "license": "CC0 1.0",
+    "notices": [
+      "Statystyki rozliczonych hospitalizacji JGP z miesięcznych raportów NFZ (dane.gov.pl, zbiór 2581), nie reguły grupowania ani punkty katalogowe.",
+      "Wartości to punkty rozliczone za hospitalizacje według NFZ, nie złote i nie punkty bazowe katalogu.",
+      "NFZ ukrywa liczby mniejsze niż 5 jako <5; puste pole oznacza brak danych, nie zero.",
+      "NFZ uzupełnia ostatnie miesiące wraz z późnymi rozliczeniami; liczby z miesięcy bliskich dacie raportu są wstępne."
+    ],
+    "reports": [
+      {
+        "month": "2025-09",
+        "resource_id": 1477467,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260323/raport_SZP_i_kardiologia_2025_9.xml",
+        "published_on": "2026-03-21",
+        "sha256": "31a164a98c5bf009517cedd20866c76d5884b584e08f48e214a471148b3d40fe",
+        "size_bytes": 62345911,
+        "fetched_at": "2026-10-28T16:58:08Z",
+        "group_rows": 3916,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "e8f3ad2f812cc73748d0622096a2b1644887c6a1035c16112f01292ab095f56e",
+          "size_bytes": 2173779,
+          "group_figures": 10915,
+          "section_figures": 210
+        }
+      },
+      {
+        "month": "2025-10",
+        "resource_id": 1477469,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260323/raport_SZP_i_kardiologia_2025_10.xml",
+        "published_on": "2026-03-22",
+        "sha256": "26e3c09ad0ec33c78fc2b47a32704666ac23db1e67738d7aebb25915134a92a1",
+        "size_bytes": 62891776,
+        "fetched_at": "2026-10-28T16:57:46Z",
+        "group_rows": 3941,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "411aff41c03227d8aa3f992d8fa25f9091715e081fa798a32bfdb7e28be3d94f",
+          "size_bytes": 2186609,
+          "group_figures": 10976,
+          "section_figures": 210
+        }
+      },
+      {
+        "month": "2025-11",
+        "resource_id": 1477470,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260323/raport_SZP_i_kardiologia_2025_11.xml",
+        "published_on": "2026-03-23",
+        "sha256": "9fd9a02daa3ec0cad1ba66303c7a0ff6ee10287b1a199fb21f4bce5f2d7ce62c",
+        "size_bytes": 62166633,
+        "fetched_at": "2026-10-28T16:57:24Z",
+        "group_rows": 3908,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "d709831e161cec17fa3e903752b7db7d6a54eff4f708f7b986dac03902d2c03a",
+          "size_bytes": 2165869,
+          "group_figures": 10873,
+          "section_figures": 210
+        }
+      },
+      {
+        "month": "2025-12",
+        "resource_id": 1477471,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260323/raport_SZP_i_kardiologia_2025_12.xml",
+        "published_on": "2026-03-24",
+        "sha256": "f9400041f28f05ae82cf0f991c84af73724a1b4dc9fce39d1b2bfbe72837f0e2",
+        "size_bytes": 61536102,
+        "fetched_at": "2026-10-28T16:57:00Z",
+        "group_rows": 3899,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "f2e14d0a49b8739d3e8f796cf0119cd2fad552abbe2ab485964807d6aa21b67a",
+          "size_bytes": 2153715,
+          "group_figures": 10812,
+          "section_figures": 209
+        }
+      },
+      {
+        "month": "2026-01",
+        "resource_id": 1643427,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260416/raport_SZP_i_kardiologia_2026_1.xml",
+        "published_on": "2026-04-16",
+        "sha256": "cd13350bedef00baf3aeebbfd25857c140bb412c6a8113187179f0aa3be1477f",
+        "size_bytes": 62821131,
+        "fetched_at": "2026-10-28T16:56:42Z",
+        "group_rows": 4012,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "62366fa28121b7f7d233507b310d446dbc32895e986c8f43da52867ec572f72e",
+          "size_bytes": 2165912,
+          "group_figures": 10869,
+          "section_figures": 210
+        }
+      },
+      {
+        "month": "2026-02",
+        "resource_id": 1643431,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260416/raport_SZP_i_kardiologia_2026_2.xml",
+        "published_on": "2026-04-17",
+        "sha256": "92dc6d3ad907e1de084d5f55acc302fa1c87d396fe2efbd178676971a7700829",
+        "size_bytes": 62685719,
+        "fetched_at": "2026-10-28T16:56:20Z",
+        "group_rows": 4023,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "01a680f0ebbead9b1f219499ae53401d84b1f4b6f343c69fffedddb6d2aabf54",
+          "size_bytes": 2176283,
+          "group_figures": 10919,
+          "section_figures": 210
+        }
+      },
+      {
+        "month": "2026-03",
+        "resource_id": 1840988,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260512/raport_SZP_i_kardiologia_2026_3.xml",
+        "published_on": "2026-05-12",
+        "sha256": "4a4c58de7aa7203f3eb9bcbb2907a3d2c96de08ce83b2f7beeacc4fea333cc98",
+        "size_bytes": 63395979,
+        "fetched_at": "2026-10-28T16:56:01Z",
+        "group_rows": 4029,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "85e45c6b1ca5d02fdab29a55496d6f43c82ee3992b2aab5025eaf0acab3d4bbe",
+          "size_bytes": 2195713,
+          "group_figures": 11019,
+          "section_figures": 209
+        }
+      },
+      {
+        "month": "2026-04",
+        "resource_id": 2039972,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260609/raport_SZP_i_kardiologia_2026_4.xml",
+        "published_on": "2026-06-09",
+        "sha256": "6c032d05e548a8164509311f3927c32e6ecfec342517a5dc82d862124619c270",
+        "size_bytes": 63567315,
+        "fetched_at": "2026-10-28T16:55:35Z",
+        "group_rows": 4027,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "60738690cb4f2316888b7560b4b14979dade49329e60126ae3725a51a21b3e79",
+          "size_bytes": 2194819,
+          "group_figures": 11013,
+          "section_figures": 208
+        }
+      },
+      {
+        "month": "2026-05",
+        "resource_id": 2294522,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260720/raport_SZP_i_kardiologia_2026_5.xml",
+        "published_on": "2026-07-20",
+        "sha256": "742e1a7f9d88e0312d53d48dc589bc8815c6d5b065302412ce746dd7aa378137",
+        "size_bytes": 64691584,
+        "fetched_at": "2026-10-28T16:55:17Z",
+        "group_rows": 4042,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "bdfa809877f6a594e868aafd67129d93f20b3749c6439cc72fad70ced4ff7f00",
+          "size_bytes": 2195549,
+          "group_figures": 11016,
+          "section_figures": 210
+        }
+      },
+      {
+        "month": "2026-06",
+        "resource_id": 2433495,
+        "source_url": "https://api.dane.gov.pl/media/resources/20260812/raport_SZP_i_kardiologia_2026_6.xml",
+        "published_on": "2026-08-12",
+        "sha256": "2e1235af2087c32ecdaeb8bfecfee1a2c967604aa4c5e5729f4df24afd80b9be",
+        "size_bytes": 63112176,
+        "fetched_at": "2026-10-28T16:54:56Z",
+        "group_rows": 4022,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "2685bce5a67f5c9764bddfe0e1a442fc9dc0ca68b5c9ae12d39409c117ef6f75",
+          "size_bytes": 2184493,
+          "group_figures": 10962,
+          "section_figures": 209
+        }
+      },
+      {
+        "month": "2026-07",
+        "resource_id": 2724418,
+        "source_url": "https://api.dane.gov.pl/media/resources/20261001/raport_SZP_i_kardiologia_2026_7.xml",
+        "published_on": "2026-10-01",
+        "sha256": "3e3d190b3ba2bf35505df357d3e728acd790b05c2a599c191dbdbd1ef2c0e409",
+        "size_bytes": 56717345,
+        "fetched_at": "2026-10-28T16:54:27Z",
+        "group_rows": 4846,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "5592bf1e304239299d47cd9a6dc3fba5943d679dfcb83448d583a0853641a206",
+          "size_bytes": 2306569,
+          "group_figures": 11583,
+          "section_figures": 208
+        }
+      },
+      {
+        "month": "2026-08",
+        "resource_id": 2834329,
+        "source_url": "https://api.dane.gov.pl/media/resources/20261020/raport_SZP_i_kardiologia_2026_8.xml",
+        "published_on": "2026-10-20",
+        "sha256": "0f38c76a00b9daf7338ed473e0d05830a299078c6a50f6e0de62cb4645d45b4b",
+        "size_bytes": 57567445,
+        "fetched_at": "2026-10-28T16:53:59Z",
+        "group_rows": 4918,
+        "section_rows": 70,
+        "extract": {
+          "sha256": "f5195feef4569ec8b5505a9af3e27ebd81e315eef3765e15ad8a71f6d62b3353",
+          "size_bytes": 2317225,
+          "group_figures": 11627,
+          "section_figures": 210
+        }
       }
     ]
   }

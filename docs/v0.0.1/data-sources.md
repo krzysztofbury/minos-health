@@ -547,6 +547,23 @@ reviewed layout, a title that no longer names points, an unknown hospital
 level, a repeated row, formatted cell text, numbers outside plain ASCII
 notation, any DTD, and more rows than reviewed.
 
+`manifests/sources/jgp-statistics.json` pins the twelve reports for September
+2025 to August 2026 (743,499,116 bytes, each with its `dane.gov.pl` resource
+ID and publication date). The raw reports are provenance: builds read one
+canonical extract per report (about 2.2 MB, 26 MB for all twelve), written by
+`scripts/extract_jgp_statistics.py` through the same parser and pinned beside
+the raw report. The Data Update processor downloads every live input on each
+run under one 600-second deadline, so raw reports in the build would have
+raised that download from 147 MB to 890 MB; with extracts it is 173 MB. An
+extract must name its report's month and SHA-256, match its reviewed counts,
+keep sorted unique rows and agree on month and age, or the build refuses it.
+Reference schema 12 stores every figure of every
+report (`jgp_group_statistic`, `jgp_section_statistic`) with its report month,
+so revisions stay visible; a reader takes the newest report for a month. The
+reports from 2025 were published in March 2026, so their figures are more
+complete than the month alone suggests, which is why each pin keeps its
+publication date.
+
 The annual dataset `3009` is not used for counts: at its granularity 94.5% of
 2025 cells are suppressed, so a group's national count spans a range about 3.7
 times wide. In August 2026, 734 of 740 reported group codes were groups of the

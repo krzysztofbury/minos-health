@@ -15,6 +15,7 @@ from minos.ingest.jgp_conditions_manifest import (
 )
 from minos.ingest.jgp_modifier_binding_manifest import ModifierBinding
 from minos.ingest.jgp_modifiers_manifest import ModifierCandidate, ModifierManifest
+from minos.ingest.jgp_statistics_manifest import JgpStatistics
 from minos.ingest.komunikat_manifest import KomunikatManifest
 from minos.ingest.manifest_types import Digest as Digest
 from minos.ingest.manifest_types import Identifier as Identifier
@@ -141,6 +142,10 @@ class DatasetManifest(BaseModel):
     )
     # WHO ICD-10/ICD-11 map tables (#53); schema 11.
     icd11_maps: Icd11Maps | None = Field(default=None, exclude_if=absent_context)
+    # NFZ monthly JGP report figures (#283); schema 12.
+    jgp_statistics: JgpStatistics | None = Field(
+        default=None, exclude_if=absent_context
+    )
 
     def release_in_force(self, system: str, day: date) -> SourceManifest | None:
         """The canonical release of ``system`` that governs the Polish ``day``.
@@ -210,6 +215,11 @@ class DatasetManifest(BaseModel):
             if not self.product_catalogs:
                 raise ValueError("ICD-11 maps extend a product catalog dataset")
             all_ids.append(self.icd11_maps.release_id)
+        if self.jgp_statistics is not None:
+            # Schemas are supersets; the statistics schema extends schema 11.
+            if self.icd11_maps is None:
+                raise ValueError("JGP statistics extend an ICD-11 map dataset")
+            all_ids.append(self.jgp_statistics.release_id)
         if len(set(all_ids)) != len(all_ids):
             raise ValueError("duplicate catalog release identity")
         for characteristic in self.characteristics:

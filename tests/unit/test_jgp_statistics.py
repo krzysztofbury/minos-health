@@ -1,7 +1,7 @@
 import hashlib
 import io
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -14,7 +14,7 @@ from minos.ingest.jgp_statistics import (
     SectionFigure,
     parse_report,
 )
-from minos.ingest.jgp_statistics_manifest import JgpStatistics, MonthlyReport
+from minos.ingest.jgp_statistics_manifest import JgpStatistics, MonthlyReport, ReportPin
 
 # Tables 2 and 4 of the August 2026 report (dane.gov.pl resource 2834329),
 # trimmed to six groups and four section rows; cell text is unchanged.
@@ -24,12 +24,13 @@ EXCERPT = (
 URL = "https://api.dane.gov.pl/media/resources/20261020/raport_SZP_i_kardiologia_2026_8.xml"
 
 
-def _pin(content: bytes, **changes: object) -> MonthlyReport:
-    return MonthlyReport.model_validate(
+def _pin(content: bytes, **changes: object) -> ReportPin:
+    return ReportPin.model_validate(
         {
             "month": "2026-08",
             "resource_id": 2834329,
             "source_url": URL,
+            "published_on": date(2026, 10, 20),
             "sha256": hashlib.sha256(content).hexdigest(),
             "size_bytes": len(content),
             "fetched_at": datetime(2026, 10, 28, tzinfo=UTC),
@@ -186,6 +187,7 @@ def test_a_january_report_spans_the_year_boundary() -> None:
         content,
         month="2027-01",
         source_url=URL.replace("2026_8.xml", "2027_1.xml"),
+        published_on=date(2027, 3, 1),
     )
     assert sorted({(item.month, item.age_months) for item in figures.groups}) == [
         ("2026-01", 12),
@@ -198,8 +200,27 @@ def test_manifest_binds_url_month_and_order() -> None:
     content = EXCERPT.read_bytes()
     with pytest.raises(ValidationError, match="another month"):
         _ = _pin(content, month="2026-07")
-    report = _pin(content)
-    july = _pin(content, month="2026-07", source_url=URL.replace("_8.xml", "_7.xml"))
+    with pytest.raises(ValidationError, match="must be published after its month"):
+        _ = _pin(content, published_on=date(2026, 8, 31))
+    extract = {
+        "sha256": "e" * 64,
+        "size_bytes": 1,
+        "group_figures": 1,
+        "section_figures": 1,
+    }
+
+    def monthly(**changes: object) -> MonthlyReport:
+        pin = _pin(content, **changes).model_dump(mode="json")
+        return MonthlyReport.model_validate_json(
+            json.dumps({**pin, "extract": extract})
+        )
+
+    report = monthly()
+    july = monthly(
+        month="2026-07",
+        source_url=URL.replace("_8.xml", "_7.xml"),
+        published_on=date(2026, 10, 1),
+    )
     base: dict[str, object] = {
         "release_id": "jgp-statistics-test",
         "dataset": "https://dane.gov.pl/pl/dataset/2581",
@@ -213,5 +234,8 @@ def test_manifest_binds_url_month_and_order() -> None:
         return json.dumps(base)[:-1] + ', "reports": [' + items + "]}"
 
     assert JgpStatistics.model_validate_json(manifest([july, report]))
-    with pytest.raises(ValidationError, match="month order"):
+    with pytest.raises(ValidationError, match="unique and in month order"):
         _ = JgpStatistics.model_validate_json(manifest([report, july]))
+    late_july = july.model_copy(update={"published_on": date(2026, 11, 1)})
+    with pytest.raises(ValidationError, match="published in month order"):
+        _ = JgpStatistics.model_validate_json(manifest([late_july, report]))

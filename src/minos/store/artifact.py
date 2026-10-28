@@ -29,7 +29,7 @@ class ArtifactManifest(BaseModel):
         extra="forbid", frozen=True, strict=True
     )
 
-    schema_version: Literal[2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    schema_version: Literal[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     database_sha256: Digest
     database_size_bytes: int = Field(ge=1, le=MAX_DATABASE_BYTES)
     schema_sha256: Digest
