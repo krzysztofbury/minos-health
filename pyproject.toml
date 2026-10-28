@@ -84,7 +84,7 @@ markers = [
 target-version = "py314"
 # Runs on the production host's system Python, not the project runtime. A test
 # requires this list to name exactly the host programs the deploy tools ship.
-per-file-target-version = { "scripts/validation_host.py" = "py312", "scripts/watcher_host.py" = "py312", "scripts/tunnel_host.py" = "py312", "scripts/measure_reference_host.py" = "py312", "scripts/processor_host.py" = "py312" }
+per-file-target-version = { "scripts/validation_host.py" = "py312", "scripts/watcher_host.py" = "py312", "scripts/tunnel_host.py" = "py312", "scripts/kuma_host.py" = "py312", "scripts/measure_reference_host.py" = "py312", "scripts/processor_host.py" = "py312" }
 
 [tool.ruff.lint]
 select = ["B", "E4", "E7", "E9", "F", "I", "UP"]

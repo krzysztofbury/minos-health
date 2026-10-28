@@ -486,6 +486,67 @@ works again once `deploy_tunnel rollback` restores the prior bytes or the next
 validation deployment starts from the new Compose; run that deployment soon
 after a tunnel update.
 
+### Uptime Kuma Updates (#274)
+
+`scripts/deploy_kuma.py` replaces only the `uptime-kuma` image under the same
+deployment lock. Kuma's state lives in `/var/lib/minos/uptime-kuma`, which a
+new release may migrate, and Ansible ties that data to one image through
+`.minos-image-reference`, so the release also moves the data. The digest must
+be `uptime_kuma_image_reference` in `infra/ansible/site.yml` on remote `main`.
+The Compose template, the Kuma bootstrap Compose and CI carry the same
+multi-arch digest, and `packaging/runtime-pins/Dockerfile` names it with its
+tag for Dependabot, so a Dependabot PR fails until the other pins move with it.
+
+```sh
+uv run python -m scripts.deploy_kuma plan --plan test-output/kuma/<version>/plan.json \
+  --version <version>
+uv run python -m scripts.deploy_kuma stage --plan test-output/kuma/<version>/plan.json
+uv run python -m scripts.deploy_kuma activate --plan test-output/kuma/<version>/plan.json
+```
+
+- `plan` works as for the tunnel: revision and image default to remote `main`
+  and its pin, and the live Compose SHA-256 is recorded.
+- `stage` refuses unless all five services are healthy, the live Kuma runs the
+  live Compose image and the data marker names that image. It pulls the
+  candidate and checks without network that it is `linux/amd64`, runs as
+  `node` and reports the planned version in `/app/package.json`. It also needs
+  free disk for one more copy of the data, plus 300 MiB, on both the data and
+  the stage filesystem. Records stay in
+  `kuma-stage/<digest>-<compose SHA-256>/`, and `prune` keeps their images.
+- `activate` stops Kuma, copies the stopped data directory with `cp -a` to
+  `kuma-stage/.../data`, rewrites the marker with the planned image, writes
+  the staged Compose and recreates only Kuma (`--no-deps --wait`, 180
+  seconds). Every other container must stay unchanged, all five healthy and
+  Kuma on the planned image. On failure, once the candidate has started,
+  recovery stops it, puts the copy back and starts the previous image;
+  `data_restored` in the recovery says which happened. If the candidate never
+  started, the copy is set aside as `data-unused-<time>`, so a later rollback
+  cannot rewind the data the previous image kept writing. A retry takes a new
+  copy. A Kuma container that was created but never started counts as stopped.
+- `rollback --plan` puts the copy back and recreates the previous image. Kuma
+  then holds its data as at activation: monitors, heartbeats or settings
+  written since are discarded. The replaced directory stays in
+  `replaced-rollback-<time>` in the stage directory. The copy is used once, so
+  a second rollback only recreates the previous image. Rollback accepts only
+  the staged previous or candidate Compose: once a validation, watcher or
+  tunnel release changes the live Compose, it refuses, and the way back is a
+  new Kuma release of the previous digest (which needs that digest pinned on
+  `main` again).
+- After a rollback the data marker names the previous image while `main` pins
+  the new one, so `site.yml` refuses to run until either a new Kuma release
+  succeeds or every Kuma pin is reverted to the previous digest. That is the
+  intended guard: Ansible never starts an image the data was not released to.
+
+Each release briefly stops Kuma: the status page is down and watcher pushes
+fail without blocking the watchers (Kuma treats a missing push as down after
+its interval). The stage directory holds a full copy of Kuma's data, including
+credentials and push tokens: refresh the encrypted off-host backup (see
+`docs/v0.0.1/operations.md`) after the release, then remove the stage
+directory. `scripts/smoke_kuma_deploy.py` runs the release in CI against real
+Kuma images: the previous release creates SQLite data, a candidate that writes
+to it and never becomes healthy is recovered from the copy, and the pinned
+release activates and rolls back with the data intact.
+
 ### Retention
 
 `prune` keeps:

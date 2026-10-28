@@ -168,7 +168,7 @@ def main(output: Path, tag: str) -> None:
         assert details["recovery"] == {
             "preserved": True,
             "healthy": True,
-            "cloudflared_image_matches": True,
+            "image_matches": True,
         }, details
         assert layout.compose.read_bytes() == original
         assert tunnel_host.baseline(layout) == preserved
@@ -189,7 +189,7 @@ def main(output: Path, tag: str) -> None:
             raise AssertionError("Compose recreated an unchanged unhealthy container")
         rolled_back = call("rollback", params)
         assert rolled_back["event"] == "tunnel_rolled_back", rolled_back
-        assert rolled_back["cloudflared_image_matches"] is True, rolled_back
+        assert rolled_back["image_matches"] is True, rolled_back
         assert tunnel_host.baseline(layout) == preserved
 
         # A good candidate activates, then rolls back to the original bytes.

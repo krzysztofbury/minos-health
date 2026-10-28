@@ -69,25 +69,27 @@ def remote_main() -> str:
     return run(["git", "ls-remote", "origin", "refs/heads/main"]).split()[0]
 
 
-def template(revision: str) -> str:
+def template(revision: str, path: str = TEMPLATE) -> str:
     _ = run(["git", "fetch", "--quiet", "origin", "main"])
-    return run(["git", "show", f"{revision}:{TEMPLATE}"])
+    return run(["git", "show", f"{revision}:{path}"])
 
 
-def pinned(revision: str) -> str:
-    found: set[str] = set(PIN.findall(template(revision)))
-    found = set(PIN.findall(template(revision)))
+def pinned(revision: str, pin: re.Pattern[str] = PIN, path: str = TEMPLATE) -> str:
+    found: set[str] = set(pin.findall(template(revision, path)))
     if len(found) != 1:
-        raise DeployError("template does not pin exactly one cloudflared image")
+        raise DeployError(f"{path} does not pin exactly one image")
     return found.pop()
 
 
-def reviewed(plan: TunnelPlan) -> None:
-    """The digest is the one reviewed into the Compose template on remote main."""
-    if remote_main() != plan.revision:
-        raise DeployError("tunnel revision is not current remote main")
-    if f"    image: {plan.image}\n" not in template(plan.revision):
-        raise DeployError("cloudflared digest is not the pin on remote main")
+def reviewed(revision: str, line: str, path: str = TEMPLATE) -> None:
+    """The digest is the pin reviewed into ``path`` on remote main.
+
+    Shared with the Uptime Kuma release (#274), whose pin lives in site.yml.
+    """
+    if remote_main() != revision:
+        raise DeployError("release revision is not current remote main")
+    if line not in template(revision, path):
+        raise DeployError("image digest is not the pin on remote main")
     checks = cast(
         list[dict[str, object]],
         json.loads(
@@ -101,7 +103,7 @@ def reviewed(plan: TunnelPlan) -> None:
                     "--branch",
                     "main",
                     "--commit",
-                    plan.revision,
+                    revision,
                     "--json",
                     "conclusion,event",
                     "--limit",
@@ -115,7 +117,7 @@ def reviewed(plan: TunnelPlan) -> None:
         {"conclusion": "success", "event": "workflow_dispatch"},
     )
     if not any(check in passed for check in checks):
-        raise DeployError("tunnel main CI has not passed")
+        raise DeployError("main CI has not passed for the release revision")
 
 
 def ingress() -> dict[str, object]:
@@ -164,7 +166,7 @@ def main() -> None:
                     "compose_sha256": facts["compose_sha256"],
                 }
             )
-            reviewed(plan)
+            reviewed(plan.revision, f"    image: {plan.image}\n")
             path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
             with path.open("x") as target:
                 _ = target.write(plan.model_dump_json(indent=2) + "\n")
@@ -179,7 +181,7 @@ def main() -> None:
             return
         plan = TunnelPlan.model_validate_json(path.read_bytes())
         if command != "rollback":
-            reviewed(plan)
+            reviewed(plan.revision, f"    image: {plan.image}\n")
         params = plan.model_dump(exclude={"revision"})
         result = host.call(command, params, program=program())
         # Record the host transition before probing, so a failed probe never

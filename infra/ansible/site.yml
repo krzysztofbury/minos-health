@@ -28,7 +28,7 @@
     watcher_secrets_gid: 10002
     uptime_kuma_uid: 10003
     uptime_kuma_gid: 10003
-    uptime_kuma_image_reference: docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
+    uptime_kuma_image_reference: docker.io/louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437
     uptime_kuma_public_status_enabled: false
     watcher_uptime_kuma_required: false
     watcher_nfz_activation_enabled: false
@@ -46,7 +46,7 @@
           - uptime_kuma_gid == 10003
           - >-
             uptime_kuma_image_reference ==
-            'docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6'
+            'docker.io/louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437'
           - uptime_kuma_public_status_enabled is boolean
           - watcher_uptime_kuma_required is boolean
           - watcher_nfz_activation_enabled is boolean
@@ -467,8 +467,8 @@
             ((uptime_kuma_image_marker_payload.content | b64decode | trim) ==
              uptime_kuma_image_reference)
         fail_msg: >-
-          Refusing to change the Uptime Kuma image for preserved data without a
-          future stopped backup and migration procedure.
+          Refusing to change the Uptime Kuma image for preserved data; release
+          it with scripts/deploy_kuma.py, which keeps a stopped data copy (#274).
       when: not ansible_check_mode
 
     - name: Inspect the SSH configuration for a private Kuma setup exception
@@ -1282,7 +1282,7 @@
           - uptime_kuma_image.stdout.split('|')[0] == 'linux/amd64'
           - uptime_kuma_image.stdout.split('|')[1] == 'node'
           - >-
-            'louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6' in
+            'louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437' in
             (uptime_kuma_image.stdout.split('|')[2] | from_json)
         fail_msg: The pinned Uptime Kuma image identity architecture or user is invalid.
       when: not ansible_check_mode

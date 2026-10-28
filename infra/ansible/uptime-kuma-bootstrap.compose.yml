@@ -2,7 +2,7 @@ name: minos-kuma-bootstrap
 
 services:
   uptime-kuma:
-    image: docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
+    image: docker.io/louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437
     pull_policy: missing
     platform: linux/amd64
     restart: unless-stopped

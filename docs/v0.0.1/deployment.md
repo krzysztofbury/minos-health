@@ -85,8 +85,9 @@ The production Compose project contains:
 - `watcher`: APScheduler, source adapters, and the mutable control SQLite
   database mounted from a dedicated persistent volume, plus write access to a
   separate public-projection root;
-- `uptime-kuma`: self-hosted Uptime Kuma 2.5.5 from the official MIT
-  `slim-rootless` `linux/amd64` image, rootless as `10003:10003`, with a private
+- `uptime-kuma`: self-hosted Uptime Kuma 2.5.8 from the official MIT
+  `slim-rootless` image, pinned by its multi-arch digest with Compose selecting
+  `linux/amd64`, rootless as `10003:10003`, with a private
   monitoring network, a separate outbound monitor and notification network,
   and `/var/lib/minos/uptime-kuma` mounted at `/app/data`;
 - `watcher-bootstrap-rsk`: an explicit one-shot `bootstrap` profile service
@@ -118,7 +119,7 @@ ghcr.io/krzysztofbury/minos-health-api@sha256:<digest>
 ghcr.io/krzysztofbury/minos-health-web@sha256:<digest>
 ghcr.io/krzysztofbury/minos-health-watcher@sha256:<digest>
 cloudflare/cloudflared@sha256:<digest>
-docker.io/louislam/uptime-kuma@sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6
+docker.io/louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437
 ```
 
 `latest`, `main`, and other mutable tags are not deployable references.

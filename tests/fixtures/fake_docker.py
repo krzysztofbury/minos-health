@@ -36,11 +36,23 @@ def image_id(state: dict[str, object], reference: str) -> str:
 
 API_SERVICES = ("reference-api", "reference-api-blue", "reference-api-green")
 RUNNING = ("none", "starting", "unhealthy", "healthy")
+SINGLE = ("watcher", "cloudflared", "uptime-kuma")
 
 
 def service_config(service: object) -> str:
     """Stand-in for Compose's config hash: unchanged services are not recreated."""
     return hashlib.sha256(json.dumps(service, sort_keys=True).encode()).hexdigest()
+
+
+def kuma_database(arguments: list[str]) -> Path:
+    """kuma.db in the data directory the selected Compose file mounts."""
+    compose = cast(
+        dict[str, dict[str, dict[str, list[dict[str, str]]]]],
+        json.loads(Path(arguments[arguments.index("--file") + 1]).read_text()),
+    )
+    volumes = compose["services"]["uptime-kuma"]["volumes"]
+    source = next(v["source"] for v in volumes if v["target"] == "/app/data")
+    return Path(source) / "kuma.db"
 
 
 def compose_up(state: dict[str, object], arguments: list[str]) -> int:
@@ -59,7 +71,7 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
     selected = tuple(
         argument
         for argument in arguments[arguments.index("up") + 1 :]
-        if argument in (*API_SERVICES, "edge", "watcher", "cloudflared")
+        if argument in (*API_SERVICES, "edge", *SINGLE)
     )
     for service in selected:
         image = compose["services"][service]["image"]
@@ -84,8 +96,17 @@ def compose_up(state: dict[str, object], arguments: list[str]) -> int:
             "health": "healthy",
             "config": config,
         }
+        if service == "uptime-kuma" and state.get("kuma_created_only"):
+            # Created but never started: an OCI or mount error.
+            state["kuma_created_only"] = False
+            containers[f"{service}-{state['sequence']}"]["health"] = "created"
+            return 1
+        if service == "uptime-kuma":
+            # Every start writes to the data directory, as Kuma's SQLite does.
+            with kuma_database(arguments).open("a") as database:
+                _ = database.write(image + "\n")
         # Fails that many consecutive ups, then succeeds.
-        if service in ("watcher", "cloudflared") and state.get(f"fail_after_{service}"):
+        if service in SINGLE and state.get(f"fail_after_{service}"):
             state[f"fail_after_{service}"] = (
                 cast(int, state[f"fail_after_{service}"]) - 1
             )
@@ -186,6 +207,15 @@ def main(arguments: list[str]) -> int:
                 }
         case ["image", "inspect", "--format", "{{.Os}}/{{.Architecture}}", _]:
             output = [cast(str, state.get("platform", "linux/amd64"))]
+        case [
+            "image",
+            "inspect",
+            "--format",
+            "{{.Os}}/{{.Architecture}} {{.Config.User}}",
+            _,
+        ]:
+            platform = cast(str, state.get("platform", "linux/amd64"))
+            output = [f"{platform} {state.get('kuma_user', 'node')}"]
         case ["image", "inspect", "--format", _, reference]:
             output = [f"linux/amd64 {images[image_id(state, reference)]['revision']}"]
         case ["image", "ls", "-q", "--no-trunc"]:
@@ -222,6 +252,24 @@ def main(arguments: list[str]) -> int:
             ]
         case ["run", "--rm", *rest] if rest[-2:] == ["ingress", "validate"]:
             status = 1 if state.get("invalid_ingress") else 0
+        case ["run", "--rm", *rest] if rest[-2:-1] == ["-p"]:
+            output = [cast(str, state["kuma_version"])]
+        case ["compose", *rest] if rest[-2:] == ["stop", "uptime-kuma"]:
+            # A failed stop leaves Kuma running.
+            if state.get("fail_kuma_stop"):
+                state["fail_kuma_stop"] = False
+                status = 1
+            for container in containers.values():
+                # Like Docker, stop leaves a created container created.
+                if (
+                    container["service"] == "uptime-kuma"
+                    and container["health"] in RUNNING
+                    and status == 0
+                ):
+                    container["health"] = "exited"
+                    # A clean shutdown checkpoints the SQLite WAL into kuma.db.
+                    with kuma_database(rest).open("a") as database:
+                        _ = database.write("checkpoint\n")
         case ["compose", *rest] if "up" in rest:
             status = compose_up(state, rest)
         case _:

@@ -407,10 +407,12 @@ docker compose --project-name minos --file /opt/minos/compose.yaml \
 Keep the service stopped until the complete directory has been archived,
 encrypted, transferred off-host, and checked. Never copy the live SQLite
 database, WAL, or shared-memory files. Restore the same pinned version first:
-Uptime Kuma 2.5.5, official MIT `slim-rootless`, `linux/amd64`, digest
-`sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6`.
-Ansible intentionally refuses an image change while preserved data exists until
-a reviewed stopped backup and migration procedure is available.
+Uptime Kuma 2.5.8, official MIT `slim-rootless` on `linux/amd64`, digest
+`sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437`.
+Ansible refuses an image change while preserved data exists. A Kuma upgrade
+goes through `scripts.deploy_kuma` (#274), which stops Kuma, keeps a stopped
+copy of this directory and restores it on recovery or rollback; refresh the
+off-host backup after the upgrade.
 
 On 2026-09-23 an isolated restore of the refreshed 1Password Document used a
 disposable local Docker volume, the same pinned image and UID `10003`, no
