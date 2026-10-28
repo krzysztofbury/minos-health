@@ -3,7 +3,6 @@
 import argparse
 import hashlib
 import json
-import os
 import tempfile
 from pathlib import Path
 from typing import ClassVar, Literal, cast, final
@@ -132,9 +131,7 @@ def reviewed(plan: WatcherPlan) -> None:
     )
     if not any(check in passed for check in checks):
         raise DeployError("watcher main CI has not passed")
-    with tempfile.TemporaryDirectory(
-        prefix="watcher-release-", dir=os.environ.get("TMPDIR", "/tmp/opencode")
-    ) as scratch:
+    with tempfile.TemporaryDirectory(prefix="watcher-release-") as scratch:
         _ = run(
             [
                 "gh",

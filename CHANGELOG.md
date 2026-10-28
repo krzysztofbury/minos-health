@@ -650,6 +650,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- `deploy_watcher plan` downloads the release artifact into the system
+  temporary directory instead of a fixed `/tmp/opencode`, and a refused
+  watcher, tunnel or Kuma health/isolation check names the failed check
+  (`preserved`, `healthy`, image match) instead of empty details (#282).
 - msgpack 1.2.4 in the development lock (#272): CVE-2026-114613 in 1.2.2,
   reached through `pip-audit`'s cache, failed the dependency audit.
 - MCP `get_code` and `browse_codes` answer with the requested ICD-9 code
