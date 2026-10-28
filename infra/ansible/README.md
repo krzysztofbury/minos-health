@@ -99,7 +99,10 @@ Design:
   the server tag on TCP 22 only, and the server starts nothing. It has no
   `ssh` section, so Tailscale SSH is denied tailnet-wide (#253); the
   "Tailworm" report (October 2026, no vendor advisory) spreads through
-  policy-granted Tailscale SSH, which this tailnet does not grant.
+  policy-granted Tailscale SSH, which this tailnet does not grant. The live
+  console policy adds the owner's other servers under the same admin-only TCP
+  22 rule, kept out of this repository; none of them may reach the Minos
+  server, nor it them.
 - `sshd` refuses TCP and Unix-socket forwarding (`AllowStreamLocalForwarding
   no`; `AllowTcpForwarding` does not cover sockets), outside the reviewed
   short-lived Kuma exception below.

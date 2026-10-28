@@ -1,5 +1,9 @@
-// Minos tailnet policy (#227): the complete file for the Tailscale admin
-// console's JSON editor, reviewed here like any other host boundary.
+// Minos tailnet policy (#227), reviewed here like any other host boundary.
+// The console's policy is this file plus the owner's other servers, which are
+// kept out of this public repository. Each such server gets its own tag owned
+// by `autogroup:admin` and joins the admin SSH grant below as another
+// destination: admins reach it on TCP 22 only, it is never a source, and no
+// grant lets it reach `tag:minos-server` or the reverse.
 {
 	// Only tailnet admins may tag a device as the Minos server; the host joins
 	// with a one-time auth key carrying this tag.
