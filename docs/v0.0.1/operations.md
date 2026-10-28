@@ -497,6 +497,13 @@ only; retiring the listing means deprecating this version, not renaming it.
 Registry clients and aggregators read the listing; the tool catalog they show
 comes from the live `tools/list`.
 
+`tests/golden/mcp-tools.json` is the reviewed copy of that `tools/list`
+(names, titles, descriptions, schemas, annotations; #285). A test fails on any
+difference, so a description or schema edit shows up in review; after a
+deliberate change, regenerate it with
+`MINOS_UPDATE_MCP_SNAPSHOT=1 uv run pytest tests/integration/test_mcp.py -k snapshot`
+and commit it with the change.
+
 ## Logging
 
 Watcher lifecycle and RSK transport events use allowlisted Loguru fields. Docker

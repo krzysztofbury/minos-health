@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -18,6 +19,7 @@ from tests.integration.test_icd11_reference import icd11_bundle
 from tests.integration.test_source_pages import publish, rsk
 
 type Json = dict[str, object]
+_SNAPSHOT = Path(__file__).parents[1] / "golden/mcp-tools.json"
 _TOOL_VERBS = ("get_", "search_", "browse_", "map_", "compare_", "group_")
 _HEADERS = {
     "Accept": "application/json, text/event-stream",
@@ -95,6 +97,22 @@ def test_catalog_is_read_only_typed_compact_and_documented(
         siblings = {name for name in mentioned if name.startswith(_TOOL_VERBS)}
         assert siblings - {tool["name"]}, tool["name"]
         assert siblings <= set(names), (tool["name"], siblings - set(names))
+
+
+def test_served_tool_definitions_match_the_reviewed_snapshot(
+    reference: TestClient,
+) -> None:
+    # Names, descriptions, schemas and annotations are what agents and
+    # directories such as Glama score (#268); every change is reviewed here.
+    # After a deliberate change: MINOS_UPDATE_MCP_SNAPSHOT=1 uv run pytest -k snapshot
+    tools = sorted(
+        cast(list[Json], _rpc(reference, "tools/list")["tools"]),
+        key=lambda tool: cast(str, tool["name"]),
+    )
+    served = json.dumps(tools, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if os.environ.get("MINOS_UPDATE_MCP_SNAPSHOT") == "1":
+        _ = _SNAPSHOT.write_text(served, encoding="utf-8")
+    assert served == _SNAPSHOT.read_text(encoding="utf-8")
 
 
 def test_the_registry_listing_names_this_server(reference: TestClient) -> None:
@@ -223,6 +241,10 @@ def test_group_case_summary_drops_traces_that_detail_keeps(
         for item in cast(list[Json], cast(Json, dictionaries["specialties"])["entries"])
     ]
     assert ward_codes and all(code.startswith("4") for code in ward_codes)
+    assert [
+        cast(Json, dictionaries[name])["eli"]
+        for name in ("specialties", "discharge_modes")
+    ] == ["DU/2019/173", "DU/2025/1588"]
 
 
 def test_source_status_summarises_the_published_projection(

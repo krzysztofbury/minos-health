@@ -61,7 +61,9 @@ service date and the reporting month are explicit choices between the
 discharge date (shown with its value) and another date; neither is
 preselected. Discharge mode is a select of the official annex 4 codes; ward
 specialty is a search over annex 2 names, hospital wards first, with derived
-children's codes marked (#151). Both come from `GET /api/v1/grouping/dictionaries`;
+children's codes marked (#151). Both come from `GET /api/v1/grouping/dictionaries`,
+which cites each table's Dziennik Ustaw act as `eli` (`DU/2019/173`,
+`DU/2025/1588`) and its authentic pinned PDF as `source_url` (#285);
 a bundle without dictionaries keeps the interim choices. The first ward stay
 starts with the hospitalization dates, visibly and editably.
 

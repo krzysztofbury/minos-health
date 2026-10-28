@@ -1,0 +1,1311 @@
+[
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List one level of ICD-10 PL, ICD-9 PL or ICD-11 PL: the chapters when parent and node are omitted, else the children of parent or of a node id from an earlier listing (ICD-11 blocks have a node id, no code). Levels stop at 400 entries with truncated=true. Use search_codes for words, get_code for one code's details.",
+    "inputSchema": {
+      "$defs": {
+        "Code": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.\\-]{0,15}$",
+          "type": "string"
+        },
+        "System": {
+          "enum": [
+            "icd10-pl",
+            "icd9-pl",
+            "icd11-pl"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "node": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Node id from an earlier listing, for ICD-11 blocks without a code."
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Code"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Code whose children to list."
+        },
+        "system": {
+          "$ref": "#/$defs/System",
+          "description": "Classification of the code."
+        }
+      },
+      "required": [
+        "system"
+      ],
+      "type": "object"
+    },
+    "name": "browse_codes",
+    "outputSchema": {
+      "$defs": {
+        "Json": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "children": {
+          "items": {
+            "$ref": "#/$defs/Json"
+          },
+          "type": "array"
+        },
+        "notice": {
+          "type": "string"
+        },
+        "parent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "release_id": {
+          "type": "string"
+        },
+        "system": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "notice",
+        "system",
+        "release_id",
+        "parent",
+        "children",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "title": "Browse a classification"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Browse the JGP catalog in force on service_date: without catalog and section, the sections of catalogs 1a and 1ae with group counts; with both, that section's groups and base points. Find a group by words with search_codes; open one with get_jgp_group.",
+    "inputSchema": {
+      "$defs": {
+        "Catalog": {
+          "enum": [
+            "1a",
+            "1ae"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "catalog": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Catalog"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Catalog of the section; omit with section for the index."
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Section number from the index."
+        },
+        "service_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Day of care, YYYY-MM-DD; picks the release in force. Default today in Poland."
+        }
+      },
+      "type": "object"
+    },
+    "name": "browse_jgp_catalog",
+    "outputSchema": {
+      "additionalProperties": true,
+      "description": "A JGP or grouping answer of the HTTP API, with the notice.",
+      "properties": {
+        "notice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "notice"
+      ],
+      "type": "object"
+    },
+    "title": "Browse the JGP catalog"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Compare one JGP group between the catalogs in force on two service dates: act, release, name, base points, scopes and condition list names on each side, plus the fields that changed. Use get_jgp_group for the full conditions on one date.",
+    "inputSchema": {
+      "$defs": {
+        "GroupCode": {
+          "pattern": "^[A-Z][A-Z0-9]{1,5}$",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "after_date": {
+          "description": "Later day of care, YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "before_date": {
+          "description": "Earlier day of care, YYYY-MM-DD.",
+          "format": "date",
+          "type": "string"
+        },
+        "code": {
+          "$ref": "#/$defs/GroupCode",
+          "description": "JGP group code, e.g. F72."
+        }
+      },
+      "required": [
+        "code",
+        "before_date",
+        "after_date"
+      ],
+      "type": "object"
+    },
+    "name": "compare_jgp_group",
+    "outputSchema": {
+      "$defs": {
+        "Json": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "after": {
+          "$ref": "#/$defs/Json"
+        },
+        "before": {
+          "$ref": "#/$defs/Json"
+        },
+        "changed": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "code": {
+          "type": "string"
+        },
+        "notice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "notice",
+        "code",
+        "before",
+        "after",
+        "changed"
+      ],
+      "type": "object"
+    },
+    "title": "Compare a JGP group between dates"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List the values a group_case stay needs: ward specialty codes (part VIII of a department code; hospital wards 4000-4951, or every section with wards=\"all\") and discharge modes, each with its legal act, plus hospitalization types and product reporting values. Call it before building the case for group_case.",
+    "inputSchema": {
+      "properties": {
+        "wards": {
+          "default": "hospital",
+          "description": "hospital: ward codes 4000-4951; all: every section.",
+          "enum": [
+            "hospital",
+            "all"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "name": "get_case_dictionaries",
+    "outputSchema": {
+      "additionalProperties": true,
+      "properties": {
+        "discharge_modes": {},
+        "hospitalization_types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "notice": {
+          "type": "string"
+        },
+        "product_reporting": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "specialties": {}
+      },
+      "required": [
+        "notice",
+        "specialties",
+        "discharge_modes",
+        "hospitalization_types",
+        "product_reporting"
+      ],
+      "type": "object"
+    },
+    "title": "Hospital stay dictionaries"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get one ICD-10 PL, ICD-9 PL or ICD-11 PL code as its page shows it: title, hierarchy, children, notes, attributes, ICD-9 rank, WHO map rows and, for ICD-10 and ICD-9, the JGP groups whose attachment 9 lists name it on service_date. Find the code with search_codes first; open a listed group with get_jgp_group.",
+    "inputSchema": {
+      "$defs": {
+        "Code": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.\\-]{0,15}$",
+          "type": "string"
+        },
+        "System": {
+          "enum": [
+            "icd10-pl",
+            "icd9-pl",
+            "icd11-pl"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/Code",
+          "description": "The code as printed, e.g. J18.9, 53.03 or BA00."
+        },
+        "service_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Day of care, YYYY-MM-DD; picks the release in force. Default today in Poland."
+        },
+        "system": {
+          "$ref": "#/$defs/System",
+          "description": "Classification of the code."
+        }
+      },
+      "required": [
+        "system",
+        "code"
+      ],
+      "type": "object"
+    },
+    "name": "get_code",
+    "outputSchema": {
+      "$defs": {
+        "Json": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "attributes": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "children": {
+          "items": {
+            "$ref": "#/$defs/Json"
+          },
+          "type": "array"
+        },
+        "children_truncated": {
+          "type": "boolean"
+        },
+        "code": {
+          "type": "string"
+        },
+        "jgp_lists": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "notes": {
+          "$ref": "#/$defs/Json"
+        },
+        "notice": {
+          "type": "string"
+        },
+        "path": {
+          "items": {
+            "$ref": "#/$defs/Json"
+          },
+          "type": "array"
+        },
+        "procedure_rank": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Json"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "release": {
+          "$ref": "#/$defs/Json"
+        },
+        "system": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "who_map_rows": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Json"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "notice",
+        "system",
+        "code",
+        "release",
+        "title",
+        "path",
+        "children",
+        "children_truncated",
+        "notes",
+        "attributes"
+      ],
+      "type": "object"
+    },
+    "title": "Code details"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get one JGP group from the catalog in force on service_date: name, product code, base points per column, scopes, the act and release, the knowledge horizon and its grouping conditions with the directional lists they name. Pass a named list's id and catalog to get_jgp_list for its codes; use compare_jgp_group for changes between dates.",
+    "inputSchema": {
+      "$defs": {
+        "GroupCode": {
+          "pattern": "^[A-Z][A-Z0-9]{1,5}$",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/GroupCode",
+          "description": "JGP group code, e.g. F72."
+        },
+        "service_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Day of care, YYYY-MM-DD; picks the release in force. Default today in Poland."
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "type": "object"
+    },
+    "name": "get_jgp_group",
+    "outputSchema": {
+      "additionalProperties": true,
+      "description": "A JGP or grouping answer of the HTTP API, with the notice.",
+      "properties": {
+        "notice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "notice"
+      ],
+      "type": "object"
+    },
+    "title": "JGP group"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "List the codes of one directional diagnosis or procedure list from JGP attachment 9, one page at a time. Take list_id from conditions.lists[].id and catalog from group.catalog of a get_jgp_group answer, with the same service_date. For the groups that name a given code, use get_code instead.",
+    "inputSchema": {
+      "$defs": {
+        "Catalog": {
+          "enum": [
+            "1a",
+            "1ae"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "catalog": {
+          "$ref": "#/$defs/Catalog",
+          "default": "1a",
+          "description": "Catalog that get_jgp_group names with the list."
+        },
+        "list_id": {
+          "description": "List id that get_jgp_group names.",
+          "maximum": 100000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page": {
+          "default": 1,
+          "description": "Page, from 1.",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "service_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Day of care, YYYY-MM-DD; picks the release in force. Default today in Poland."
+        }
+      },
+      "required": [
+        "list_id"
+      ],
+      "type": "object"
+    },
+    "name": "get_jgp_list",
+    "outputSchema": {
+      "additionalProperties": true,
+      "description": "A JGP or grouping answer of the HTTP API, with the notice.",
+      "properties": {
+        "notice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "notice"
+      ],
+      "type": "object"
+    },
+    "title": "JGP list"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Get the releases Minos serves: ICD-10 PL, ICD-9 PL and ICD-11 PL versions, validity and licences, JGP grouping availability and knowledge horizon, and the disclaimer. Call it first to learn which service dates are covered; use get_source_status to see what publishers released since.",
+    "inputSchema": {
+      "properties": {},
+      "type": "object"
+    },
+    "name": "get_service_info",
+    "outputSchema": {
+      "$defs": {
+        "Json": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "dataset_id": {
+          "type": "string"
+        },
+        "documentation": {
+          "type": "string"
+        },
+        "grouping": {
+          "$ref": "#/$defs/Json"
+        },
+        "notice": {
+          "type": "string"
+        },
+        "releases": {
+          "items": {
+            "$ref": "#/$defs/Json"
+          },
+          "type": "array"
+        },
+        "tools": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "notice",
+        "dataset_id",
+        "releases",
+        "grouping",
+        "tools",
+        "documentation"
+      ],
+      "type": "object"
+    },
+    "title": "Service and releases"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Show what a watched publisher lists now, as Minos last observed it: RSK resources and files, BAW NFZ orders and attachments, or NFZ dictionaries and notices, with versions and dates. Reads Minos's last snapshot and never calls the publisher. Compare with get_service_info to see whether Minos serves the newest release.",
+    "inputSchema": {
+      "properties": {
+        "source": {
+          "description": "rsk: RSK resources; baw: NFZ orders; nfz: NFZ dictionaries and notices.",
+          "enum": [
+            "rsk",
+            "baw",
+            "nfz"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "type": "object"
+    },
+    "name": "get_source_status",
+    "outputSchema": {
+      "$defs": {
+        "Json": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/$defs/Json"
+          },
+          "type": "array"
+        },
+        "notice": {
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "notice",
+        "source",
+        "observed_at",
+        "items",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "title": "Source status"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Group one anonymised hospital stay with the Minos Gruper (JGP SZP, supported rule subset): candidate groups with reasons, ranking, base and final points, preparation and limitations. Build case from get_case_dictionaries and codes confirmed with get_code. Send clinical facts only, never names, PESEL or addresses; nothing is stored. Reference, not an NFZ decision.",
+    "inputSchema": {
+      "properties": {
+        "case": {
+          "additionalProperties": false,
+          "description": "The anonymised stay; get_case_dictionaries lists accepted values.",
+          "properties": {
+            "admitted_on": {
+              "format": "date",
+              "type": "string"
+            },
+            "age_completed_years": {
+              "anyOf": [
+                {
+                  "maximum": 200,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "birth_date": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "discharge_mode": {
+              "anyOf": [
+                {
+                  "maximum": 99,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "discharged_on": {
+              "format": "date",
+              "type": "string"
+            },
+            "hospitalization_type": {
+              "enum": [
+                "hospitalization",
+                "planned",
+                "one_day"
+              ],
+              "type": "string"
+            },
+            "principal_diagnosis": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "maxLength": 16,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "hospitalization_level": {
+                  "default": false,
+                  "type": "boolean"
+                },
+                "stay_id": {
+                  "anyOf": [
+                    {
+                      "maxLength": 32,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "default": null
+                }
+              },
+              "required": [
+                "code"
+              ],
+              "type": "object"
+            },
+            "procedures": {
+              "default": [],
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "performed_on": {
+                    "anyOf": [
+                      {
+                        "format": "date",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  },
+                  "stay_id": {
+                    "anyOf": [
+                      {
+                        "maxLength": 32,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              "maxItems": 1000,
+              "type": "array"
+            },
+            "product_reporting": {
+              "enum": [
+                "unknown",
+                "complete"
+              ],
+              "type": "string"
+            },
+            "secondary_diagnoses": {
+              "default": [],
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "hospitalization_level": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "stay_id": {
+                    "anyOf": [
+                      {
+                        "maxLength": 32,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              "maxItems": 100,
+              "type": "array"
+            },
+            "settlement_products": {
+              "default": [],
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "code": {
+                    "maxLength": 16,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "ended_on": {
+                    "anyOf": [
+                      {
+                        "format": "date",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  },
+                  "started_on": {
+                    "anyOf": [
+                      {
+                        "format": "date",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              "maxItems": 1000,
+              "type": "array"
+            },
+            "stays": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "admitted_on": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "department": {
+                    "maxLength": 4,
+                    "minLength": 4,
+                    "type": "string"
+                  },
+                  "discharged_on": {
+                    "format": "date",
+                    "type": "string"
+                  },
+                  "identifier": {
+                    "maxLength": 32,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "service_code": {
+                    "anyOf": [
+                      {
+                        "maxLength": 16,
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  }
+                },
+                "required": [
+                  "identifier",
+                  "department",
+                  "admitted_on",
+                  "discharged_on"
+                ],
+                "type": "object"
+              },
+              "maxItems": 100,
+              "minItems": 1,
+              "type": "array"
+            }
+          },
+          "required": [
+            "admitted_on",
+            "discharged_on",
+            "hospitalization_type",
+            "principal_diagnosis",
+            "stays"
+          ],
+          "type": "object"
+        },
+        "declared_modifiers": {
+          "default": [],
+          "description": "Tariff modifier symbols the provider declares; unapplied ones are listed.",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "detail": {
+          "default": "summary",
+          "description": "trace adds the full routing trace.",
+          "enum": [
+            "summary",
+            "trace"
+          ],
+          "type": "string"
+        },
+        "reporting_month": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Reporting month, YYYY-MM-DD (day ignored). Default the service month."
+        },
+        "service_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Day of care for the catalog, YYYY-MM-DD. Default the discharge day."
+        }
+      },
+      "required": [
+        "case"
+      ],
+      "type": "object"
+    },
+    "name": "group_case",
+    "outputSchema": {
+      "additionalProperties": true,
+      "description": "A JGP or grouping answer of the HTTP API, with the notice.",
+      "properties": {
+        "notice": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "notice"
+      ],
+      "type": "object"
+    },
+    "title": "Group a hospital stay"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Read the WHO ICD-10/ICD-11 mapping rows for one code, verbatim: to_icd11 for a Polish ICD-10 code, to_icd10 for an ICD-11 code. WHO states no match type, its ICD-10 side is the 2019 edition, not Polish 2008, and ICD-11 is not in force in Poland: treat a row as a lead and confirm the target with get_code.",
+    "inputSchema": {
+      "$defs": {
+        "Code": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9.\\-]{0,15}$",
+          "type": "string"
+        }
+      },
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/Code",
+          "description": "An ICD-10 PL code for to_icd11, an ICD-11 code for to_icd10."
+        },
+        "direction": {
+          "description": "Which WHO tables to read.",
+          "enum": [
+            "to_icd11",
+            "to_icd10"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "direction"
+      ],
+      "type": "object"
+    },
+    "name": "map_icd10_icd11",
+    "outputSchema": {
+      "$defs": {
+        "Json": {
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "map_release_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "notice": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/$defs/Json"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "notice",
+        "code",
+        "direction",
+        "map_release_id",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "title": "WHO ICD-10 and ICD-11 map"
+  },
+  {
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "description": "Search ICD-10 PL diagnoses, ICD-9 PL procedures, JGP groups and, when asked, pre-released ICD-11 PL by code or Polish words (diacritics optional). Each hit has its code, title, path and JGP group count; JGP groups are always searched in today's catalog. Open a hit with get_code or get_jgp_group; walk a hierarchy with browse_codes.",
+    "inputSchema": {
+      "$defs": {
+        "SearchSystem": {
+          "enum": [
+            "icd10-pl",
+            "icd9-pl",
+            "icd11-pl",
+            "jgp"
+          ],
+          "type": "string"
+        }
+      },
+      "properties": {
+        "limit": {
+          "default": 10,
+          "description": "Hits per dictionary.",
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "query": {
+          "description": "A code or Polish words, e.g. J18.9 or zapalenie płuc.",
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "service_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Day of care, YYYY-MM-DD; picks the release in force. Default today in Poland."
+        },
+        "systems": {
+          "default": [
+            "icd10-pl",
+            "icd9-pl",
+            "jgp"
+          ],
+          "description": "Dictionaries to search; add icd11-pl only when asked.",
+          "items": {
+            "$ref": "#/$defs/SearchSystem"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "search_codes",
+    "outputSchema": {
+      "$defs": {
+        "Json": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "SystemHits": {
+          "additionalProperties": true,
+          "properties": {
+            "release_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "results": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/Json"
+              },
+              "type": "array"
+            },
+            "service_date": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "status": {
+              "type": "string"
+            },
+            "system": {
+              "type": "string"
+            },
+            "truncated": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "system",
+            "status"
+          ],
+          "type": "object"
+        }
+      },
+      "additionalProperties": true,
+      "properties": {
+        "notice": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "systems": {
+          "items": {
+            "$ref": "#/$defs/SystemHits"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "notice",
+        "query",
+        "systems"
+      ],
+      "type": "object"
+    },
+    "title": "Search codes"
+  }
+]

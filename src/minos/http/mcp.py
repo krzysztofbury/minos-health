@@ -995,6 +995,8 @@ class _Tools:
                 "act": specialties.get("act"),
                 "annex": specialties.get("annex"),
                 "children_rule": specialties.get("children_rule"),
+                "eli": specialties.get("eli"),
+                "source_url": specialties.get("source_url"),
                 "entries": [
                     {"code": item.get("code"), "name": item.get("name")}
                     for item in entries
