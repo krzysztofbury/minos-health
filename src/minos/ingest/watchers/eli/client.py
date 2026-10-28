@@ -15,6 +15,7 @@ _ELI = re.compile(r"DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}")
 # Reference sections of the base act that change what the pinned text means.
 AMENDMENTS = "Akty zmieniające"
 CONSOLIDATED = "Inf. o tekście jednolitym"
+MAX_FINDINGS = 32
 
 
 class EliSourceError(ValueError):
@@ -209,4 +210,7 @@ def findings(watched: WatchedDictionary, pinned: EliAct, base: EliAct) -> list[s
     for role, act in (("pinned", pinned), ("base", base)):
         if act.inForce != "IN_FORCE":
             result.append(f"not_in_force:{role}:{act.inForce}")
+    if len(result) > MAX_FINDINGS:
+        # So many differences at once means the reference sections moved.
+        raise EliSourceError("ELI differences exceed their bound")
     return result

@@ -31,8 +31,9 @@ Allowed channels and fields:
   XML checksum. It does not replace the canonical CZS catalog.
 - AOTMiT: title, publication date and official PDF, explicitly a leading indicator.
 
-Sejm ELI observations of the legal grouping dictionaries (#282) are review
-signals for the operator and are not public entries.
+- Sejm ELI (#282): per legal grouping dictionary, the pinned act and its
+  base act (both Sejm ELI URLs with evidence), the in-force status and the
+  findings that differ from the reviewed pin; at most two entries.
 
 Every entry carries observation time and SHA-256 of the observed response.
 Nested file/display evidence has separate checksums and observation timestamps.

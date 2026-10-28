@@ -27,6 +27,7 @@ ICD9 = (
 MODTAR = "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=MODTAR&nrGen=102"
 JGP = "https://www.nfz.gov.pl/dla-swiadczeniodawcy/jednorodne-grupy-pacjentow/komunikaty-jgp/komunikat,54.html"
 FILE = "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultaktualnosci/354/54/1/synthetic.docx"
+ELI = "https://api.sejm.gov.pl/eli/acts/"
 
 
 def observation(
@@ -113,6 +114,29 @@ def snapshot() -> CommittedObservationRevision:
             observation(
                 "nfz_jgp_file", FILE, "f", {"item_id": 54, "detail_sha256": "e" * 64}
             ),
+            observation(
+                "eli_dictionary",
+                ELI + "DU/2025/1588",
+                "7",
+                {
+                    "dictionary": "discharge_modes",
+                    "eli": "DU/2025/1588",
+                    "base_eli": "DU/2019/1207",
+                    "in_force": "IN_FORCE",
+                    "findings": ["amendment:DU/2026/1500"],
+                    "base_sha256": "8" * 64,
+                },
+            ),
+            observation(
+                "eli_base_act",
+                ELI + "DU/2019/1207",
+                "8",
+                {
+                    "dictionary": "discharge_modes",
+                    "eli": "DU/2019/1207",
+                    "in_force": "IN_FORCE",
+                },
+            ),
         ),
     )
 
@@ -123,7 +147,7 @@ def test_projection_preserves_meaning_and_excludes_private_metadata() -> None:
     result = NfzProjection.model_validate_json(payload)
     assert result.source == "NFZ" and result.through_state_revision == 3
     assert result.coverage == "latest_reconciled_observation_only"
-    assert len(result.entries) == 3
+    assert len(result.entries) == 4
     assert b"PRIVATE_SENTINEL" not in payload and b"archive_key" not in payload
     assert b"2026-09-24T10:58:10" in payload and b"2026-09-24T10:58:10Z" not in payload
     data = cast(dict[str, object], json.loads(payload))
@@ -170,6 +194,10 @@ def test_legacy_unknown_version_and_empty_snapshot_are_explicit() -> None:
         (0, "generated_at", "not-a-date"),
         (0, "generated_at", "2026-09-24T10:00:00+01:99"),
         (0, "generation", True),
+        (6, "base_sha256", "0" * 64),
+        (7, "dictionary", "specialties"),
+        (6, "eli", "DU/2025/1589"),
+        (6, "findings", ["amendment:<script>"]),
     ],
 )
 def test_bad_joins_and_dates_cannot_be_published(
@@ -223,7 +251,7 @@ def test_unknown_output_fields_and_duplicate_evidence_are_refused() -> None:
 def test_shared_browser_contract_and_interrupted_nfz_generation(tmp_path: Path) -> None:
     fixture = Path(__file__).parents[1] / "fixtures/nfz_projection.json"
     result = NfzProjection.model_validate_json(fixture.read_bytes())
-    assert len(result.entries) == 8
+    assert len(result.entries) == 9
     prepare_public_root(tmp_path)
 
     def files(revision: int) -> tuple[str, dict[str, bytes]]:

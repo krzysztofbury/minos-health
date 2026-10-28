@@ -727,7 +727,13 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             "czs",
             "icd9_companion",
             "aotmit",
+            "eli",
         }
+        assert {
+            entry["dictionary"]: (entry["in_force"], entry["findings"])
+            for entry in entries
+            if entry["channel"] == "eli"
+        } == {"specialties": ("IN_FORCE", []), "discharge_modes": ("IN_FORCE", [])}
         dictionaries = {
             entry["code"]: entry for entry in entries if entry["channel"] == "czs"
         }
@@ -905,6 +911,14 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
                 '{"dictionary":"discharge_modes","findings":["amendment:DU/2026/1500"],"pinned_eli":"DU/2025/1588"}',
             )
         ]
+        amended_entries = cast(
+            list[dict[str, object]], json.loads(nfz_public.read_bytes())["entries"]
+        )
+        assert [
+            entry["findings"]
+            for entry in amended_entries
+            if entry["channel"] == "eli" and entry["dictionary"] == "discharge_modes"
+        ] == [["amendment:DU/2026/1500"]]
         amended_cursor = store.load_source_state("nfz").cursor
         eli_state["html"] = True
         blocked = store.claim_manual("nfz")

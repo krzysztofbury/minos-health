@@ -50,7 +50,7 @@ from minos.ingest.watchers.czs.client import (
 from minos.ingest.watchers.czs.display import fetch_display_version
 from minos.ingest.watchers.eli.client import (
     WATCHED,
-    EliAct,
+    EliResponse,
     EliRetryableError,
     EliSourceError,
     create_eli_client,
@@ -817,31 +817,49 @@ class NfzSourceCollector:
         archived: set[str],
     ) -> None:
         for watched in WATCHED:
-            acts: dict[str, ObservationDraft] = {}
-            answers: list[EliAct] = []
-            for role, eli in (("pinned", watched.pinned), ("base", watched.base)):
+            answers: list[EliResponse] = []
+            digests: list[str] = []
+            for eli in (watched.pinned, watched.base):
                 self._require_deadline(context)
-                answer = fetch_act(client, eli)
-                digest = self._archive(
-                    context, answer.body, "application/json", archived
+                answers.append(fetch_act(client, eli))
+                digests.append(
+                    self._archive(
+                        context, answers[-1].body, "application/json", archived
+                    )
                 )
-                acts[role] = self._observation(
+            pinned, base = answers
+            found = findings(watched, pinned.act, base.act)
+            observation = self._observation(
+                context,
+                "eli_dictionary",
+                pinned.url,
+                digests[0],
+                {
+                    "dictionary": watched.name,
+                    "eli": watched.pinned,
+                    "base_eli": watched.base,
+                    "in_force": pinned.act.inForce,
+                    "findings": cast(list[JsonValue], found),
+                    "base_sha256": digests[1],
+                    "response_headers": cast(dict[str, JsonValue], pinned.headers),
+                },
+                (ObservationBlob("base_act", 0, digests[1]),),
+            )
+            observations.append(observation)
+            observations.append(
+                self._observation(
                     context,
-                    "eli_act",
-                    answer.url,
-                    digest,
+                    "eli_base_act",
+                    base.url,
+                    digests[1],
                     {
                         "dictionary": watched.name,
-                        "role": role,
-                        "eli": eli,
-                        "in_force": answer.act.inForce,
-                        "change_date": answer.act.changeDate,
-                        "response_headers": cast(dict[str, JsonValue], answer.headers),
+                        "eli": watched.base,
+                        "in_force": base.act.inForce,
+                        "response_headers": cast(dict[str, JsonValue], base.headers),
                     },
                 )
-                observations.append(acts[role])
-                answers.append(answer.act)
-            found = findings(watched, answers[0], answers[1])
+            )
             state = _digest(["eli_legal_dictionary", watched.name, list(found)])
             # One review item per distinct set of differences, not one per run.
             if found and known.get(watched.name) != state:
@@ -855,7 +873,7 @@ class NfzSourceCollector:
                                 list(found),
                             ]
                         ),
-                        acts["base"].observation_id,
+                        observation.observation_id,
                         "eli_legal_dictionary",
                         {
                             "dictionary": watched.name,

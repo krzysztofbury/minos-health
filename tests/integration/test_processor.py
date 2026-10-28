@@ -16,7 +16,7 @@ from minos.ingest import processor
 from minos.ingest.archive_build import ArchiveObject, R2BlobReader, source_files
 from minos.ingest.processor import BlobReader
 from minos.ingest.reference_manifest import MAX_ICD11_SOURCE_BYTES, DatasetManifest
-from minos.ingest.watchers.nfz.public_models import Czs, NfzProjection
+from minos.ingest.watchers.nfz.public_models import Czs, Eli, Evidence, NfzProjection
 from minos.ingest.watchers.publication.filesystem import ImmutableGenerationPublisher
 from minos.ingest.watchers.rsk.public_models import (
     RedistributionManifest,
@@ -98,7 +98,7 @@ def _publish(root: Path, source: str, content: bytes) -> None:
     )
 
 
-def _nfz(public: Path, czs: bytes) -> None:
+def _nfz(public: Path, czs: bytes, *extra: Eli) -> None:
     entry = Czs(
         source_url="https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=94",
         sha256=hashlib.sha256(czs).hexdigest(),
@@ -116,7 +116,7 @@ def _nfz(public: Path, czs: bytes) -> None:
         display_evidence=None,
     )
     projection = NfzProjection(
-        through_state_revision=7, observed_at=_OBSERVED, entries=(entry,)
+        through_state_revision=7, observed_at=_OBSERVED, entries=(entry, *extra)
     )
     _publish(public / "nfz", "NFZ", projection.model_dump_json().encode())
 
@@ -315,6 +315,44 @@ def test_inputs_already_live_report_idle_without_any_read(
     assert result == (0, {"version": 1, "verdicts": []})
     assert run.pushes == [("up", "idle")]
     assert run.r2.reads == []
+
+
+@pytest.mark.parametrize(
+    "findings", [(), ("amendment:DU/2026/1500",)], ids=["reviewed", "amended"]
+)
+def test_an_amended_legal_dictionary_holds_the_monitor_down(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], findings: tuple[str, ...]
+) -> None:
+    base, bundle = icd9._live(tmp_path)  # pyright: ignore[reportPrivateUsage]
+    run = _Run(tmp_path, bundle)
+    live_czs = (tmp_path / "blobs/sha256" / base.sources[1].sha256).read_bytes()
+    acts = "https://api.sejm.gov.pl/eli/acts/"
+    eli = Eli(
+        channel="eli",
+        title="Kody trybu wypisu ze szpitala",
+        source_url=acts + "DU/2025/1588",
+        sha256="e" * 64,
+        observed_at=_OBSERVED,
+        dictionary="discharge_modes",
+        eli="DU/2025/1588",
+        base_eli="DU/2019/1207",
+        in_force="IN_FORCE",
+        findings=findings,
+        base_evidence=Evidence(
+            source_url=acts + "DU/2019/1207", sha256="f" * 64, observed_at=_OBSERVED
+        ),
+    )
+    _nfz(run.public, live_czs, eli)
+
+    code, summary = run(capsys)
+
+    expected: dict[str, object] = {"version": 1, "verdicts": []}
+    if findings:
+        expected["manual_eli"] = ["discharge_modes"]
+    assert (code, summary) == (0, expected)
+    assert run.pushes == [
+        ("down", "manual eli discharge_modes") if findings else ("up", "idle")
+    ]
 
 
 def test_new_rsk_product_is_judged_from_its_projection_entry(

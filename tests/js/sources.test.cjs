@@ -35,6 +35,8 @@ test("publisher and format facets inspect source evidence including historical f
   const aotmit = sources.catalogSelection(hits, { ...selection, publisher: "aotmit", format: "pdf" });
   assert.equal(aotmit.length, 1);
   assert.equal(aotmit[0].card.entry.channel, "aotmit");
+  const eli = sources.catalogSelection(hits, { ...selection, publisher: "eli", format: "all" });
+  assert.deepEqual(eli.map(hit => hit.card.entry.dictionary), ["discharge_modes"]);
   assert.equal(sources.catalogSelection(hits, { ...selection, publisher: "who" }).length, 0);
 });
 
@@ -46,7 +48,7 @@ test("observed sort uses timestamps and stable identity ties, not input order", 
 
 test("NFZ channels retain source meaning and support bounded local search", () => {
   const value = sources.validateNfzProjection(cloned(nfzFixture));
-  assert.equal(value.entries.length, 8);
+  assert.equal(value.entries.length, 9);
   assert.equal(value.entries.find(entry => entry.code === "MODTAR").generated_at, "2026-09-24T10:58:10");
   const catalog = sources.buildCatalogIndex(sources.nfzDatasets(value));
   assert.equal(sources.searchCatalog(catalog, "MODTAR 202664", "nfz").hits[0].card.entry.code, "MODTAR");
@@ -69,6 +71,11 @@ test("NFZ rejects private fields, unsafe links, mismatched versions and malforme
     v => { v.entries[1].observed_at = "2026-10-02T10:00:00.000Z"; },
     v => { v.entries.push(v.entries[0]); },
     v => { v.redistribution.artifacts.push("private"); },
+    v => { v.entries[8].findings = ["amendment:<script>"]; },
+    v => { v.entries[8].eli = "DU/2025/1589"; },
+    v => { v.entries[8].base_evidence.source_url = "https://api.sejm.gov.pl/eli/acts/DU/2019/1208"; },
+    v => { v.entries[8].dictionary = "products"; },
+    v => { v.entries.push({ ...v.entries[8], dictionary: "specialties", eli: "DU/2019/173", source_url: "https://api.sejm.gov.pl/eli/acts/DU/2019/173" }, { ...v.entries[8], eli: "DU/2019/174", source_url: "https://api.sejm.gov.pl/eli/acts/DU/2019/174" }); },
   ];
   for (const mutate of mutations) {
     const value = cloned(nfzFixture); mutate(value);

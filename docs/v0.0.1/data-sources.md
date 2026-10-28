@@ -480,7 +480,10 @@ acts. Any difference is one `eli_legal_dictionary` change for review; the pin
 and the manifest change only through a reviewed re-pin. A base act that no
 longer lists the pinned text, or an HTTP 200 that is not ELI JSON (a firewall
 in front of the API answers with an HTML page), stops the run without
-advancing state. These observations stay private and are not published.
+advancing state. The NFZ projection publishes one `eli` entry per dictionary
+(pinned act, base act evidence, in-force status, open findings) for `/zrodla`,
+and the processor pushes `data-update` down with `manual eli <dictionary>`
+while an entry has findings, so the Telegram alert names the dictionary.
 
 ## NFZ Statistics API
 

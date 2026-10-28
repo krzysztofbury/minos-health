@@ -18,7 +18,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - The NFZ watcher reads the Sejm ELI status of the two legal grouping
   dictionaries (ward specialties, discharge modes) on every run and records
   one review change when an amendment, consolidated text or in-force status
-  differs from the reviewed pin; an HTML answer stops the run (#282).
+  differs from the reviewed pin; an HTML answer stops the run. `/zrodla` shows
+  each dictionary's act status and open findings, and the processor reports
+  `manual eli <dictionary>` on the `data-update` monitor until the change is
+  reviewed (#282).
 - Agent operator checks (#279): `AGENTS.md` names the production health and
   release entrypoints and their human gates (a host-changing command runs only
   after the owner approves that exact command in `/permissions`; Ansible,

@@ -39,7 +39,7 @@ from minos.ingest.icd10_candidate import (
     propose_icd10_release,
 )
 from minos.ingest.reference_manifest import DatasetManifest
-from minos.ingest.watchers.nfz.public_models import Companion, Czs, NfzProjection
+from minos.ingest.watchers.nfz.public_models import Companion, Czs, Eli, NfzProjection
 from minos.ingest.watchers.rsk.public_models import (
     MAX_PUBLIC_JSON_BYTES,
     RskProvenanceProjection,
@@ -203,6 +203,26 @@ def manual_jgp(paths: ProcessorPaths) -> tuple[int, ...]:
         ):
             pending.append(document.document_id)
     return tuple(sorted(pending, reverse=True)[:MAX_MANUAL_JGP])
+
+
+def manual_eli(paths: ProcessorPaths) -> tuple[str, ...]:
+    """Legal grouping dictionaries whose Dziennik Ustaw act changed since review.
+
+    The watcher compares each pinned act with its reviewed amendments, so the
+    answer clears once a reviewed re-pin or review update reaches the watcher.
+    """
+    projection = _read_projection(
+        paths.public_directory / "nfz", "api/v1/provenance/nfz.json", NfzProjection
+    )
+    if projection is None:
+        return ()
+    return tuple(
+        sorted(
+            entry.dictionary
+            for entry in projection.entries
+            if isinstance(entry, Eli) and entry.findings
+        )
+    )
 
 
 def manual_icd11(paths: ProcessorPaths) -> str | None:
