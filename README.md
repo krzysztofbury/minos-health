@@ -123,6 +123,8 @@ issue #54 reserved for a future private detailed admin portal. This replaces a
 paid external monitoring SaaS, not the need for monitoring. Because Kuma shares
 the host, it cannot detect or notify for a total Mikr.us host, network, or power
 outage. This limitation is accepted for now.
+`uv run python -m scripts.check_monitoring` reads the same monitors and public
+`/readyz` without credentials, and also reports a Kuma that stopped checking.
 
 The initial service remains anonymous. The accepted later client direction is
 one installable responsive PWA that can synchronize a verified immutable
