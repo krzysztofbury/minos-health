@@ -396,7 +396,7 @@ def group_page(
         "      </div>\n",
         '      <div class="shell code-page jgp-group">\n',
         _values(answer, catalog),
-        _statistics(cast(dict[str, object], answer["statistics"]))
+        statistics_section(cast(dict[str, object], answer["statistics"]))
         if "statistics" in answer
         else "",
         _row_window(code, group, neighbours),
@@ -462,7 +462,7 @@ def _settled_points(ten_thousandths: object, *, unit: bool = True) -> str:
     return f"{whole:,}".replace(",", NBSP) + (f"{NBSP}pkt" if unit else "")
 
 
-def _statistics(statistics: dict[str, object]) -> str:
+def statistics_section(statistics: dict[str, object]) -> str:
     """NFZ settlement figures of the group (#283): statistics, never rules."""
     source = cast(dict[str, str], statistics["source"])
     months = cast(list[dict[str, object]], statistics["months"])
@@ -479,7 +479,10 @@ def _statistics(statistics: dict[str, object]) -> str:
     if not months:
         parts.append("<p>Przypięte raporty NFZ nie wykazują rozliczeń tej grupy.</p>")
     if mature["months"]:
-        window = f"{_month_pl(mature['from'])} do {_month_pl(mature['to'])}"
+        window = (
+            f"od {_month_pl(mature['from'])} do {_month_pl(mature['to'])}"
+            + f" ({mature['months']} mies.)"
+        )
         parts.append(
             '<dl class="detail-facts">'
             + f"<div><dt>Hospitalizacje, {window}</dt>"
@@ -513,8 +516,9 @@ def _statistics(statistics: dict[str, object]) -> str:
         parts.append(
             "<details><summary>Miesiące</summary>"
             + '<p class="jgp-note">Każdy miesiąc z najnowszego raportu, który go '
-            + "obejmuje. Dane wstępne: raport sprzed 12 miesięcy od miesiąca, NFZ "
-            + "uzupełnia je jeszcze o późne rozliczenia.</p>"
+            + "obejmuje; grupa nieobecna w tym raporcie nie miała w tym miesiącu "
+            + "rozliczeń. Dane wstępne: raport wydany mniej niż 12 miesięcy po "
+            + "miesiącu, NFZ uzupełnia je jeszcze o późne rozliczenia.</p>"
             + '<div class="table-scroll"><table class="jgp-statistics-months"><thead><tr><th>Miesiąc</th>'
             + "<th>Hospitalizacje</th><th>Punkty (pkt)</th><th>Raport</th></tr></thead>"
             + f"<tbody>{rows}</tbody></table></div></details>"

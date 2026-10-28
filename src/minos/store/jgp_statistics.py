@@ -7,6 +7,7 @@ from typing import cast
 
 from minos.domain.reference import ArtifactError
 from minos.ingest.archive_source import verified_source
+from minos.ingest.jgp_statistics import AGES, LEVELS, month_before
 from minos.ingest.jgp_statistics_extract import read_extract
 from minos.ingest.jgp_statistics_manifest import JgpStatistics
 from minos.store.artifact import canonical_json
@@ -98,7 +99,8 @@ def validate_jgp_statistics_binding(
 # A figure this many months older than its report is taken as settled; later
 # reports revise younger months as late settlements arrive (#283).
 MATURE_MONTHS = 12
-_MAX_ROWS = 2_000
+# At most 36 pinned reports, each with three months for eight hospital levels.
+_MAX_ROWS = 36 * len(AGES) * len(LEVELS)
 
 
 def _months_between(earlier: str, later: str) -> int:
@@ -116,7 +118,11 @@ def _range(exact: int, suppressed: int) -> dict[str, int]:
 def group_statistics(connection: sqlite3.Connection, code: str) -> Json | None:
     """Monthly NFZ settlement figures of one group, or None before schema 12.
 
-    Each month comes from the newest pinned report that reports it.
+    A report covers its month, the previous month and the same month a year
+    earlier, and lists a group only where it was settled. So every covered
+    month comes from the newest report that covers it, and a group absent
+    from that report had no settlements in that month: zero, not an older
+    figure. The figures do not depend on a service date.
     """
     with query_budget(connection):
         version = cast(tuple[int], connection.execute("PRAGMA user_version").fetchone())
@@ -130,47 +136,54 @@ def group_statistics(connection: sqlite3.Connection, code: str) -> Json | None:
         )
         if release is None:
             return None
-        rows = cast(
-            list[tuple[str, str, str, int | None, int, int | None, str]],
+        reports = cast(
+            list[tuple[str, str]],
             connection.execute(
-                """SELECT s.month, s.report_month, s.hospital_level,
-                s.hospitalizations, s.suppressed, s.points_ten_thousandths,
-                r.published_on
-                FROM jgp_group_statistic AS s
-                JOIN jgp_statistics_report AS r
-                  ON r.release_id = s.release_id AND r.report_month = s.report_month
-                WHERE s.release_id = ? AND s.code = ?
-                ORDER BY s.month, s.report_month, s.hospital_level LIMIT ?""",
+                """SELECT report_month, published_on FROM jgp_statistics_report
+                WHERE release_id = ? ORDER BY report_month LIMIT 37""",
+                (release[0],),
+            ).fetchall(),
+        )
+        rows = cast(
+            list[tuple[str, str, str, int | None, int, int | None]],
+            connection.execute(
+                """SELECT month, report_month, hospital_level, hospitalizations,
+                suppressed, points_ten_thousandths FROM jgp_group_statistic
+                WHERE release_id = ? AND code = ? LIMIT ?""",
                 (release[0], code, _MAX_ROWS + 1),
             ).fetchall(),
         )
-    if len(rows) > _MAX_ROWS:
+    if len(rows) > _MAX_ROWS or len(reports) > 36:
         raise ArtifactError("JGP statistics rows exceed their bound")
-    newest: dict[str, str] = {}
-    for month, report_month, *_ in rows:
-        newest[month] = max(newest.get(month, report_month), report_month)
-    selected = [row for row in rows if newest[row[0]] == row[1]]
+    published = dict(reports)
+    # The newest report that covers each month, whatever the group's rows say.
+    covering: dict[str, str] = {}
+    for report_month in published:
+        for age in AGES:
+            month = month_before(report_month, age)
+            covering[month] = max(covering.get(month, report_month), report_month)
+    chosen = [row for row in rows if covering.get(row[0]) == row[1]]
     months: list[Json] = []
-    for month in sorted(newest):
-        cells = [row for row in selected if row[0] == month]
-        exact = sum(row[3] or 0 for row in cells)
-        suppressed = sum(row[4] for row in cells)
-        points = [row[5] for row in cells if row[5] is not None]
-        age = _months_between(month, newest[month])
-        months.append(
-            {
-                "month": month,
-                "report_month": newest[month],
-                "published_on": cells[0][6],
-                "provisional": age < MATURE_MONTHS,
-                "hospitalizations": _range(exact, suppressed),
-                "points_ten_thousandths": sum(points) if points else None,
-            }
-        )
+    if rows:
+        for month in sorted(covering):
+            cells = [row for row in chosen if row[0] == month]
+            report_month = covering[month]
+            months.append(
+                {
+                    "month": month,
+                    "report_month": report_month,
+                    "published_on": published[report_month],
+                    "provisional": _months_between(month, report_month) < MATURE_MONTHS,
+                    "hospitalizations": _range(
+                        sum(row[3] or 0 for row in cells), sum(row[4] for row in cells)
+                    ),
+                    "points_ten_thousandths": sum(row[5] or 0 for row in cells),
+                }
+            )
     mature = [item for item in months if not item["provisional"]][-12:]
     window = {cast(str, item["month"]) for item in mature}
     levels: dict[str, list[int]] = {}
-    for month, _report, level, count, hidden, settled, _published in selected:
+    for month, _report, level, count, hidden, settled in chosen:
         if month in window:
             totals = levels.setdefault(level, [0, 0, 0])
             totals[0] += count or 0
