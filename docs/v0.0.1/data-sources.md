@@ -517,6 +517,39 @@ The CeZ `dane.gov.pl` dataset `27`, Rejestr Systemów Kodowania, is also a stale
 two-file publication. Its `CC BY 4.0` dataset label and portal verification
 timestamp do not establish the currency or licensing of current RSK resources.
 
+## NFZ Monthly JGP Reports (#283)
+
+`dane.gov.pl` dataset `2581` publishes one SpreadsheetML report per reporting
+month (`raport_SZP_i_kardiologia_<year>_<month>.xml`, about 57 MB, `CC0 1.0`).
+`src/minos/ingest/jgp_statistics.py` reads two of its nine tables; the others
+name providers and are not read:
+
+- Table 2: hospitalizations and settled points (the table title says "liczba
+  punktów"; points, not złoty) per JGP group code and hospital level (PSZ
+  level).
+- Table 4: count, mean length of stay and mean patient age per JGP section,
+  admission mode (planned or not) and stay character (procedural or
+  conservative).
+
+Each table reports three months: the reporting month, the previous month and
+the same month a year earlier. A figure keeps its age at the report (0, 1 or
+12 months), because NFZ revises recent months as late settlements arrive: July
+2026 per group and hospital level matched in 731 cells between the July and
+August reports and differed in 3,288 (D02 at national hospitals 112 against
+251). Counts below five are suppressed as `<5`, kept as a bound of one to four
+and never merged with an empty cell, which means no figure. Points are stored
+as integer hundredths and mean values as fixed decimals, so a rebuild gives the
+same bytes. The parser refuses bytes that differ from the pin, a header or
+month label that differs from the reviewed layout, a title that no longer
+names points, an unknown hospital level, a repeated row, non-integer counts,
+negative values and DTDs, and checks the reviewed row counts.
+
+The annual dataset `3009` is not used for counts: at its granularity 94.5% of
+2025 cells are suppressed, so a group's national count spans a range about 3.7
+times wide. In August 2026, 734 of 740 reported group codes were groups of the
+catalog in force and the other six were groups of earlier Minos catalog
+releases.
+
 ## AOTMiT Tariff Signals
 
 <https://bip.aotm.gov.pl/taryfikacja-swiadczen/860-taryfikacja-obwieszczenia>
