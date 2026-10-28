@@ -6,6 +6,7 @@ late settlements arrive, so a figure is only as final as its age at the report.
 """
 
 import re
+from datetime import date
 from typing import Annotated, ClassVar, Literal, Self
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
@@ -27,6 +28,8 @@ class MonthlyReport(BaseModel):
     month: Month
     resource_id: int = Field(ge=1, le=100_000_000)
     source_url: Annotated[str, Field(max_length=256)]
+    # dane.gov.pl data date: a report published months later is more complete.
+    published_on: date
     sha256: Digest
     size_bytes: int = Field(ge=1, le=128 * 1024 * 1024)
     fetched_at: AwareDatetime
@@ -41,6 +44,8 @@ class MonthlyReport(BaseModel):
             raise ValueError("monthly report URL is not a dane.gov.pl report")
         if f"{match.group(1)}-{int(match.group(2)):02d}" != self.month:
             raise ValueError("monthly report URL names another month")
+        if self.published_on.isoformat()[:7] <= self.month:
+            raise ValueError("monthly report is published after its month")
         return self
 
 

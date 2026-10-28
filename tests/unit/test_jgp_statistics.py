@@ -1,7 +1,7 @@
 import hashlib
 import io
 import json
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pytest
@@ -30,6 +30,7 @@ def _pin(content: bytes, **changes: object) -> MonthlyReport:
             "month": "2026-08",
             "resource_id": 2834329,
             "source_url": URL,
+            "published_on": date(2026, 10, 20),
             "sha256": hashlib.sha256(content).hexdigest(),
             "size_bytes": len(content),
             "fetched_at": datetime(2026, 10, 28, tzinfo=UTC),
@@ -186,6 +187,7 @@ def test_a_january_report_spans_the_year_boundary() -> None:
         content,
         month="2027-01",
         source_url=URL.replace("2026_8.xml", "2027_1.xml"),
+        published_on=date(2027, 3, 1),
     )
     assert sorted({(item.month, item.age_months) for item in figures.groups}) == [
         ("2026-01", 12),
@@ -198,6 +200,8 @@ def test_manifest_binds_url_month_and_order() -> None:
     content = EXCERPT.read_bytes()
     with pytest.raises(ValidationError, match="another month"):
         _ = _pin(content, month="2026-07")
+    with pytest.raises(ValidationError, match="published after its month"):
+        _ = _pin(content, published_on=date(2026, 8, 31))
     report = _pin(content)
     july = _pin(content, month="2026-07", source_url=URL.replace("_8.xml", "_7.xml"))
     base: dict[str, object] = {
