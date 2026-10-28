@@ -396,6 +396,9 @@ def group_page(
         "      </div>\n",
         '      <div class="shell code-page jgp-group">\n',
         _values(answer, catalog),
+        statistics_section(cast(dict[str, object], answer["statistics"]))
+        if "statistics" in answer
+        else "",
         _row_window(code, group, neighbours),
         _scopes(cast(list[dict[str, object]], answer["scopes"])),
         _notes(cast(str | None, group["notes"])),
@@ -437,6 +440,91 @@ def _values(answer: dict[str, object], catalog: str) -> str:
         + f'<p class="jgp-note">{_e(modifiers_note(ruleset))}</p>'
         + f'<dl class="detail-facts">{"".join(rows)}</dl></section>\n'
     )
+
+
+def _month_pl(month: object) -> str:
+    text = cast(str, month)
+    return f"{text[5:]}.{text[:4]}"
+
+
+def _count_pl(value: object) -> str:
+    """A count, or the range a suppressed NFZ cell leaves (one to four each)."""
+    bounds = cast(dict[str, int], value)
+    low, high = (f"{bounds[key]:,}".replace(",", NBSP) for key in ("min", "max"))
+    return low if low == high else f"od {low} do {high}"
+
+
+def _settled_points(ten_thousandths: object, *, unit: bool = True) -> str:
+    # Whole points: the figures are statistics, and they fit a phone column.
+    if ten_thousandths is None:
+        return "brak danych"
+    whole = (cast(int, ten_thousandths) + 5_000) // 10_000
+    return f"{whole:,}".replace(",", NBSP) + (f"{NBSP}pkt" if unit else "")
+
+
+def statistics_section(statistics: dict[str, object]) -> str:
+    """NFZ settlement figures of the group (#283): statistics, never rules."""
+    source = cast(dict[str, str], statistics["source"])
+    months = cast(list[dict[str, object]], statistics["months"])
+    mature = cast(dict[str, object], statistics["mature"])
+    note = (
+        "Statystyka rozliczonych hospitalizacji z miesięcznych raportów NFZ "
+        + f'(<a href="{_e(source["dataset"])}">dane.gov.pl</a>, licencja '
+        + f"{_e(source['license'])}). To nie reguła grupowania: punkty rozliczone "
+        + "według NFZ, nie punkty bazowe katalogu. NFZ ukrywa liczby mniejsze niż 5, "
+        + "dlatego część wartości to przedziały."
+    )
+    parts = ['        <section class="detail-notes jgp-statistics">',
+             "<h2>Rozliczenia NFZ</h2>", f'<p class="jgp-note">{note}</p>']  # fmt: skip
+    if not months:
+        parts.append("<p>Przypięte raporty NFZ nie wykazują rozliczeń tej grupy.</p>")
+    if mature["months"]:
+        window = (
+            f"od {_month_pl(mature['from'])} do {_month_pl(mature['to'])}"
+            + f" ({mature['months']} mies.)"
+        )
+        parts.append(
+            '<dl class="detail-facts">'
+            + f"<div><dt>Hospitalizacje, {window}</dt>"
+            + f"<dd>{_count_pl(mature['hospitalizations'])}</dd></div>"
+            + "<div><dt>Punkty rozliczone</dt>"
+            + f"<dd>{_settled_points(mature['points_ten_thousandths'])}</dd></div>"
+            + "</dl>"
+        )
+        rows = "".join(
+            f"<tr><td>{_e(level['hospital_level'])}</td>"
+            + f"<td>{_count_pl(level['hospitalizations'])}</td>"
+            + f"<td>{_settled_points(level['points_ten_thousandths'], unit=False)}</td></tr>"
+            for level in cast(list[dict[str, object]], mature["levels"])
+        )
+        parts.append(
+            '<div class="table-scroll"><table class="jgp-statistics-levels"><caption>Według poziomu szpitala '
+            + f"(PSZ), {window}</caption><thead><tr><th>Poziom</th>"
+            + "<th>Hospitalizacje</th><th>Punkty (pkt)</th></tr></thead>"
+            + f"<tbody>{rows}</tbody></table></div>"
+        )
+    if months:
+        rows = "".join(
+            f"<tr><td>{_month_pl(item['month'])}</td>"
+            + f"<td>{_count_pl(item['hospitalizations'])}</td>"
+            + f"<td>{_settled_points(item['points_ten_thousandths'], unit=False)}</td>"
+            + f"<td>{_month_pl(item['report_month'])}"
+            + (" (dane wstępne)" if item["provisional"] else "")
+            + "</td></tr>"
+            for item in reversed(months)
+        )
+        parts.append(
+            "<details><summary>Miesiące</summary>"
+            + '<p class="jgp-note">Każdy miesiąc z najnowszego raportu, który go '
+            + "obejmuje; grupa nieobecna w tym raporcie nie miała w tym miesiącu "
+            + "rozliczeń. Dane wstępne: raport wydany mniej niż 12 miesięcy po "
+            + "miesiącu, NFZ uzupełnia je jeszcze o późne rozliczenia.</p>"
+            + '<div class="table-scroll"><table class="jgp-statistics-months"><thead><tr><th>Miesiąc</th>'
+            + "<th>Hospitalizacje</th><th>Punkty (pkt)</th><th>Raport</th></tr></thead>"
+            + f"<tbody>{rows}</tbody></table></div></details>"
+        )
+    parts.append("</section>\n")
+    return "".join(parts)
 
 
 def _row_window(

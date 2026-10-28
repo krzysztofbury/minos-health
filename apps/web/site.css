@@ -673,6 +673,12 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .compare-change td { font-variant-numeric: tabular-nums; }
 .compare-sides section, .compare-provenance code { overflow-wrap: anywhere; min-width: 0; }
 .compare-provenance { margin: 2rem 0; }
+.jgp-statistics .table-scroll { overflow-x: auto; }
+.jgp-statistics table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+.jgp-statistics th, .jgp-statistics td { text-align: left; padding: .5rem; border-bottom: 1px solid var(--line, #ccc); }
+.jgp-statistics td { font-variant-numeric: tabular-nums; }
+.jgp-statistics caption { text-align: left; font-weight: 600; }
+.jgp-statistics summary { cursor: pointer; margin-top: 1rem; }
 @media (max-width: 640px) {
   .compare-controls, .compare-sides { grid-template-columns: 1fr; }
   .compare-change { padding: .75rem; }
@@ -681,4 +687,5 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
   .compare-change th { overflow-wrap: anywhere; }
   .compare-change td { overflow-wrap: normal; }
   .compare-change th:first-child { width: 42%; }
+  .jgp-statistics th, .jgp-statistics td { padding: .35rem; font-size: .875rem; }
 }

@@ -15,6 +15,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- JGP group pages, `GET /api/v1/jgp/{service_date}/groups/{code}` and the
+  `get_jgp_group` MCP tool show NFZ monthly settlement statistics: monthly
+  hospitalizations and settled points from the newest report for each
+  month, provisional months marked, and the latest twelve settled months
+  per hospital level (#283).
 - A bounded parser for the NFZ monthly JGP reports (`dane.gov.pl` dataset
   2581): per-group hospitalizations and settled points and per-section
   stay and age figures, each with its month and its age at the report,

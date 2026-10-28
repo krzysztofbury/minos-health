@@ -159,7 +159,20 @@ global and to give group pages shareable URLs.
   horizon, release identity, act number, BAW document, publication, service
   evidence, workbook checksum, the explicit unbound modifier state), the group
   (product code, name, procedural flag, chapter, notes, source row and its own
-  applicability window and evidence), base values and scope markers.
+  applicability window and evidence), base values and scope markers. A
+  schema 12 bundle adds `statistics` (#283): NFZ monthly settlement figures of
+  the group, not rules, and the same for every service date. A report covers
+  its month, the previous month and the same month a year earlier, and lists
+  a group only where it was settled, so every covered month comes from the
+  newest report that covers it (`report_month`, `published_on`), and a group
+  absent from that report counts zero for that month. `provisional` marks a
+  report less than 12 months after the month. `hospitalizations` is a
+  `min`/`max` range because NFZ suppresses counts below five (one to four
+  each); `points_ten_thousandths` is the settled points NFZ reports, not
+  catalog base points. `mature` totals the latest twelve settled calendar
+  months (`months` says how many), overall and per hospital level. A group
+  never settled in the pinned reports has `months: []`; older bundles have no
+  `statistics`.
 - `GET /api/v1/jgp/{service_date}/sections` lists every chapter of the
   governing release per catalog with the number of groups applying on the
   date (possibly 0).

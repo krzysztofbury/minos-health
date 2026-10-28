@@ -6,15 +6,21 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from minos.domain.reference import ArtifactError
+from minos.http.app import create_app
+from minos.http.jgp_pages import statistics_section
 from minos.ingest.jgp_statistics import parse_report
 from minos.ingest.jgp_statistics_extract import write_extract
 from minos.ingest.jgp_statistics_manifest import ReportPin
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
-from minos.store.jgp_statistics import validate_jgp_statistics_binding
+from minos.store.jgp_statistics import (
+    group_statistics,
+    validate_jgp_statistics_binding,
+)
 from minos.store.reference import read_artifact_manifest
 from tests.integration.test_icd11_reference import icd11_bundle
 
@@ -206,3 +212,105 @@ def test_the_schema_refuses_rows_the_parser_never_writes(
             )
     finally:
         connection.close()
+
+
+# Coverage by hand: report R covers R, R-1 and R-12 (#283), independent of the
+# reader. Each month's figure comes from the newest report in this table.
+COVERING = {
+    "2025-07": "2026-07",
+    "2025-08": "2026-08",
+    "2026-06": "2026-07",
+    "2026-07": "2026-08",
+    "2026-08": "2026-08",
+}
+
+
+@pytest.mark.parametrize("code", ["N01", "A22"])
+def test_each_covered_month_comes_from_its_newest_report(
+    built: tuple[Path, Path], code: str
+) -> None:
+    connection = sqlite3.connect(f"file:{built[0] / 'minos.db'}?mode=ro", uri=True)
+    try:
+        statistics = group_statistics(connection, code)
+        expected = {
+            month: cast(
+                tuple[int, int],
+                connection.execute(
+                    """SELECT coalesce(sum(hospitalizations), 0)
+                    + coalesce(sum(suppressed), 0),
+                    coalesce(sum(points_ten_thousandths), 0)
+                    FROM jgp_group_statistic
+                    WHERE code = ? AND month = ? AND report_month = ?""",
+                    (code, month, report),
+                ).fetchone(),
+            )
+            for month, report in COVERING.items()
+        }
+    finally:
+        connection.close()
+    assert statistics is not None
+    months = cast(list[dict[str, object]], statistics["months"])
+    # July and August 2025 come from reports a year later: settled. The 2026
+    # months come from reports at most a month later: provisional.
+    assert [
+        (item["month"], item["report_month"], item["provisional"]) for item in months
+    ] == [
+        (month, report, not month.startswith("2025"))
+        for month, report in COVERING.items()
+    ]
+    assert {
+        cast(str, item["month"]): (
+            cast(dict[str, int], item["hospitalizations"])["min"],
+            item["points_ten_thousandths"],
+        )
+        for item in months
+    } == expected
+    if code == "A22":
+        # No A22 row in the August report for August 2026: a zero, never an
+        # older figure.
+        assert expected["2026-08"] == (0, 0)
+    mature = cast(dict[str, object], statistics["mature"])
+    assert (mature["from"], mature["to"], mature["months"]) == ("2025-07", "2025-08", 2)
+
+
+def test_the_page_panel_names_its_window_and_provisional_months(
+    built: tuple[Path, Path],
+) -> None:
+    connection = sqlite3.connect(f"file:{built[0] / 'minos.db'}?mode=ro", uri=True)
+    try:
+        statistics = group_statistics(connection, "N01")
+    finally:
+        connection.close()
+    assert statistics is not None
+    html = statistics_section(statistics)
+    assert "od 07.2025 do 08.2025 (2 mies.)" in html
+    assert html.count("(dane wstępne)") == 3
+    assert "punkty rozliczone według NFZ, nie punkty bazowe katalogu" in html
+
+
+def test_a_schema_11_bundle_has_no_statistics(tmp_path: Path) -> None:
+    with TestClient(create_app(icd11_bundle(tmp_path))) as client:
+        answer = cast(
+            dict[str, object], client.get("/api/v1/jgp/2026-07-01/groups/A01").json()
+        )
+    assert "group" in answer and "statistics" not in answer
+
+
+def test_a_group_without_settlements_says_so_on_api_and_page(
+    built: tuple[Path, Path],
+) -> None:
+    with TestClient(create_app(built[0])) as client:
+        answer = cast(
+            dict[str, dict[str, object]],
+            client.get("/api/v1/jgp/2026-07-01/groups/A01").json(),
+        )
+        page = client.get("/jgp/2026-07-01/A01").text
+    assert answer["statistics"]["months"] == []
+    assert answer["statistics"]["source"] == {
+        "dataset": "https://dane.gov.pl/pl/dataset/2581",
+        "publisher": "Narodowy Fundusz Zdrowia",
+        "license": "CC0 1.0",
+        "release_id": "jgp-statistics-excerpt",
+    }
+    assert "Rozliczenia NFZ" in page
+    assert "nie wykazują rozliczeń tej grupy" in page

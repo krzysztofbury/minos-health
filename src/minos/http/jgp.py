@@ -43,6 +43,7 @@ from minos.store.jgp_ruleset import (
     points_display,
     resolve_ruleset,
 )
+from minos.store.jgp_statistics import group_statistics
 
 SERVICE_DATE_REGEX = r"20[0-9]{2}-[0-9]{2}-[0-9]{2}"
 POSITION_REGEX = r"[1-9][0-9]{0,2}"
@@ -78,6 +79,14 @@ def with_display(answer: dict[str, object]) -> dict[str, object]:
             else str(amount)
         )
     return answer
+
+
+def with_statistics(
+    connection: sqlite3.Connection, code: str, answer: dict[str, object]
+) -> dict[str, object]:
+    """Add NFZ settlement statistics (#283); bundles before schema 12 have none."""
+    statistics = group_statistics(connection, code)
+    return answer if statistics is None else {**answer, "statistics": statistics}
 
 
 def register_jgp_routes(
@@ -127,17 +136,21 @@ def register_jgp_routes(
             return failure(404, "not_found")
         return jgp_answer(
             service_date,
-            lambda connection, ruleset: with_display(
-                reference_group(
-                    connection,
-                    ruleset,
-                    code,
-                    available=bool(
-                        cast(
-                            ReferencePool, app.state.pool
-                        ).manifest.dataset.characteristics
-                    ),
-                )
+            lambda connection, ruleset: with_statistics(
+                connection,
+                code,
+                with_display(
+                    reference_group(
+                        connection,
+                        ruleset,
+                        code,
+                        available=bool(
+                            cast(
+                                ReferencePool, app.state.pool
+                            ).manifest.dataset.characteristics
+                        ),
+                    )
+                ),
             ),
         )
 
@@ -369,7 +382,9 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
                 ),
             )
             neighbours = verified_neighbours(connection, code, answer)
-            return group_page(answer, calendar, neighbours)
+            return group_page(
+                with_statistics(connection, code, answer), calendar, neighbours
+            )
 
         return render(service_date, code, page)
 
