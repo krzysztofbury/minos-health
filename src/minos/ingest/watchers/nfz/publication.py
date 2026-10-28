@@ -26,6 +26,8 @@ _IGNORED = frozenset(
         "nfz_jgp_listing",
         "nfz_icd9_companion_page",
         "aotmit_listing",
+        # Internal review signal; the public dictionaries cite their own pins.
+        "eli_act",
     }
 )
 _KINDS = frozenset(
