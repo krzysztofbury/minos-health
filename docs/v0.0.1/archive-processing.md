@@ -293,6 +293,10 @@ One run:
    digest, are compared; the PDFs are ignored. It is silent while the live
    bundle has no ICD-11, and clears on the first run after a reviewed release
    pins the new files.
+7. Reports legal grouping dictionaries that wait for review (#282). An `eli`
+   entry of the NFZ projection with findings pushes `data-update` down with
+   `manual eli <dictionary>`; it clears once the watcher's reviewed sets or a
+   re-pin cover the change.
 
 Judging activates nothing; [phase C](#data-only-activation-141-phase-c) does,
 for allowlisted classes. Every live input must be in R2: release bundles are built

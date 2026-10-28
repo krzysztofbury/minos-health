@@ -21,10 +21,10 @@
   var TIMESTAMP_PATTERN = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,6}))?Z$/;
   var CONTROL_PATTERN = /\p{C}/u;
   var state = { rsk: null, baw: null, nfz: null, source: "all", publisher: "all", format: "all", sort: "relevance", page: 1, query: "", errors: [], cards: [], catalog: null, sourcePages: false };
-  var PUBLISHERS = { nfz: "Narodowy Fundusz Zdrowia", "who-pl": "Biuro Światowej Organizacji Zdrowia w Polsce", who: "World Health Organization", ec: "Komisja Europejska", snomed: "SNOMED International", aotmit: "AOTMiT", other: "Pozostali / niepodani" };
+  var PUBLISHERS = { nfz: "Narodowy Fundusz Zdrowia", "who-pl": "Biuro Światowej Organizacji Zdrowia w Polsce", who: "World Health Organization", ec: "Komisja Europejska", snomed: "SNOMED International", aotmit: "AOTMiT", eli: "Dziennik Ustaw (Sejm ELI)", other: "Pozostali / niepodani" };
   var FORMATS = ["xml", "xlsx", "xls", "pdf", "docx", "doc", "zip", "zipx", "html", "other"];
   var PAGE_SIZE = 50;
-  var NFZ_CHANNELS = { order: "Publikacja zarządzenia NFZ", news: "Aktualności NFZ", project: "Projekt zarządzenia", jgp: "Komunikaty JGP", czs: "Słowniki CZS NFZ", icd9_companion: "Plik ICD-9 PL NFZ", aotmit: "AOTMiT - sygnał taryfikacji" };
+  var NFZ_CHANNELS = { order: "Publikacja zarządzenia NFZ", news: "Aktualności NFZ", project: "Projekt zarządzenia", jgp: "Komunikaty JGP", czs: "Słowniki CZS NFZ", icd9_companion: "Plik ICD-9 PL NFZ", aotmit: "AOTMiT - sygnał taryfikacji", eli: "Dziennik Ustaw - słownik grupera" };
   var BAW_ROLES = { 1: "Akt pierwotny", 3: "Tekst po zmianach", 4: "Porównanie zmian", 5: "Skrócone porównanie zmian", 6: "Akt zmieniający" };
 
   function fail(label) { throw new Error("Nieprawidłowe dane: " + label + "."); }
@@ -236,11 +236,31 @@
       czs: /^https:\/\/slowniki\.nfz\.gov\.pl\/WersjeSlownikow\/PobierzXml\?kodSlownika=(ICD9|MODTAR)&nrGen=[1-9][0-9]{0,5}$/,
       display: /^https:\/\/slowniki\.nfz\.gov\.pl\/WersjeSlownikow\/Index\/[1-9][0-9]{0,9}\?kod=MODTAR$/,
       aotmit: /^https:\/\/bip\.aotm\.gov\.pl\/assets\/files\/taryfikacja\/taryfy\/obwieszczenia\/20[0-9]{2}\/[\p{L}\p{N}_ .%-]{3,180}\.pdf$/u,
+      eli: /^https:\/\/api\.sejm\.gov\.pl\/eli\/acts\/DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}$/,
     }[channel];
     if (!pattern || !pattern.test(value)) fail("adres NFZ");
     var filename;
     try { filename = decodeURIComponent(value.split("?")[0].split("/").pop()); } catch (_error) { fail("adres NFZ"); }
     if (/\.\.|[\\/%?#]/.test(filename) || CONTROL_PATTERN.test(filename)) fail("ścieżka NFZ");
+  }
+  var ELI_ACTS = "https://api.sejm.gov.pl/eli/acts/";
+  var ELI_PATTERN = /^DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}$/;
+  var ELI_FINDING_PATTERN = /^((amendment|consolidated_text|reference_removed):DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}|(repeal|correction|tribunal):(pinned|base):(DU|MP)\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}|not_in_force:(pinned|base):[A-Z_]{1,32})$/;
+  var ELI_FINDINGS = { amendment: "nowa zmiana aktu", consolidated_text: "nowy tekst jednolity", reference_removed: "usunięte powiązanie", not_in_force: "akt nie obowiązuje", repeal: "uchylenie", correction: "sprostowanie", tribunal: "orzeczenie TK" };
+  function eliAddress(eli) {
+    var parts = eli.split("/");
+    return "Dz.U. " + parts[1] + " poz. " + parts[2];
+  }
+  function isapUrl(eli) {
+    var parts = eli.split("/");
+    return "https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU" + parts[1] + parts[2].padStart(7, "0");
+  }
+  function eliFinding(item) {
+    var parts = item.split(":");
+    if (parts[0] === "not_in_force") return ELI_FINDINGS[parts[0]] + ": " + parts[2];
+    var act = parts.length === 3 ? parts[2] : parts[1];
+    var address = (act.startsWith("MP/") ? "M.P. " + act.split("/")[1] + " poz. " + act.split("/")[2] : eliAddress(act));
+    return ELI_FINDINGS[parts[0]] + ": " + address + (parts.length === 3 ? (parts[1] === "base" ? " (akt bazowy)" : " (tekst jednolity)") : "");
   }
   function expectNfzEvidence(value, channel, fence) {
     expectNfzUrl(value.source_url, channel);
@@ -258,7 +278,7 @@
     if (value.redistribution.schema_version !== 1) fail("redystrybucja NFZ");
     expectArray(value.redistribution.artifacts, "artefakty NFZ", 0, 0);
     expectArray(value.entries, "publikacje NFZ", 0, 256);
-    var fields = { order: ["act_number", "baw_document_id", "published_date"], news: ["item_id", "published_date", "files"], project: ["item_id", "published_date", "files"], jgp: ["item_id", "published_date", "files"], czs: ["code", "generation", "generated_at", "year", "grouper_type", "version", "published_date", "publisher_valid_from", "display_evidence"], icd9_companion: ["version", "czs_xml_sha256"], aotmit: ["meaning", "published_date"] };
+    var fields = { order: ["act_number", "baw_document_id", "published_date"], news: ["item_id", "published_date", "files"], project: ["item_id", "published_date", "files"], jgp: ["item_id", "published_date", "files"], czs: ["code", "generation", "generated_at", "year", "grouper_type", "version", "published_date", "publisher_valid_from", "display_evidence"], icd9_companion: ["version", "czs_xml_sha256"], aotmit: ["meaning", "published_date"], eli: ["dictionary", "eli", "base_eli", "in_force", "findings", "base_evidence"] };
     var counts = {}, ids = new Set(), codes = new Set();
     value.entries.forEach(function (entry) {
       if (!Object.hasOwn(fields, entry.channel)) fail("kanał NFZ");
@@ -313,9 +333,19 @@
       } else if (entry.channel === "icd9_companion") {
         expectPattern(entry.version, /^[1-9][0-9]{0,2}\.[0-9]{1,3}$/, "wersja ICD9", 7);
         expectPattern(entry.czs_xml_sha256, DIGEST_PATTERN, "suma XML CZS", 64);
+      } else if (entry.channel === "eli") {
+        if (!["specialties", "discharge_modes"].includes(entry.dictionary)) fail("słownik ELI");
+        expectPattern(entry.eli, ELI_PATTERN, "akt ELI", 16);
+        expectPattern(entry.base_eli, ELI_PATTERN, "akt bazowy ELI", 16);
+        expectPattern(entry.in_force, /^[A-Z_]{1,32}$/, "status ELI", 32);
+        expectArray(entry.findings, "zmiany ELI", 0, 32);
+        entry.findings.forEach(function (item) { expectPattern(item, ELI_FINDING_PATTERN, "zmiana ELI", 64); });
+        expectKeys(entry.base_evidence, ["source_url", "sha256", "observed_at"], "akt bazowy ELI");
+        expectNfzEvidence(entry.base_evidence, "eli", value.observed_at);
+        if (entry.source_url !== ELI_ACTS + entry.eli || entry.base_evidence.source_url !== ELI_ACTS + entry.base_eli) fail("adres ELI");
       } else if (entry.meaning !== "leading_indicator") fail("znaczenie AOTMiT");
     });
-    Object.entries({ order: 32, news: 64, project: 64, jgp: 4, czs: 2, icd9_companion: 1, aotmit: 12 }).forEach(function (pair) { if ((counts[pair[0]] || 0) > pair[1]) fail("liczba publikacji NFZ"); });
+    Object.entries({ order: 32, news: 64, project: 64, jgp: 4, czs: 2, icd9_companion: 1, aotmit: 12, eli: 2 }).forEach(function (pair) { if ((counts[pair[0]] || 0) > pair[1]) fail("liczba publikacji NFZ"); });
     value.entries.filter(function (entry) { return entry.channel === "icd9_companion"; }).forEach(function (entry) {
       var dictionary = value.entries.find(function (item) { return item.channel === "czs" && item.code === "ICD9"; });
       if (!dictionary || dictionary.sha256 !== entry.czs_xml_sha256 || dictionary.version !== entry.version) fail("powiązanie ICD9");
@@ -562,11 +592,16 @@
         fact(facts, "Ważny od wg wydawcy", formatDate(entry.publisher_valid_from));
       }
     }
+    if (entry.channel === "eli") {
+      fact(facts, "Akt", eliAddress(entry.eli) + " (tekst jednolity " + eliAddress(entry.base_eli) + ")");
+      fact(facts, "Status wg Sejm ELI", entry.in_force === "IN_FORCE" ? "obowiązuje" : entry.in_force);
+      fact(facts, "Zmiany od przeglądu", entry.findings.length ? entry.findings.map(eliFinding).join("; ") : "brak");
+    }
     article.append(facts);
-    var notice = entry.channel === "project" ? "Projekt, nie obowiązująca reguła rozliczeniowa." : entry.channel === "aotmit" ? "Sygnał taryfikacji AOTMiT, nie reguła rozliczeniowa NFZ." : "Obserwacja publikacji. Okres stosowania do rozliczeń nie został tu ustalony.";
+    var notice = entry.channel === "project" ? "Projekt, nie obowiązująca reguła rozliczeniowa." : entry.channel === "aotmit" ? "Sygnał taryfikacji AOTMiT, nie reguła rozliczeniowa NFZ." : entry.channel === "eli" ? "Status aktu, z którego pochodzi słownik grupera. Nowa zmiana czeka na przegląd i nie zmienia słownika automatycznie." : "Obserwacja publikacji. Okres stosowania do rozliczeń nie został tu ustalony.";
     article.append(element("p", "card-notice", notice));
     var links = element("div", "nfz-links");
-    links.append(externalLink(entry.source_url, "Otwórz w oficjalnym źródle ↗"));
+    links.append(entry.channel === "eli" ? externalLink(isapUrl(entry.eli), "Otwórz w ISAP ↗") : externalLink(entry.source_url, "Otwórz w oficjalnym źródle ↗"));
     article.append(links);
     if (entry.channel === "order") article.append(element("p", "card-notice", "Dokument BAW: " + entry.baw_document_id + ". Historię aktu znajdziesz w zakładce Zarządzenia NFZ."));
     if (entry.display_evidence) links.append(externalLink(entry.display_evidence.source_url, "Informacja o wersji CZS ↗"));
@@ -574,6 +609,7 @@
     details.append(element("summary", "", "Źródła i sumy kontrolne"));
     details.append(element("span", "technical", "Odczyt (UTC): " + entry.observed_at + " · SHA-256 odpowiedzi źródła: " + entry.sha256));
     if (entry.display_evidence) details.append(element("span", "technical", "SHA-256 informacji o wersji CZS: " + entry.display_evidence.sha256));
+    if (entry.base_evidence) details.append(element("span", "technical", "Akt bazowy " + entry.base_eli + ", odczyt (UTC): " + entry.base_evidence.observed_at + " · SHA-256: " + entry.base_evidence.sha256));
     if (entry.czs_xml_sha256) details.append(element("span", "technical", "SHA-256 powiązanego XML CZS: " + entry.czs_xml_sha256));
     card.files.forEach(function (file) {
       var name = decodeURIComponent(file.source_url.split("/").pop());
@@ -732,7 +768,7 @@
   }
   function cardPublisher(card) {
     if (card.source === "baw") return "nfz";
-    if (card.source === "nfz") return card.entry.channel === "aotmit" ? "aotmit" : "nfz";
+    if (card.source === "nfz") return card.entry.channel === "aotmit" ? "aotmit" : card.entry.channel === "eli" ? "eli" : "nfz";
     return Object.keys(PUBLISHERS).find(function (key) { return PUBLISHERS[key] === card.subtitle; }) || "other";
   }
   function cardFormats(card) {

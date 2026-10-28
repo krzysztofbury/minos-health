@@ -834,7 +834,13 @@ serves: build and deploy the reviewed release as before; the next run after
 it serves those workbooks brings the monitor up. `manual icd11 <version>` is
 the same for a new RSK `99ICD1` ICD-11 PL export or map workbook: download
 the files, add them to the manifest and the archive, upload them to R2
-create-once with the operator key and release a reviewed bundle. When `data-activation` reports
+create-once with the operator key and release a reviewed bundle.
+`manual eli <dictionary>` means the Dziennik Ustaw act behind the ward
+specialty or discharge-mode dictionary has a new amendment, consolidated text
+or status (#282; `/zrodla` lists the findings): check the annex, then either
+re-pin the dictionary or add the reviewed amendment to
+`src/minos/ingest/watchers/eli/client.py`, and deploy the watcher; its next
+run clears the alert. When `data-activation` reports
 `activation failed: retries_exhausted`, the accepted bundle stays in
 `/var/lib/minos/processor/accepted/` for inspection, and the last good release
 keeps serving. To try again, delete `activation/attempts.json`; to give up on

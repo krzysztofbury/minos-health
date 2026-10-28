@@ -63,6 +63,14 @@
       "source_url": "https://bip.aotm.gov.pl/assets/files/taryfikacja/taryfy/obwieszczenia/2026/Synthetic%20taryfy.pdf",
       "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
       "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "eli", "title": "Kody trybu wypisu ze szpitala", "dictionary": "discharge_modes",
+      "eli": "DU/2025/1588", "base_eli": "DU/2019/1207", "in_force": "IN_FORCE", "findings": ["amendment:DU/2026/1500"],
+      "base_evidence": {"source_url": "https://api.sejm.gov.pl/eli/acts/DU/2019/1207", "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "observed_at": "2026-10-01T10:00:00.000Z"},
+      "source_url": "https://api.sejm.gov.pl/eli/acts/DU/2025/1588",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
     }
   ]
 }

@@ -39,8 +39,14 @@ _KINDS = frozenset(
         "nfz_icd9_companion",
         "rsk_icd9_crosscheck",
         "aotmit_tariff_notice",
+        "eli_dictionary",
+        "eli_base_act",
     }
 )
+_ELI_TITLES = {
+    "specialties": "Kody specjalności komórek organizacyjnych",
+    "discharge_modes": "Kody trybu wypisu ze szpitala",
+}
 
 
 def _require(condition: bool) -> None:
@@ -131,8 +137,11 @@ def _build(snapshot: CommittedObservationRevision) -> bytes:
     files = by_kind.get("nfz_jgp_file", [])
     used_files: set[str] = set()
     entries: list[dict[str, object]] = []
+    bases = by_kind.get("eli_base_act", [])
+    used_bases: set[str] = set()
     for kind in sorted(
-        _KINDS - {"nfz_jgp_file", "czs_modtar_display", "rsk_icd9_crosscheck"}
+        _KINDS
+        - {"nfz_jgp_file", "czs_modtar_display", "rsk_icd9_crosscheck", "eli_base_act"}
     ):
         for observation in by_kind.get(kind, []):
             metadata = observation.metadata
@@ -211,6 +220,26 @@ def _build(snapshot: CommittedObservationRevision) -> bytes:
                     version=metadata["version"],
                     czs_xml_sha256=metadata["czs_xml_sha256"],
                 )
+            elif kind == "eli_dictionary":
+                matched = [
+                    item
+                    for item in bases
+                    if item.metadata["dictionary"] == metadata["dictionary"]
+                    and item.response_sha256 == metadata["base_sha256"]
+                    and item.source_identity not in used_bases
+                ]
+                _require(len(matched) == 1)
+                used_bases.add(matched[0].source_identity)
+                entry.update(
+                    channel="eli",
+                    title=_ELI_TITLES[cast(str, metadata["dictionary"])],
+                    dictionary=metadata["dictionary"],
+                    eli=metadata["eli"],
+                    base_eli=metadata["base_eli"],
+                    in_force=metadata["in_force"],
+                    findings=metadata["findings"],
+                    base_evidence=_evidence(matched[0]),
+                )
             else:
                 entry.update(
                     channel="aotmit",
@@ -218,7 +247,7 @@ def _build(snapshot: CommittedObservationRevision) -> bytes:
                     published_date=metadata["published_date"],
                 )
             entries.append(entry)
-    _require(len(used_files) == len(files))
+    _require(len(used_files) == len(files) and len(used_bases) == len(bases))
     projection = NfzProjection.model_validate_json(
         _canonical(
             {

@@ -470,6 +470,25 @@ marked as derived. NFZ exclusion tables also use codes outside annex 2 (4920,
 9154, 9240, 9999); the builder accepts exact codes. Status was checked in the
 Sejm ELI API on 2026-10-08; a later amendment requires a new reviewed pin.
 
+The NFZ watcher reads both pins from the Sejm ELI API on every run (#282). A
+new amendment or consolidated text appears on the base act that each pin
+consolidates (`DU/2012/594` for specialties, `DU/2019/1207` for discharge
+modes), so the watcher compares the base act's "Akty zmieniające" and "Inf. o
+tekście jednolitym" with the reviewed sets in
+`src/minos/ingest/watchers/eli/client.py`, and the in-force status of both
+acts. A repeal ("Uchylenia wynikające z", listed before its effective date
+changes the status), a correction ("Sprostowanie") or a Constitutional Tribunal
+ruling ("Orzeczenie TK") on either act is a finding too. Only these sections
+are validated; others may name Monitor Polski acts and are not read. Any
+difference is one `eli_legal_dictionary` change for review; the pin
+and the manifest change only through a reviewed re-pin. A base act that no
+longer lists the pinned text, or an HTTP 200 that is not ELI JSON (a firewall
+in front of the API answers with an HTML page), stops the run without
+advancing state. The NFZ projection publishes one `eli` entry per dictionary
+(pinned act, base act evidence, in-force status, open findings) for `/zrodla`,
+and the processor pushes `data-update` down with `manual eli <dictionary>`
+while an entry has findings, so the Telegram alert names the dictionary.
+
 ## NFZ Statistics API
 
 <https://api.nfz.gov.pl/app-stat-api-jgp/> provides JSON:API hospitalization
@@ -544,7 +563,7 @@ systems.
 | Issue | Responsibility |
 | --- | --- |
 | `#6` | RSK catalog and all returned resource metadata; allowlisted RSK bytes and content drift |
-| `#7` | NFZ HTML discovery, general provider news, Komunikaty JGP, CZS ICD-9 and `MODTAR`, projects, and AOTMiT signals |
+| `#7` | NFZ HTML discovery, general provider news, Komunikaty JGP, CZS ICD-9 and `MODTAR`, projects, AOTMiT signals, and Sejm ELI status of the legal grouping dictionaries (#282) |
 | `#8` | BAW JSON document graph, original/amending/consolidated packages, attachment bytes, dates, and hashes |
 
 Issue #7 dispatches discovered BAW IDs to #8. It does not duplicate BAW file
@@ -575,9 +594,9 @@ retain the last good release and produce an actionable Telegram alert.
   selected files, not the 30 pinned product-catalog attachments. Their
   freshness follows from the parent document and attachment metadata, which
   showed no act after 102/2026; their bytes are not re-checked by the watcher.
-  The two ELI legal dictionary PDFs (specialties, discharge modes) are not
-  watched at all and need a manual check against the Sejm ELI API before
-  claiming they are current.
+  The two ELI legal dictionary PDFs (specialties, discharge modes) were not
+  watched; since #282 the NFZ watcher reads their status and amendments from
+  the Sejm ELI API (see Grouping Builder Dictionaries).
 
 ## Archive And Failure Rules
 

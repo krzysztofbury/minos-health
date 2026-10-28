@@ -48,6 +48,15 @@ from minos.ingest.watchers.czs.client import (
     fetch_pinned_xml,
 )
 from minos.ingest.watchers.czs.display import fetch_display_version
+from minos.ingest.watchers.eli.client import (
+    WATCHED,
+    EliResponse,
+    EliRetryableError,
+    EliSourceError,
+    create_eli_client,
+    fetch_act,
+    findings,
+)
 from minos.ingest.watchers.nfz.discovery import (
     NfzListingError,
     NfzRetryableError,
@@ -104,6 +113,7 @@ class _Cursor(BaseModel):
     jgp_files: dict[str, str] = Field(default_factory=dict, max_length=32)
     baseline_notice_recorded: bool = False
     aotmit: dict[str, str] = Field(default_factory=dict, max_length=32)
+    eli: dict[str, str] = Field(default_factory=dict, max_length=len(WATCHED))
     icd9_xlsx: dict[str, str] = Field(default_factory=dict, max_length=1)
     reported_disagreements: list[str] = Field(default_factory=list, max_length=64)
 
@@ -171,6 +181,15 @@ class _Cursor(BaseModel):
                 raise ValueError("AOTMiT cursor digest is invalid")
         return files
 
+    @field_validator("eli")
+    @classmethod
+    def validate_eli(cls, states: dict[str, str]) -> dict[str, str]:
+        names = {item.name for item in WATCHED}
+        for name, digest in states.items():
+            if name not in names or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+                raise ValueError("ELI cursor entry is invalid")
+        return states
+
     @field_validator("icd9_xlsx")
     @classmethod
     def validate_icd9_xlsx(cls, files: dict[str, str]) -> dict[str, str]:
@@ -216,6 +235,9 @@ class NfzSourceCollector:
         aotmit_client_factory: Callable[
             [], AbstractContextManager[httpx.Client]
         ] = create_aotmit_client,
+        eli_client_factory: Callable[
+            [], AbstractContextManager[httpx.Client]
+        ] = create_eli_client,
         rsk_client_factory: Callable[
             [RskSettings], AbstractContextManager[httpx.Client]
         ] = create_rsk_client,
@@ -226,6 +248,7 @@ class NfzSourceCollector:
         self._baw_client_factory = baw_client_factory
         self._czs_client_factory = czs_client_factory
         self._aotmit_client_factory = aotmit_client_factory
+        self._eli_client_factory = eli_client_factory
         self._rsk_client_factory = rsk_client_factory
         self._now_ms = now_ms or (lambda: time.time_ns() // 1_000_000)
 
@@ -239,9 +262,10 @@ class NfzSourceCollector:
             NfzRetryableError,
             CzsRetryableError,
             AotmitRetryableError,
+            EliRetryableError,
         ):
             raise RetryableWatcherError("transient NFZ publication failure") from None
-        except NfzListingError, CzsSourceError, AotmitSourceError:
+        except NfzListingError, CzsSourceError, AotmitSourceError, EliSourceError:
             raise SourceDriftWatcherError("NFZ publication contract changed") from None
 
     def _collect(self, context: CollectionContext) -> CollectedRun:
@@ -269,6 +293,7 @@ class NfzSourceCollector:
         signals = dict(prior.signals)
         jgp_files = dict(prior.jgp_files)
         aotmit = dict(prior.aotmit)
+        eli = dict(prior.eli)
         icd9_xlsx = dict(prior.icd9_xlsx)
         reported_disagreements = set(prior.reported_disagreements)
         archived: set[str] = set()
@@ -535,6 +560,8 @@ class NfzSourceCollector:
                 aotmit,
                 archived,
             )
+        with self._eli_client_factory() as eli_client:
+            self._collect_eli(context, eli_client, observations, changes, eli, archived)
         self._crosscheck_rsk_icd9(
             context,
             icd9_symbol,
@@ -556,6 +583,7 @@ class NfzSourceCollector:
                     jgp_files=jgp_files,
                     baseline_notice_recorded=baseline_notice_recorded,
                     aotmit=aotmit,
+                    eli=eli,
                     icd9_xlsx=icd9_xlsx,
                     reported_disagreements=sorted(reported_disagreements),
                 ).model_dump(mode="json"),
@@ -778,6 +806,86 @@ class NfzSourceCollector:
             )
         known.clear()
         known.update(current)
+
+    def _collect_eli(
+        self,
+        context: CollectionContext,
+        client: httpx.Client,
+        observations: list[ObservationDraft],
+        changes: list[ChangeDraft],
+        known: dict[str, str],
+        archived: set[str],
+    ) -> None:
+        for watched in WATCHED:
+            answers: list[EliResponse] = []
+            digests: list[str] = []
+            for eli in (watched.pinned, watched.base):
+                self._require_deadline(context)
+                answers.append(fetch_act(client, eli))
+                digests.append(
+                    self._archive(
+                        context, answers[-1].body, "application/json", archived
+                    )
+                )
+            pinned, base = answers
+            found = findings(watched, pinned.act, base.act)
+            observation = self._observation(
+                context,
+                "eli_dictionary",
+                pinned.url,
+                digests[0],
+                {
+                    "dictionary": watched.name,
+                    "eli": watched.pinned,
+                    "base_eli": watched.base,
+                    "in_force": pinned.act.inForce,
+                    "findings": cast(list[JsonValue], found),
+                    "base_sha256": digests[1],
+                    "response_headers": cast(dict[str, JsonValue], pinned.headers),
+                },
+                (ObservationBlob("base_act", 0, digests[1]),),
+            )
+            observations.append(observation)
+            observations.append(
+                self._observation(
+                    context,
+                    "eli_base_act",
+                    base.url,
+                    digests[1],
+                    {
+                        "dictionary": watched.name,
+                        "eli": watched.base,
+                        "in_force": base.act.inForce,
+                        "response_headers": cast(dict[str, JsonValue], base.headers),
+                    },
+                )
+            )
+            state = _digest(["eli_legal_dictionary", watched.name, list(found)])
+            # One review item per distinct set of differences, not one per run.
+            if found and known.get(watched.name) != state:
+                changes.append(
+                    ChangeDraft(
+                        # The run's observation keeps a finding that returns
+                        # after it cleared from reusing a committed change ID.
+                        _digest(
+                            [
+                                "eli_legal_dictionary",
+                                context.source_id,
+                                watched.name,
+                                list(found),
+                                observation.observation_id,
+                            ]
+                        ),
+                        observation.observation_id,
+                        "eli_legal_dictionary",
+                        {
+                            "dictionary": watched.name,
+                            "pinned_eli": watched.pinned,
+                            "findings": list(found),
+                        },
+                    )
+                )
+            known[watched.name] = state
 
     def _collect_jgp(
         self,

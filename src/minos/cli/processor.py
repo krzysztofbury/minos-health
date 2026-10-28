@@ -15,6 +15,7 @@ from minos.ingest.processor import (
     ProcessorError,
     ProcessorPaths,
     Verdict,
+    manual_eli,
     manual_icd11,
     manual_jgp,
     run_processor,
@@ -76,9 +77,17 @@ def execute_processor(
         verdicts = run_processor(paths, reader)
         manual = manual_jgp(paths)
         icd11 = manual_icd11(paths)
+        eli = manual_eli(paths)
     except ProcessorError as error:
         return _report(targets, kuma_factory, failure=error.failure)
-    return _report(targets, kuma_factory, verdicts=verdicts, manual=manual, icd11=icd11)
+    return _report(
+        targets,
+        kuma_factory,
+        verdicts=verdicts,
+        manual=manual,
+        icd11=icd11,
+        eli=eli,
+    )
 
 
 class Outcome(BaseModel):
@@ -168,8 +177,9 @@ def _report(
     verdicts: tuple[Verdict, ...] = (),
     manual: tuple[int, ...] = (),
     icd11: str | None = None,
+    eli: tuple[str, ...] = (),
 ) -> int:
-    up, message = _message(failure, verdicts, manual, icd11)
+    up, message = _message(failure, verdicts, manual, icd11, eli)
     summary: dict[str, object] = {"version": 1}
     if failure is None:
         summary["verdicts"] = [
@@ -184,6 +194,8 @@ def _report(
             summary["manual_jgp"] = list(manual)
         if icd11 is not None:
             summary["manual_icd11"] = icd11
+        if eli:
+            summary["manual_eli"] = list(eli)
     else:
         summary["failed"] = failure
     try:
@@ -202,6 +214,7 @@ def _message(
     verdicts: tuple[Verdict, ...],
     manual: tuple[int, ...],
     icd11: str | None,
+    eli: tuple[str, ...] = (),
 ) -> tuple[bool, str]:
     if failure is not None:
         return False, f"failed: {failure}"
@@ -210,7 +223,7 @@ def _message(
     reported = [
         item for item in verdicts if item.report.code != "release_content_unchanged"
     ]
-    if not reported and not manual and icd11 is None:
+    if not reported and not manual and icd11 is None and not eli:
         return True, "idle"
     parts = [
         f"would_activate {item.report.release_id}"
@@ -223,9 +236,12 @@ def _message(
     parts += [f"manual jgp {document}" for document in manual]
     if icd11 is not None:
         parts.append(f"manual icd11 {icd11}")
+    # A Dziennik Ustaw amendment of a grouping dictionary waits for review.
+    parts += [f"manual eli {name}" for name in eli]
     up = (
         not manual
         and icd11 is None
+        and not eli
         and all(item.report.decision == "would_activate" for item in reported)
     )
     return up, "; ".join(parts)

@@ -70,6 +70,7 @@ URL_PATTERNS = {
     "czs": r"https://slowniki\.nfz\.gov\.pl/WersjeSlownikow/PobierzXml\?kodSlownika=(ICD9|MODTAR)&nrGen=[1-9][0-9]{0,5}",
     "display": r"https://slowniki\.nfz\.gov\.pl/WersjeSlownikow/Index/[1-9][0-9]{0,9}\?kod=MODTAR",
     "aotmit": r"https://bip\.aotm\.gov\.pl/assets/files/taryfikacja/taryfy/obwieszczenia/20[0-9]{2}/[\w .%-]{3,180}\.pdf",
+    "eli": r"https://api\.sejm\.gov\.pl/eli/acts/DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}",
 }
 
 
@@ -212,8 +213,44 @@ class Aotmit(Entry):
         return self
 
 
+type EliIdentifier = Annotated[
+    str, Field(pattern=r"^DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}$", max_length=16)
+]
+type EliFinding = Annotated[
+    str,
+    Field(
+        pattern=r"^((amendment|consolidated_text|reference_removed):DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}|(repeal|correction|tribunal):(pinned|base):(DU|MP)/(19|20)[0-9]{2}/[1-9][0-9]{0,4}|not_in_force:(pinned|base):[A-Z_]{1,32})$",
+        max_length=64,
+    ),
+]
+
+
+class Eli(Entry):
+    """A pinned Dziennik Ustaw dictionary and its differences from the review."""
+
+    channel: Literal["eli"]
+    dictionary: Literal["specialties", "discharge_modes"]
+    eli: EliIdentifier
+    base_eli: EliIdentifier
+    in_force: Annotated[str, Field(pattern=r"^[A-Z_]{1,32}$")]
+    findings: Annotated[tuple[EliFinding, ...], Field(max_length=32)]
+    base_evidence: Evidence
+
+    @model_validator(mode="after")
+    def links(self) -> Self:
+        prefix = "https://api.sejm.gov.pl/eli/acts/"
+        if (
+            self.source_url != prefix + self.eli
+            or self.base_evidence.source_url != prefix + self.base_eli
+        ):
+            raise ValueError("ELI identity differs from URL")
+        _ = official_url(self.source_url, self.channel)
+        _ = official_url(self.base_evidence.source_url, self.channel)
+        return self
+
+
 type PublicEntry = Annotated[
-    Order | Notice | Czs | Companion | Aotmit, Field(discriminator="channel")
+    Order | Notice | Czs | Companion | Aotmit | Eli, Field(discriminator="channel")
 ]
 
 
@@ -249,6 +286,8 @@ class NfzProjection(PublicModel):
                 if isinstance(entry, Notice)
                 else (entry.display_evidence,)
                 if isinstance(entry, Czs) and entry.display_evidence is not None
+                else (entry.base_evidence,)
+                if isinstance(entry, Eli)
                 else ()
             )
             if any(item.observed_at > self.observed_at for item in evidence):
@@ -269,6 +308,7 @@ class NfzProjection(PublicModel):
             ("czs", 2),
             ("icd9_companion", 1),
             ("aotmit", 12),
+            ("eli", 2),
         ):
             if sum(entry.channel == channel for entry in self.entries) > maximum:
                 raise ValueError("channel population exceeds bound")

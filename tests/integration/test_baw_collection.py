@@ -28,6 +28,7 @@ from minos.ingest.watchers.control import (
     SourceConfiguration,
 )
 from minos.ingest.watchers.czs.client import create_czs_client
+from minos.ingest.watchers.eli.client import create_eli_client
 from minos.ingest.watchers.nfz.collector import NfzSourceCollector
 from minos.ingest.watchers.nfz.discovery import create_nfz_client
 from minos.ingest.watchers.nfz.publication import NfzPublicProjectionPublisher
@@ -214,6 +215,33 @@ def _aotmit_transport() -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
+def _eli_transport(state: dict[str, bool]) -> httpx.MockTransport:
+    fixtures = Path(__file__).parents[1] / "fixtures/eli"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        eli = request.url.path.removeprefix("/eli/acts/")
+        if state.get("html"):
+            return httpx.Response(
+                200,
+                content=b"<html>Request Rejected</html>",
+                headers={"content-type": "text/html"},
+            )
+        act = cast(
+            dict[str, object],
+            json.loads((fixtures / (eli.replace("/", "-") + ".json")).read_bytes()),
+        )
+        if state.get("new_amendment") and eli == "DU/2019/1207":
+            references = cast(dict[str, list[dict[str, str]]], act["references"])
+            references["Akty zmieniające"].append({"id": "DU/2026/1500"})
+        return httpx.Response(
+            200,
+            content=json.dumps(act).encode(),
+            headers={"content-type": "application/json"},
+        )
+
+    return httpx.MockTransport(handler)
+
+
 def _rsk_icd9_transport() -> httpx.MockTransport:
     payload = cast(
         dict[str, object],
@@ -331,6 +359,7 @@ def _setup(
     volatile_identifiers: bool = False,
     nfz_transport: httpx.BaseTransport | None = None,
     czs_state: dict[str, bool] | None = None,
+    eli_state: dict[str, bool] | None = None,
     independent_root_id: int | None = None,
     invalid_file_id: int = 439431,
     invalid_lineage: bool = False,
@@ -484,6 +513,9 @@ def _setup(
                 aotmit_client_factory=lambda: create_aotmit_client(
                     transport=_aotmit_transport()
                 ),
+                eli_client_factory=lambda: create_eli_client(
+                    transport=_eli_transport(eli_state if eli_state is not None else {})
+                ),
                 rsk_client_factory=lambda settings: create_rsk_client(
                     settings, transport=_rsk_icd9_transport()
                 ),
@@ -548,6 +580,7 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
     revised_detail = False
     revised_jgp_file = False
     czs_state: dict[str, bool] = {}
+    eli_state: dict[str, bool] = {}
 
     def card(path: str, title: str, summary: str) -> bytes:
         return (
@@ -673,6 +706,7 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         tmp_path,
         nfz_transport=httpx.MockTransport(nfz_handler),
         czs_state=czs_state,
+        eli_state=eli_state,
         independent_root_id=45000 if document_id == 45000 else None,
     )
     try:
@@ -693,7 +727,13 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             "czs",
             "icd9_companion",
             "aotmit",
+            "eli",
         }
+        assert {
+            entry["dictionary"]: (entry["in_force"], entry["findings"])
+            for entry in entries
+            if entry["channel"] == "eli"
+        } == {"specialties": ("IN_FORCE", []), "discharge_modes": ("IN_FORCE", [])}
         dictionaries = {
             entry["code"]: entry for entry in entries if entry["channel"] == "czs"
         }
@@ -789,7 +829,7 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         assert _query(
             database,
             "SELECT count(*) FROM observations WHERE source_id = 'nfz'",
-        ) == [(38,)]
+        ) == [(46,)]
 
         revised_jgp_file = True
         changed_file = store.claim_manual("nfz")
@@ -857,7 +897,37 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         assert _query(
             database, "SELECT count(*) FROM source_changes WHERE source_id = 'nfz'"
         ) == [(9,)]
-        advanced_cursor = store.load_source_state("nfz").cursor
+        # A new amendment of a pinned legal dictionary is one review item; one
+        # that clears and returns is a second item, never a reused change ID.
+        for present in (True, True, False, True):
+            eli_state["new_amendment"] = present
+            amended = store.claim_manual("nfz")
+            _ = orchestrator.run_claim(amended, amended.retry_policy)
+        assert _query(
+            database,
+            "SELECT change_category,summary_json FROM source_changes WHERE change_category = 'eli_legal_dictionary'",
+        ) == 2 * [
+            (
+                "eli_legal_dictionary",
+                '{"dictionary":"discharge_modes","findings":["amendment:DU/2026/1500"],"pinned_eli":"DU/2025/1588"}',
+            )
+        ]
+        amended_entries = cast(
+            list[dict[str, object]], json.loads(nfz_public.read_bytes())["entries"]
+        )
+        assert [
+            entry["findings"]
+            for entry in amended_entries
+            if entry["channel"] == "eli" and entry["dictionary"] == "discharge_modes"
+        ] == [["amendment:DU/2026/1500"]]
+        amended_cursor = store.load_source_state("nfz").cursor
+        eli_state["html"] = True
+        blocked = store.claim_manual("nfz")
+        with pytest.raises(SourceDriftWatcherError):
+            _ = orchestrator.run_claim(blocked, blocked.retry_policy)
+        assert store.load_source_state("nfz").cursor == amended_cursor
+        eli_state["html"] = False
+        advanced_cursor = amended_cursor
         czs_state["new_generation"] = False
         regressed = store.claim_manual("nfz")
         with pytest.raises(SourceDriftWatcherError):

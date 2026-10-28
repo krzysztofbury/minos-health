@@ -416,8 +416,10 @@ try {
     await evaluate(client, `document.getElementById('tab-baw').focus()`);
     await client.send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39 });
     assert.equal(await evaluate(client, `document.getElementById('tab-nfz').getAttribute('aria-selected')`), "true");
-    assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 8);
+    assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 9);
     assert.equal(await evaluate(client, `document.querySelectorAll('main img').length`), 0);
+    assert.match(await evaluate(client, `document.getElementById('catalog-results').textContent`), /nowa zmiana aktu: Dz\.U\. 2026 poz\. 1500/);
+    assert.equal(await evaluate(client, `document.querySelector('a[href="https://isap.sejm.gov.pl/isap.nsf/DocDetails.xsp?id=WDU20250001588"]') !== null`), true);
     assert.match(await evaluate(client, `document.getElementById('catalog-results').textContent`), /Projekt, nie obowiązująca/);
     assert.match(await evaluate(client, `document.getElementById('catalog-results').textContent`), /Sygnał taryfikacji AOTMiT/);
     assert.match(await evaluate(client, `document.getElementById('source-summary').textContent`), /Obserwacja wymaga odświeżenia/);
