@@ -90,6 +90,8 @@ FOREIGN_COMPOSE_GLOBS = (
     "watcher-stage/*/candidate.json",
     "tunnel-stage/*/previous.json",
     "tunnel-stage/*/candidate.json",
+    "kuma-stage/*/previous.json",
+    "kuma-stage/*/candidate.json",
     "*.compose.yml",
 )
 

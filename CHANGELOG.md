@@ -15,6 +15,17 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- Uptime Kuma 2.5.8 and a Kuma-only release (#274): production pinned 2.5.5
+  while 2.5.7 (rejects the leaked eMudhra intermediate) and 2.5.8 (admin-only
+  RCE, GHSA-v2p3-6f5h-6hhf) were out, and Ansible refuses image changes over
+  Kuma's data. `scripts/deploy_kuma.py` with `scripts/kuma_host.py` stops Kuma,
+  keeps a stopped copy of `/var/lib/minos/uptime-kuma`, rewrites the data
+  image marker and replaces only the Kuma image; automatic recovery and
+  rollback restore that copy before the previous image starts. The pins move
+  to the multi-arch digest that Dependabot tracks through
+  `packaging/runtime-pins/Dockerfile`, a test keeps them equal, and CI runs
+  `scripts/smoke_kuma_deploy.py` against real Kuma 2.5.5 and 2.5.8 images on
+  real SQLite data. `prune` keeps Kuma rollback images.
 - Tunnel release evidence and update alerts (#273): CI runs
   `scripts/smoke_tunnel_deploy.py`, which drives activation, automatic
   recovery, failed recovery with explicit rollback, and activation with
@@ -269,6 +280,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Tunnel release receipts report `image_matches` instead of
+  `cloudflared_image_matches`; the single-service health and recreation steps
+  in `scripts/tunnel_host.py` now also serve the Kuma release (#274).
 - `deploy_tunnel plan` defaults `--revision` to remote `main` and `--image`
   to that revision's template pin, and prints both (#272).
 - `scripts/` is type-checked by basedpyright and mypy, and the Python hooks run

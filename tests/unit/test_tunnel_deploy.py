@@ -141,7 +141,7 @@ def test_only_the_tunnel_image_changes_and_rollback_restores_the_bytes(
         "version": VERSION,
         "preserved": True,
         "healthy": True,
-        "cloudflared_image_matches": True,
+        "image_matches": True,
     }
     expected = cast(dict[str, object], json.loads(original))
     tunnel_host.service(expected)["image"] = NEW_TUNNEL
@@ -207,7 +207,7 @@ def test_failed_activation_restores_the_previous_tunnel(
     assert failure.value.details["recovery"] == {
         "preserved": True,
         "healthy": True,
-        "cloudflared_image_matches": True,
+        "image_matches": True,
     }
     assert (tunnel[0] / "compose.yaml").read_bytes() == original
 
@@ -225,7 +225,7 @@ def test_failed_automatic_rollback_leaves_explicit_rollback_possible(
         _ = call(tunnel, "activate", values)
     assert failure.value.details["recovery"] == {"restored": False}
     assert (tunnel[0] / "compose.yaml").read_bytes() == original
-    assert call(tunnel, "rollback", values)["cloudflared_image_matches"] is True
+    assert call(tunnel, "rollback", values)["image_matches"] is True
 
 
 def test_rollback_is_judged_against_services_as_they_run_now(
@@ -283,17 +283,12 @@ def test_plan_binds_the_digest_to_the_pin_on_remote_main(
         return ""
 
     monkeypatch.setattr(deploy_tunnel, "run", run)
-    plan = deploy_tunnel.TunnelPlan(
-        revision=head,
-        image=NEW_TUNNEL if changed == "digest" else pinned.group(0),
-        version=VERSION,
-        compose_sha256="c" * 64,
-    )
+    image = NEW_TUNNEL if changed == "digest" else pinned.group(0)
     if changed in ("none", "push"):
-        deploy_tunnel.reviewed(plan)
+        deploy_tunnel.reviewed(head, f"    image: {image}\n")
     else:
         with pytest.raises(DeployError):
-            deploy_tunnel.reviewed(plan)
+            deploy_tunnel.reviewed(head, f"    image: {image}\n")
 
 
 # Dependabot updates only the Dockerfile that names each image; these files
@@ -320,6 +315,8 @@ def digests(image: str, path: str) -> set[str]:
             "docker.io/nginxinc/nginx-unprivileged",
             "packaging/validation-edge/Dockerfile",
         ),
+        # site.yml also matches the bare name in Docker's RepoDigests.
+        ("louislam/uptime-kuma", "packaging/runtime-pins/Dockerfile"),
     ],
 )
 def test_infrastructure_pins_follow_the_dependabot_stub(image: str, stub: str) -> None:
@@ -328,14 +325,6 @@ def test_infrastructure_pins_follow_the_dependabot_stub(image: str, stub: str) -
     found = {path: digests(image, path) for path in PINNED}
     assert any(found.values())
     assert {path: pins for path, pins in found.items() if pins - source} == {}
-
-
-def test_uptime_kuma_pins_agree() -> None:
-    # A platform digest that Dependabot cannot track (#274).
-    pins: set[str] = set()
-    for path in PINNED:
-        pins |= digests("louislam/uptime-kuma", path)
-    assert len(pins) == 1
 
 
 def test_plan_takes_revision_and_image_from_remote_main(

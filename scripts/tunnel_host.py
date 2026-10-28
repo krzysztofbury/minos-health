@@ -3,7 +3,8 @@
 Validation releases keep the tunnel container unchanged and the maintenance
 playbook never runs over a validation deployment, so a cloudflared security
 release needs its own bounded path (#270). Only the ``cloudflared`` image in the
-live Compose changes; a changed command or user is refused.
+live Compose changes; a changed command or user is refused. The single-service
+helpers also serve the Uptime Kuma release (#274).
 """
 
 import copy
@@ -19,8 +20,10 @@ VERSION = re.compile(r"20[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,3}")
 COMMAND = ["tunnel", "--config", "/etc/cloudflared/config.yml", "run"]
 CONFIG_TARGET = "/etc/cloudflared/config.yml"
 USER = "65532:65532"
-# Exactly one reference API colour is preserved beside these services (#192).
-PRESERVED = {"edge", "watcher", "uptime-kuma"}
+# Exactly one reference API colour runs beside these services (#192); a release
+# replaces one of them and preserves the rest.
+SERVICES = {"edge", "watcher", "uptime-kuma", "cloudflared"}
+PRESERVED = SERVICES - {"cloudflared"}
 # A single tunnel instance: the public site is unreachable while it restarts.
 WAIT_TIMEOUT_S = 120
 
@@ -77,56 +80,69 @@ def render(document: dict[str, object], image: str) -> dict[str, object]:
     return result
 
 
-def baseline(layout: host.Layout) -> list[list[str]]:
+def baseline(layout: host.Layout, name: str = "cloudflared") -> list[list[str]]:
     records = host.containers(layout)
     services = {row[0] for row in records}
     apis = services & set(host.API_SERVICES)
     host.require(
-        len(apis) == 1 and services - apis == PRESERVED | {"cloudflared"},
+        len(apis) == 1 and services - apis == SERVICES,
         "unexpected live services",
     )
     host.require(len(records) == 5, "duplicate live services")
     host.require(
         all(row[3] == "healthy" for row in records), "live services must be healthy"
     )
-    return [list(row[:3]) for row in records if row[0] != "cloudflared"]
+    return [list(row[:3]) for row in records if row[0] != name]
 
 
 def state(
-    layout: host.Layout, expected: list[list[str]], image: str
+    layout: host.Layout,
+    expected: list[list[str]],
+    image: str,
+    name: str,
+    *,
+    fresh: bool,
 ) -> dict[str, object]:
     records = host.containers(layout)
-    unchanged = [
-        list(row[:3]) for row in records if row[0] != "cloudflared"
-    ] == expected
+    unchanged = [list(row[:3]) for row in records if row[0] != name] == expected
     healthy = len(records) == 5 and all(row[3] == "healthy" for row in records)
-    tunnels = [row for row in records if row[0] == "cloudflared"]
+    replaced = [row for row in records if row[0] == name]
     matching = False
-    if len(tunnels) == 1:
+    if len(replaced) == 1:
         running = host.run(
-            ["docker", "inspect", "--format", "{{.Config.Image}}", tunnels[0][1]],
+            ["docker", "inspect", "--format", "{{.Config.Image}}", replaced[0][1]],
             host.DOCKER_TIMEOUT_S,
         ).strip()
-        matching = running == image and tunnels[0][2] == "0"
-    return {
-        "preserved": unchanged,
-        "healthy": healthy,
-        "cloudflared_image_matches": matching,
-    }
+        # A replaced container must not have crash-looped; a live one may have
+        # restarted long before the release.
+        matching = running == image and (replaced[0][2] == "0" or not fresh)
+    return {"preserved": unchanged, "healthy": healthy, "image_matches": matching}
 
 
 def checked(
-    layout: host.Layout, expected: list[list[str]], image: str
+    layout: host.Layout,
+    expected: list[list[str]],
+    image: str,
+    name: str = "cloudflared",
+    *,
+    fresh: bool = True,
 ) -> dict[str, object]:
-    result = state(layout, expected, image)
+    result = state(layout, expected, image, name, fresh=fresh)
     host.require(
         all(value is True for value in result.values()),
-        "tunnel transition did not pass health/isolation checks",
+        f"{name} transition did not pass health/isolation checks",
     )
     return result
 
 
-def up(layout: host.Layout, record: Path, *, force: bool = False) -> None:
+def up(
+    layout: host.Layout,
+    record: Path,
+    *,
+    force: bool = False,
+    name: str = "cloudflared",
+    wait_s: int = WAIT_TIMEOUT_S,
+) -> None:
     result = host.bounded_command(
         [
             "docker",
@@ -138,21 +154,23 @@ def up(layout: host.Layout, record: Path, *, force: bool = False) -> None:
             "up",
             "--detach",
             "--no-deps",
-            # An unhealthy tunnel already on the selected Compose is otherwise
-            # left as it is; explicit rollback must replace it.
+            # An unhealthy container already on the selected Compose is
+            # otherwise left as it is; explicit rollback must replace it.
             *(["--force-recreate"] if force else []),
             "--wait",
             "--wait-timeout",
-            str(WAIT_TIMEOUT_S),
-            "cloudflared",
+            str(wait_s),
+            name,
         ]
     )
     host.write_private(record, host.canonical(result))
     if result["status"] != "completed":
-        raise host.HostError("tunnel command failed", result)
+        raise host.HostError(f"{name} command failed", result)
 
 
-def isolated(image: str, options: list[str], command: list[str]) -> list[str]:
+def isolated(
+    image: str, options: list[str], command: list[str], user: str = USER
+) -> list[str]:
     """A one-shot of the candidate binary with no network and no privileges."""
     return [
         "docker",
@@ -162,7 +180,7 @@ def isolated(image: str, options: list[str], command: list[str]) -> list[str]:
         "none",
         "--read-only",
         "--user",
-        USER,
+        user,
         "--cap-drop",
         "ALL",
         "--security-opt",

@@ -116,7 +116,7 @@ conditions releases in verified bundle directories, with bounded Markdown/JSON
 reports. See [the CLI contract](docs/v0.0.1/release-diff.md) and
 [validation evidence](docs/validation/release-diff.md).
 
-The same Mikr.us host also runs self-hosted Uptime Kuma 2.5.5 at
+The same Mikr.us host also runs self-hosted Uptime Kuma 2.5.8 at
 `status.minoshealth.pl`. Its public page is limited to coarse service state;
 detailed watcher state remains private through `minos watcher status`, with
 issue #54 reserved for a future private detailed admin portal. This replaces a

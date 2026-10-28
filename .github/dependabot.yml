@@ -45,9 +45,10 @@ updates:
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: astral-sh/uv
     groups:
-      # A cloudflared bump needs the other pins changed by hand (#273); keep it
-      # out of the base-image PR so that one stays green. First match wins.
+      # A cloudflared or Uptime Kuma bump needs the other pins changed by hand
+      # (#273, #274); keep it out of the base-image PR so that one stays green.
+      # First match wins.
       runtime-pins:
-        patterns: ["cloudflare/cloudflared"]
+        patterns: ["cloudflare/cloudflared", "louislam/uptime-kuma"]
       base-images:
         patterns: ["*"]

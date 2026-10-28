@@ -898,8 +898,30 @@ release over a hand-run upgrade or a temporary second replica.
 - Follow-up (#273): `packaging/runtime-pins/Dockerfile` gives Dependabot a
   tagged `cloudflared` pin that every other pin must equal, and a Docker
   Compose smoke in CI exercises recovery and rollback with a stand-in image.
-  Uptime Kuma stays outside Dependabot: its pin is a platform digest and its
-  image changes are gated on preserved data (#274).
+  Uptime Kuma joined it in #274, below.
+
+### Uptime Kuma Releases (#274, 2026-10-28)
+
+Production pinned Uptime Kuma 2.5.5 while 2.5.7 (Node.js that rejects the
+leaked eMudhra intermediate, as in #270) and 2.5.8 (an admin-only RCE,
+GHSA-v2p3-6f5h-6hhf) were out. Nothing could ship them: Dependabot could not
+track the pin, and Ansible refuses any image change over preserved Kuma data.
+
+- `deploy_kuma` follows `deploy_tunnel` (pin on remote `main`, offline
+  staging checks, one service replaced, every other container unchanged) and
+  adds the data step. Activation stops Kuma, copies the whole stopped
+  `/app/data` into its stage directory and rewrites the image marker. Automatic
+  recovery and rollback put that copy back before the previous image starts,
+  because an older Kuma cannot be trusted to read data a newer one migrated.
+  Rollback discards what Kuma wrote after activation; the replaced directory
+  stays in the stage directory for inspection.
+- The pins move from the `linux/amd64` manifest digest to the multi-arch index
+  digest that Dependabot tracks, with Compose still selecting `linux/amd64`.
+  The marker rewrite is the one place the reference may change, so the switch
+  happens with the first release. `packaging/runtime-pins/Dockerfile` names the
+  tagged pin and a test requires every other pin to equal it.
+- A CI smoke runs the release against real Kuma images on real SQLite data,
+  including a candidate that writes to the data and never becomes healthy.
 
 ### MCP Registry Listing (#264, 2026-10-27)
 
@@ -1122,10 +1144,10 @@ monitoring request. The watcher sends only up or down to Uptime Kuma after a
 durable terminal result; a failed monitor request is best-effort and never
 blocks or changes watcher completion.
 
-The accepted monitor is self-hosted Uptime Kuma 2.5.5 on the same Mikr.us host,
+The accepted monitor is self-hosted Uptime Kuma 2.5.8 on the same Mikr.us host,
 not a paid external monitoring SaaS. It uses the official MIT `slim-rootless`
-`linux/amd64` image pinned to
-`sha256:8bdad438d293e998fd7d45004cefb3baea0f96d3bc774502bba99c17d616e1f6`,
+image on `linux/amd64`, pinned by its multi-arch digest
+`sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437`,
 numeric identity `10003:10003`, no Docker socket, no host port, a private
 Compose monitoring network, a separate outbound notification and HTTP monitor
 network, and persistent `/app/data` at `/var/lib/minos/uptime-kuma`. The
