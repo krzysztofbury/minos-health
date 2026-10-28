@@ -538,11 +538,14 @@ the same month a year earlier. A figure keeps its age at the report (0, 1 or
 August reports and differed in 3,288 (D02 at national hospitals 112 against
 251). Counts below five are suppressed as `<5`, kept as a bound of one to four
 and never merged with an empty cell, which means no figure. Points are stored
-as integer hundredths and mean values as fixed decimals, so a rebuild gives the
-same bytes. The parser refuses bytes that differ from the pin, a header or
-month label that differs from the reviewed layout, a title that no longer
-names points, an unknown hospital level, a repeated row, non-integer counts,
-negative values and DTDs, and checks the reviewed row counts.
+as integer ten-thousandths (the precision NFZ reports) and mean values as
+fixed decimals, so a rebuild gives the same bytes. Every data row must end at
+its header's last column and cell indexes must move forward, so a missing or
+extra cell cannot move a value into another month. The parser refuses bytes
+that differ from the pin, a header or month label that differs from the
+reviewed layout, a title that no longer names points, an unknown hospital
+level, a repeated row, formatted cell text, numbers outside plain ASCII
+notation, any DTD, and more rows than reviewed.
 
 The annual dataset `3009` is not used for counts: at its granularity 94.5% of
 2025 cells are suppressed, so a group's national count spans a range about 3.7

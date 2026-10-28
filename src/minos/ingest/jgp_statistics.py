@@ -10,9 +10,10 @@ figure, so the two are never merged.
 
 import hashlib
 import io
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass
-from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
+from decimal import ROUND_HALF_EVEN, Context, Decimal, InvalidOperation
 from typing import BinaryIO, Literal, cast
 from xml.etree.ElementTree import Element  # nosec B405 - types only; defusedxml parses.
 
@@ -54,6 +55,15 @@ _CHARACTERS = {"Zabiegowy": "procedural", "Zachowawczy": "conservative"}
 AGES = (0, 1, 12)
 _MAX_CELLS = 32
 _MAX_TEXT = 512
+# Every data row ends at the last column of its table's header, so a missing
+# or extra cell cannot shift a value into another month.
+_WIDTHS = {"Tabela 2": 14, "Tabela 4": 19}
+_INDEX = re.compile(r"[1-9][0-9]?")
+_COUNT = re.compile(r"0|[1-9][0-9]{0,8}")
+# Report values are binary floats written as text, sometimes in exponent form
+# (a mean stay of 9.72E-2 days).
+_DECIMAL = re.compile(r"[0-9]{1,13}(?:\.[0-9]{1,20})?(?:E[+-]?[0-9]{1,2})?")
+_CONTEXT = Context(prec=50, rounding=ROUND_HALF_EVEN)
 
 type Count = int | Literal["<5"] | None
 
@@ -66,8 +76,8 @@ class GroupFigure:
     month: str
     age_months: int
     hospitalizations: Count
-    # Hundredths of a point; None when the report has no value.
-    points_hundredths: int | None
+    # Ten-thousandths of a point, the precision NFZ reports; None when absent.
+    points_ten_thousandths: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,23 +109,35 @@ def _label(month: str) -> str:
     return f"{_MONTHS[int(number) - 1]} {year}"
 
 
-def _cells(row: Element) -> dict[int, str]:
-    """Column number (1-based, as Excel numbers them) to cell text."""
+def _cells(row: Element) -> tuple[dict[int, str], int]:
+    """Column number (1-based, as Excel numbers them) to text, and the last column."""
     cells: dict[int, str] = {}
     column = 0
     for cell in row.findall(_NS + "Cell"):
         index = cell.get(_NS + "Index")
-        column = int(index) if index is not None else column + 1
+        if index is None:
+            column += 1
+        elif _INDEX.fullmatch(index) is None or int(index) <= column:
+            raise SourceError("monthly report cell index is invalid")
+        else:
+            column = int(index)
         if column > _MAX_CELLS:
             raise SourceError("monthly report row exceeds its column bound")
-        data = cell.find(_NS + "Data")
-        text = data.text if data is not None and data.text is not None else ""
+        data = cell.findall(_NS + "Data")
+        # Formatted text keeps its characters in child elements, out of .text.
+        if len(data) > 1 or any(len(item) for item in data):
+            raise SourceError("monthly report cell holds formatted or repeated data")
+        text = (data[0].text or "") if data else ""
         if len(text) > _MAX_TEXT:
             raise SourceError("monthly report cell exceeds its text bound")
         if text:
             cells[column] = text
-        column += int(cell.get(_NS + "MergeAcross") or 0)
-    return cells
+        merge = cell.get(_NS + "MergeAcross")
+        if merge is not None:
+            if _INDEX.fullmatch(merge) is None:
+                raise SourceError("monthly report cell merge is invalid")
+            column += int(merge)
+    return cells, column
 
 
 def _count(text: str | None) -> Count:
@@ -123,7 +145,7 @@ def _count(text: str | None) -> Count:
         return None
     if text == "<5":
         return "<5"
-    if not text.isascii() or not text.isdigit() or len(text) > 9:
+    if _COUNT.fullmatch(text) is None:
         raise SourceError("monthly report count is not a whole number")
     return int(text)
 
@@ -131,15 +153,19 @@ def _count(text: str | None) -> Count:
 def _scaled(text: str | None, places: int) -> int | None:
     if text is None:
         return None
+    if _DECIMAL.fullmatch(text) is None:
+        raise SourceError("monthly report value is not a plain number")
     try:
-        value = Decimal(text)
+        value = Decimal(text, context=_CONTEXT)
     except InvalidOperation:
         raise SourceError("monthly report value is not a number") from None
-    if not value.is_finite() or value < 0 or value > Decimal(10) ** 12:
+    if value > Decimal(10) ** 12:
         raise SourceError("monthly report value is outside its bound")
-    # Report values are binary floats written as text; fixed places keep the
-    # stored integers, and the bundle bytes, deterministic.
-    return int(value.scaleb(places).quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
+    # Fixed places in a local context keep the stored integers, and the bundle
+    # bytes, deterministic whatever the global decimal context is.
+    return int(
+        value.scaleb(places, context=_CONTEXT).quantize(Decimal(1), context=_CONTEXT)
+    )
 
 
 def _require_header(
@@ -169,7 +195,7 @@ def parse_report(source: BinaryIO, pin: MonthlyReport) -> ReportFigures:
     try:
         events = cast(
             Iterator[tuple[str, Element]],
-            iterparse(io.BytesIO(content), events=("start", "end")),
+            iterparse(io.BytesIO(content), events=("start", "end"), forbid_dtd=True),
         )
         for event, element in events:
             if event == "start" and element.tag == _NS + "Worksheet":
@@ -180,9 +206,11 @@ def parse_report(source: BinaryIO, pin: MonthlyReport) -> ReportFigures:
             if element.tag == _NS + "Row":
                 number += 1
                 if sheet in headers:
-                    cells = _cells(element)
+                    cells, width = _cells(element)
                     if number <= 4:
                         headers[sheet][number] = cells
+                    elif width != _WIDTHS[sheet]:
+                        raise SourceError("monthly report row width differs")
                     elif sheet == "Tabela 2":
                         _group_row(cells, pin, groups, seen_groups)
                     else:
@@ -198,6 +226,9 @@ def parse_report(source: BinaryIO, pin: MonthlyReport) -> ReportFigures:
     group_header |= {(3, 4): "Poziom szpitala w ramach ryczałtu PSZ"}
     section_header = {(3, 2): "Tryb przyjęcia", (3, 3): "Charakter hospitalizacji"}
     section_header |= {(3, 4): "Sekcja JGP"}
+    changes = (f"{months[0]} / {months[1]}", f"{months[0]} / {months[2]}")
+    group_header |= {(3, 11): changes[0], (3, 13): changes[1]}
+    section_header |= {(3, 14): changes[0], (3, 17): changes[1]}
     for offset, label in enumerate(months):
         group_header |= {
             (3, 5 + 2 * offset): label,
@@ -240,9 +271,11 @@ def _group_row(
     if key in seen:
         raise SourceError("monthly report repeats a group and hospital level")
     seen.add(key)
+    if len(seen) > pin.group_rows:
+        raise SourceError("monthly report exceeds its reviewed group rows")
     for offset, age in enumerate(AGES):
         count = _count(cells.get(5 + 2 * offset))
-        points = _scaled(cells.get(6 + 2 * offset), 2)
+        points = _scaled(cells.get(6 + 2 * offset), 4)
         if count is None and points is None:
             continue
         groups.append(
@@ -267,6 +300,8 @@ def _section_row(
     if key in seen:
         raise SourceError("monthly report repeats a section row")
     seen.add(key)
+    if len(seen) > pin.section_rows:
+        raise SourceError("monthly report exceeds its reviewed section rows")
     for offset, age in enumerate(AGES):
         count = _count(cells.get(6 + 3 * offset))
         stay = _scaled(cells.get(5 + 3 * offset), 2)
