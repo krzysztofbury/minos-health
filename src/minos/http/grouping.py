@@ -168,6 +168,13 @@ def warm_grouping(
 DICTIONARY_SCHEMA = "minos.grouping-dictionaries.v1"
 
 
+def _citation(url: str) -> dict[str, str]:
+    """The Dziennik Ustaw identifier and authentic file of a pinned act."""
+    # The manifest restricts pins to .../eli/acts/DU/<year>/<pos>/text.<ext>.
+    eli = url.removeprefix("https://api.sejm.gov.pl/eli/acts/").rsplit("/", 1)[0]
+    return {"eli": eli, "source_url": url}
+
+
 def dictionaries_json(pool: ReferencePool) -> bytes:
     """Named codes for the builder; identical for every request of this app."""
     manifest = pool.manifest.dataset.grouping_dictionaries
@@ -182,6 +189,7 @@ def dictionaries_json(pool: ReferencePool) -> bytes:
             "act": manifest.specialties.act,
             "annex": manifest.specialties.annex,
             "children_rule": manifest.specialties.children_rule,
+            **_citation(manifest.specialties.source.source_url),
             "entries": [
                 {
                     "code": item.code,
@@ -196,6 +204,7 @@ def dictionaries_json(pool: ReferencePool) -> bytes:
             "release_id": manifest.discharge_modes.release_id,
             "act": manifest.discharge_modes.act,
             "annex": manifest.discharge_modes.annex,
+            **_citation(manifest.discharge_modes.source.source_url),
             "entries": [{"code": mode.code, "name": mode.name} for mode in modes],
         },
     }

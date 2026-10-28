@@ -135,6 +135,20 @@ def test_dictionaries_offer_named_codes_with_derived_children(tmp_path: Path) ->
         assert response.headers["cache-control"] == "public, max-age=300"
         answer = cast(dict[str, dict[str, object]], response.json())
         assert client.get("/api/v1/grouping/dictionaries").json() == answer
+    # Each table cites its Dziennik Ustaw act and the authentic pinned file.
+    assert {
+        name: (answer[name]["eli"], answer[name]["source_url"])
+        for name in ("specialties", "discharge_modes")
+    } == {
+        "specialties": (
+            "DU/2019/173",
+            "https://api.sejm.gov.pl/eli/acts/DU/2019/173/text.pdf",
+        ),
+        "discharge_modes": (
+            "DU/2025/1588",
+            "https://api.sejm.gov.pl/eli/acts/DU/2025/1588/text.pdf",
+        ),
+    }
     entries = cast(list[dict[str, object]], answer["specialties"]["entries"])
     named = {str(entry["code"]): entry for entry in entries}
     assert named["4000"]["derived"] is False

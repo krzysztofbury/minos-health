@@ -15,6 +15,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- `GET /api/v1/grouping/dictionaries` and the `get_case_dictionaries` MCP tool
+  cite each legal dictionary's Dziennik Ustaw act (`eli`) and its authentic
+  pinned PDF (`source_url`), and a reviewed snapshot of the served MCP tool
+  definitions fails a test on any unreviewed change (#285).
 - The NFZ watcher reads the Sejm ELI status of the two legal grouping
   dictionaries (ward specialties, discharge modes) on every run and records
   one review change when an amendment, consolidated text or in-force status
