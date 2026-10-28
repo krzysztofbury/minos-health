@@ -69,6 +69,54 @@ performance regression for developer convenience.
   the Mikr.us production host. R2 object-store semantics (create-once writes,
   SHA-256 checksums, bucket locks) need evidence against a real R2 bucket.
 
+## Operator Checks (Agents)
+
+Production health, without credentials:
+
+- `uv run python -m scripts.check_monitoring` reads the public Uptime Kuma
+  status page and `/readyz`. Kuma sends every down state of the public edge,
+  the RSK, BAW and NFZ watchers and the data update and activation runs to the
+  owner's Telegram alert; this command is an agent's view of the same monitors.
+  Exit 0 is healthy, 1 names each problem, including a Kuma that stopped
+  checking (then no alert is sent), and 2 means the status page is unreachable:
+  Kuma, the tunnel or the host is down, which Kuma cannot report itself.
+- Deeper state needs the host. `uv run python -m scripts.deploy_validation
+  inspect` is read-only (identities, Compose SHA-256, memory, disk, container
+  health and restart counts). Watcher status and bounded logs
+  ([operations](docs/v0.0.1/operations.md#logging)) need SSH, so the owner
+  approves that exact command first.
+- Unit tests, fakes and the Docker smokes (`scripts/smoke_*_deploy.py`) prove
+  the tools, never production health. An empty log or query through a filter is
+  evidence only after the filter is shown to match running containers.
+
+Releases ([validation deployment guide](docs/validation/validation-deploy.md)):
+
+- `scripts/deploy_validation.py` releases the API, edge and reference bundle.
+  Inputs: the reviewed remote-`main` revision, its successful publish run ID and
+  the local bundle; `plan` records the image digests, the bundle database
+  SHA-256 and the live Compose SHA-256 in
+  `test-output/validation-deploy/<revision>/plan.json`. `stage`, `activate` and
+  `verify` follow (`deploy` runs all four). Activation starts the other API
+  colour beside the live one, then retires the old colour; `rollback` restores
+  the retained `validation-rollback/<revision>/compose.yaml`.
+- `scripts/deploy_watcher.py`, `scripts/deploy_tunnel.py` and
+  `scripts/deploy_kuma.py` release one service each: `plan`, `stage`,
+  `activate`, then `rollback --plan` if needed.
+- Every host-changing command holds `/opt/minos/.validation-deploy.lock`.
+  Read-only: `inspect`, each tool's `plan`, and `prune` without `--apply`.
+  Everything else changes the host, including `verify`, which writes a receipt.
+
+Human gates:
+
+- An agent runs a host-changing command only after the owner approves that
+  exact command text in `/permissions`; a chat approval does not lift a
+  permission denial. Ask for every command of a release in one message, with
+  revisions and digests taken from command output.
+- Ansible playbooks run only when the owner authorises that exact run;
+  `site.yml` never runs over the live validation deployment. Secret files,
+  1Password items, the R2 key and Cloudflare or Tailscale settings change only
+  at the owner's explicit request.
+
 ## Security And Privacy
 
 - Never commit credentials, `.env` files, raw source data, or licensed
