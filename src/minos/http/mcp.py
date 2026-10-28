@@ -878,7 +878,7 @@ class _Tools:
     async def get_jgp_group(
         self, code: GroupParam, service_date: ServiceDate = None
     ) -> Document:
-        """Get one JGP group from the catalog in force on service_date: name, product code, base points per column, scopes, the act and release, the knowledge horizon and its grouping conditions with the directional lists they name. Pass a named list's id and catalog to get_jgp_list for its codes; use compare_jgp_group for changes between dates."""
+        """Get one JGP group from the catalog in force on service_date: name, product code, base points per column, scopes, the act and release, its grouping conditions with the directional lists they name, and NFZ monthly settlement statistics (statistics, not rules). Pass a list's id and catalog to get_jgp_list; use compare_jgp_group for changes between dates."""
         answer = await self._group(code, service_date or today())
         return Document.model_validate({**answer, "notice": NOTICE})
 

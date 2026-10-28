@@ -6,15 +6,20 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from minos.domain.reference import ArtifactError
+from minos.http.app import create_app
 from minos.ingest.jgp_statistics import parse_report
 from minos.ingest.jgp_statistics_extract import write_extract
 from minos.ingest.jgp_statistics_manifest import ReportPin
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
-from minos.store.jgp_statistics import validate_jgp_statistics_binding
+from minos.store.jgp_statistics import (
+    group_statistics,
+    validate_jgp_statistics_binding,
+)
 from minos.store.reference import read_artifact_manifest
 from tests.integration.test_icd11_reference import icd11_bundle
 
@@ -206,3 +211,62 @@ def test_the_schema_refuses_rows_the_parser_never_writes(
             )
     finally:
         connection.close()
+
+
+def test_each_month_comes_from_its_newest_report(built: tuple[Path, Path]) -> None:
+    connection = sqlite3.connect(f"file:{built[0] / 'minos.db'}?mode=ro", uri=True)
+    try:
+        statistics = group_statistics(connection, "N01")
+        # Expected totals straight from the stored rows, not through the reader.
+        stored = dict(
+            cast(
+                list[tuple[str, int]],
+                connection.execute(
+                    """SELECT month, sum(coalesce(hospitalizations, 0)) + sum(suppressed)
+                    FROM jgp_group_statistic AS s WHERE code = 'N01'
+                    AND report_month = (SELECT max(report_month) FROM jgp_group_statistic
+                      WHERE code = 'N01' AND month = s.month)
+                    GROUP BY month"""
+                ).fetchall(),
+            )
+        )
+    finally:
+        connection.close()
+    assert statistics is not None
+    months = cast(list[dict[str, object]], statistics["months"])
+    # The July report alone covers June 2026 and July 2025; August revises July 2026.
+    assert [
+        (item["month"], item["report_month"], item["provisional"]) for item in months
+    ] == [
+        ("2025-07", "2026-07", False),
+        ("2025-08", "2026-08", False),
+        ("2026-06", "2026-07", True),
+        ("2026-07", "2026-08", True),
+        ("2026-08", "2026-08", True),
+    ]
+    assert {
+        cast(str, item["month"]): cast(dict[str, int], item["hospitalizations"])["min"]
+        for item in months
+    } == stored
+    mature = cast(dict[str, object], statistics["mature"])
+    assert (mature["from"], mature["to"], mature["months"]) == ("2025-07", "2025-08", 2)
+
+
+def test_a_group_without_settlements_says_so_on_api_and_page(
+    built: tuple[Path, Path],
+) -> None:
+    with TestClient(create_app(built[0])) as client:
+        answer = cast(
+            dict[str, dict[str, object]],
+            client.get("/api/v1/jgp/2026-07-01/groups/A01").json(),
+        )
+        page = client.get("/jgp/2026-07-01/A01").text
+    assert answer["statistics"]["months"] == []
+    assert answer["statistics"]["source"] == {
+        "dataset": "https://dane.gov.pl/pl/dataset/2581",
+        "publisher": "Narodowy Fundusz Zdrowia",
+        "license": "CC0 1.0",
+        "release_id": "jgp-statistics-excerpt",
+    }
+    assert "Rozliczenia NFZ" in page
+    assert "nie wykazują rozliczeń tej grupy" in page
