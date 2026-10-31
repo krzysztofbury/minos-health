@@ -143,7 +143,9 @@ class Sample:
     error: str | None
 
 
-def get_page(base: str, route: str, headers: dict[str, str]) -> tuple[int, float]:
+def get_page(
+    base: str, route: str, headers: dict[str, str]
+) -> tuple[int, bytes, float]:
     request = urllib.request.Request(  # noqa: S310  # nosec B310
         base + route, headers={"Host": "minoshealth.pl"} | headers
     )
@@ -153,12 +155,22 @@ def get_page(base: str, route: str, headers: dict[str, str]) -> tuple[int, float
             HTTPResponse,
             urllib.request.urlopen(request, timeout=20),  # noqa: S310  # nosec B310
         ) as response:
-            _ = response.read()
+            content = response.read()
             status = response.status
     except urllib.error.HTTPError as error:
-        _ = error.read()
+        content = error.read(1_048_576)
+        error.close()
         status = error.code
-    return status, (time.perf_counter() - began) * 1000
+    return status, content, (time.perf_counter() - began) * 1000
+
+
+def page_error(status: int, content: bytes) -> str | None:
+    if status == 200:
+        return None
+    if status == 429:
+        return "busy"
+    # The API's own error page, unlike the edge's, which breaks the objectives.
+    return "query_timeout" if b'class="not-found-code"' in content else f"edge_{status}"
 
 
 def send(base: str, step: Step, client: str) -> Sample:
@@ -171,17 +183,12 @@ def send(base: str, step: Step, client: str) -> Sample:
     began = time.perf_counter()
     if step.page:
         try:
-            status, elapsed = get_page(base, step.route, headers)
+            status, content, elapsed = get_page(base, step.route, headers)
         except OSError:
             return Sample(
                 step.kind, 0, (time.perf_counter() - began) * 1000, "transport"
             )
-        return Sample(
-            step.kind,
-            status,
-            elapsed,
-            None if status == 200 else "busy" if status == 429 else f"http_{status}",
-        )
+        return Sample(step.kind, status, elapsed, page_error(status, content))
     try:
         status, answer, elapsed = get_json(
             base, step.route, step.body, headers=headers, timeout_s=20

@@ -15,9 +15,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
-- Eight people at once no longer get "busy" on search and code pages: up to 12
-  requests wait for a database connection, matching the 16 the API admits
-  (#296).
+- Far fewer "busy" answers under load: up to 12 requests wait for a database
+  connection, matching the 16 the API admits (#296).
 - ICD-10 text search and many ICD-11 code pages failed with `limit_exceeded`
   from the schema 12 release on 2026-10-28: on the image's SQLite 3.40 the
   recursive hierarchy walk rebuilt a Bloom filter on every step once the bundle

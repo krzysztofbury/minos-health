@@ -34,6 +34,8 @@ thousands of `memory.events max` appear on every healthy start.
 `scripts/measure_api_load.py` sends a browser-shaped cycle (four searches
 across ICD-10, ICD-9 and JGP plus ICD-11, a code detail, a JGP group, a
 Gruper case) plus three MCP calls (`search_codes`, `get_code`, `group_case`).
+Local runs add HTML code and group pages, which hold one lease across many
+queries; public runs leave them out because Cloudflare answers cached pages.
 Reports keep route kinds, statuses, closed error codes, timings and cgroup
 memory; never queries, codes or bodies.
 
@@ -163,28 +165,40 @@ Same bundle, 0.25 CPU, against the #222 report above. Report:
 
 ## Waiting For A Lease (#296)
 
-Four leases and four waiters meant the API refused requests at eight users that
-it had already admitted, although each read takes milliseconds: the 16 admitted
-by the in-flight limit could never all wait. Raising the waiters to 12 makes the
-two limits agree. Same bundle and API image apart from that limit, 0.25 CPU, two
-runs each, totals across both:
+With four leases and four waiters the API refused requests it had already
+admitted: at eight users 11 of 174 searches got `busy`, although a read takes
+milliseconds. Raising the waiters to 12 makes the room match the 16 requests the
+in-flight limit admits. `/readyz`, MCP tree lookups and start-up warm-up use the
+pool outside that count, so a saturated pool can still refuse.
 
-| Phase | Search `busy` | Code `busy` | JGP group `busy` | Search p95 | API deadline answers |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Eight users, 4 waiters | 23 of 220 | 5 of 44 | 5 of 44 | 592 and 599 ms | none |
-| Eight users, 12 waiters | 0 of 220 | 0 of 44 | 0 of 44 | 599 and 504 ms | none |
-| Sixteen users, 4 waiters | 196 of 220 | 41 of 44 | 40 of 44 | 1,695 and 909 ms | 1 `query_timeout` |
-| Sixteen users, 12 waiters | 48 of 220 | 12 of 44 | 13 of 44 | 993 and 994 ms | none |
+Commit `f4f91dc`, built twice with only the limit changed, production bundle,
+0.25 CPU, phases 1, 4, 8 and 16, two runs each. `busy` totals across both runs,
+MCP `BUSY` included, then the two runs' p95 of served requests:
 
-- At four users nothing changed: no search `busy` and p95 within noise.
-- Anon memory after the load: 298 to 299 MiB against 304 MiB. No 5xx from the
-  edge, no OOM kill, `/readyz` ready afterwards.
-- A waiter holds a thread for at most 0.5 s, so at most 16 of the pool's 40
-  threads are tied up by database reads.
-- The Gruper keeps its own admission, so some of its cases still get `busy`:
-  6 against 9 of 44 at eight users.
+| Phase | Search | Code and group pages | JSON code and group | MCP `get_code` | Search p95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Four users, 4 waiters | 0 of 174 | 0 of 102 | 0 of 68 | 0 of 34 | 297, 303 ms |
+| Four users, 12 waiters | 0 of 174 | 0 of 102 | 0 of 68 | 0 of 34 | 298, 299 ms |
+| Eight users, 4 waiters | 11 of 174 | 5 of 102 | 4 of 68 | 1 of 34 | 500, 504 ms |
+| Eight users, 12 waiters | 0 of 174 | 2 of 102 | 0 of 68 | 0 of 34 | 497, 498 ms |
+| Sixteen users, 4 waiters | 153 of 174 | 94 of 102 | 58 of 68 | 32 of 34 | not comparable |
+| Sixteen users, 12 waiters | 51 of 174 | 27 of 102 | 24 of 68 | 19 of 34 | not comparable |
 
-This is local evidence. The host run after the release is recorded on #296.
+- Sixteen-user p95s cover served requests only, and far more are served with 12
+  waiters, so they do not compare. Served pages stayed at or below 1.6 s against
+  the edge's 3 s read timeout. MCP `search_codes` p95 at sixteen users was 2.2
+  to 2.8 s; it reports `BUSY` per dictionary inside a 200, so the table omits it.
+- Anon memory after the load rose from 299 and 301 MiB to 304 and 305 MiB. No
+  OOM kill, `/readyz` ready after every run.
+- One group page answered 504 at sixteen users with 12 waiters, in the first
+  run, before the tool told the API's page from the edge's, so its origin is
+  unknown. Then 1,920 more requests at sixteen users with the classifying tool
+  gave no 5xx from either. `query_timeout` on the JSON group route appeared at
+  sixteen users with both limits.
+- The Gruper keeps its own admission: 9 against 12 of 34 cases `busy` at eight
+  users, and at four users 4 against 6, above the 5% objective as before.
+
+Local evidence only, on code before the host run. Reports are attached to #296.
 
 ## Planner Statistics Review (#228)
 
