@@ -29,12 +29,47 @@ from minos.store.jgp_ruleset import (
 from minos.store.query_budget import query_budget
 
 PAGE_SIZE = 100
-LIST_WORD = re.compile(r"[A-Za-z0-9]+")
+LIST_LABEL = r"[A-Z]\w*(?![.\w])"
+# "z listy dodatkowej F07a lub F07b", "z list rozpoznań T14-T16". A dotted ICD
+# code is not a list label, and "ICD" after the list word ends the match.
+LIST_REFERENCE = re.compile(
+    r"[Ll]ist\w*(?:\s+(?:procedur|rozpoznań|dodatkow\w+))*\s+(?P<labels>"
+    + LIST_LABEL
+    + r"(?:(?:\s*[,-]\s*|\s+(?:lub|albo|i)\s+)"
+    + LIST_LABEL
+    + r")*)"
+)
+LIST_RANGE = re.compile(r"([A-Z]\w*?)(\d+)\s*-\s*\1(\d+)")
+LIST_KIND = re.compile(r"procedur|rozpozn", re.IGNORECASE)
+LIST_SYSTEMS = {"procedur": ("icd9-pl",), "rozpozn": ("icd10-pl",)}
+MAX_LIST_RANGE = 32
 MAX_GROUP_NODES = 2048
 MAX_GROUP_EVIDENCE = 2048
 MAX_SELECTORS = 20_000
 type Catalog = Literal["1a", "1ae"]
 type Json = dict[str, object]
+
+
+def named_lists(clause: str) -> set[str]:
+    """`system:label` of each list a clause names; the kind is the nearest noun."""
+    keys: set[str] = set()
+    for match in LIST_REFERENCE.finditer(clause):
+        kinds = LIST_KIND.findall(clause, 0, match.start("labels"))
+        systems = (
+            LIST_SYSTEMS[cast(str, kinds[-1]).lower()]
+            if kinds
+            else ("icd9-pl", "icd10-pl")
+        )
+        labels = set(cast(list[str], re.findall(LIST_LABEL, match["labels"])))
+        for prefix, low, high in cast(
+            list[tuple[str, str, str]], LIST_RANGE.findall(match["labels"])
+        ):
+            last = min(int(high), int(low) + MAX_LIST_RANGE)
+            labels |= {
+                f"{prefix}{number:0{len(low)}d}" for number in range(int(low), last + 1)
+            }
+        keys |= {f"{system}:{label}" for system in systems for label in labels}
+    return keys
 
 
 def selected_source(
@@ -184,21 +219,28 @@ def group_conditions(
             ).fetchall(),
         )
         _bounded(cast(list[object], evidence), MAX_GROUP_EVIDENCE)
-        # The lists a group prints or names, whatever the structure reached: an
-        # uninterpreted group has no selectors, and its page still needs them.
-        named = {
-            word
-            for _, text, category, own in evidence
-            if own and category == "label"
-            for word in cast(list[str], LIST_WORD.findall(text))
-        }
+        # The lists a group prints, and for an uninterpreted group, which has no
+        # reviewed selectors to say what it needs, the lists its clauses name.
+        named = (
+            ()
+            if fully
+            else sorted(
+                {
+                    key
+                    for _, text, category, own in evidence
+                    if own and category == "label"
+                    for key in named_lists(text)
+                }
+            )
+        )
         printed = cast(
             list[tuple[int]],
             connection.execute(
                 """SELECT id FROM directional_list WHERE release_id=? AND catalog=?
-                AND (trim(context)=? OR label IN (SELECT value FROM json_each(?)))
+                AND (trim(context)=?
+                  OR system || ':' || label IN (SELECT value FROM json_each(?)))
                 LIMIT 3001""",
-                (*key, code, json.dumps(sorted({code, *named}))),
+                (*key, code, json.dumps(named)),
             ).fetchall(),
         )
         _bounded(cast(list[object], printed), 3000)

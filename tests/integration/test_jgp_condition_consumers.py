@@ -18,6 +18,7 @@ from minos.store.jgp_condition_reference import (
     code_memberships,
     group_conditions,
     list_members,
+    named_lists,
 )
 from minos.store.reference import open_reference_bundle
 from tests.fixtures.jgp_catalog import catalog_workbook, default_sheets, stage_catalog
@@ -29,6 +30,17 @@ if TYPE_CHECKING:
     from openpyxl.worksheet.worksheet import Worksheet
 
 
+UNINTERPRETED_ROWS = (
+    ("X", "X01", "X01 Synthetic group naming lists"),
+    # A01 exists in both systems; the clause asks for the diagnosis list.
+    ("X", "X01", "Unreviewed: patrz list rozpoznań A01 lub K06.8"),
+    ("X", "X02", "X02 Synthetic group printing a list"),
+    ("X", "X02", "Unreviewed allocation"),
+    ("X", "X02", "ICD-10"),
+    ("X", "X02", "E11.0 Printed list member"),
+)
+
+
 def consumer_bundle(
     root: Path,
     *,
@@ -36,10 +48,11 @@ def consumer_bundle(
     long_list: bool = False,
     title_only: bool = False,
     many_groups: bool = False,
+    uninterpreted_groups: bool = False,
 ) -> Path:
     base = conditions_manifest(root)
     characteristics = base.characteristics[0]
-    if unsupported or long_list or title_only or many_groups:
+    if unsupported or long_list or title_only or many_groups or uninterpreted_groups:
 
         def edit(sheet: Worksheet) -> None:
             if sheet.title != "Charakterystyka 1a":
@@ -48,6 +61,9 @@ def consumer_bundle(
                 sheet.append(("A", "A01", "Unreviewed allocation requirement"))
             if title_only:
                 sheet["C5"] = None
+            if uninterpreted_groups:
+                for extra in UNINTERPRETED_ROWS:
+                    sheet.append(extra)
             if many_groups:
                 for number in range(101):
                     code = f"X{number:03}"
@@ -82,6 +98,18 @@ def consumer_bundle(
             expected["conditions"] -= 2
             expected["kind_counts"] = {"program_membership": 2, "unsupported": 1}
             expected["unsupported_reasons"] = {"missing_label": 1}
+        if uninterpreted_groups:
+            expected["groups"] += 2
+            expected["evidence_cells"] += len(UNINTERPRETED_ROWS)
+            expected["lists"] += 1
+            expected["member_occurrences"] += 1
+            expected["unique_members"] += 1
+            expected["conditions"] += 2
+            expected["kind_counts"]["unsupported"] = 2
+            expected["unsupported_reasons"] = {
+                "boolean_scope_unreviewed": 1,
+                "unconsumed_source_text": 1,
+            }
         if many_groups:
             expected["groups"] += 101
             expected["evidence_cells"] += 202
@@ -216,10 +244,6 @@ def test_one_unsupported_root_hides_every_structured_rule_but_not_source_members
         )
         assert answer["status"] == "not_yet_interpreted"
         assert answer["nodes"] == answer["selectors"] == answer["roots"] == []
-        # Without a structure the page still links the lists the group prints.
-        assert "A01" in [
-            item["label"] for item in cast(list[dict[str, object]], answer["lists"])
-        ]
         assert any(
             "Unreviewed allocation" in cast(str, row["text"])
             for row in cast(list[dict[str, object]], answer["source_text"])
@@ -232,6 +256,55 @@ def test_one_unsupported_root_hides_every_structured_rule_but_not_source_members
         assert concept.status_code == 200
         assert 'href="/jgp/2026-07-01/A01"' in concept.text
         assert "jeszcze nie zinterpretowano" in concept.text
+
+
+def test_uninterpreted_group_links_only_the_lists_it_prints_or_names(
+    tmp_path: Path,
+) -> None:
+    bundle = consumer_bundle(tmp_path, uninterpreted_groups=True)
+    with open_reference_bundle(bundle) as (connection, _):
+
+        def lists(code: str) -> list[tuple[object, object]]:
+            answer = group_conditions(connection, "1a", code, date(2026, 7, 1))
+            assert answer["status"] == "not_yet_interpreted"
+            return [
+                (item["label"], item["system"])
+                for item in cast(list[dict[str, object]], answer["lists"])
+            ]
+
+        assert lists("X01") == [("A01", "icd10-pl")]
+        assert lists("X02") == [("X02", "icd10-pl")]
+
+
+@pytest.mark.parametrize(
+    ("clause", "expected"),
+    [
+        (
+            "procedury z listy procedur T02, rozpoznania zasadniczego z listy rozpoznań T07",
+            {"icd9-pl:T02", "icd10-pl:T07"},
+        ),
+        # The noun is the requirement's, wherever the list word sits.
+        ("rozpoznania współistniejącego z listy dodatkowej F07a", {"icd10-pl:F07a"}),
+        (
+            "procedury z listy dodatkowej F07a lub F07b",
+            {"icd9-pl:F07a", "icd9-pl:F07b"},
+        ),
+        (
+            "rozpoznania współistniejącego z list dodatkowych T1-T3",
+            {"icd10-pl:T1", "icd10-pl:T2", "icd10-pl:T3"},
+        ),
+        ("z list procedur T08-T10", {"icd9-pl:T08", "icd9-pl:T09", "icd9-pl:T10"}),
+        ("rozpoznania z listy S02", {"icd10-pl:S02"}),
+        ("z listy S02", {"icd9-pl:S02", "icd10-pl:S02"}),
+        ("rozpoznanie K06.8 lub P27.1", set[str]()),
+        ("rozpoznania z listy K06.8", set[str]()),
+        ("wiek pacjenta >17 r.ż. oraz czas pobytu A01", set[str]()),
+    ],
+)
+def test_named_lists_reads_the_kind_and_labels_a_clause_names(
+    clause: str, expected: set[str]
+) -> None:
+    assert named_lists(clause) == expected
 
 
 def test_list_pagination_is_physical_and_missing_dictionary_codes_are_not_links(
