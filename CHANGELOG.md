@@ -13,6 +13,17 @@ These entries include public validation deployments, not a versioned product
 release. No version tags or GitHub Releases have been published; the complete
 signed-release and deployment-acceptance gates remain #41/#27.
 
+### Fixed
+
+- ICD-10 text search and many ICD-11 code pages failed with `limit_exceeded`
+  from the schema 12 release on 2026-10-28: on the image's SQLite 3.40 the
+  recursive hierarchy walk rebuilt a Bloom filter on every step once the bundle
+  carried planner statistics. The walk and the tree listing's owner check now
+  read one level at a time with single-table statements (#294).
+- `deploy_validation verify` now searches with the full result limit, fails
+  when any dictionary answers an error status, which it used to pass, and opens
+  an ICD-11 code page (#294).
+
 ### Added
 
 - JGP group pages, `GET /api/v1/jgp/{service_date}/groups/{code}` and the

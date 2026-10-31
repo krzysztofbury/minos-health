@@ -25,6 +25,7 @@ from minos.domain.search import (
     use_token_prefix,
 )
 from minos.store.bundle_cache import BundleCache
+from minos.store.hierarchy_walk import walk_hierarchy
 from minos.store.query_budget import QueryBudget, query_budget
 from minos.store.reference_build import reference_sql
 from minos.store.search_jgp import membership_counts
@@ -414,18 +415,14 @@ def _source_attributes(
 def _context(
     connection: sqlite3.Connection, release: str, ordinal: int
 ) -> tuple[tuple[ContextNode, ...], tuple[tuple[int, int], ...]]:
-    ancestors = cast(
-        list[tuple[int, int, str, str, str]],
-        connection.execute(
-            reference_sql("queries/ancestors.sql"),
-            {
-                "release_id": release,
-                "ordinal": ordinal,
-                "relation_type": "contains",
-                "max_depth": 64,
-                "row_limit": 257,
-            },
-        ).fetchall(),
+    ancestors = walk_hierarchy(
+        connection,
+        release_id=release,
+        ordinal=ordinal,
+        direction="ancestors",
+        relation_type="contains",
+        max_depth=64,
+        row_limit=257,
     )
     if len(ancestors) > 256 or any(row[1] > 64 for row in ancestors):
         raise QueryLimitError("search context exceeds graph limits")

@@ -525,14 +525,43 @@ def _mcp(base: str, method: str, params: dict[str, object]) -> dict[str, object]
 def verify_mcp(base: str) -> str:
     """The agent endpoint (#216): its catalog and one real search."""
     tools = cast(list[dict[str, object]], _mcp(base, "tools/list", {}).get("tools", []))
+    # The full result limit and every dictionary's own status: one hit stayed
+    # under the query budget while ten failed, and a dictionary that fails
+    # still answers a successful tool call with its status inside (#294).
     found = _mcp(
         base,
         "tools/call",
-        {"name": "search_codes", "arguments": {"query": "zapalenie płuc", "limit": 1}},
+        {"name": "search_codes", "arguments": {"query": "zapalenie płuc", "limit": 20}},
     )
-    if len(tools) != 12 or found.get("isError"):
-        raise DeployError("public MCP catalog or search is wrong")
-    return f"{len(tools)} tools listed, search_codes answered"
+    content = cast(dict[str, object], found.get("structuredContent") or {})
+    systems = cast(list[dict[str, object]], content.get("systems") or [])
+    answers = {cast(str, item.get("system")): item for item in systems}
+    # This query has no ICD-9 hit, and a bundle may carry no catalog for JGP.
+    allowed = {"jgp": ("ok", "not_covered")}
+    refused = {
+        name: item.get("status")
+        for name, item in answers.items()
+        if item.get("status") not in allowed.get(name, ("ok", "no_results"))
+    }
+    if (
+        len(tools) != 12
+        or found.get("isError")
+        or refused
+        or not answers.get("icd10-pl", {}).get("results")
+    ):
+        raise DeployError(f"public MCP catalog or search is wrong: {refused}")
+    return f"{len(tools)} tools listed, search_codes answered in every dictionary"
+
+
+def verify_code_page(base: str) -> str:
+    """A code with a deep tree path, which cost the most under #294's plans.
+
+    ICD-11 is optional in a bundle, so its absence is a correct 404.
+    """
+    status, _body = get(base + "/slowniki/icd-11/BA00")
+    if status not in (200, 404):
+        raise DeployError(f"ICD-11 code page answered HTTP {status}")
+    return f"ICD-11 code page answered HTTP {status}"
 
 
 def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
@@ -545,6 +574,7 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
     checks: dict[str, object] = {"readyz": "ready", "dataset_id": value.dataset_id}
     checks["home"] = verify_home(base)
     checks["mcp"] = verify_mcp(base)
+    checks["code_page"] = verify_code_page(base)
     if value.rank_sample is not None:
         code, rank = value.rank_sample
         status, body = get(f"{base}/slowniki/icd-9/{code}")
