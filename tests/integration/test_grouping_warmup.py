@@ -6,7 +6,7 @@ import logging
 import sqlite3
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
 from threading import Event
 from time import monotonic, sleep
@@ -23,8 +23,10 @@ from minos.http import app as application
 from minos.http.app import MAX_IN_FLIGHT
 from minos.http.grouping import warm_grouping
 from minos.http.reference import MAX_WAITERS, CapacityError, ReferencePool
+from minos.store import grouper_bundle
 from minos.store.grouper_bundle import CharacteristicsGraph, load_graph, sheet_releases
 from minos.store.product_catalogs import product_catalog_releases
+from minos.store.query_budget import query_budget
 from tests.fixtures.grouping_interface import grouping_body, grouping_bundle
 
 
@@ -124,29 +126,80 @@ def test_warm_up_gives_a_sheet_more_time_than_a_request(
     budgets: list[float] = []
 
     def recorded(
-        db: sqlite3.Connection, release: str, catalog: Catalog, *, seconds: float
-    ) -> CharacteristicsGraph:
+        connection: sqlite3.Connection, *, seconds: float = 1.0
+    ) -> AbstractContextManager[object]:
         budgets.append(seconds)
-        return load_graph(db, release, catalog, seconds=seconds)
+        return query_budget(connection, seconds=seconds)
 
-    monkeypatch.setattr(pipeline, "load_graph", recorded)
-    with sqlite3.connect(bundle / "minos.db") as db:
-        release, catalog = sheet_releases(db)[0]
-        _ = pipeline.PreparedSources().sheet(db, release, catalog)
-    assert budgets == [1.0]
+    monkeypatch.setattr(grouper_bundle, "query_budget", recorded)
+
+    def skipped(*_args: object) -> None:
+        return None
+
+    monkeypatch.setattr(application, "warm_grouping", skipped)
+    with TestClient(application.create_app(bundle)) as client:
+        budgets.clear()
+        response = client.post("/api/v1/group", json=grouping_body())
+    assert response.status_code == 200, response.text
+    assert budgets and set(budgets) == {1.0}
     budgets.clear()
     with _pool(bundle) as pool:
         warm_grouping(pool, pipeline.PreparedSources(), Event())
-    assert budgets and set(budgets) == {SHEET_SECONDS}
-    assert 1.0 < SHEET_SECONDS < 7
+    assert budgets and SHEET_SECONDS in budgets
+    assert SHEET_SECONDS > 1.0
 
 
-def test_sheet_read_stops_at_its_own_budget(tmp_path: Path) -> None:
+def test_a_request_never_waits_past_its_budget_behind_a_slow_sheet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     bundle = grouping_bundle(tmp_path)
-    with sqlite3.connect(bundle / "minos.db") as db:
-        release, catalog = sheet_releases(db)[0]
+    entered, release = Event(), Event()
+    failing = [True]
+
+    def slow(
+        db: sqlite3.Connection, identity: str, catalog: Catalog, *, seconds: float
+    ) -> CharacteristicsGraph:
+        entered.set()
+        assert release.wait(10)
+        if failing and failing.pop():
+            raise QueryTimeoutError("first reader failed")
+        return load_graph(db, identity, catalog, seconds=seconds)
+
+    monkeypatch.setattr(pipeline, "load_graph", slow)
+    prepared = pipeline.PreparedSources()
+    with _pool(bundle) as pool, ThreadPoolExecutor(1) as threads:
+        (release_id, catalog) = next(iter(sheet_list(bundle)))
+
+        def warm() -> object:
+            with pool.borrow() as lease:
+                return prepared.sheet(lease.connection, release_id, catalog)
+
+        first = threads.submit(warm)
+        try:
+            assert entered.wait(10)
+            with pool.borrow() as lease:
+                began = monotonic()
+                # Other entries stay free while the sheet is being read.
+                _ = prepared.algorithm(lease.connection)
+                with pytest.raises(QueryTimeoutError):
+                    _ = prepared.sheet(
+                        lease.connection, release_id, catalog, seconds=0.05
+                    )
+                assert monotonic() - began < 0.5
+        finally:
+            release.set()
         with pytest.raises(QueryTimeoutError):
-            _ = load_graph(db, release, catalog, seconds=-1.0)
+            _ = first.result(10)
+        # A failed reader leaves the entry to the next caller.
+        with pool.borrow() as lease:
+            graph, _index = prepared.sheet(lease.connection, release_id, catalog)
+            again, _index = prepared.sheet(lease.connection, release_id, catalog)
+        assert graph is again
+
+
+def sheet_list(bundle: Path) -> list[tuple[str, Catalog]]:
+    with sqlite3.connect(bundle / "minos.db") as db:
+        return list(sheet_releases(db))
 
 
 @contextmanager

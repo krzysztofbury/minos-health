@@ -11,6 +11,7 @@ returns domain values and never a wire schema (decision 2026-10-08).
 
 import sqlite3
 import threading
+import time
 from datetime import date
 from typing import cast, final
 
@@ -40,7 +41,7 @@ from minos.domain.grouping_request import (
     ProductCatalogMissing,
     UnsupportedProductReport,
 )
-from minos.domain.reference import SourceError
+from minos.domain.reference import QueryTimeoutError, SourceError
 from minos.grouper.budget import checkpoint, evaluation_budget
 from minos.grouper.candidates import derive
 from minos.grouper.conditions import evaluate_group, facts_from
@@ -88,6 +89,7 @@ class PreparedSources:
         self._sheets: dict[
             tuple[str, Catalog], tuple[CharacteristicsGraph, DirectionalIndex]
         ] = {}
+        self._loading: dict[tuple[str, Catalog], threading.Event] = {}
         # Keyed by catalog release; None records that its act has no pins.
         self._products: dict[str, ProductClassification | None] = {}
         # Keyed by MODTAR and catalog release. Validating and reconciling them
@@ -110,13 +112,34 @@ class PreparedSources:
         *,
         seconds: float = 1.0,
     ) -> tuple[CharacteristicsGraph, DirectionalIndex]:
-        with self._lock:
-            found = self._sheets.get((release_id, catalog))
-            if found is None:
-                graph = load_graph(connection, release_id, catalog, seconds=seconds)
-                found = (graph, index_from_graph(graph))
-                self._sheets[(release_id, catalog)] = found
+        """Load once outside the lock; a slow read never blocks other entries.
+
+        A second caller waits for the first within its own budget, holding only
+        its lease, and takes over if the first fails (#310).
+        """
+        key = (release_id, catalog)
+        deadline = time.monotonic() + seconds
+        while True:
+            with self._lock:
+                found = self._sheets.get(key)
+                if found is not None:
+                    return found
+                loading = self._loading.get(key)
+                if loading is None:
+                    loading = self._loading[key] = threading.Event()
+                    break
+            if not loading.wait(max(deadline - time.monotonic(), 0)):
+                raise QueryTimeoutError("sheet is still loading")
+        try:
+            graph = load_graph(connection, release_id, catalog, seconds=seconds)
+            found = (graph, index_from_graph(graph))
+            with self._lock:
+                self._sheets[key] = found
             return found
+        finally:
+            with self._lock:
+                del self._loading[key]
+            loading.set()
 
     def products(
         self, connection: sqlite3.Connection, catalog_release_id: str

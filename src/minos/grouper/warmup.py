@@ -21,7 +21,7 @@ from minos.store.product_catalogs import product_catalog_releases
 
 # The first read of a sheet can outlast a request's one second on the host while
 # activation shares its CPU, and a failed warm-up leaves that read to visitors
-# (#310). Requests wait on the same cache lock, so this stays under the edge's 7 s.
+# (#310). Requests never wait for it past their own budget.
 SHEET_SECONDS = 5.0
 
 type Stage = Literal[

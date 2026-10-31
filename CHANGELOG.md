@@ -15,8 +15,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
-- The first Gruper cases after a release no longer answer 504: warm-up gives a
-  sheet 5 s to load instead of a request's one second (#310).
+- Warm-up gives a sheet 5 s to load instead of a request's one second, and a
+  slow sheet no longer blocks other Gruper work, so the first cases after a
+  release should stop answering 504 (#310).
 - The watcher runs Python 3.14.10, which refuses compromised eMudhra CA keys in
   its TLS connections (#301).
 - The social preview image is now a JPEG at a new address, because WhatsApp

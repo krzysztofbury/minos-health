@@ -80,9 +80,13 @@ against the one second budget of `load_graph`, while activation still shared the
 CPU; every other entry completed. The first three Gruper cases then met the same
 limit and answered 504, and the fourth filled the cache in 2,380 ms.
 
-Warm-up now gives each sheet 5 s while requests keep their one second. Operation
-limits are unchanged. A request that needs a sheet being warmed waits on the
-cache lock, so the budget stays under the edge's 7 s Gruper timeout.
+Warm-up now gives each sheet 5 s of SQL while requests keep their one second.
+Operation limits are unchanged. The sheet cache no longer holds its lock while
+reading: a request needing a sheet being warmed waits for it within its own
+second, holding its lease, then answers its closed timeout, and other entries
+stay available. Algorithm, product and modifier entries still hold the lock, but
+they took 248 ms at most on the host. Decoding after the read has no budget, so
+a warm-up step can run longer than 5 s; shutdown joins it.
 
 ## Actual-Host Recovery During The Rolled-Back #160 Activation
 
