@@ -39,7 +39,7 @@ memory; never queries, codes or bodies.
 
 - `local` runs the API and edge images on a pinned bundle in a disposable
   Compose project at the production limits (API 1 CPU, 512 MiB, no swap; edge
-  0.5 CPU, 64 MiB), at concurrency 1, 4 and 8. It sets `CF-Connecting-IP` per
+  0.5 CPU, 64 MiB), at concurrency 1, 4, 8 and 16. It sets `CF-Connecting-IP` per
   worker to emulate distinct agents, because the edge keys the MCP limit on it.
 - `public` sends 40 requests at concurrency 1, 120 at concurrency 4, then 12
   sequential MCP calls to `https://minoshealth.pl`, and stops at the first
@@ -160,6 +160,31 @@ Same bundle, 0.25 CPU, against the #222 report above. Report:
 - The host already met the four-user search objective before this change
   (977 ms, no deadline answers), so the 0.25 CPU share is harsher on search
   than the host. A public rerun needs the owner's approval.
+
+## Waiting For A Lease (#296)
+
+Four leases and four waiters meant the API refused requests at eight users that
+it had already admitted, although each read takes milliseconds: the 16 admitted
+by the in-flight limit could never all wait. Raising the waiters to 12 makes the
+two limits agree. Same bundle and API image apart from that limit, 0.25 CPU, two
+runs each, totals across both:
+
+| Phase | Search `busy` | Code `busy` | JGP group `busy` | Search p95 | API deadline answers |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Eight users, 4 waiters | 23 of 220 | 5 of 44 | 5 of 44 | 592 and 599 ms | none |
+| Eight users, 12 waiters | 0 of 220 | 0 of 44 | 0 of 44 | 599 and 504 ms | none |
+| Sixteen users, 4 waiters | 196 of 220 | 41 of 44 | 40 of 44 | 1,695 and 909 ms | 1 `query_timeout` |
+| Sixteen users, 12 waiters | 48 of 220 | 12 of 44 | 13 of 44 | 993 and 994 ms | none |
+
+- At four users nothing changed: no search `busy` and p95 within noise.
+- Anon memory after the load: 298 to 299 MiB against 304 MiB. No 5xx from the
+  edge, no OOM kill, `/readyz` ready afterwards.
+- A waiter holds a thread for at most 0.5 s, so at most 16 of the pool's 40
+  threads are tied up by database reads.
+- The Gruper keeps its own admission, so some of its cases still get `busy`:
+  6 against 9 of 44 at eight users.
+
+This is local evidence. The host run after the release is recorded on #296.
 
 ## Planner Statistics Review (#228)
 

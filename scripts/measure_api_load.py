@@ -32,7 +32,7 @@ PUBLIC_BASE = "https://minoshealth.pl"
 # at most the API's four leases, and MCP under its 60 per minute client limit.
 PUBLIC_PHASES = ((1, 40), (4, 120))
 PUBLIC_MCP_CALLS = 12
-LOCAL_PHASES = ((1, 60), (4, 240), (8, 240))
+LOCAL_PHASES = ((1, 60), (4, 240), (8, 240), (16, 240))
 DEADLINE_ANSWERS = frozenset({"query_timeout", "evaluation_timeout"})
 SERVICE_DATE = "2026-10-02"
 GROUP_BODY: Json = {

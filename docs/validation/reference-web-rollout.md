@@ -75,7 +75,8 @@ measurements below retain their original context.
 
 - Four startup-verified, exclusively borrowed read-only SQLite connections.
   Database digest must equal the selected deployment identity; file identity
-  changes fail closed. No request queue waits for an occupied SQL connection.
+  changes fail closed. Up to 12 requests wait 0.5 s for an occupied SQL
+  connection; beyond that the API answers `busy` at once.
 - The API answers `busy` itself above 16 requests in flight: a branded HTML page
   or JSON for `/api/`. Health checks, sitemaps and the outer `/mcp` call are not
   counted, since MCP tools count through the API routes they call. Uvicorn's
