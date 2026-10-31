@@ -1,4 +1,6 @@
 import json
+import shutil
+import sqlite3
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -276,6 +278,65 @@ def test_uninterpreted_group_links_only_the_lists_it_prints_or_names(
         assert lists("X02") == [("X02", "icd10-pl")]
 
 
+def writable_database(root: Path, *, uninterpreted_groups: bool) -> sqlite3.Connection:
+    database = root / "scope.db"
+    bundle = consumer_bundle(root, uninterpreted_groups=uninterpreted_groups)
+    _ = shutil.copy(bundle / "minos.db", database)
+    database.chmod(0o600)
+    return sqlite3.connect(database)
+
+
+def linked_labels(connection: sqlite3.Connection, code: str) -> list[object]:
+    answer = group_conditions(connection, "1a", code, date(2026, 7, 1))
+    return [item["label"] for item in cast(list[dict[str, object]], answer["lists"])]
+
+
+def test_list_ids_of_another_catalog_or_release_never_reach_a_group(
+    tmp_path: Path,
+) -> None:
+    connection = writable_database(tmp_path, uninterpreted_groups=False)
+    (release,) = cast(
+        tuple[str],
+        connection.execute(
+            "SELECT DISTINCT release_id FROM directional_list"
+        ).fetchone(),
+    )
+    (other,) = cast(
+        tuple[int],
+        connection.execute(
+            "SELECT id FROM directional_list WHERE catalog='1a' AND label='Lista Ogólna'"
+        ).fetchone(),
+    )
+    # The same id elsewhere, in the context a scope-free query would pick up.
+    for scope in ((release, "1ae"), ("another-release", "1a")):
+        _ = connection.execute(
+            "DELETE FROM directional_list WHERE release_id=? AND catalog=? AND id=?",
+            (*scope, other),
+        )
+        _ = connection.execute(
+            "INSERT INTO directional_list VALUES (?,?,?,'A01','icd9-pl','A01',1,'[]')",
+            (*scope, other),
+        )
+    assert linked_labels(connection, "A01") == ["A01", "A01"]
+
+
+def test_a_clause_cited_from_another_section_names_nothing(tmp_path: Path) -> None:
+    connection = writable_database(tmp_path, uninterpreted_groups=True)
+    assert linked_labels(connection, "X01") == ["A01"]
+    _ = connection.execute(
+        "UPDATE characteristics_evidence SET context='X02'"
+        + " WHERE source_text LIKE 'Unreviewed: patrz%'"
+    )
+    assert linked_labels(connection, "X01") == []
+    answer = group_conditions(connection, "1a", "X01", date(2026, 7, 1))
+    cited = [
+        row
+        for row in cast(list[dict[str, object]], answer["source_text"])
+        if "patrz" in cast(str, row["text"])
+    ]
+    assert [row["own"] for row in cited] == [False]
+
+
 @pytest.mark.parametrize(
     ("clause", "expected"),
     [
@@ -294,6 +355,8 @@ def test_uninterpreted_group_links_only_the_lists_it_prints_or_names(
             {"icd10-pl:T1", "icd10-pl:T2", "icd10-pl:T3"},
         ),
         ("z list procedur T08-T10", {"icd9-pl:T08", "icd9-pl:T09", "icd9-pl:T10"}),
+        ("list rozpoznań T14-16", {"icd10-pl:T14", "icd10-pl:T15", "icd10-pl:T16"}),
+        ("listy procedur: J04A, J04B", {"icd9-pl:J04A", "icd9-pl:J04B"}),
         ("rozpoznania z listy S02", {"icd10-pl:S02"}),
         ("z listy S02", {"icd9-pl:S02", "icd10-pl:S02"}),
         ("rozpoznanie K06.8 lub P27.1", set[str]()),

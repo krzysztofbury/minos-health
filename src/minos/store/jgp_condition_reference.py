@@ -29,17 +29,19 @@ from minos.store.jgp_ruleset import (
 from minos.store.query_budget import query_budget
 
 PAGE_SIZE = 100
-LIST_LABEL = r"[A-Z]\w*(?![.\w])"
+# Bounded, because clause text reaches this before any query budget applies; the
+# longest label in a source is seven characters.
+LIST_LABEL = r"[A-Z]\w{0,15}(?![.\w])"
 # "z listy dodatkowej F07a lub F07b", "z list rozpoznań T14-T16". A dotted ICD
 # code is not a list label, and "ICD" after the list word ends the match.
 LIST_REFERENCE = re.compile(
-    r"[Ll]ist\w*(?:\s+(?:procedur|rozpoznań|dodatkow\w+))*\s+(?P<labels>"
+    r"[Ll]ist\w*(?:\s+(?:procedur|rozpoznań|dodatkow\w+):?)*\s+(?P<labels>"
     + LIST_LABEL
     + r"(?:(?:\s*[,-]\s*|\s+(?:lub|albo|i)\s+)"
     + LIST_LABEL
-    + r")*)"
+    + r"|-\d{1,4}(?![.\w]))*)"
 )
-LIST_RANGE = re.compile(r"([A-Z]\w*?)(\d+)\s*-\s*\1(\d+)")
+LIST_RANGE = re.compile(r"([A-Z]\w{0,15}?)(\d{1,4})\s*-\s*(?:\1)?(\d{1,4})")
 LIST_KIND = re.compile(r"procedur|rozpozn", re.IGNORECASE)
 LIST_SYSTEMS = {"procedur": ("icd9-pl",), "rozpozn": ("icd10-pl",)}
 MAX_LIST_RANGE = 32
