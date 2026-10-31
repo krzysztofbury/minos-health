@@ -2,7 +2,7 @@
 
 ARG TARGETPLATFORM=linux/amd64
 ARG PYTHON_IMAGE=docker.io/library/python:3.14.7-alpine3.23@sha256:976bfed94200c6377b094feb91b7b1bd4849c8a4e3a7b2a364d95ddf1f1c6e01
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.12.7@sha256:95f2aa1fe59274951cfe9b0cbc7972e879ff1004bc8945d130a32eb0dbd85945
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff
 
 FROM --platform=$TARGETPLATFORM ${UV_IMAGE} AS uv
 

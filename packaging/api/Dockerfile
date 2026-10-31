@@ -1,15 +1,28 @@
 # syntax=docker/dockerfile:1.7
-FROM ghcr.io/astral-sh/uv:0.12.7@sha256:95f2aa1fe59274951cfe9b0cbc7972e879ff1004bc8945d130a32eb0dbd85945 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
 FROM docker.io/library/python:3.14.9-slim-bookworm@sha256:945c2676dc2b18e0c1f16879244122c57c0ffede60006bf3df159c507a31bcae AS builder
 COPY --from=uv /uv /usr/local/bin/uv
 WORKDIR /build
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 COPY database ./database
+# The same uv-managed Python as development and CI, for the same SQLite: query
+# plans differ between versions, and Debian's 3.40 failed search in production
+# while every test passed on 3.53 (#294). scripts/smoke_reference_web.py compares.
+ENV UV_PYTHON_INSTALL_DIR=/opt/python UV_PYTHON_PREFERENCE=only-managed
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra reference --extra api --no-install-project && \
+    uv python install 3.14.9 && \
+    uv sync --frozen --no-dev --extra reference --extra api --no-install-project --python 3.14.9 && \
     uv build --wheel --no-sources --out-dir /dist && \
-    uv pip install --python .venv/bin/python --no-deps /dist/*.whl
+    uv pip install --python .venv/bin/python --no-deps /dist/*.whl && \
+    python_home=$(echo /opt/python/cpython-3.14.9-*) && \
+    rm -rf "$python_home/lib/python3.14/test" "$python_home/lib/python3.14/idlelib" \
+    "$python_home/lib/python3.14/tkinter" "$python_home/lib/python3.14/turtledemo" \
+    "$python_home/lib/python3.14/ensurepip" "$python_home/lib/python3.14/site-packages/pip"* \
+    "$python_home/lib/libpython3.14.a" "$python_home/lib/tcl"* "$python_home/lib/tk"* \
+    "$python_home/lib/itcl"* "$python_home/lib/thread"* "$python_home/include" && \
+    find "$python_home" -name '*.a' -delete && \
+    find "$python_home" -name __pycache__ -prune -exec rm -rf {} +
 
 FROM docker.io/library/python:3.14.9-slim-bookworm@sha256:945c2676dc2b18e0c1f16879244122c57c0ffede60006bf3df159c507a31bcae
 ARG VCS_REF=unknown
@@ -26,6 +39,7 @@ RUN apt-get update && \
       "libpcre2-8-0=10.42-1+deb12u2" "perl-base=5.36.0-7+deb12u4" \
       "libssl3=3.0.22-1~deb12u2" "openssl=3.0.22-1~deb12u2" && \
     rm -rf /var/lib/apt/lists/*
+COPY --from=builder /opt/python /opt/python
 COPY --from=builder /build/.venv /build/.venv
 # The host processor (#141 B3) judges candidates in this image under these
 # owner-approved activation policies; they carry no source data or secrets.
@@ -35,8 +49,8 @@ COPY tests/evaluation/search-gold-v1.json tests/golden/grouping-cases.json /app/
 # A validation deployment mounts one pinned, read-only bundle. No raw sources,
 # credentials, source archive, compiler or package manager enter this image.
 RUN mkdir -p /app/data && \
-    rm -rf /usr/local/bin/pip* /usr/local/lib/python3.14/ensurepip \
-    /usr/local/lib/python3.14/site-packages/pip* /usr/bin/apt* /bin/sh /bin/bash
+    rm -rf /usr/local/bin/* /usr/local/lib/python3.14 /usr/local/lib/libpython* \
+    /usr/local/include /usr/bin/apt* /bin/sh /bin/bash
 USER 10004:10004
 WORKDIR /app
 ENTRYPOINT ["/build/.venv/bin/uvicorn", "minos.http.app:application", "--factory", "--host", "0.0.0.0", "--port", "8081", "--workers", "1", "--limit-concurrency", "64", "--timeout-keep-alive", "5", "--no-access-log", "--log-level", "critical"]

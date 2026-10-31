@@ -506,13 +506,11 @@ def _flow(items: list[_Listed], day: str, opened: bool) -> str:
     )
 
 
-def _groups(items: list[_Listed], code: str, day: str, total: int) -> str:
-    root = f'<span class="code-chip answer-root">{_e(code)}</span>'
+def _groups(items: list[_Listed], day: str, total: int) -> str:
     opened = total <= OPEN_LIMIT
     if opened:
-        return root + _flow(items, day, True)
+        return _flow(items, day, True)
     parts = [
-        root,
         '<p class="jgp-note">Warunek NFZ i pozostałe wartości po rozwinięciu grupy.</p>',
     ]
     paged = len(items) < total
@@ -641,8 +639,8 @@ def membership_panel(
             '<section class="jgp-memberships">'
             + (
                 '<h2 class="visually-hidden">Grupy JGP</h2>'
-                + toggle
-                + _groups(items, code, day, total)
+                + f'<div class="answer-roothead"><span class="code-chip answer-root">{_e(code)}</span>{toggle}</div>'
+                + _groups(items, day, total)
                 if items
                 else ""
             )

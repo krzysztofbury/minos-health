@@ -31,6 +31,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The code page's side column scrolls with the page instead of in its own
+  scrollbar, and the open-all button keeps its own row above the groups (#298).
+- `/slowniki/*` pages are cached at Cloudflare by their `Cache-Control`, so a
+  crawl of code pages reaches the API at most once an hour per page (#296).
+- The API image runs the uv-managed Python 3.14.9 with SQLite 3.53.1, the same
+  SQLite as development and CI instead of Debian's 3.40, and the smoke test
+  fails if they differ (#294). uv moves to 0.13.5.
 - Code pages answer first: on ICD-9 and ICD-10 each JGP group with its catalog
   base points, its NFZ condition in the source's own clauses and its catalog
   notes directly under the title, opened by default up to six groups and closed

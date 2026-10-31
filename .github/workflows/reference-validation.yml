@@ -28,7 +28,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.12.7"
+          version: "0.13.5"
           checksum: 788f18abea7c5f55d6216e4f5613fd89d4d59b631efeec117b2b07fe72f1da21
 
       - name: Install dependencies
@@ -133,7 +133,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.12.7"
+          version: "0.13.5"
           checksum: 788f18abea7c5f55d6216e4f5613fd89d4d59b631efeec117b2b07fe72f1da21
 
       - name: Install locked publisher dependencies
