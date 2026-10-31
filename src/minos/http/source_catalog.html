@@ -1,11 +1,11 @@
       <div class="shell page-head">
         <h1>Źródła danych</h1>
-        <p class="page-lead">Skąd pochodzą słowniki i zarządzenia NFZ, które wersje sprawdziliśmy i gdzie otworzysz oryginalne pliki.</p>
-        <dl class="source-legend">
+        <p class="page-lead">Skąd pochodzą słowniki i zarządzenia NFZ, które wersje sprawdziliśmy i gdzie są oryginalne pliki.</p>
+        <details class="fold"><summary>Co oznaczają RSK, BAW i CZS</summary><div class="fold-body"><dl class="source-legend">
           <div><dt>RSK</dt><dd>Rejestr Systemów Kodowania, oficjalne słowniki medyczne (np. ICD-10).</dd></div>
           <div><dt>BAW NFZ</dt><dd>Baza Aktów Własnych NFZ, zarządzenia Prezesa NFZ i ich zmiany.</dd></div>
           <div><dt>Publikacje NFZ / CZS / AOTMiT</dt><dd>Komunikaty i projekty, słowniki CZS, sygnały taryfikacji AOTMiT oraz status aktów Dziennika Ustaw, z których pochodzą słowniki grupera.</dd></div>
-        </dl>
+        </dl></div></details>
       </div>
 
       <section id="catalog" class="shell catalog" aria-labelledby="catalog-title">
@@ -23,7 +23,7 @@
           </div>
           <div class="search-field">
             <label for="source-search">Filtruj katalog</label>
-            <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" aria-describedby="search-note search-feedback" placeholder="np. ICD10, 46/2026, załącznik 9"><button id="reset-search" class="button button-quiet" type="button">Wyczyść</button></div>
+            <div class="search-input-row"><input id="source-search" type="search" autocomplete="off" maxlength="80" autocapitalize="none" autocorrect="off" aria-describedby="search-note search-feedback" placeholder="np. ICD10, 46/2026, załącznik 9"><button id="reset-search" class="button button-quiet" type="button">Wyczyść</button></div>
           </div>
           <p id="search-note" class="search-note">Filtr działa na nazwach, numerach i nazwach plików. Nie przeszukuje treści plików ani kodów.</p>
           <details id="catalog-more" class="catalog-more">

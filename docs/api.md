@@ -228,7 +228,8 @@ rendered as uncached HTML; see the
 Group answers add `conditions`. Its status is `fully_interpreted` only when
 every stored node of the group is proposed. `nodes`, `roots` and `selectors`
 are empty for `not_yet_interpreted`; `source_text` retains the original clauses
-and cited cell evidence. Separate roots do not imply a conjunction. These are
+and cited cell evidence, with `own` false on rows cited from another group's
+section. Separate roots do not imply a conjunction. These are
 reference fragments, not executable encounter qualification. Older base-only
 bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
 
@@ -239,9 +240,19 @@ bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
 - `/jgp/{service_date}/listy/{catalog}/{identity}/{page}` renders that page.
 - Existing `/slowniki/icd-9/{code}` and `/slowniki/icd-10/{code}` remain intact.
   Additive `/slowniki/{dictionary}/{code}/jgp/{service_date}` pages show dated
-  "Występuje w grupach" membership. Further membership pages use
+  membership: each group with its catalog base points and source conditions,
+  opened by default up to six groups. Further membership pages use
   `/jgp/{service_date}/{catalog}/{page}` after the code-page path. Changing the
   date resets membership pagination. Dated variants are `noindex, follow`.
+
+Each membership group carries its catalog `name`, `procedural`, `base_values`
+(amount and exact `display`, of `points_kind` base points without modifiers),
+`catalog_notes` and `conditions`: the source clauses in order, each with
+`connector` set to `lub` when the source joins it to the one before. A group
+with no catalog row on that day has `name: null` and empty `base_values`, never
+a zero. Past 80 KiB, MCP `get_code` keeps the page's groups with their
+hospitalization value only and sets `compact` and `compact_note`;
+`get_jgp_group` has the rest.
 
 Reverse lookup includes explicit group-local lists and lists reached through
 stored condition selectors, including unsupported source evidence. It never

@@ -77,6 +77,12 @@ try {
     const icd9 = await evaluate('[...document.querySelectorAll(".result-group")][1].querySelector(".result")?.getAttribute("href")');
     assert.ok(icd9 && /^\/slowniki\/icd-9\/[A-Z0-9.]+(?:\/jgp\/20\d\d-\d\d-\d\d)?$/.test(icd9), "unexpected ICD-9 result link");
     assert.equal(await overflow(), false);
+    // A section folds from its header and comes back with its results.
+    await evaluate('document.querySelector(".result-toggle").click()');
+    assert.equal(await evaluate('document.querySelector(".result-toggle").getAttribute("aria-expanded")'), "false");
+    assert.equal(await evaluate('document.getElementById(document.querySelector(".result-toggle").getAttribute("aria-controls")).hidden'), true);
+    await evaluate('document.querySelector(".result-toggle").click()');
+    assert.equal(await evaluate('document.getElementById(document.querySelector(".result-toggle").getAttribute("aria-controls")).hidden'), false);
     await shoot(name);
     await send("Page.navigate", { url: new URL("/slowniki/icd-10#kod=E11.0", url).href });
     await wait('document.querySelector(\'[role="treeitem"][aria-selected="true"]\')?.dataset.code === "E11.0" && document.querySelector("#detail h2")');

@@ -47,11 +47,12 @@ from minos.http.jgp import (
     register_jgp_routes,
 )
 from minos.http.jgp_comparison import COMPARISON_ROUTE, register_comparison_pages
-from minos.http.jgp_condition_pages import membership_section
+from minos.http.jgp_condition_pages import membership_panel, shared_procedure_section
 from minos.http.jgp_pages import date_bar, error_page
 from minos.http.pages import (
     CODE_PATTERN,
     DICTIONARIES,
+    JgpPanel,
     busy_page,
     code_page,
     icd11_map_section,
@@ -354,7 +355,7 @@ def render_code(
             if canonical_icd9 and node.get("canonical") is not False
             else None
         )
-        jgp_section = ""
+        jgp: JgpPanel | None = None
         # JGP conditions name ICD-10 and ICD-9 codes only; ICD-11 is not in force.
         grouped = dictionary.system in ("icd10-pl", "icd9-pl")
         day: date | None = service_date if grouped else None
@@ -387,24 +388,30 @@ def render_code(
                 a["status"] != "covered" for a in memberships
             ):
                 raise NoRulesetForDate("no characteristics cover the selected day")
-            jgp_section = date_bar(
-                day.isoformat(),
-                "",
-                characteristics_calendar(lease.connection),
-                prefix=f"/slowniki/{slug}/{code}/jgp/",
-            )
-            jgp_section += membership_section(
-                memberships, slug=slug, code=code, day=day.isoformat()
-            )
-            if dictionary.system == "icd10-pl" and pool.manifest.schema_version >= 8:
-                from minos.http.jgp_condition_pages import shared_procedure_section
-                from minos.store.search_jgp import shared_procedures
+            from minos.store.search_jgp import shared_procedures
 
-                jgp_section += shared_procedure_section(
+            shared = (
+                shared_procedure_section(
                     shared_procedures(
                         lease.connection, code, day, tree.hierarchy.release_id
                     )
                 )
+                if dictionary.system == "icd10-pl" and pool.manifest.schema_version >= 8
+                else ""
+            )
+            jgp = membership_panel(
+                memberships,
+                slug=slug,
+                code=code,
+                day=day.isoformat(),
+                date_bar=date_bar(
+                    day.isoformat(),
+                    "",
+                    characteristics_calendar(lease.connection),
+                    prefix=f"/slowniki/{slug}/{code}/jgp/",
+                ),
+                shared=shared,
+            )
         elif service_date is not None:
             raise NoRulesetForDate("bundle has no characteristics")
     return 200, code_page(
@@ -414,7 +421,7 @@ def render_code(
         tree.version,
         tree.hierarchy.supporting,
         ranks,
-        jgp_section,
+        jgp,
         f"/slowniki/{slug}/{code}/jgp/{service_date}" if service_date else None,
         map_section,
         truncated,

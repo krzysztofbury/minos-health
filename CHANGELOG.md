@@ -29,6 +29,28 @@ signed-release and deployment-acceptance gates remain #41/#27.
   retries its release lookup. `robots.txt` keeps crawlers off the noindex `/jgp/`
   and dated `/slowniki/*/jgp/` pages, which took most of the API's load (#296).
 
+### Changed
+
+- Code pages answer first: on ICD-9 and ICD-10 each JGP group with its catalog
+  base points, its NFZ condition in the source's own clauses and its catalog
+  notes directly under the title, opened by default up to six groups and closed
+  above that, with procedural and conservative groups in their own sections.
+  Rank, sources and hierarchy moved to a side column, one click away, also on
+  ICD-11. The concept API and MCP `get_code` carry the same points, notes and
+  conditions; for the long listings past 80 KiB, MCP keeps the hospitalization
+  value and points to `get_jgp_group` (#298).
+- JGP group pages lead with the points and the NFZ condition in its source
+  wording, with direct links to the procedure and diagnosis lists. The rule
+  structure, all catalog values, NFZ settlements and release evidence are one
+  click away. Source lists read as one line per code, and the catalog keeps
+  release evidence folded beside the tree (#298).
+- Every page starts with a short head, so its tool is on the first screen.
+  Hover styles apply only to devices that can hover, controls answer the press
+  itself, and phone viewport units follow the browser's bars (#298).
+- Home search: each result section opens and closes from its header, the title
+  steps aside once results are on screen, and rows drop the repeated label
+  (#298).
+
 ### Added
 
 - JGP group pages, `GET /api/v1/jgp/{service_date}/groups/{code}` and the

@@ -10,7 +10,7 @@ import json
 import re
 from dataclasses import dataclass
 from importlib.resources import files
-from typing import Final, cast
+from typing import Final, NamedTuple, cast
 
 SITE: Final = "https://minoshealth.pl"
 CODE_PATTERN: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9.\-]{0,15}")
@@ -63,6 +63,34 @@ DICTIONARIES: Final = {
         + " nie obowiązuje jeszcze w Polsce i nie służy do rozliczeń NFZ.",
     ),
 }
+
+
+CHEVRON_MARK: Final = '<span class="chevron" aria-hidden="true"></span>'
+
+
+class JgpPanel(NamedTuple):
+    """The rendered JGP answer of a code page, placed by `code_page`."""
+
+    date_bar: str
+    lead: str
+    groups: str
+    sources: str
+    shared: str
+    has_groups: bool
+
+
+def fold(
+    title: str, body: str, *, opened: bool = False, name: str = "", level: int = 2
+) -> str:
+    """Supporting detail, one click away. `title` is trusted, `body` is markup.
+
+    The title is a heading, so heading navigation reaches a closed fold.
+    """
+    return (
+        f'<details class="fold{f" {name}" if name else ""}"{" open" if opened else ""}>'
+        + f'<summary><h{level} class="fold-title">{title}</h{level}></summary>'
+        + f'<div class="fold-body">{body}</div></details>'
+    )
 
 
 def _shell(name: str = "page_shell.html") -> str:
@@ -183,15 +211,20 @@ def _block(
     )
 
 
-def _rank_section(evidence: dict[str, object]) -> list[str]:
-    parts = [
-        '        <section class="detail-notes procedure-rank"><h2>Ranga procedury w JGP (SZP)</h2>'
-    ]
+def _rank_summary(evidence: dict[str, object]) -> str:
+    if evidence["status"] == "recorded":
+        return f"Ranga {_e(evidence['rank'])} w wykazie {_e(evidence['worksheet'])}"
     if evidence["status"] == "not_selected":
-        parts.append(
-            "<p>Nie wybrano wykazu rang dla tego wydania słownika. Brak danych nie oznacza rangi 0.</p></section>"
-        )
-        return parts
+        return "Nie wybrano wykazu rang"
+    return "Brak w wykazie rang SZP"
+
+
+def _rank_fold(evidence: dict[str, object]) -> str:
+    title = f"{_rank_summary(evidence)}: rola w JGP (SZP)"
+    if evidence["status"] == "not_selected":
+        body = "<p>Nie wybrano wykazu rang dla tego wydania słownika. Brak danych nie oznacza rangi 0.</p>"
+        return fold(title, body, name="procedure-rank")
+    parts: list[str] = []
     if evidence["status"] == "recorded":
         parts.append(
             f"<p><strong>Ranga {_e(evidence['rank'])}</strong> w wybranym wykazie NFZ.</p>"
@@ -220,7 +253,7 @@ def _rank_section(evidence: dict[str, object]) -> list[str]:
     algorithm_source = cast(dict[str, object], evidence["algorithm_source"])
     values.append(("SHA-256 wykazu", rank_source["sha256"]))
     parts.append(
-        '<dl class="detail-facts code-facts">'
+        '<dl class="detail-facts">'
         + "".join(
             f"<div><dt>{_e(name)}</dt><dd>{_e(value)}</dd></div>"
             for name, value in values
@@ -234,9 +267,9 @@ def _rank_section(evidence: dict[str, object]) -> list[str]:
         f'<p class="detail-source">{_e(evidence["publisher"])}. {_e(evidence["license"])}</p>'
     )
     parts.append(
-        f'<p><a href="{_e(rank_source["source_url"])}">Oficjalny wykaz rang NFZ</a> · <a href="{_e(algorithm_source["source_url"])}">Opis algorytmu NFZ</a></p></section>'
+        f'<p><a href="{_e(rank_source["source_url"])}">Oficjalny wykaz rang NFZ</a> · <a href="{_e(algorithm_source["source_url"])}">Opis algorytmu NFZ</a></p>'
     )
-    return parts
+    return fold(title, "".join(parts), name="procedure-rank")
 
 
 MAP_TABLES: Final = {
@@ -256,10 +289,7 @@ def icd11_map_section(system: str, rows: list[dict[str, object]]) -> str:
         if system == "icd10-pl"
         else ("icd-10", "icd10_code", "icd10_title")
     )
-    heading = (
-        "Odpowiedniki w ICD-11" if system == "icd10-pl" else "Odpowiedniki w ICD-10"
-    )
-    parts = [f'        <section class="detail-notes icd11-map"><h2>{heading}</h2>']
+    parts: list[str] = []
     for table, label in MAP_TABLES.items():
         group = [row for row in rows if row["table"] == table]
         if not group:
@@ -288,9 +318,13 @@ def icd11_map_section(system: str, rows: list[dict[str, object]]) -> str:
         '<p class="detail-source">Wiersze tabel WHO z zasobu ICD-11 PL w RSK (wydanie'
         + " 2026-01) bez zmian. Strona ICD-10 tabel to ICD-10 WHO 2019, nie polskie"
         + " wydanie 2008. Tabele nie określają rodzaju odpowiedniości i nie służą do"
-        + " rozliczeń NFZ.</p></section>"
+        + " rozliczeń NFZ.</p>"
     )
     return "".join(parts)
+
+
+def map_title(system: str) -> str:
+    return "Odpowiedniki w ICD-11" if system == "icd10-pl" else "Odpowiedniki w ICD-10"
 
 
 def code_page(
@@ -300,12 +334,13 @@ def code_page(
     version: str,
     supporting: bool,
     rank_evidence: dict[str, object] | None = None,
-    jgp_section: str = "",
+    jgp: JgpPanel | None = None,
     dated_path: str | None = None,
     map_section: str = "",
     children_truncated: bool = False,
     blocks: dict[int, list[dict[str, object]]] | None = None,
 ) -> str:
+    """The answer first; everything else one click away, nothing removed."""
     code = cast(str, node["code"])
     label = " ".join(cast(str, node["label"]).split())
     path = cast(list[dict[str, object]], node.get("path", []))
@@ -321,14 +356,17 @@ def code_page(
             crumbs.append(
                 f'<a href="{_e(code_path(dictionary, step_code))}">{_e(step_code)}</a>'
             )
+    meta = [f"{_e(dictionary.name)}, wersja {_e(version)}"]
+    if rank_evidence is not None:
+        meta.append(_rank_summary(rank_evidence))
     parts = [
-        '      <div class="shell page-head page-head-compact">',
+        '      <div class="shell answer-head">',
         '        <nav class="breadcrumbs" aria-label="Okruszki">'
         + '<span aria-hidden="true">/</span>'.join(crumbs)
         + "</nav>",
-        f'        <p class="detail-code"><span class="code-chip">{_e(code)}</span>'
-        + f' <span class="badge badge-muted">{_e(dictionary.name)}, wersja {_e(version)}</span></p>',
-        f"        <h1>{_e(label)}</h1>",
+        f'        <div class="detail-code answer-title"><span class="code-chip">{_e(code)}</span>'
+        + f"<h1>{_e(label)}</h1></div>",
+        f'        <p class="answer-meta">{" · ".join(meta)}</p>',
     ]
     status = next(
         (item["value"] for item in attributes if item["key"] == "status"), None
@@ -347,28 +385,13 @@ def code_page(
             '        <p class="badge badge-muted">Pozycja tylko w skoroszycie NFZ,'
             + " bez odpowiednika w CZS</p>"
         )
-    parts.append(
-        '        <p class="code-actions">'
-        + f'<a class="button" href="/slowniki/{dictionary.slug}#kod={_e(code)}">Pokaż w drzewie słownika</a>'
-        + '<a class="button button-quiet" href="/">Wyszukaj inny kod</a></p>'
-    )
     parts.append("      </div>")
-    parts.append('      <div class="shell code-page">')
-    facts = [
-        f"<div><dt>{_e(item['name'])}</dt><dd>{_e(display_date(item['value']) if item['key'] in DATE_ATTRIBUTES else item['value'])}</dd></div>"
-        for item in attributes
-        if item["key"] != "evidence_kind" and item["value"].strip()
-    ]
-    if facts:
-        parts.append(
-            '        <dl class="detail-facts code-facts">' + "".join(facts) + "</dl>"
-        )
-    if rank_evidence is not None:
-        parts.extend(_rank_section(rank_evidence))
-    if jgp_section:
-        parts.append(jgp_section)
-    if map_section:
-        parts.append(map_section)
+    parts.append('      <div class="shell answer-page">')
+    if jgp is not None:
+        parts.append(f'        <div class="answer-lead">{jgp.lead}</div>')
+    # With no group to show, the source notes are the answer, so they stay open.
+    detail_open = jgp is None or not jgp.has_groups
+    main: list[str] = [jgp.groups] if jgp is not None else []
     for kind in ("includes", "excludes", "term", "modifier", "note"):
         group = [note for note in notes if note["kind"] == kind]
         if not group:
@@ -385,8 +408,12 @@ def code_page(
             + "</li>"
             for note in group
         )
-        parts.append(
-            f'        <section class="detail-notes"><h2>{NOTE_TITLES[kind]}{suffix}</h2><ul>{items}</ul></section>'
+        main.append(
+            fold(
+                f"{NOTE_TITLES[kind]}{suffix}",
+                f"<ul>{items}</ul>",
+                opened=detail_open,
+            )
         )
     if children:
         items = "".join(
@@ -399,10 +426,47 @@ def code_page(
             if children_truncated
             else ""
         )
-        parts.append(
-            '        <section class="code-children"><h2>Kody podrzędne</h2>'
-            + f'<ul class="code-list">{items}</ul>{more}</section>'
+        main.append(
+            fold(
+                f"Kody podrzędne ({len(children)}{'+' if children_truncated else ''})",
+                f'<ul class="code-list">{items}</ul>{more}',
+                opened=detail_open,
+            )
         )
+    if map_section:
+        main.append(
+            fold(
+                map_title(dictionary.system),
+                map_section,
+                opened=detail_open,
+                name="icd11-map",
+            )
+        )
+    if jgp is not None and jgp.shared:
+        main.append(
+            fold(
+                "Procedury współdzielące jawne grupy JGP",
+                jgp.shared,
+                name="shared-procedures",
+            )
+        )
+    main.append(f'<p class="detail-source">{_e(dictionary.source)}</p>')
+    parts.append(f'        <div class="answer-main">{"".join(main)}</div>')
+    if jgp is not None:
+        parts.append(f'        <div class="answer-date">{jgp.date_bar}</div>')
+    facts = [
+        f"<div><dt>{_e(item['name'])}</dt><dd>{_e(display_date(item['value']) if item['key'] in DATE_ATTRIBUTES else item['value'])}</dd></div>"
+        for item in attributes
+        if item["key"] != "evidence_kind"
+        and item["value"].strip()
+        # The usual status says nothing; any other shows as a badge in the head.
+        and (item["key"], item["value"]) != ("status", "A")
+    ]
+    rail: list[str] = []
+    if facts:
+        rail.append(f'<dl class="detail-facts">{"".join(facts)}</dl>')
+    if rank_evidence is not None:
+        rail.append(_rank_fold(rank_evidence))
     if path:
         items = "".join(
             _item(
@@ -410,11 +474,16 @@ def code_page(
             )
             for step in path
         )
-        parts.append(
-            '        <section class="code-children"><h2>Miejsce w słowniku</h2>'
-            + f'<ul class="code-list">{items}</ul></section>'
+        rail.append(
+            f'<div class="answer-place"><h2>Miejsce w słowniku</h2><ul class="code-list">{items}</ul></div>'
         )
-    parts.append(f'        <p class="detail-source">{_e(dictionary.source)}</p>')
+    if jgp is not None:
+        rail.append(jgp.sources)
+    rail.append(
+        '<p class="code-actions">'
+        + f'<a href="/slowniki/{dictionary.slug}#kod={_e(code)}">Pokaż w drzewie słownika</a></p>'
+    )
+    parts.append(f'        <aside class="answer-rail">{"".join(rail)}</aside>')
     parts.append("      </div>")
     url = SITE + code_path(dictionary, code)
     breadcrumb = [
@@ -460,7 +529,7 @@ def code_page(
             },
         ]
     )
-    if jgp_section:
+    if jgp is not None:
         head += '    <script src="/datepicker.js" defer></script>\n'
         head += '    <script src="/jgp.js" defer></script>\n'
     context = next(
@@ -468,7 +537,9 @@ def code_page(
     )
     description = (
         f"Kod {dictionary.name} {code}: {label}. "
-        + f"{' '.join(context.split())}. Uwagi źródła, kody podrzędne i miejsce w słowniku."
+        + f"{' '.join(context.split())}. "
+        + ("Grupy JGP i punkty bazowe. " if jgp is not None else "")
+        + "Uwagi źródła, kody podrzędne i miejsce w słowniku."
     )
     return _page(
         title=f"{code} {label} - {dictionary.name} - Minos Health",

@@ -110,7 +110,7 @@ def test_icd11_page_shows_uri_notice_and_who_map_but_no_jgp_context(
     # The 11-to-10 table links to the ICD-10 page with WHO's own title.
     assert '<a class="code-chip" href="/slowniki/icd-10/E11">E11</a>' in text
     assert "Syntetyczny tytuł WHO" in text
-    assert "Występuje w grupach" not in text
+    assert "jgp-memberships" not in text
     assert client.get("/slowniki/icd-11/1A00/jgp/2026-10-02").status_code == 404
 
 

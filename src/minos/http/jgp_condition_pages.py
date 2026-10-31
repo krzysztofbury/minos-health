@@ -1,10 +1,16 @@
 """Source-backed reference display with a whole-group interpretation gate."""
 
-from typing import cast
+from typing import Final, NamedTuple, cast
 
 from minos.domain import jgp_conditions as c
 from minos.domain.reference import ArtifactError
-from minos.http.pages import _e, display_date  # pyright: ignore[reportPrivateUsage]
+from minos.http.pages import (
+    CHEVRON_MARK,
+    JgpPanel,
+    _e,  # pyright: ignore[reportPrivateUsage]
+    display_date,
+    fold,
+)
 from minos.ingest.jgp_conditions_codec import decode_condition
 
 type Json = dict[str, object]
@@ -264,15 +270,23 @@ def conditions_section(answer: Json) -> str:
             "group_not_in_characteristics": "Grupy nie ma w wybranym wydaniu charakterystyki.",
         }
         return (
-            '<section class="detail-notes"><h2>Warunki grupy</h2><p>'
+            '<section class="jgp-conditions"><h2>Warunki grupy</h2><p>'
             + _e(labels[cast(str, status)])
             + "</p></section>"
         )
     source = cast(Json, answer["source"])
-    parts = [
-        '<section class="detail-notes jgp-conditions"><h2>Warunki grupy</h2>',
-        "<p>Charakterystyka referencyjna, nie wynik grupowania. Obecność kodu na liście nie oznacza kwalifikacji przypadku ani możliwości rozliczenia.</p>",
-    ]
+    source_text = cast(list[Json], answer["source_text"])
+    parts = ['<section class="jgp-conditions"><h2>Warunki grupy</h2>']
+    # Rows cited from another group's section stay in the source record below.
+    for item in source_text:
+        if item["own"] and item["category"] == "label":
+            parts.append(f'<p class="cond-clause">{_e(item["text"])}</p>')
+        elif item["own"] and item["category"] == "connector":
+            parts.append('<p class="cond-or">lub</p>')
+    parts.append(_list_links(answer))
+    parts.append(
+        '<p class="answer-caveat">Charakterystyka referencyjna, nie wynik grupowania. Obecność kodu na liście nie oznacza kwalifikacji przypadku ani możliwości rozliczenia.</p>'
+    )
     if status == "fully_interpreted":
         import json
 
@@ -287,30 +301,48 @@ def conditions_section(answer: Json) -> str:
             if node.status != "proposed" or node.kind is None:
                 raise ArtifactError("whole-group interpretation gate is inconsistent")
             nodes[node.identity] = node
-        parts.append(
+        structure = [
             "<p>Wszystkie zapisy grupy mają strukturę. Zasady zliczania, granic i wykonania nadal wymagają osobnej weryfikacji przed uruchomieniem grupera.</p>"
-        )
+        ]
         roots = cast(list[int], answer["roots"])
         if len(roots) > 1:
-            parts.append(
+            structure.append(
                 "<p>Grupa ma kilka odrębnych zapisów źródłowych; nie łączymy ich domyślnie w jeden warunek.</p>"
             )
-        parts.append(_rule_tree(roots, nodes, selectors, sum(map(len, parts))))
+        structure.append(
+            _rule_tree(roots, nodes, selectors, sum(map(len, parts + structure)))
+        )
+        parts.append(fold("Struktura warunku", "".join(structure), level=3))
     else:
         parts.append(
             '<p class="badge badge-warn">Jeszcze nie zinterpretowano całej grupy. Pokazujemy zapis źródłowy, bez częściowych reguł strukturalnych.</p>'
         )
-    parts.append("<details open><summary>Zapis źródłowy</summary><ul>")
+    rows: list[str] = []
     rendered_characters = sum(map(len, parts))
-    for item in cast(list[Json], answer["source_text"]):
+    for item in source_text:
         text = f'<li><span class="jgp-rows">Wiersz {_e(item["row"])}</span>: {_e(item["text"])}</li>'
         rendered_characters += len(text)
         if rendered_characters > MAX_SECTION_CHARACTERS:
             raise ArtifactError("condition source display exceeds bound")
-        parts.append(text)
-    parts.append("</ul></details>")
-    parts.append(source_facts(source) + "</section>")
+        rows.append(text)
+    parts.append(fold("Zapis źródłowy", f"<ul>{''.join(rows)}</ul>", level=3))
+    parts.append(fold("Źródło", source_facts(source), level=3))
+    parts.append("</section>")
     return "".join(parts)
+
+
+def _list_links(answer: Json) -> str:
+    """The lists a condition names: the way from a group back to its codes."""
+    source = cast(Json, answer["source"])
+    day, catalog = cast(str, source["service_date"]), cast(str, source["catalog"])
+    names = {"icd9-pl": "procedury", "icd10-pl": "rozpoznania"}
+    links = [
+        f'<li><a href="/jgp/{_e(day)}/listy/{_e(catalog)}/{_e(item["id"])}/1">'
+        + f"{_e(names.get(cast(str, item['system']), item['system']))} {_e(item['label'])}</a>"
+        + f' <span class="jgp-rows">{cast(int, item["occurrences"])} poz.</span></li>'
+        for item in cast(list[Json], answer["lists"])
+    ]
+    return f'<ul class="jgp-lists">{"".join(links)}</ul>' if links else ""
 
 
 def shared_procedure_section(answers: list[Json]) -> str:
@@ -336,55 +368,292 @@ def shared_procedure_section(answers: list[Json]) -> str:
     if not rows:
         return ""
     return (
-        '<section class="code-children shared-procedures"><h2>Procedury współdzielące jawne grupy JGP</h2><p>To wyłącznie wspólna obecność na listach załącznika 9, nie typowe leczenie ani kwalifikacja hospitalizacji.</p><ul>'
+        "<p>To wyłącznie wspólna obecność na listach załącznika 9, nie typowe leczenie ani kwalifikacja hospitalizacji.</p><ul>"
         + "".join(rows)
-        + "</ul></section>"
+        + "</ul>"
     )
 
 
-def membership_section(answers: list[Json], *, slug: str, code: str, day: str) -> str:
+# All open at this size: procedures usually sit in a handful of groups, and the
+# condition belongs beside the points. Longer lists open group by group.
+OPEN_LIMIT: Final = 6
+# A value range is an answer for a few groups and noise for a hundred.
+RANGE_LIMIT: Final = 8
+CAVEAT: Final = (
+    "Punkty bazowe z katalogu, bez modyfikatorów. Obecność na jawnej liście to nie"
+    + " kwalifikacja przypadku: liczy się warunek przy grupie. Brak pozycji nie"
+    + " dowodzi wykluczenia."
+)
+HOSPITALIZATION: Final = "hospitalization"
+# The source columns' full headers stay on the group page.
+MEASURES: Final = {
+    HOSPITALIZATION: "hospitalizacja",
+    "planned_hospitalization": "planowa",
+    "one_day_treatment": "leczenie 1 dnia",
+    "same_day_discharge": "przyjęcie = wypis",
+    "one_day_stay": "1-dniowa",
+    "two_day_stay": "2-dniowa",
+    "day_stay_under_12_hours": "pobyt dzienny do 12 h",
+    "extra_stay_day": "osobodzień ponad ryczałt",
+    "extra_stay_day_excluding_day_stay": "osobodzień ponad ryczałt poza pobytem dziennym",
+}
+NBSP: Final = "\u00a0"
+
+
+def points_short(hundredths: int) -> str:
+    """Polish points without an empty fraction: 317700 -> "3 177"."""
+    whole, fraction = divmod(hundredths, 100)
+    grouped = f"{whole:,}".replace(",", NBSP)
+    return grouped if fraction == 0 else f"{grouped},{fraction:02d}"
+
+
+def _values(group: Json) -> dict[str, Json]:
+    return {
+        cast(str, value["measure"]): value
+        for value in cast(list[Json], group["base_values"])
+    }
+
+
+def _headline(group: Json) -> int | None:
+    value = _values(group).get(HOSPITALIZATION)
+    return cast(int, value["amount"]) if value else None
+
+
+def _condition(group: Json) -> str:
+    clauses = cast(list[Json], group["conditions"])
+    if not clauses:
+        return ""
+    return (
+        '<div class="cond"><span class="cond-tag">Warunek NFZ</span>'
+        + "".join(
+            ('<p class="cond-or">lub</p>' if clause["connector"] else "")
+            + f"<p>{_e(clause['text'])}</p>"
+            for clause in clauses
+        )
+        + "</div>"
+    )
+
+
+def _days(days: object) -> str:
+    return f"{_e(days)}{NBSP}{'dzień' if days == 1 else 'dni'}"
+
+
+def _group_card(group: Json, catalog: str, day: str, opened: bool) -> str:
+    code = cast(str, group["code"])
+    priced = group["name"] is not None
+    name = cast(str | None, group["name"]) or cast(str, group["source_title"])
+    headline = _headline(group)
+    points = (
+        f'<span class="pts"><b>{points_short(headline)}</b> pkt</span>'
+        if headline is not None
+        else f'<span class="jgp-absent">{"brak wartości" if priced else "brak wiersza katalogu"}</span>'
+    )
+    badge = (
+        f' <span class="badge badge-muted">Katalog {_e(catalog)}</span>'
+        if catalog != "1a"
+        else ""
+    )
+    pending = (
+        ""
+        if group["fully_interpreted"]
+        else '<span class="answer-flag">jeszcze nie zinterpretowano</span>'
+    )
+    values = _values(group)
+    tiles = "".join(
+        f"<div><dt>{_e(label)}</dt><dd>{points_short(cast(int, values[measure]['amount']))}</dd></div>"
+        for measure, label in MEASURES.items()
+        if measure in values
+    )
+    days = next(
+        (
+            values[measure]["amount"]
+            for measure in ("financed_stay", "financed_stay_excluding_day_stay")
+            if measure in values
+        ),
+        None,
+    )
+    if days is not None:
+        tiles += f"<div><dt>ryczałt</dt><dd>{_days(days)}</dd></div>"
+    notes = (
+        f'<div class="cond"><span class="cond-tag">Uwagi w katalogu</span><p>{_e(group["catalog_notes"])}</p></div>'
+        if group.get("catalog_notes")
+        else ""
+    )
+    return (
+        f'<li class="answer-card"><details class="answer-group"{" open" if opened else ""}>'
+        + f'<summary class="answer-row"><span class="code-chip">{_e(code)}</span>'
+        + f'<span class="answer-name">{_e(name.removeprefix(code + " ").rstrip(" *"))}{badge}{pending}</span>'
+        + f"{points}{CHEVRON_MARK}</summary>"
+        + '<div class="answer-body">'
+        + (f'<dl class="answer-tiles">{tiles}</dl>' if tiles else "")
+        + _condition(group)
+        + notes
+        + f'<p class="answer-open"><a href="/jgp/{_e(day)}/{_e(code)}">Otwórz grupę {_e(code)}</a></p>'
+        + "</div></details></li>"
+    )
+
+
+class _Listed(NamedTuple):
+    group: Json
+    catalog: str
+
+
+def _flow(items: list[_Listed], day: str, opened: bool) -> str:
+    return (
+        '<ul class="answer-flow">'
+        + "".join(_group_card(item.group, item.catalog, day, opened) for item in items)
+        + "</ul>"
+    )
+
+
+def _groups(items: list[_Listed], code: str, day: str, total: int) -> str:
+    root = f'<span class="code-chip answer-root">{_e(code)}</span>'
+    opened = total <= OPEN_LIMIT
+    if opened:
+        return root + _flow(items, day, True)
     parts = [
-        '<section class="code-children jgp-memberships"><h2>Występuje w grupach</h2>',
-        f"<p>Dzień świadczenia: {_e(display_date(day))}. Dowód obecności w jawnych listach załącznika 9, nie kwalifikacja przypadku. Brak pozycji nie dowodzi wykluczenia.</p>",
+        root,
+        '<p class="jgp-note">Warunek NFZ i pozostałe wartości po rozwinięciu grupy.</p>',
     ]
+    paged = len(items) < total
+    for title, wanted in (
+        ("Grupy zabiegowe", True),
+        ("Grupy zachowawcze", False),
+        ("Bez wiersza katalogu na ten dzień", None),
+    ):
+        chosen = [item for item in items if item.group["procedural"] is wanted]
+        if chosen:
+            count = f"{len(chosen)} na tej stronie" if paged else len(chosen)
+            parts.append(
+                f'<details class="answer-section" open><summary><h3 class="answer-section-title">{title}'
+                + f" <span>{count}</span></h3>{CHEVRON_MARK}</summary>"
+                + _flow(chosen, day, False)
+                + "</details>"
+            )
+    return "".join(parts)
+
+
+def _lead(slug: str, items: list[_Listed], total: int, day: str, covered: bool) -> str:
+    if not covered:
+        return '<p class="answer-sentence">Brak zweryfikowanej charakterystyki JGP dla tego dnia.</p>'
+    if not total:
+        return f'<p class="answer-sentence">Brak na jawnych listach grup JGP na {_e(display_date(day))}. Nie jest to dowód wykluczenia.</p>'
+    noun = "Ta procedura" if slug == "icd-9" else "To rozpoznanie"
+    points = [
+        headline
+        for headline in (_headline(item.group) for item in items)
+        if headline is not None
+    ]
+    worth = ""
+    if points and total <= RANGE_LIMIT:
+        low, high = min(points), max(points)
+        span = (
+            points_short(low)
+            if low == high
+            else f"od {points_short(low)} do {points_short(high)}"
+        )
+        part = f" w {len(points)} z nich" if len(points) < total else ""
+        # The hospitalization tariff, not the range: other stays can pay less.
+        worth = f":{part} hospitalizacja <strong>{span}{NBSP}pkt</strong> bazowych"
+    place = "grupie" if total == 1 else "grupach"
+    return (
+        f'<p class="answer-sentence">{noun} występuje w <strong>{total} {place} JGP</strong>{worth}.</p>'
+        + f'<p class="answer-caveat">{CAVEAT}</p>'
+    )
+
+
+def _sources(answers: list[Json]) -> str:
+    covered = [
+        cast(Json, answer["source"])
+        for answer in answers
+        if answer["status"] == "covered"
+    ]
+    if not covered:
+        return ""
+    return "".join(
+        f'<details class="fold"><summary>Źródła: katalog {_e(source["catalog"])}</summary>'
+        + f'<div class="fold-body">{source_facts(source)}</div></details>'
+        for source in covered
+    )
+
+
+def membership_panel(
+    answers: list[Json], *, slug: str, code: str, day: str, date_bar: str, shared: str
+) -> JgpPanel:
+    """The page's answer: which groups list this code, and what each is worth."""
+    items = [
+        _Listed(group, cast(str, cast(Json, answer["source"])["catalog"]))
+        for answer in answers
+        if answer["status"] == "covered"
+        for group in cast(list[Json], answer["groups"])
+    ]
+    covered = [
+        cast(Json, answer["source"])
+        for answer in answers
+        if answer["status"] == "covered"
+    ]
+    total = sum(
+        cast(int, answer["total"])
+        for answer in answers
+        if answer["status"] == "covered"
+    )
+    notes: list[str] = [
+        f'<p class="jgp-note">Katalog {_e(answer["catalog"])}: brak zweryfikowanej charakterystyki dla tego dnia.</p>'
+        for answer in answers
+        if answer["status"] != "covered" and covered
+    ]
+    if any(source["service_date_after_knowledge"] for source in covered):
+        notes.append(
+            f'<p class="jgp-note">Według źródeł sprawdzonych do {_e(display_date(covered[0]["knowledge_as_of"]))}.</p>'
+        )
     if slug == "icd-10":
         # Procedure-led groups (for example hernia repair) often have no
         # diagnosis list, so a diagnosis alone never shows them here.
-        parts.append(
+        notes.append(
             '<p class="jgp-note">Grupy zabiegowe kierowane procedurą często nie wymieniają rozpoznania na liście. Sprawdź także stronę wykonanej procedury ICD-9.</p>'
         )
+    pages: list[str] = []
     for answer in answers:
         if answer["status"] != "covered":
-            parts.append(
-                f"<p>Katalog {_e(answer['catalog'])}: brak zweryfikowanej charakterystyki dla tego dnia.</p>"
-            )
             continue
-        source = cast(Json, answer["source"])
-        parts.append(f'<h3>Katalog {_e(source["catalog"])}</h3><ul class="code-list">')
-        for group in cast(list[Json], answer["groups"]):
-            parts.append(
-                f'<li><a href="/jgp/{_e(day)}/{_e(group["code"])}">{_e(group["source_title"])}</a>'
-                + (
-                    ""
-                    if group["fully_interpreted"]
-                    else ' <span class="badge badge-muted">jeszcze nie zinterpretowano</span>'
-                )
-                + "</li>"
-            )
-        parts.append(
-            "</ul>"
-            if answer["total"]
-            else "</ul><p>Brak obecności w jawnych listach tego wydania. Nie jest to dowód wykluczenia.</p>"
-        )
         page = cast(int, answer["page"])
+        catalog = cast(str, cast(Json, answer["source"])["catalog"])
         for label, target in (
             ("Poprzednie grupy", page - 1),
             ("Następne grupy", page + 1),
         ):
             if target >= 1 and (target - 1) * 100 < cast(int, answer["total"]):
-                parts.append(
-                    f'<a class="button" href="/slowniki/{_e(slug)}/{_e(code)}/jgp/{_e(day)}/{_e(source["catalog"])}/{target}">{label}</a>'
+                pages.append(
+                    f'<a class="button button-quiet" href="/slowniki/{_e(slug)}/{_e(code)}/jgp/{_e(day)}/{_e(catalog)}/{target}">{label} ({_e(catalog)})</a>'
                 )
-        parts.append(source_facts(source))
-    parts.append("</section>")
-    return "".join(parts)
+    toggle = (
+        '<button class="answer-toggle" type="button" aria-expanded="false" hidden>Rozwiń wszystkie</button>'
+        if len(items) > 1
+        else ""
+    )
+    return JgpPanel(
+        date_bar=date_bar,
+        lead=_lead(slug, items, total, day, bool(covered))
+        + "".join(notes)
+        # Phones show the date picker below the groups, so the day stays in view.
+        + f'<a class="answer-day" href="#jgp-date">Stan na {_e(display_date(day))}, zmień dzień</a>',
+        groups=(
+            '<section class="jgp-memberships">'
+            + (
+                '<h2 class="visually-hidden">Grupy JGP</h2>'
+                + toggle
+                + _groups(items, code, day, total)
+                if items
+                else ""
+            )
+            + (
+                f'<nav class="code-actions" aria-label="Strony grup">{"".join(pages)}</nav>'
+                if pages
+                else ""
+            )
+            + "</section>"
+        ),
+        sources=_sources(answers),
+        shared=shared,
+        has_groups=bool(items),
+    )

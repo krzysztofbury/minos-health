@@ -149,6 +149,33 @@ def test_dated_reference_members_keep_duplicates_exact_codes_and_missing_corresp
             (g["code"], g["list_ids"])
             for g in cast(list[dict[str, object]], reverse["groups"])
         ] == [("A01", [2])]
+        listed = cast(list[dict[str, object]], reverse["groups"])[0]
+        assert (listed["name"], listed["procedural"]) == (
+            "Zabiegi wewnątrzczaszkowe *",
+            True,
+        )
+        assert listed["base_values"] == [
+            {
+                "measure": "hospitalization",
+                "unit": "points_hundredths",
+                "amount": 1358600,
+                "display": "13586.00",
+            },
+            {"measure": "financed_stay", "unit": "days", "amount": 25, "display": "25"},
+            {
+                "measure": "extra_stay_day",
+                "unit": "points_hundredths",
+                "amount": 64100,
+                "display": "641.00",
+            },
+        ]
+        assert listed["conditions"] == [
+            {
+                "text": "wymagane wskazanie procedury z listy procedur A01 oraz"
+                + " rozpoznania zasadniczego z listy rozpoznań A01",
+                "connector": None,
+            }
+        ]
         assert code_memberships(connection, "icd10-pl", "G60", "1a", day)["total"] == 0
         assert code_memberships(connection, "icd9-pl", "G60.4", "1a", day)["total"] == 0
         with pytest.raises(NoRulesetForDate):
@@ -160,6 +187,10 @@ def test_http_exposes_source_traced_rules_and_dated_list_pages(tmp_path: Path) -
         response = client.get("/api/v1/jgp/2026-07-01/groups/A01")
         assert response.status_code == 200
         assert response.json()["conditions"]["status"] == "fully_interpreted"
+        page = client.get("/jgp/2026-07-01/A01").text
+        # The source's own words come first; the structure is one click away.
+        assert page.index('class="cond-clause"') < page.index("Struktura warunku")
+        assert 'href="/jgp/2026-07-01/listy/1a/' in page.split("Struktura warunku")[0]
         listing = client.get("/api/v1/jgp/2026-07-01/lists/1a/2/pages/1")
         assert listing.status_code == 200
         assert listing.json()["total_occurrences"] == 3
