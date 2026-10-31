@@ -228,7 +228,8 @@ rendered as uncached HTML; see the
 Group answers add `conditions`. Its status is `fully_interpreted` only when
 every stored node of the group is proposed. `nodes`, `roots` and `selectors`
 are empty for `not_yet_interpreted`; `source_text` retains the original clauses
-and cited cell evidence. Separate roots do not imply a conjunction. These are
+and cited cell evidence, with `own` false on rows cited from another group's
+section. Separate roots do not imply a conjunction. These are
 reference fragments, not executable encounter qualification. Older base-only
 bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
 
@@ -245,9 +246,11 @@ bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
   date resets membership pagination. Dated variants are `noindex, follow`.
 
 Each membership group carries its catalog `name`, `procedural`, `base_values`
-(amount and exact `display`, base points without modifiers) and the source
-`conditions` clauses. A group with no catalog row on that day has `name: null`
-and empty `base_values`, never a zero.
+(amount and exact `display`, of `points_kind` base points without modifiers),
+`catalog_notes` and `conditions`: the source clauses in order, each with
+`connector` set to `lub` when the source joins it to the one before. A group
+with no catalog row on that day has `name: null` and empty `base_values`, never
+a zero.
 
 Reverse lookup includes explicit group-local lists and lists reached through
 stored condition selectors, including unsupported source evidence. It never

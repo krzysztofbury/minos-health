@@ -52,7 +52,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-padding-top: 5rem; -webkit-tap-highlight-color: transparent; }
 a, button, summary, label { touch-action: manipulation; }
-button, summary { user-select: none; -webkit-user-select: none; }
+button { user-select: none; -webkit-user-select: none; }
 body { display: flex; flex-direction: column; min-width: 20rem; min-height: 100dvh; margin: 0; font-size: var(--text-md); background: var(--canvas); }
 main { flex: 1; padding-bottom: 3.5rem; }
 main:focus { outline: none; }
@@ -499,6 +499,7 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .answer-date .jgp-quick .dictionary-tab { min-height: 36px; padding: 0.15rem 0.65rem; font-size: 0.8125rem; }
 .jgp-memberships { position: relative; }
 .answer-root { min-width: 0; margin-top: 0.1rem; color: #fff; background: var(--accent); }
+.answer-root + .jgp-note { margin-top: 0.45rem; }
 .answer-toggle { position: absolute; top: 0; right: 0; min-height: 36px; padding: 0.2rem 0.7rem; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--accent); background: var(--surface); cursor: pointer; font-size: var(--text-sm); font-weight: 600; transition: transform 100ms var(--ease-out); }
 .answer-toggle:active { transform: scale(0.97); }
 .answer-toggle[hidden] { display: none; }
@@ -525,14 +526,16 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .answer-tiles dt { color: var(--muted); font-size: 0.8125rem; line-height: 1.2; }
 .answer-tiles dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 .cond { margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: var(--text-sm); line-height: 1.45; }
+.fold-title, .answer-section-title { margin: 0; color: inherit; font: inherit; }
+.answer-section-title { font-weight: 700; }
+.cond-or { margin-block: 0.15rem; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.answer-flag { display: block; color: var(--muted); font-size: 0.8125rem; font-weight: 400; }
+.cond p + p:not(.cond-or) { margin-top: 0.25rem; }
 .cond-tag { display: block; margin-bottom: 0.1rem; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
-.cond summary { display: flex; align-items: center; min-height: 32px; color: var(--accent); font-size: 0.8125rem; cursor: pointer; }
-.cond details p { margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px dashed var(--line); }
 .jgp-conditions { padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
 .jgp-conditions h2 { font-size: var(--text-lg); }
 .jgp-conditions > p { margin-top: 0.35rem; }
 .cond-clause { line-height: 1.45; }
-.cond-clause + .cond-clause { padding-top: 0.35rem; border-top: 1px dashed var(--line); }
 .jgp-lists { display: flex; flex-wrap: wrap; gap: 0.1rem 1rem; margin: 0.4rem 0 0; padding: 0; list-style: none; font-size: var(--text-sm); font-weight: 600; }
 .jgp-lists li { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; }
 .jgp-lists .jgp-rows { font-weight: 400; }
@@ -545,7 +548,6 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .answer-open { margin-top: 0.5rem; font-size: var(--text-sm); font-weight: 600; }
 .answer-section { margin-top: 0.8rem; }
 .answer-section > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
-.answer-section-title { font-weight: 700; }
 .answer-section-title span { color: var(--muted); font-weight: 400; }
 .fold { border-top: 1px solid var(--line); }
 .fold > summary { display: flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }

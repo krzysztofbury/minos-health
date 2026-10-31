@@ -7,7 +7,11 @@ from typing import Literal, cast
 
 from minos.domain import jgp_conditions as c
 from minos.domain.jgp_conditions_validation import selector_ids
-from minos.domain.jgp_ruleset import GroupNotOnDate, NoRulesetForDate
+from minos.domain.jgp_ruleset import (
+    AmbiguousRuleset,
+    GroupNotOnDate,
+    NoRulesetForDate,
+)
 from minos.domain.reference import ArtifactError
 from minos.domain.search import SearchInputError
 from minos.ingest.jgp_conditions_codec import decode_condition, decode_selector, encode
@@ -19,6 +23,7 @@ from minos.store.jgp_ruleset import (
     POINTS_LABEL,
     catalog_group,
     points_display,
+    resolve_ruleset,
 )
 from minos.store.query_budget import query_budget
 
@@ -154,14 +159,16 @@ def group_conditions(
             }
         )
         evidence = cast(
-            list[tuple[int, str, str]],
+            list[tuple[int, str, str, int]],
             connection.execute(
-                """SELECT row, source_text, category FROM characteristics_evidence
+                """SELECT row, source_text, category, trim(context)=? AS own
+            FROM characteristics_evidence
             WHERE release_id=? AND catalog=? AND (
               (trim(context)=? AND category IN ('title','label','connector','unbound_member'))
               OR row IN (SELECT value FROM json_each(?)))
             ORDER BY row LIMIT ?""",
                 (
+                    code,
                     *key,
                     code,
                     json.dumps(
@@ -207,8 +214,8 @@ def group_conditions(
         if fully
         else [],
         "source_text": [
-            {"row": row, "text": text, "category": category}
-            for row, text, category in evidence
+            {"row": row, "text": text, "category": category, "own": bool(own)}
+            for row, text, category, own in evidence
         ],
         "lists": lists,
         "codes": [
@@ -528,26 +535,38 @@ def _membership_rows(
     )
 
 
-def _condition_labels(
+def _source_clauses(
     connection: sqlite3.Connection, release: str, catalog: Catalog
-) -> dict[int, tuple[str, ...]]:
-    """Each group title row with the source clauses printed under it."""
-    labels: dict[int, list[str]] = {}
-    current: list[str] | None = None
-    for row, category, text in cast(
-        list[tuple[int, str, str]],
+) -> dict[str, tuple[Json, ...]]:
+    """Each group's clauses in source order, with the source's own "lub".
+
+    Rows belong to the group their `context` names: a list heading printed at
+    the end of a section also reads as a label, and is not a condition.
+    """
+    clauses: dict[str, list[Json]] = {}
+    connected: set[str] = set()
+    for context, category, text in cast(
+        list[tuple[str | None, str, str]],
         connection.execute(
-            """SELECT row, category, source_text FROM characteristics_evidence
-            WHERE release_id=? AND catalog=? AND category IN ('title', 'label')
+            """SELECT context, category, source_text FROM characteristics_evidence
+            WHERE release_id=? AND catalog=? AND category IN ('label', 'connector')
             ORDER BY row""",
             (release, catalog),
         ).fetchall(),
     ):
-        if category == "title":
-            current = labels.setdefault(row, [])
-        elif current is not None:
-            current.append(" ".join(text.split()))
-    return {row: tuple(clauses) for row, clauses in labels.items()}
+        code = (context or "").strip()
+        if category == "connector":
+            connected.add(code)
+            continue
+        listed = clauses.setdefault(code, [])
+        listed.append(
+            {
+                "text": " ".join(text.split()),
+                "connector": "lub" if listed and code in connected else None,
+            }
+        )
+        connected.discard(code)
+    return {code: tuple(items) for code, items in clauses.items()}
 
 
 def _catalog_rows(
@@ -562,9 +581,9 @@ def _catalog_rows(
     Single-table statements for the reason in store/hierarchy_walk.py (#294).
     """
     rows = cast(
-        list[tuple[str, int, str, int]],
+        list[tuple[str, int, str, int, str | None]],
         connection.execute(
-            """SELECT code, source_row, name, procedural FROM group_definition
+            """SELECT code, source_row, name, procedural, notes FROM group_definition
             WHERE release_id=:release AND catalog=:catalog
               AND code IN (SELECT value FROM json_each(:codes))
               AND service_from<=:day AND (service_to IS NULL OR :day<=service_to)""",
@@ -608,8 +627,9 @@ def _catalog_rows(
             "name": name,
             "procedural": bool(procedural),
             "base_values": values.get(source_row, []),
+            "notes": " ".join(notes.split()) if notes else None,
         }
-        for code, source_row, name, procedural in rows
+        for code, source_row, name, procedural, notes in rows
     }
 
 
@@ -641,21 +661,32 @@ def code_memberships(
     if not rows and page != 1:
         raise SearchInputError("characteristics membership page is absent")
     release = cast(str, source["release_id"])
+    catalog_release = cast(str, source["catalog_release_id"])
     with query_budget(connection):
-        catalog_rows = _catalog_rows(
-            connection,
-            cast(str, source["catalog_release_id"]),
-            catalog,
-            [row[0] for row in rows],
-            service_date,
+        try:
+            governing = resolve_ruleset(connection, service_date, None)["release_id"]
+        except NoRulesetForDate, AmbiguousRuleset, ArtifactError:
+            # Also a bundle of characteristics that carries no catalog at all.
+            governing = None
+        # The list stays true without a linked catalog; only its points would not.
+        catalog_rows = (
+            _catalog_rows(
+                connection,
+                catalog_release,
+                catalog,
+                [row[0] for row in rows],
+                service_date,
+            )
+            if governing == catalog_release
+            else {}
         )
-        labels = (
+        clauses = (
             cache.get(
-                ("condition_labels", release, catalog),
-                lambda: _condition_labels(connection, release, catalog),
+                ("source_clauses", release, catalog),
+                lambda: _source_clauses(connection, release, catalog),
             )
             if cache is not None
-            else _condition_labels(connection, release, catalog)
+            else _source_clauses(connection, release, catalog)
         )
     return {
         "source": source,
@@ -677,7 +708,8 @@ def code_memberships(
                 "procedural": catalog_rows.get(group, {}).get("procedural"),
                 "base_values": catalog_rows.get(group, {}).get("base_values", []),
                 "points_kind": POINTS_KIND,
-                "conditions": list(labels.get(row, ())),
+                "catalog_notes": catalog_rows.get(group, {}).get("notes"),
+                "conditions": list(clauses.get(group, ())),
             }
             for group, row, title, lists, interpreted, _ in rows
         ],

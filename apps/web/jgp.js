@@ -57,7 +57,11 @@
   if (toggle instanceof HTMLButtonElement) {
     var groups = Array.prototype.slice.call(document.querySelectorAll(".answer-group"));
     var allOpen = function () { return groups.every(function (group) { return group.open; }); };
-    var label = function () { toggle.textContent = allOpen() ? "Zwiń wszystkie" : "Rozwiń wszystkie"; };
+    var label = function () {
+      var open = allOpen();
+      toggle.textContent = open ? "Zwiń wszystkie" : "Rozwiń wszystkie";
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    };
     toggle.hidden = false;
     toggle.addEventListener("click", function () {
       var open = !allOpen();

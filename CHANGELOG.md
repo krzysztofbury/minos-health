@@ -31,11 +31,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
-- ICD-9 and ICD-10 code pages answer first: each JGP group with its catalog
-  base points and NFZ condition directly under the title, opened by default up
-  to six groups and closed above that, with procedural and conservative groups
-  in their own sections. Rank, sources and hierarchy moved to a side column,
-  one click away. The concept API and MCP `get_code` carry the same points and
+- Code pages answer first: on ICD-9 and ICD-10 each JGP group with its catalog
+  base points, its NFZ condition in the source's own clauses and its catalog
+  notes directly under the title, opened by default up to six groups and closed
+  above that, with procedural and conservative groups in their own sections.
+  Rank, sources and hierarchy moved to a side column, one click away, also on
+  ICD-11. The concept API and MCP `get_code` carry the same points, notes and
   conditions (#298).
 - JGP group pages lead with the points and the NFZ condition in its source
   wording, with direct links to the procedure and diagnosis lists. The rule

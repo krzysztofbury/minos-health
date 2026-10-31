@@ -422,13 +422,13 @@ def group_page(
         + '<span aria-hidden="true">/</span>'.join(crumbs)
         + "</nav>\n",
         f'        <div class="detail-code answer-title"><span class="code-chip">{_e(code)}</span>'
-        + f"<h1>{_e(cast(str, group['name']).removesuffix(' *'))}</h1></div>\n",
+        + f"<h1>{_e(cast(str, group['name']).rstrip(' *'))}</h1></div>\n",
         f'        <p class="answer-meta">{" · ".join(meta)}</p>\n',
         "      </div>\n",
         '      <div class="shell answer-page jgp-group">\n',
         f'        <div class="answer-lead">{_points_lead(answer)}</div>\n',
-        f'        <div class="answer-date">{date_bar(service_date, f"/{code}", calendar)}</div>\n',
         f'        <div class="answer-main">{"".join(main)}</div>\n',
+        f'        <div class="answer-date">{date_bar(service_date, f"/{code}", calendar)}</div>\n',
         '        <aside class="answer-rail">'
         + _row_window(code, group, neighbours)
         + fold("Wydanie katalogu", provenance(ruleset), name="jgp-provenance")

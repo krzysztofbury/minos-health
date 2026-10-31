@@ -79,11 +79,17 @@ class JgpPanel(NamedTuple):
     has_groups: bool
 
 
-def fold(title: str, body: str, *, opened: bool = False, name: str = "") -> str:
-    """Supporting detail, one click away. `title` is trusted, `body` is markup."""
+def fold(
+    title: str, body: str, *, opened: bool = False, name: str = "", level: int = 2
+) -> str:
+    """Supporting detail, one click away. `title` is trusted, `body` is markup.
+
+    The title is a heading, so heading navigation reaches a closed fold.
+    """
     return (
         f'<details class="fold{f" {name}" if name else ""}"{" open" if opened else ""}>'
-        + f'<summary>{title}</summary><div class="fold-body">{body}</div></details>'
+        + f'<summary><h{level} class="fold-title">{title}</h{level}></summary>'
+        + f'<div class="fold-body">{body}</div></details>'
     )
 
 
@@ -214,7 +220,7 @@ def _rank_summary(evidence: dict[str, object]) -> str:
 
 
 def _rank_fold(evidence: dict[str, object]) -> str:
-    title = f"{_rank_summary(evidence)}: co to znaczy"
+    title = f"{_rank_summary(evidence)}: rola w JGP (SZP)"
     if evidence["status"] == "not_selected":
         body = "<p>Nie wybrano wykazu rang dla tego wydania słownika. Brak danych nie oznacza rangi 0.</p>"
         return fold(title, body, name="procedure-rank")
@@ -383,7 +389,6 @@ def code_page(
     parts.append('      <div class="shell answer-page">')
     if jgp is not None:
         parts.append(f'        <div class="answer-lead">{jgp.lead}</div>')
-        parts.append(f'        <div class="answer-date">{jgp.date_bar}</div>')
     # With no group to show, the source notes are the answer, so they stay open.
     detail_open = jgp is None or not jgp.has_groups
     main: list[str] = [jgp.groups] if jgp is not None else []
@@ -447,6 +452,8 @@ def code_page(
         )
     main.append(f'<p class="detail-source">{_e(dictionary.source)}</p>')
     parts.append(f'        <div class="answer-main">{"".join(main)}</div>')
+    if jgp is not None:
+        parts.append(f'        <div class="answer-date">{jgp.date_bar}</div>')
     facts = [
         f"<div><dt>{_e(item['name'])}</dt><dd>{_e(display_date(item['value']) if item['key'] in DATE_ATTRIBUTES else item['value'])}</dd></div>"
         for item in attributes
@@ -530,7 +537,9 @@ def code_page(
     )
     description = (
         f"Kod {dictionary.name} {code}: {label}. "
-        + f"{' '.join(context.split())}. Uwagi źródła, kody podrzędne i miejsce w słowniku."
+        + f"{' '.join(context.split())}. "
+        + ("Grupy JGP i punkty bazowe. " if jgp is not None else "")
+        + "Uwagi źródła, kody podrzędne i miejsce w słowniku."
     )
     return _page(
         title=f"{code} {label} - {dictionary.name} - Minos Health",

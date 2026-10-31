@@ -170,8 +170,11 @@ def test_dated_reference_members_keep_duplicates_exact_codes_and_missing_corresp
             },
         ]
         assert listed["conditions"] == [
-            "wymagane wskazanie procedury z listy procedur A01 oraz rozpoznania"
-            + " zasadniczego z listy rozpoznań A01"
+            {
+                "text": "wymagane wskazanie procedury z listy procedur A01 oraz"
+                + " rozpoznania zasadniczego z listy rozpoznań A01",
+                "connector": None,
+            }
         ]
         assert code_memberships(connection, "icd10-pl", "G60", "1a", day)["total"] == 0
         assert code_memberships(connection, "icd9-pl", "G60.4", "1a", day)["total"] == 0
