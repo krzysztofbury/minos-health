@@ -502,7 +502,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .answer-main { grid-area: main; min-width: 0; }
 .answer-rail { grid-area: rail; min-width: 0; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); font-size: var(--text-sm); }
 .answer-sentence { font-size: var(--text-lg); line-height: 1.35; letter-spacing: -0.005em; }
-.answer-caveat { margin-top: 0.35rem; color: var(--ink-soft); font-size: var(--text-sm); line-height: 1.45; }
 .answer-lead .jgp-note { margin-top: 0.3rem; }
 .answer-date .tree-search-label { margin-bottom: 0.2rem; color: var(--muted); font-size: var(--text-sm); font-weight: 400; }
 .answer-date .jgp-date-row .control-picker { width: 100%; max-width: 19rem; }

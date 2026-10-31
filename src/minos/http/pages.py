@@ -451,6 +451,10 @@ def code_page(
                 name="shared-procedures",
             )
         )
+    # ICD-10 and ICD-11 carry licence and WHO translation terms, which stay in
+    # view; the ICD-9 line only says which source gave which field.
+    if dictionary.slug != "icd-9":
+        main.append(f'<p class="detail-source">{_e(dictionary.source)}</p>')
     parts.append(f'        <div class="answer-main">{"".join(main)}</div>')
     if jgp is not None:
         parts.append(f'        <div class="answer-date">{jgp.date_bar}</div>')
@@ -479,10 +483,11 @@ def code_page(
         )
     if jgp is not None:
         rail.append(jgp.sources)
-    rail.append(
-        f'<details class="fold"><summary>Źródła: słownik {_e(dictionary.name)}</summary>'
-        + f'<div class="fold-body"><p>{_e(dictionary.source)}</p></div></details>'
-    )
+    if dictionary.slug == "icd-9":
+        rail.append(
+            f'<details class="fold"><summary>Źródła: słownik {_e(dictionary.name)}</summary>'
+            + f'<div class="fold-body"><p>{_e(dictionary.source)}</p></div></details>'
+        )
     rail.append(
         '<p class="code-actions">'
         + f'<a href="/slowniki/{dictionary.slug}#kod={_e(code)}">Pokaż w drzewie słownika</a></p>'

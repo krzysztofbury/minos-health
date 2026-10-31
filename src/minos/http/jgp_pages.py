@@ -404,6 +404,9 @@ def group_page(
     if group["procedural"] is True:
         meta.append("Grupa zabiegowa (*)")
     scopes = cast(list[dict[str, object]], answer["scopes"])
+    conditions_status = cast(dict[str, object], answer.get("conditions") or {}).get(
+        "status"
+    )
     main: list[str] = [
         conditions_section(cast(dict[str, object], answer["conditions"]))
         if "conditions" in answer
@@ -446,9 +449,12 @@ def group_page(
         + fold(
             READING_TITLE,
             f"<p>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. {_e(modifiers_note(ruleset))}</p>"
-            + f"<p>{_e(REFERENCE_NOTE)}</p>"
+            + (
+                f"<p>{_e(REFERENCE_NOTE)}</p>"
+                if conditions_status in ("fully_interpreted", "not_yet_interpreted")
+                else ""
+            )
             + horizon_note(ruleset),
-            level=3,
         )
         + fold(
             "Wydanie katalogu",
@@ -476,7 +482,7 @@ def _points_lead(answer: dict[str, object]) -> str:
     }
     headline = values.get(HOSPITALIZATION)
     sentence = (
-        f"Hospitalizacja: <strong>{points_short(cast(int, headline['amount']))}{NBSP}pkt</strong>"
+        f"Hospitalizacja: <strong>{points_short(cast(int, headline['amount']))}{NBSP}pkt</strong> bazowych"
         if headline
         else "Brak wartości w katalogu na ten dzień"
     )

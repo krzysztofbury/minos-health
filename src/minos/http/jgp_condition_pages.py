@@ -572,7 +572,7 @@ def _sources(answers: list[Json]) -> str:
         if any(source["service_date_after_knowledge"] for source in covered)
         else ""
     )
-    return fold(READING_TITLE, f"<p>{CAVEAT}</p>{horizon}", level=3) + "".join(
+    return fold(READING_TITLE, f"<p>{CAVEAT}</p>{horizon}") + "".join(
         f'<details class="fold"><summary>Źródła: katalog {_e(source["catalog"])}</summary>'
         + f'<div class="fold-body">{source_facts(source)}</div></details>'
         for source in covered
