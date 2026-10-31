@@ -52,6 +52,7 @@ from minos.http.jgp_pages import date_bar, error_page
 from minos.http.pages import (
     CODE_PATTERN,
     DICTIONARIES,
+    busy_page,
     code_page,
     icd11_map_section,
     missing_page,
@@ -81,6 +82,9 @@ from minos.store.tree import (
 LOGGER = logging.getLogger("minos.http")
 # ICD-11 chapter 01 has 23 blocks; each block is one more bounded tree query.
 MAX_PAGE_BLOCKS = 64
+# Above this the API answers "busy" itself, in the visitor's format. uvicorn's
+# --limit-concurrency stays above it as a backstop: its answer is bare text.
+MAX_IN_FLIGHT = 16
 TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
 PAGE_ROUTE = re.compile(
     r"/slowniki/icd-(?:10|9|11)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/[1-9][0-9]{0,1})?)?"
@@ -520,18 +524,38 @@ def create_app(
             pool.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    in_flight = 0
+
+    def shed(path: str) -> Response:
+        if path.startswith(("/api/", "/mcp")):
+            return failure(429, "busy")
+        return HTMLResponse(
+            busy_page(path),
+            status_code=429,
+            headers={"Cache-Control": "no-store", "Retry-After": "1"},
+        )
 
     async def guard(request: Request, call_next: object) -> JSONResponse:
         from collections.abc import Awaitable
 
+        nonlocal in_flight
         request_id = uuid.uuid4().hex
         began = time.monotonic()
+        path = request.url.path
         try:
             if request.url.query:
                 response: Response = failure(400, "queries_must_not_be_in_urls")
+            # Monitoring must keep seeing the truth while visitors are shed.
+            elif in_flight >= MAX_IN_FLIGHT and path not in ("/healthz", "/readyz"):
+                request.state.failure_code = "busy"
+                response = shed(path)
             else:
                 handler = cast(Callable[[Request], Awaitable[Response]], call_next)
-                response = await handler(request)
+                in_flight += 1
+                try:
+                    response = await handler(request)
+                finally:
+                    in_flight -= 1
         except Exception:
             # Fixed failures deliberately omit exception/input/path representations.
             response = failure(503, "unavailable")

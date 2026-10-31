@@ -104,3 +104,23 @@ def test_source_text_is_escaped_in_markup_and_structured_data() -> None:
     assert "<img" not in page
     assert hostile not in page
     assert structured_data(page)[0]["name"] == hostile
+
+
+def test_a_shedding_api_answers_in_the_visitors_format_and_keeps_monitoring(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Uvicorn's own limit answers bare text, which visitors read as an outage (#296).
+    monkeypatch.setattr("minos.http.app.MAX_IN_FLIGHT", 0)
+
+    page = client.get("/slowniki/icd-10/E11.0")
+    assert page.status_code == 429
+    assert page.headers["content-type"].startswith("text/html")
+    assert page.headers["retry-after"] == "1"
+    assert '<meta http-equiv="refresh" content="2">' in page.text
+    assert 'href="/slowniki/icd-10/E11.0"' in page.text
+
+    api = client.get("/api/v1/releases")
+    assert (api.status_code, api.json()["error"]["code"]) == (429, "busy")
+
+    assert client.get("/readyz").status_code == 200
+    assert client.get("/healthz").status_code == 200

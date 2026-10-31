@@ -563,6 +563,10 @@ def _crawler_files() -> dict[str, bytes]:
         "User-agent: *\n"
         + "Allow: /\n"
         + "Disallow: /api/\n"
+        # Noindex pages: crawling them gave nothing and cost most of the API's
+        # load (#296). The undated /slowniki code pages stay open.
+        + "Disallow: /jgp/\n"
+        + "Disallow: /slowniki/*/jgp/\n"
         + "Sitemap: https://minoshealth.pl/sitemap.xml\n"
     )
     pages = "".join(

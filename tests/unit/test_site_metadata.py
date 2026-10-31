@@ -6,7 +6,13 @@ from typing import override
 
 import pytest
 
-from scripts.build_site import PAGES, Mode, render_page, render_site
+from scripts.build_site import (
+    PAGES,
+    Mode,
+    _crawler_files,  # pyright: ignore[reportPrivateUsage]
+    render_page,
+    render_site,
+)
 
 
 class Metadata(HTMLParser):
@@ -79,3 +85,12 @@ def test_social_title_and_description_escape_untrusted_metadata() -> None:
     metadata = Metadata(page).values
     assert metadata["twitter:title"] == hostile
     assert metadata["og:description"] == hostile
+
+
+def test_robots_keep_crawlers_on_the_indexable_pages() -> None:
+    robots = _crawler_files()["robots.txt"].decode()
+    rules = robots.splitlines()
+    assert {"Disallow: /api/", "Disallow: /jgp/", "Disallow: /slowniki/*/jgp/"} <= set(
+        rules
+    )
+    assert "Disallow: /slowniki/" not in rules
