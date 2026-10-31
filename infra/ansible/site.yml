@@ -1371,7 +1371,7 @@
           - none
           - --volume
           - /opt/minos/candidate/cloudflared-config.yml:/etc/cloudflared/config.yml:ro
-          - docker.io/cloudflare/cloudflared@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
+          - docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53
           - tunnel
           - --config
           - /etc/cloudflared/config.yml
@@ -1407,7 +1407,7 @@
           - /opt/minos/candidate/cloudflared-config.yml:/etc/cloudflared/config.yml:ro
           - --volume
           - /etc/minos/cloudflared/candidate/{{ cloudflared_tunnel_id }}.json:/run/secrets/cloudflared-credentials.json:ro
-          - docker.io/cloudflare/cloudflared@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
+          - docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53
           - tunnel
           - --config
           - /etc/cloudflared/config.yml
@@ -2829,7 +2829,7 @@
           - minos_edge_boundary[18] == "10"
           - minos_cloudflared_boundary[0] == "healthy"
           - minos_cloudflared_boundary[1] == "{}"
-          - minos_cloudflared_boundary[2] == "docker.io/cloudflare/cloudflared@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515"
+          - minos_cloudflared_boundary[2] == "docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53"
           - minos_cloudflared_boundary[3] == "minos_edge"
           - minos_cloudflared_boundary[4] == "65532:65532"
           - minos_cloudflared_boundary[5] == "true"

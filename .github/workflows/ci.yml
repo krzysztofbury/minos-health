@@ -113,11 +113,11 @@ jobs:
           docker compose --file "$RUNNER_TEMP/minos-compose.yaml" config --quiet
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/cloudflared-config.yml:/etc/cloudflared/config.yml:ro" \
-            docker.io/cloudflare/cloudflared@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515 \
+            docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53 \
             tunnel --config /etc/cloudflared/config.yml ingress validate
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/cloudflared-public-status-config.yml:/etc/cloudflared/config.yml:ro" \
-            docker.io/cloudflare/cloudflared@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515 \
+            docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53 \
             tunnel --config /etc/cloudflared/config.yml ingress validate
 
       - name: Verify the production systemd unit
