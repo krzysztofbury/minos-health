@@ -305,8 +305,8 @@ def render_code(
         and (source.system, source.origin) == ("icd9-pl", "czs")
         for source in pool.manifest.dataset.sources
     )
-    # One lease per page: the pool has no wait queue, so a second borrow could
-    # turn an already-resolved page into a capacity failure.
+    # One lease per page: a second borrow could turn an already-resolved page
+    # into a capacity failure.
     with pool.borrow() as lease:
         ordinal = find_code(lease.connection, tree.hierarchy, code)
         if ordinal is None:
