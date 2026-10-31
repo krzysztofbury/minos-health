@@ -1,3 +1,4 @@
+import json
 from typing import cast
 
 import pytest
@@ -7,6 +8,7 @@ from minos.http.jgp_condition_pages import (
     membership_panel,
     points_short,
 )
+from minos.http.mcp import MAX_JGP_LIST_BYTES, compact_jgp_lists
 from minos.http.pages import JgpPanel
 
 NBSP = " "
@@ -219,7 +221,7 @@ def test_nothing_covered_is_not_reported_as_not_listed() -> None:
     uncovered = cast(Json, {"status": "context_not_covered", "catalog": "1a"})
     panel = _panel([uncovered])
 
-    assert "Brak zweryfikowanej charakterystyki JGP" in panel.lead
+    assert panel.lead.count("Brak zweryfikowanej charakterystyki") == 1
     assert "Brak na jawnych listach" not in panel.lead
 
 
@@ -256,3 +258,41 @@ def test_a_group_page_shows_only_its_own_clauses_as_the_condition() -> None:
     assert "cytowana lista C22B" not in head
     # The cited row stays in the source record.
     assert "cytowana lista C22B" in page
+
+
+def _listing(groups: int) -> Json:
+    return {
+        "catalogs": [
+            {
+                "code": "C41.4",
+                "groups": [
+                    {
+                        **_group(f"A{index:03}", 100000),
+                        "conditions": [{"text": "x" * 800, "connector": None}],
+                        "catalog_notes": "y" * 200,
+                    }
+                    for index in range(groups)
+                ],
+            }
+        ]
+    }
+
+
+def test_a_long_mcp_listing_keeps_every_group_with_its_headline() -> None:
+    compact = compact_jgp_lists(_listing(120))
+    groups = cast(list[Json], cast(list[Json], compact["catalogs"])[0]["groups"])
+
+    assert compact["compact"] is True
+    assert "get_jgp_group" in cast(str, compact["compact_note"])
+    assert len(groups) == 120
+    assert "conditions" not in groups[0] and "catalog_notes" not in groups[0]
+    assert [v["measure"] for v in cast(list[Json], groups[0]["base_values"])] == [
+        "hospitalization"
+    ]
+    assert len(json.dumps(compact).encode()) < MAX_JGP_LIST_BYTES
+
+
+def test_a_short_mcp_listing_is_returned_whole() -> None:
+    listing = _listing(3)
+
+    assert compact_jgp_lists(listing) is listing

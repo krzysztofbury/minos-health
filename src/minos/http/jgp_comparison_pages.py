@@ -257,7 +257,7 @@ def comparison_page(
     body = (
         '<div class="shell page-head page-head-compact"><nav class="breadcrumbs" aria-label="Okruszki"><a href="/jgp">Grupy JGP</a> / Porównanie</nav>'
         + "<h1>Co zmieniło się w katalogu JGP?</h1>"
-        + f'<p class="page-lead">{_e(BASE_POINTS_LABEL)}. To nie są punkty do rozliczenia.</p>'
+        + f'<p class="page-lead">{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. To nie są punkty do rozliczenia.</p>'
         + "<p>Porównujemy wskazane wydania według stanu z dnia ich publikacji, również przy zmianach wstecznych. Daty świadczeń wybierają właściwe wiersze każdego wydania.</p>"
         + controls
         + "<p>Zakres porównania: obecność grup, definicje, oznaczenia zakresów i wartości katalogowe na wybrane dni. "

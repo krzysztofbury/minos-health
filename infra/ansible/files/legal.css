@@ -367,6 +367,7 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .result-group-head { font-size: var(--text-lg); }
 .result-toggle { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; width: 100%; min-height: 44px; padding: 0.9rem 1.1rem; border: 0; color: var(--ink); background: none; cursor: pointer; font: inherit; font-weight: 700; text-align: left; transition: background-color 120ms ease; }
 .result-toggle:active { background: var(--canvas); }
+.result-toggle:focus-visible { outline-offset: -3px; }
 .result-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--line); }
 .result-toggle[aria-expanded="true"] .chevron { transform: rotate(45deg); }
 .result-title { flex: 1 1 auto; min-width: 0; }

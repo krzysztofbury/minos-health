@@ -250,7 +250,8 @@ Each membership group carries its catalog `name`, `procedural`, `base_values`
 `catalog_notes` and `conditions`: the source clauses in order, each with
 `connector` set to `lub` when the source joins it to the one before. A group
 with no catalog row on that day has `name: null` and empty `base_values`, never
-a zero.
+a zero. Past 48 KiB, MCP `get_code` keeps every group with its hospitalization
+value only and sets `compact` and `compact_note`; `get_jgp_group` has the rest.
 
 Reverse lookup includes explicit group-local lists and lists reached through
 stored condition selectors, including unsupported source evidence. It never

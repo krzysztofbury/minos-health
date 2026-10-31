@@ -328,13 +328,13 @@
     content.id = "results-" + system;
     content.append(body, foot);
     // Sections fold from their headers, so a long list never hides the next one.
-    toggle.addEventListener("click", function () {
-      var open = toggle.getAttribute("aria-expanded") !== "true";
+    function show(open) {
       toggle.setAttribute("aria-expanded", open ? "true" : "false");
       content.hidden = !open;
-    });
+    }
+    toggle.addEventListener("click", function () { show(toggle.getAttribute("aria-expanded") !== "true"); });
     section.append(heading, content);
-    return { section: section, title: title, count: count, body: body, foot: foot };
+    return { section: section, title: title, count: count, body: body, foot: foot, show: show };
   }
 
   function handOff(system, query) {
@@ -388,7 +388,7 @@
           fillGroup(group, system, query, next, MAX_RESULTS);
         }).catch(function (error) {
           more.disabled = false;
-          group.count.textContent = failureMessage(error.code);
+          group.foot.prepend(element("p", "group-message is-error", failureMessage(error.code)));
         });
       });
       group.foot.append(more);
@@ -404,6 +404,8 @@
 
   function failGroup(group, system, query, code) {
     group.count.textContent = "";
+    // An error and its retry must not stay inside a section folded meanwhile.
+    group.show(true);
     group.body.replaceChildren(element("li", "group-message is-error", failureMessage(code)));
     group.foot.replaceChildren();
     var retry = element("button", "button button-quiet", "Spróbuj ponownie");

@@ -184,6 +184,13 @@ def modifiers_note(ruleset: dict[str, object]) -> str:
     return MODIFIERS_NOTE
 
 
+def horizon_note(ruleset: dict[str, object]) -> str:
+    """Say when a later day is answered from sources checked before it."""
+    if not ruleset.get("service_date_after_knowledge"):
+        return ""
+    return f'<p class="jgp-note">Według źródeł sprawdzonych do {_e(display_date(ruleset["knowledge_as_of"]))}.</p>'
+
+
 def _head(crumbs: list[str]) -> str:
     return (
         '      <div class="shell page-head page-head-compact">\n'
@@ -256,7 +263,8 @@ def index_page(
         + f'<p class="jgp-points-note"><strong>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}.</strong>'
         + f" {_e(modifiers_note(ruleset))}</p>"
         + f'<p class="jgp-note">Zarządzenie {_e(ruleset["act_number"])}, świadczenia od {_e(display_date(ruleset["service_from"]))}.</p>'
-        + fold("Wydanie katalogu", provenance(ruleset))
+        + horizon_note(ruleset)
+        + fold("Wydanie katalogu", provenance(ruleset, heading="h3"))
         + f'<p class="detail-source">{_e(LEGEND[0])}</p>'
         + "</aside>\n"
         + "        </div>\n"
@@ -414,7 +422,8 @@ def group_page(
     main.append(fold(f"Zakresy świadczeń ({len(scopes)})", _scopes(scopes)))
     notes = _notes(cast(str | None, group["notes"]))
     if notes:
-        main.append(fold("Uwagi", notes))
+        # Some are settlement limits, so they stay in view like the points.
+        main.append(fold("Uwagi", notes, opened=True))
     main.append(f'<p class="detail-source">{_e(LEGEND[0])}</p>')
     parts = [
         '      <div class="shell answer-head">\n',
@@ -431,7 +440,11 @@ def group_page(
         f'        <div class="answer-date">{date_bar(service_date, f"/{code}", calendar)}</div>\n',
         '        <aside class="answer-rail">'
         + _row_window(code, group, neighbours)
-        + fold("Wydanie katalogu", provenance(ruleset), name="jgp-provenance")
+        + fold(
+            "Wydanie katalogu",
+            provenance(ruleset, heading="h3"),
+            name="jgp-provenance",
+        )
         + '<p class="code-actions">'
         + f'<a href="/jgp/{service_date}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">Pokaż w katalogu</a>'
         + f'<a href="/jgp/{service_date}">Wszystkie grupy na {display_date(service_date)}</a></p>'
@@ -466,6 +479,7 @@ def _points_lead(answer: dict[str, object]) -> str:
     return (
         f'<p class="answer-sentence">{sentence}</p>'
         + f'<p class="answer-caveat">{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. {_e(modifiers_note(ruleset))}</p>'
+        + horizon_note(ruleset)
         + (f'<dl class="answer-tiles">{tiles}</dl>' if tiles else "")
     )
 

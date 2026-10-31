@@ -600,7 +600,7 @@ def membership_panel(
     notes: list[str] = [
         f'<p class="jgp-note">Katalog {_e(answer["catalog"])}: brak zweryfikowanej charakterystyki dla tego dnia.</p>'
         for answer in answers
-        if answer["status"] != "covered"
+        if answer["status"] != "covered" and covered
     ]
     if any(source["service_date_after_knowledge"] for source in covered):
         notes.append(

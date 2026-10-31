@@ -54,6 +54,9 @@ SITE: Final = "https://minoshealth.pl"
 VERSION: Final = "1.1.0"
 ICON: Final = SITE + "/icon-512.png"
 MAX_RESULT_BYTES: Final = 256 * 1024
+# A result carries its value twice, as text and as structured content, so this
+# leaves room for the rest of a code: past it, groups keep their headline only.
+MAX_JGP_LIST_BYTES: Final = 48 * 1024
 MAX_NOTES: Final = 100
 MAX_SOURCE_ITEMS: Final = 200
 _POLAND: Final = ZoneInfo("Europe/Warsaw")
@@ -383,6 +386,45 @@ class MinosServer(MCPServer[None]):
         if len(result.model_dump_json(by_alias=True).encode()) > MAX_RESULT_BYTES:
             return _error("LIMIT")
         return result
+
+
+def compact_jgp_lists(jgp: Json) -> Json:
+    """Every group of a long listing, with its hospitalization value only."""
+    if len(json.dumps(jgp, ensure_ascii=False).encode()) <= MAX_JGP_LIST_BYTES:
+        return jgp
+    catalogs = [
+        {
+            **catalog,
+            "groups": [
+                {
+                    **{
+                        key: group.get(key)
+                        for key in (
+                            "code",
+                            "source_title",
+                            "name",
+                            "procedural",
+                            "fully_interpreted",
+                            "points_kind",
+                        )
+                    },
+                    "base_values": [
+                        value
+                        for value in _objects(group.get("base_values"))
+                        if value.get("measure") == "hospitalization"
+                    ],
+                }
+                for group in _objects(catalog.get("groups"))
+            ],
+        }
+        for catalog in _objects(jgp.get("catalogs"))
+    ]
+    return {
+        **jgp,
+        "catalogs": catalogs,
+        "compact": True,
+        "compact_note": "Too many groups for one result: conditions, notes and other values are on get_jgp_group.",
+    }
 
 
 def today() -> date:
@@ -790,7 +832,7 @@ class _Tools:
             },
             procedure_rank=_obj(rank) if rank else None,
             who_map_rows=_objects(_obj(concept.get("icd11_map")).get("rows")),
-            jgp_lists=jgp,
+            jgp_lists=compact_jgp_lists(jgp) if jgp else jgp,
         )
 
     async def browse_codes(
