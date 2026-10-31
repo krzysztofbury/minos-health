@@ -95,8 +95,8 @@ def test_watcher_image_is_lockfile_driven_wheel_only_and_non_root() -> None:
 
     assert dockerfile.count("FROM --platform=$TARGETPLATFORM") == 3
     assert "ARG TARGETPLATFORM=linux/amd64" in dockerfile
-    expected_python_image = "python:3.14.7-alpine3.23@sha256:" + (
-        "976bfed94200c6377b094feb91b7b1bd4849c8a4e3a7b2a364d95ddf1f1c6e01"
+    expected_python_image = "python:3.14.10-alpine3.23@sha256:" + (
+        "373c4d777c20616b78ca24018e710e3fc8c97eac8d4584ef92a57006303e9936"
     )
     assert expected_python_image in dockerfile
     assert 'org.opencontainers.image.revision="${VCS_REF}"' in dockerfile

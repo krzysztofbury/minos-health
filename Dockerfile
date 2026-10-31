@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 ARG TARGETPLATFORM=linux/amd64
-ARG PYTHON_IMAGE=docker.io/library/python:3.14.7-alpine3.23@sha256:976bfed94200c6377b094feb91b7b1bd4849c8a4e3a7b2a364d95ddf1f1c6e01
+ARG PYTHON_IMAGE=docker.io/library/python:3.14.10-alpine3.23@sha256:373c4d777c20616b78ca24018e710e3fc8c97eac8d4584ef92a57006303e9936
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff
 
 FROM --platform=$TARGETPLATFORM ${UV_IMAGE} AS uv
