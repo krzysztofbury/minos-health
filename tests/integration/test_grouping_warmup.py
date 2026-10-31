@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
+from time import monotonic, sleep
 from typing import cast
 
 import pytest
@@ -18,8 +19,9 @@ from minos.domain.grouper_candidates import Catalog
 from minos.domain.reference import ArtifactError, QueryTimeoutError
 from minos.grouper import pipeline
 from minos.http import app as application
+from minos.http.app import MAX_IN_FLIGHT
 from minos.http.grouping import warm_grouping
-from minos.http.reference import ReferencePool
+from minos.http.reference import MAX_WAITERS, CapacityError, ReferencePool
 from minos.store.grouper_bundle import CharacteristicsGraph, load_graph, sheet_releases
 from minos.store.product_catalogs import product_catalog_releases
 from tests.fixtures.grouping_interface import grouping_body, grouping_bundle
@@ -120,6 +122,53 @@ def _pool(bundle: Path) -> Generator[ReferencePool]:
     try:
         yield pool
     finally:
+        pool.close()
+
+
+def test_the_waiting_room_holds_every_request_the_api_admits(tmp_path: Path) -> None:
+    pool = ReferencePool(grouping_bundle(tmp_path))
+    try:
+        leases = len(pool._leases)  # pyright: ignore[reportPrivateUsage]
+    finally:
+        pool.close()
+    assert leases + MAX_WAITERS == MAX_IN_FLIGHT
+
+
+def test_every_admitted_request_may_wait_and_the_next_is_refused_at_once(
+    tmp_path: Path,
+) -> None:
+    pool = ReferencePool(grouping_bundle(tmp_path), capacity=1)
+    release, waiting = Event(), Event()
+
+    def borrow() -> None:
+        with pool.borrow():
+            pass
+
+    def hold() -> None:
+        with pool.borrow():
+            waiting.set()
+            assert release.wait(10)
+
+    try:
+        with ThreadPoolExecutor(MAX_WAITERS + 1) as threads:
+            holder = threads.submit(hold)
+            assert waiting.wait(10)
+            waiters = [threads.submit(borrow) for _ in range(MAX_WAITERS)]
+            for _ in range(200):
+                if pool._waiting == MAX_WAITERS:  # pyright: ignore[reportPrivateUsage]
+                    break
+                sleep(0.001)
+            assert pool._waiting == MAX_WAITERS  # pyright: ignore[reportPrivateUsage]
+            began = monotonic()
+            with pytest.raises(CapacityError):
+                borrow()
+            assert monotonic() - began < 0.25
+            release.set()
+            holder.result(10)
+            for waiter in waiters:
+                waiter.result(10)
+    finally:
+        release.set()
         pool.close()
 
 

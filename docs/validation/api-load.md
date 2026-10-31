@@ -34,12 +34,14 @@ thousands of `memory.events max` appear on every healthy start.
 `scripts/measure_api_load.py` sends a browser-shaped cycle (four searches
 across ICD-10, ICD-9 and JGP plus ICD-11, a code detail, a JGP group, a
 Gruper case) plus three MCP calls (`search_codes`, `get_code`, `group_case`).
+Local runs add HTML code and group pages, which hold one lease across many
+queries; public runs leave them out because Cloudflare answers cached pages.
 Reports keep route kinds, statuses, closed error codes, timings and cgroup
 memory; never queries, codes or bodies.
 
 - `local` runs the API and edge images on a pinned bundle in a disposable
   Compose project at the production limits (API 1 CPU, 512 MiB, no swap; edge
-  0.5 CPU, 64 MiB), at concurrency 1, 4 and 8. It sets `CF-Connecting-IP` per
+  0.5 CPU, 64 MiB), at concurrency 1, 4, 8 and 16. It sets `CF-Connecting-IP` per
   worker to emulate distinct agents, because the edge keys the MCP limit on it.
 - `public` sends 40 requests at concurrency 1, 120 at concurrency 4, then 12
   sequential MCP calls to `https://minoshealth.pl`, and stops at the first
@@ -160,6 +162,43 @@ Same bundle, 0.25 CPU, against the #222 report above. Report:
 - The host already met the four-user search objective before this change
   (977 ms, no deadline answers), so the 0.25 CPU share is harsher on search
   than the host. A public rerun needs the owner's approval.
+
+## Waiting For A Lease (#296)
+
+With four leases and four waiters the API refused requests it had already
+admitted: at eight users 11 of 174 searches got `busy`, although a read takes
+milliseconds. Raising the waiters to 12 makes the room match the 16 requests the
+in-flight limit admits. `/readyz`, MCP tree lookups and start-up warm-up use the
+pool outside that count, so a saturated pool can still refuse.
+
+Commit `f4f91dc`, built twice with only the limit changed, production bundle,
+0.25 CPU, phases 1, 4, 8 and 16, two runs each. `busy` totals across both runs,
+MCP `BUSY` included, then the two runs' p95 of served requests:
+
+| Phase | Search | Code and group pages | JSON code and group | MCP `get_code` | Search p95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Four users, 4 waiters | 0 of 174 | 0 of 102 | 0 of 68 | 0 of 34 | 297, 303 ms |
+| Four users, 12 waiters | 0 of 174 | 0 of 102 | 0 of 68 | 0 of 34 | 298, 299 ms |
+| Eight users, 4 waiters | 11 of 174 | 5 of 102 | 4 of 68 | 1 of 34 | 500, 504 ms |
+| Eight users, 12 waiters | 0 of 174 | 2 of 102 | 0 of 68 | 0 of 34 | 497, 498 ms |
+| Sixteen users, 4 waiters | 153 of 174 | 94 of 102 | 58 of 68 | 32 of 34 | not comparable |
+| Sixteen users, 12 waiters | 51 of 174 | 27 of 102 | 24 of 68 | 19 of 34 | not comparable |
+
+- Sixteen-user p95s cover served requests only, and far more are served with 12
+  waiters, so they do not compare. Served pages stayed at or below 1.6 s against
+  the edge's 3 s read timeout. MCP `search_codes` p95 at sixteen users was 2.2
+  to 2.8 s; it reports `BUSY` per dictionary inside a 200, so the table omits it.
+- Anon memory after the load rose from 299 and 301 MiB to 304 and 305 MiB. No
+  OOM kill, `/readyz` ready after every run.
+- One group page answered 504 at sixteen users with 12 waiters, in the first
+  run, before the tool told the API's page from the edge's, so its origin is
+  unknown. Then 1,920 more requests at sixteen users with the classifying tool
+  gave no 5xx from either. `query_timeout` on the JSON group route appeared at
+  sixteen users with both limits.
+- The Gruper keeps its own admission: 9 against 12 of 34 cases `busy` at eight
+  users, and at four users 4 against 6, above the 5% objective as before.
+
+Local evidence only, on code before the host run. Reports are attached to #296.
 
 ## Planner Statistics Review (#228)
 

@@ -20,6 +20,10 @@ from minos.store.jgp_search import GroupIndex, build_group_index
 from minos.store.reference import open_reference_bundle
 
 LOGGER = logging.getLogger("minos.http.comparison")
+# With the four leases this equals the 16 requests the API admits. /readyz, MCP
+# tree lookups and start-up warm-up use the pool outside that count, so a
+# saturated pool can still refuse. Measured in docs/validation/api-load.md.
+MAX_WAITERS = 12
 
 
 class CapacityError(Exception):
@@ -100,7 +104,7 @@ class ReferencePool:
             raise ArtifactError("reference artifact changed after startup")
         with self._lock:
             if not self._leases:
-                if self._waiting >= 4:
+                if self._waiting >= MAX_WAITERS:
                     raise CapacityError
                 self._waiting += 1
                 try:

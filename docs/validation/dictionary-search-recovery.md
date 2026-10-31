@@ -73,8 +73,9 @@ code precedence are retained. Proposed mappings do not enter runtime tables.
   of clearing the caller's SQLite progress handler.
 - These are cooperative checks, not preemptive cancellation of arbitrary
   Python/native work. They do not promise a strict 2-second wall-clock ceiling.
-- Four workers remain. At most four additional callers wait up to 500 ms for
-  a lease. Further callers receive 429 `busy` with `Retry-After: 1`.
+- Four workers remain. At most 12 additional callers wait up to 500 ms for a
+  lease (four until #296). Further callers receive 429 `busy` with
+  `Retry-After: 1`.
 - Elapsed deadlines return 504 `query_timeout`; operation/output bounds return
   422 `limit_exceeded`; slow request bodies return 408 `request_timeout`.
 - At 500 ms, result cards explain that work is continuing. Transient 429 and

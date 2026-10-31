@@ -7,7 +7,7 @@ from typing import cast, override
 import pytest
 
 from scripts import measure_api_load
-from scripts.measure_api_load import Step, mcp_steps, phase, workload
+from scripts.measure_api_load import Step, mcp_steps, page_error, phase, workload
 
 RELEASES: dict[str, object] = {
     "dataset_id": "d",
@@ -122,3 +122,10 @@ def test_a_closed_deadline_answer_does_not_stop_a_public_phase(base: str) -> Non
 def test_public_runs_require_https() -> None:
     with pytest.raises(ValueError, match="HTTPS"):
         _ = measure_api_load.public("http://minoshealth.pl")
+
+
+def test_a_page_failure_names_who_answered() -> None:
+    assert page_error(200, b"") is None
+    assert page_error(429, b"") == "busy"
+    assert page_error(504, b'<p class="not-found-code">504</p>') == "query_timeout"
+    assert page_error(504, b"<h1>Serwis niedostepny</h1>") == "edge_504"

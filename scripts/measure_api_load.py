@@ -12,10 +12,13 @@ import argparse
 import json
 import math
 import time
+import urllib.error
+import urllib.request
 import uuid
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from http.client import HTTPResponse
 from pathlib import Path
 from threading import Event
 from typing import cast, final
@@ -32,7 +35,7 @@ PUBLIC_BASE = "https://minoshealth.pl"
 # at most the API's four leases, and MCP under its 60 per minute client limit.
 PUBLIC_PHASES = ((1, 40), (4, 120))
 PUBLIC_MCP_CALLS = 12
-LOCAL_PHASES = ((1, 60), (4, 240), (8, 240))
+LOCAL_PHASES = ((1, 60), (4, 240), (8, 240), (16, 240))
 DEADLINE_ANSWERS = frozenset({"query_timeout", "evaluation_timeout"})
 SERVICE_DATE = "2026-10-02"
 GROUP_BODY: Json = {
@@ -71,6 +74,7 @@ class Step:
     route: str
     body: Json | None = None
     mcp: bool = False
+    page: bool = False
 
 
 def workload(releases: Json) -> list[Step]:
@@ -98,6 +102,15 @@ def workload(releases: Json) -> list[Step]:
     if "icd11-pl" in by_system:
         steps.append(search("icd11-pl", "cholera"))
     return steps
+
+
+def page_steps() -> list[Step]:
+    """Pages hold one lease across many queries, the longest read a visitor makes."""
+    return [
+        Step("code_page", "/slowniki/icd-10/J18.9", page=True),
+        Step("code_page_many_groups", "/slowniki/icd-9/87.410", page=True),
+        Step("group_page", f"/jgp/{SERVICE_DATE}/F72", page=True),
+    ]
 
 
 def mcp_steps() -> list[Step]:
@@ -130,6 +143,36 @@ class Sample:
     error: str | None
 
 
+def get_page(
+    base: str, route: str, headers: dict[str, str]
+) -> tuple[int, bytes, float]:
+    request = urllib.request.Request(  # noqa: S310  # nosec B310
+        base + route, headers={"Host": "minoshealth.pl"} | headers
+    )
+    began = time.perf_counter()
+    try:
+        with cast(
+            HTTPResponse,
+            urllib.request.urlopen(request, timeout=20),  # noqa: S310  # nosec B310
+        ) as response:
+            content = response.read()
+            status = response.status
+    except urllib.error.HTTPError as error:
+        content = error.read(1_048_576)
+        error.close()
+        status = error.code
+    return status, content, (time.perf_counter() - began) * 1000
+
+
+def page_error(status: int, content: bytes) -> str | None:
+    if status == 200:
+        return None
+    if status == 429:
+        return "busy"
+    # The API's own error page, unlike the edge's, which breaks the objectives.
+    return "query_timeout" if b'class="not-found-code"' in content else f"edge_{status}"
+
+
 def send(base: str, step: Step, client: str) -> Sample:
     # Cloudflare refuses Python's default urllib agent on the public site.
     headers = {"User-Agent": "minos-load-measurement"}
@@ -138,6 +181,14 @@ def send(base: str, step: Step, client: str) -> Sample:
     if client:
         headers = headers | {"CF-Connecting-IP": client}
     began = time.perf_counter()
+    if step.page:
+        try:
+            status, content, elapsed = get_page(base, step.route, headers)
+        except OSError:
+            return Sample(
+                step.kind, 0, (time.perf_counter() - began) * 1000, "transport"
+            )
+        return Sample(step.kind, status, elapsed, page_error(status, content))
     try:
         status, answer, elapsed = get_json(
             base, step.route, step.body, headers=headers, timeout_s=20
@@ -339,7 +390,7 @@ def local(
         status, releases, _ = get_json(base, "/api/v1/releases")
         if status != 200:
             raise ValueError("releases unavailable")
-        steps = workload(releases) + mcp_steps()
+        steps = workload(releases) + page_steps() + mcp_steps()
         phases: list[Json] = []
         seen = grouping_phases(api, 0)[1]
         for concurrency, count in LOCAL_PHASES:
