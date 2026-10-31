@@ -1201,19 +1201,58 @@ def test_processor_activator_retries_after_a_restored_failed_start(
 
 
 @pytest.mark.parametrize(
-    ("tools", "search_error", "accepted"),
-    [(12, False, True), (11, False, False), (12, True, False)],
-    ids=["complete", "missing_tool", "failing_search"],
+    ("tools", "search_error", "icd10", "icd9", "jgp", "accepted"),
+    [
+        (12, False, "ok", "no_results", "ok", True),
+        (12, False, "ok", "no_results", "not_covered", True),
+        (11, False, "ok", "no_results", "ok", False),
+        (12, True, "ok", "no_results", "ok", False),
+        (12, False, "LIMIT", "no_results", "ok", False),
+        (12, False, "ok", "LIMIT", "ok", False),
+        (12, False, "no_results", "ok", "ok", False),
+        (12, False, "ok", "not_covered", "ok", False),
+        (12, False, "ok", "ok", "BUSY", False),
+    ],
+    ids=[
+        "complete",
+        "bundle_without_a_catalog",
+        "missing_tool",
+        "failing_search",
+        "icd10_over_budget",
+        "icd9_over_budget",
+        "icd10_finds_nothing",
+        "not_covered_is_only_for_jgp",
+        "jgp_busy",
+    ],
 )
 def test_verify_mcp_requires_the_catalog_and_a_real_search(
-    monkeypatch: pytest.MonkeyPatch, tools: int, search_error: bool, accepted: bool
+    monkeypatch: pytest.MonkeyPatch,
+    tools: int,
+    search_error: bool,
+    icd10: str,
+    icd9: str,
+    jgp: str,
+    accepted: bool,
 ) -> None:
-    def answer(
-        _base: str, method: str, _params: dict[str, object]
-    ) -> dict[str, object]:
+    # The shape is the real tools/call result, read from production for #294.
+    def system(name: str, status: str) -> dict[str, object]:
+        hits = [{"code": "J18.9"}] if status == "ok" else []
+        return {"system": name, "status": status, "results": hits}
+
+    def answer(_base: str, method: str, params: dict[str, object]) -> dict[str, object]:
         if method == "tools/list":
             return {"tools": [{"name": f"tool-{index}"} for index in range(tools)]}
-        return {"isError": search_error, "structuredContent": {}}
+        assert cast(dict[str, object], params["arguments"])["limit"] == 20
+        return {
+            "isError": search_error,
+            "structuredContent": {
+                "systems": [
+                    system("icd10-pl", icd10),
+                    system("icd9-pl", icd9),
+                    system("jgp", jgp),
+                ]
+            },
+        }
 
     monkeypatch.setattr(deploy_validation, "_mcp", answer)
 
@@ -1224,6 +1263,26 @@ def test_verify_mcp_requires_the_catalog_and_a_real_search(
     else:
         with pytest.raises(DeployError, match="public MCP"):
             _ = deploy_validation.verify_mcp("https://example.test")
+
+
+@pytest.mark.parametrize(
+    ("status", "accepted"),
+    [(200, True), (404, True), (422, False), (503, False)],
+    ids=["served", "bundle_without_icd11", "over_budget", "unavailable"],
+)
+def test_verify_code_page_refuses_a_failing_icd11_page(
+    monkeypatch: pytest.MonkeyPatch, status: int, accepted: bool
+) -> None:
+    def answer(url: str) -> tuple[int, bytes]:
+        assert url == "https://example.test/slowniki/icd-11/BA00"
+        return status, b""
+
+    monkeypatch.setattr(deploy_validation, "get", answer)
+    if accepted:
+        assert str(status) in deploy_validation.verify_code_page("https://example.test")
+    else:
+        with pytest.raises(DeployError, match="ICD-11 code page"):
+            _ = deploy_validation.verify_code_page("https://example.test")
 
 
 def test_long_events_print_a_summary_and_keep_every_event_in_the_log(

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Final, cast
 
 from minos.domain.search import SearchInputError
+from minos.store.hierarchy_walk import walk_hierarchy
 from minos.store.query_budget import query_budget
 from minos.store.reference_build import reference_sql
 
@@ -15,6 +16,7 @@ MAX_CHILDREN: Final = 400
 MAX_NOTES: Final = 500
 MAX_UNPLACED: Final = 400
 MAX_DEPTH: Final = 8
+MAX_OWNER_DEPTH: Final = 64
 # CZS and RSK attribute names stay source-faithful; only the label is translated.
 ATTRIBUTE_LABELS: Final = {
     "EN": "Nazwa angielska",
@@ -243,18 +245,50 @@ def _listing(
 def _owners(
     connection: sqlite3.Connection, release_id: str, children: list[Row]
 ) -> set[int]:
-    """Listed children that own structural nodes, directly or through containers."""
-    rows = cast(
-        list[tuple[int]],
-        connection.execute(
-            reference_sql("queries/tree_owners.sql"),
-            {
-                "release_id": release_id,
-                "parents": json.dumps(sorted({row[1] for row in children})),
-            },
-        ).fetchall(),
-    )
-    return {row[0] for row in rows}
+    """Listed children that own structural nodes, directly or through containers.
+
+    Level by level for the reason in store/hierarchy_walk.py (#294), and without
+    a row cap, which would drop the last owners of a long ICD-11 listing.
+    """
+    owners: set[int] = set()
+    # Each node still to read, with the children it could prove as owners.
+    pending = {row[1]: {row[1]} for row in children}
+    for _depth in range(MAX_OWNER_DEPTH):
+        if not pending:
+            break
+        edges = cast(
+            list[tuple[int, int]],
+            connection.execute(
+                reference_sql("queries/tree_owner_edges.sql"),
+                {"release_id": release_id, "ordinals": json.dumps(sorted(pending))},
+            ).fetchall(),
+        )
+        nodes = {
+            ordinal: (kind, text)
+            for ordinal, kind, text in cast(
+                list[tuple[int, str, str]],
+                connection.execute(
+                    reference_sql("queries/tree_owner_nodes.sql"),
+                    {
+                        "release_id": release_id,
+                        "ordinals": json.dumps(sorted({edge[1] for edge in edges})),
+                    },
+                ).fetchall(),
+            )
+        }
+        following: dict[int, set[int]] = {}
+        for parent, child in edges:
+            kind, text = nodes.get(child, ("", ""))
+            if _listed(kind, text):
+                owners |= pending[parent]
+            elif _anonymous(kind, text):
+                following.setdefault(child, set()).update(pending[parent])
+        pending = {
+            ordinal: searching - owners
+            for ordinal, searching in following.items()
+            if searching - owners
+        }
+    return owners
 
 
 def _notes(
@@ -306,18 +340,14 @@ def _path(
     ordinal: int,
     canonical: dict[str, tuple[int, str]],
 ) -> list[dict[str, object]]:
-    rows = cast(
-        list[tuple[int, int, str, str, str]],
-        connection.execute(
-            reference_sql("queries/ancestors.sql"),
-            {
-                "release_id": hierarchy.hierarchy_release_id,
-                "ordinal": ordinal,
-                "relation_type": "contains",
-                "max_depth": 32,
-                "row_limit": 33,
-            },
-        ).fetchall(),
+    rows = walk_hierarchy(
+        connection,
+        release_id=hierarchy.hierarchy_release_id,
+        ordinal=ordinal,
+        direction="ancestors",
+        relation_type="contains",
+        max_depth=32,
+        row_limit=33,
     )
     codes = cast(
         dict[int, str],

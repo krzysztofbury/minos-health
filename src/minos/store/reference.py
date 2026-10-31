@@ -32,10 +32,10 @@ from minos.store.artifact import (
     canonical_json,
     file_identity,
 )
+from minos.store.hierarchy_walk import walk_hierarchy
 from minos.store.reference_build import (
     REFERENCE_APPLICATION_ID,
     migration_identities,
-    reference_sql,
     schema_checksum,
     schema_version_for,
     tables_for,
@@ -345,7 +345,6 @@ class ReferenceReader:
             raise ValueError("invalid hierarchy identity")
         if not 1 <= max_depth <= 64 or not 1 <= max_nodes <= 10_000:
             raise ValueError("invalid hierarchy limits")
-        sql = reference_sql(f"queries/{direction}.sql")
         deadline = time.monotonic() + 0.25
         steps = 0
 
@@ -356,18 +355,14 @@ class ReferenceReader:
 
         self._connection.set_progress_handler(interrupted, 1000)
         try:
-            rows = cast(
-                list[tuple[int, int, str, str, str]],
-                self._connection.execute(
-                    sql,
-                    {
-                        "release_id": release_id,
-                        "ordinal": ordinal,
-                        "relation_type": relation_type,
-                        "max_depth": max_depth,
-                        "row_limit": max_nodes + 1,
-                    },
-                ).fetchall(),
+            rows = walk_hierarchy(
+                self._connection,
+                release_id=release_id,
+                ordinal=ordinal,
+                direction=direction,
+                relation_type=relation_type,
+                max_depth=max_depth,
+                row_limit=max_nodes + 1,
             )
         except sqlite3.OperationalError as error:
             if error.sqlite_errorcode == sqlite3.SQLITE_INTERRUPT:

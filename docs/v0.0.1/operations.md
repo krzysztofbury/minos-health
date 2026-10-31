@@ -445,7 +445,9 @@ API; `/dla-agentow` documents them. It has no key and no state. The edge
 limits each client to 60 requests per minute (burst 30) by
 `CF-Connecting-IP`; a client above it gets HTTP 429, and a busy API pool gives
 the `BUSY` tool error. `deploy_validation verify` lists the twelve tools and
-runs one `search_codes` call. To take MCP offline without a release, add a
+runs one `search_codes` call at the full limit of 20 hits, and it fails on any
+dictionary status other than `ok` or `no_results` or when ICD-10 finds nothing
+(#294). To take MCP offline without a release, add a
 Cloudflare WAF rule that blocks `/mcp`; the website is unaffected. A quick
 check from the workstation:
 `claude mcp add --transport http minos-health https://minoshealth.pl/mcp`.
