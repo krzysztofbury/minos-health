@@ -103,12 +103,17 @@ class PreparedSources:
             return self._algorithm
 
     def sheet(
-        self, connection: sqlite3.Connection, release_id: str, catalog: Catalog
+        self,
+        connection: sqlite3.Connection,
+        release_id: str,
+        catalog: Catalog,
+        *,
+        seconds: float = 1.0,
     ) -> tuple[CharacteristicsGraph, DirectionalIndex]:
         with self._lock:
             found = self._sheets.get((release_id, catalog))
             if found is None:
-                graph = load_graph(connection, release_id, catalog)
+                graph = load_graph(connection, release_id, catalog, seconds=seconds)
                 found = (graph, index_from_graph(graph))
                 self._sheets[(release_id, catalog)] = found
             return found

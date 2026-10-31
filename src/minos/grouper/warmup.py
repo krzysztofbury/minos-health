@@ -19,6 +19,11 @@ from minos.grouper.pipeline import PreparedSources
 from minos.store.grouper_bundle import sheet_releases
 from minos.store.product_catalogs import product_catalog_releases
 
+# The first read of a sheet can outlast a request's one second on the host while
+# activation shares its CPU, and a failed warm-up leaves that read to visitors
+# (#310). Requests wait on the same cache lock, so this stays under the edge's 7 s.
+SHEET_SECONDS = 5.0
+
 type Stage = Literal[
     "sheet_inventory", "product_inventory", "algorithm", "sheet", "products"
 ]
@@ -100,7 +105,9 @@ class Warmup:
                 "sheet",
                 release,
                 catalog,
-                partial(prepared.sheet, connection, release, catalog),
+                partial(
+                    prepared.sheet, connection, release, catalog, seconds=SHEET_SECONDS
+                ),
             )
             for release, catalog in sheets
         )

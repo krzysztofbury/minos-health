@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from minos.domain.grouper_candidates import Catalog
 from minos.domain.reference import ArtifactError, QueryTimeoutError
 from minos.grouper import pipeline
+from minos.grouper.warmup import SHEET_SECONDS
 from minos.http import app as application
 from minos.http.app import MAX_IN_FLIGHT
 from minos.http.grouping import warm_grouping
@@ -43,10 +44,10 @@ def test_failed_sheet_keeps_truthful_progress_and_bounded_recovery(
     secret = "PRIVATE_EXCEPTION_WITH_PATH_AND_ENCOUNTER"
 
     def interrupted(
-        db: sqlite3.Connection, release: str, catalog: Catalog
+        db: sqlite3.Connection, release: str, catalog: Catalog, *, seconds: float
     ) -> CharacteristicsGraph:
         nonlocal attempts
-        graph = load_graph(db, release, catalog)
+        graph = load_graph(db, release, catalog, seconds=seconds)
         if (release, catalog) == target:
             attempts += 1
             if failure == "invalid":
@@ -116,6 +117,38 @@ def test_failed_sheet_keeps_truthful_progress_and_bounded_recovery(
         assert response.json()["status"] == "evaluated"
 
 
+def test_warm_up_gives_a_sheet_more_time_than_a_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = grouping_bundle(tmp_path)
+    budgets: list[float] = []
+
+    def recorded(
+        db: sqlite3.Connection, release: str, catalog: Catalog, *, seconds: float
+    ) -> CharacteristicsGraph:
+        budgets.append(seconds)
+        return load_graph(db, release, catalog, seconds=seconds)
+
+    monkeypatch.setattr(pipeline, "load_graph", recorded)
+    with sqlite3.connect(bundle / "minos.db") as db:
+        release, catalog = sheet_releases(db)[0]
+        _ = pipeline.PreparedSources().sheet(db, release, catalog)
+    assert budgets == [1.0]
+    budgets.clear()
+    with _pool(bundle) as pool:
+        warm_grouping(pool, pipeline.PreparedSources(), Event())
+    assert budgets and set(budgets) == {SHEET_SECONDS}
+    assert 1.0 < SHEET_SECONDS < 7
+
+
+def test_sheet_read_stops_at_its_own_budget(tmp_path: Path) -> None:
+    bundle = grouping_bundle(tmp_path)
+    with sqlite3.connect(bundle / "minos.db") as db:
+        release, catalog = sheet_releases(db)[0]
+        with pytest.raises(QueryTimeoutError):
+            _ = load_graph(db, release, catalog, seconds=-1.0)
+
+
 @contextmanager
 def _pool(bundle: Path) -> Generator[ReferencePool]:
     pool = ReferencePool(bundle)
@@ -179,11 +212,11 @@ def test_shutdown_waits_for_active_reader_before_closing_sqlite(
     original_close = ReferencePool.close
 
     def blocked(
-        db: sqlite3.Connection, identity: str, catalog: Catalog
+        db: sqlite3.Connection, identity: str, catalog: Catalog, *, seconds: float
     ) -> CharacteristicsGraph:
         entered.set()
         assert release.wait(10)
-        return load_graph(db, identity, catalog)
+        return load_graph(db, identity, catalog, seconds=seconds)
 
     def warm(
         pool: ReferencePool, prepared: pipeline.PreparedSources, stop: Event

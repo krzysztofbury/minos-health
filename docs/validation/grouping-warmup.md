@@ -72,6 +72,18 @@ environment/opt-in skips; Ruff, BasedPyright and mypy passed.
 Private diagnostic scripts and per-run records are retained under
 `test-output/issue-157/`. Production was not load-tested.
 
+## Failed Warm-up At Activation Of `4f2c7a1` (#310)
+
+On 2026-10-31 the host ended warm-up with `failed:QueryTimeoutError` after
+12.7 s. The largest sheet timed out on both attempts (1,009 and 1,422 ms)
+against the one second budget of `load_graph`, while activation still shared the
+CPU; every other entry completed. The first three Gruper cases then met the same
+limit and answered 504, and the fourth filled the cache in 2,380 ms.
+
+Warm-up now gives each sheet 5 s while requests keep their one second. Operation
+limits are unchanged. A request that needs a sheet being warmed waits on the
+cache lock, so the budget stays under the edge's 7 s Gruper timeout.
+
 ## Actual-Host Recovery During The Rolled-Back #160 Activation
 
 Revision `31ef247` reproduced a real sheet timeout at fresh startup. Its 1a

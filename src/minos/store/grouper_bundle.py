@@ -247,10 +247,14 @@ class CharacteristicsGraph:
 
 
 def load_graph(
-    connection: sqlite3.Connection, release_id: str, catalog: Catalog
+    connection: sqlite3.Connection,
+    release_id: str,
+    catalog: Catalog,
+    *,
+    seconds: float = 1.0,
 ) -> CharacteristicsGraph:
     key = (release_id, catalog)
-    with query_budget(connection):
+    with query_budget(connection, seconds=seconds):
         groups = cast(
             list[tuple[str, int, str]],
             connection.execute(

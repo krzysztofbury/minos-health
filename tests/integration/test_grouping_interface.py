@@ -85,10 +85,14 @@ def test_http_reuses_release_static_inputs_without_changing_answers(
     loads: list[str] = []
 
     def counted(
-        connection: sqlite3.Connection, release_id: str, catalog: Catalog
+        connection: sqlite3.Connection,
+        release_id: str,
+        catalog: Catalog,
+        *,
+        seconds: float,
     ) -> CharacteristicsGraph:
         loads.append(release_id)
-        return load_graph(connection, release_id, catalog)
+        return load_graph(connection, release_id, catalog, seconds=seconds)
 
     monkeypatch.setattr(pipeline, "load_graph", counted)
     app = create_app(grouping_bundle(tmp_path))
