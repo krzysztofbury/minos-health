@@ -31,6 +31,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The agents page gains copy buttons and folds each tool, the legal pages gain
+  a contents list with their text unchanged, and the Gruper result no longer
+  repeats its scope notice (#298).
 - JGP group pages link every list the group prints or names, also when its
   conditions are not interpreted yet (#298).
 - The code page's side column scrolls with the page instead of in its own
