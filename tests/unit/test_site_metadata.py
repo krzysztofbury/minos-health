@@ -41,18 +41,18 @@ def test_social_metadata_matches_the_served_site_artifact(mode: Mode) -> None:
         else:
             assert metadata["twitter:card"] == "summary_large_image"
             assert (
-                metadata["og:image"] == "https://minoshealth.pl/social-preview-v1.png"
+                metadata["og:image"] == "https://minoshealth.pl/social-preview-v2.jpg"
             )
             assert metadata["twitter:image"] == metadata["og:image"]
-            assert metadata["og:image:type"] == "image/png"
+            assert metadata["og:image:type"] == "image/jpeg"
             assert metadata["og:image:width"] == "1200"
             assert metadata["og:image:height"] == "630"
             assert metadata["twitter:image:alt"] == metadata["og:image:alt"]
     if mode == "validation":
-        image = files["social-preview-v1.png"]
-        assert image[:8] == b"\x89PNG\r\n\x1a\n"
-        assert image[12:16] == b"IHDR"
-        assert struct.unpack(">II", image[16:24]) == (1200, 630)
+        image = files["social-preview-v2.jpg"]
+        assert image[:3] == b"\xff\xd8\xff"
+        # Baseline frame header: precision, then height and width.
+        assert b"\xff\xc0\x00\x11\x08" + struct.pack(">HH", 630, 1200) in image
         assert len(image) < 500 * 1024
 
 
