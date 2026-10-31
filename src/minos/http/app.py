@@ -85,6 +85,21 @@ MAX_PAGE_BLOCKS = 64
 # Above this the API answers "busy" itself, in the visitor's format. uvicorn's
 # --limit-concurrency stays above it as a backstop: its answer is bare text.
 MAX_IN_FLIGHT = 16
+
+
+def sheds(path: str) -> bool:
+    """Routes that wait on the reference pool, so that count against the limit.
+
+    Monitoring must keep seeing the truth, and sitemaps are precomputed bytes.
+    An MCP tool calls the API routes in-process, which count and shed for it:
+    counting /mcp too would spend two slots per call and let a few agents shut
+    out the website.
+    """
+    return path not in ("/healthz", "/readyz", "/mcp") and not path.startswith(
+        "/sitemap-"
+    )
+
+
 TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
 PAGE_ROUTE = re.compile(
     r"/slowniki/icd-(?:10|9|11)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/[1-9][0-9]{0,1})?)?"
@@ -527,7 +542,7 @@ def create_app(
     in_flight = 0
 
     def shed(path: str) -> Response:
-        if path.startswith(("/api/", "/mcp")):
+        if path.startswith("/api/"):
             return failure(429, "busy")
         return HTMLResponse(
             busy_page(path),
@@ -545,8 +560,10 @@ def create_app(
         try:
             if request.url.query:
                 response: Response = failure(400, "queries_must_not_be_in_urls")
-            # Monitoring must keep seeing the truth while visitors are shed.
-            elif in_flight >= MAX_IN_FLIGHT and path not in ("/healthz", "/readyz"):
+            elif not sheds(path):
+                handler = cast(Callable[[Request], Awaitable[Response]], call_next)
+                response = await handler(request)
+            elif in_flight >= MAX_IN_FLIGHT:
                 request.state.failure_code = "busy"
                 response = shed(path)
             else:

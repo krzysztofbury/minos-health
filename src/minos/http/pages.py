@@ -141,7 +141,8 @@ def _page(
         "title": html.escape(title),
         "description": html.escape(description[:300]),
         "robots": robots,
-        "path": path,
+        # A shed page echoes any path, not only a validated one.
+        "path": html.escape(path),
         "head_extra": head,
         "content": content,
     }
@@ -500,7 +501,7 @@ def missing_page(dictionary: Dictionary, code: str) -> str:
 
 
 # A short wait clears a busy service, so these pages try again by themselves.
-RETRY_HEAD: Final = '    <meta http-equiv="refresh" content="2">\n'
+RETRY_HEAD: Final = '    <script src="/retry.js" defer></script>\n'
 
 
 def busy_page(retry_path: str) -> str:
@@ -508,7 +509,7 @@ def busy_page(retry_path: str) -> str:
     content = (
         '<section class="shell page-head not-found" aria-live="polite">'
         + "<h1>Dużo osób korzysta teraz z serwisu</h1>"
-        + '<p class="page-lead">Strona wczyta się sama za chwilę. To nie oznacza braku kodu ani danych.</p>'
+        + '<p class="page-lead">Spróbujemy ponownie za chwilę. To nie oznacza braku kodu ani danych.</p>'
         + '<p class="not-found-actions">'
         + f'<a class="button" href="{_e(retry_path)}">Spróbuj ponownie</a>'
         + '<a class="button button-quiet" href="/">Wróć do wyszukiwarki</a>'

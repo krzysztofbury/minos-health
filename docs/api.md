@@ -46,7 +46,8 @@ budget cover the complete lookup and JSON encoding. Limits: 128 descriptions,
 64 attributes and 400 direct neighbours per direction per source, at most 16
 manifest sources, and 1 MiB UTF-8 output. Overflow fails closed with
 `422 limit_exceeded`; no partial concept is returned. Deadline returns
-`504 query_timeout`, pool exhaustion `429 busy`, unavailable/altered bundle
+`504 query_timeout`, pool exhaustion or more than 16 requests in flight
+`429 busy`, unavailable/altered bundle
 `503 unavailable`, and ambiguous JGP selection `409 ambiguous_ruleset`.
 Unknown/mismatched release, system, code or malformed date returns 404.
 Errors use `{"api":1,"status":"error","error":{"code":"..."}}` at the API.

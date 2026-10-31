@@ -481,6 +481,7 @@ def render_site(mode: Mode) -> dict[str, bytes]:
         files["icon-512.png"] = (WEB / "social" / "icon-512.png").read_bytes()
         for name in (
             "request.js",
+            "retry.js",
             "datepicker.js",
             "search.js",
             "dictionary.js",
