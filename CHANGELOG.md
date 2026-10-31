@@ -42,6 +42,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   structure, all catalog values, NFZ settlements and release evidence are one
   click away. Source lists read as one line per code, and the catalog keeps
   release evidence folded beside the tree (#298).
+- Every page starts with a short head, so its tool is on the first screen.
+  Hover styles apply only to devices that can hover, controls answer the press
+  itself, and phone viewport units follow the browser's bars (#298).
 - Home search: each result section opens and closes from its header, the title
   steps aside once results are on screen, and rows drop the repeated label
   (#298).
