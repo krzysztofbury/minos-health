@@ -29,7 +29,9 @@ updates:
   # that only Ansible and CI pin (#273). Each FROM names its tag, because an untagged
   # digest is tracked as `latest` (trixie, Debian-based NGINX). Python stays on
   # the 3.14 line that requires-python allows. uv moves together with the
-  # setup-uv `version` pins, which Dependabot cannot update. The validation
+  # setup-uv `version` and `checksum` pins, which Dependabot cannot update. The
+  # API image's interpreter is `uv python install` in its Dockerfile, also by
+  # hand with .python-version and the workflows, not its FROM (#301). The validation
   # edge carries a temporary brotli-libs layer; re-check it whenever the NGINX
   # digest moves.
   - package-ecosystem: docker

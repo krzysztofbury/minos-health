@@ -78,7 +78,7 @@ All paths are under `/opt/minos`, root-owned.
 Before #109 nothing pruned these paths. Measured on 2026-10-02 after five
 validation revisions: three bundles of 62 to 130 MiB, stage directories of up to 74 MiB,
 and 2.9 GB of images of which 1.4 GB were reclaimable, with 19 GB of the 25 GB
-disk free. Each update adds about 390 MB of images, one bundle and one staged
+disk free. Each update now adds about 520 MB of images, one bundle and one staged
 archive.
 
 ## Manual Update Procedure
@@ -133,7 +133,9 @@ Run from the repository root with the materialized inventory described in
    rollback file and attempt the same transition once with a new deadline.
 9. **Confirm isolation.** Record `oa` and require it to equal `ob`: watcher,
    tunnel and Kuma keep the same container IDs and restart counts.
-10. **Verify publicly** through `https://minoshealth.pl`: `/readyz` is ready;
+10. **Verify publicly** through `https://minoshealth.pl`, remembering that
+    Cloudflare caches `/slowniki/` pages for up to an hour, so a page can show
+    the previous release: `/readyz` is ready;
     one exact request for each newly exposed API route returns the expected
     evidence; one code page renders it; then run the browser review at desktop
     and mobile width (see the public-target note in

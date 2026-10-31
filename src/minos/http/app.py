@@ -842,6 +842,9 @@ def create_app(
                 ),
                 status_code=301,
             )
+        # Read before rendering: a page finished after midnight must not earn a
+        # full hour with the day before in it.
+        until_midnight = until_polish_midnight()
         try:
             status, page = await run_in_threadpool(
                 render_code,
@@ -890,7 +893,7 @@ def create_app(
                 or not cast(
                     ReferencePool, app.state.pool
                 ).manifest.dataset.characteristics
-                else until_polish_midnight()
+                else until_midnight
             },
         )
 

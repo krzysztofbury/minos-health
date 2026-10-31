@@ -228,7 +228,7 @@ uv run python scripts/smoke_standalone_cli.py /path/to/new-output/build/dist/min
 ```
 
 Docker builds the application in digest-pinned Debian Bookworm, with the separately
-locked builder tools, uv 0.12.7 and Python 3.14.7. Bookworm's C++ runtime prevents
+locked builder tools, uv 0.13.5 and Python 3.14.9. Bookworm's C++ runtime prevents
 the host compiler runtime from imposing a newer glibc floor. This is an isolated
 packaging environment, not a new production service. System package repositories
 are not an immutable build snapshot; byte-identical standalone application builds

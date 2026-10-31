@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -285,7 +286,28 @@ def browser_checks(arguments: Arguments, bundle: Path, port: int, output: Path) 
         )
 
 
+def require_development_sqlite(image: str) -> None:
+    """Query plans differ between versions, so tests must run the image's (#294)."""
+    answer = subprocess.run(
+        [
+            "docker", "run", "--rm", "--entrypoint", "/build/.venv/bin/python", image,
+            "-c", "import sqlite3; print(sqlite3.sqlite_version)",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )  # fmt: skip
+    if answer.returncode != 0:
+        raise SystemExit(f"cannot read the image's SQLite: {answer.stderr.strip()}")
+    if answer.stdout.strip() != sqlite3.sqlite_version:
+        raise SystemExit(
+            f"image SQLite {answer.stdout.strip()} differs from {sqlite3.sqlite_version}"
+        )
+
+
 def main(arguments: Arguments) -> None:
+    require_development_sqlite(arguments.api_image)
     sys.path.insert(0, str(ROOT))
     from scripts.check_reference_web import check, get_json
     from scripts.render_validation_compose import api_service

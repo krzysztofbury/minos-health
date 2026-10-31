@@ -25,13 +25,13 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          version: "0.12.7"
-          checksum: 788f18abea7c5f55d6216e4f5613fd89d4d59b631efeec117b2b07fe72f1da21
+          version: "0.13.5"
+          checksum: f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f
 
       - name: Build pinned search bundle without activating it
         run: |
           set -euo pipefail
-          uv sync --locked --all-groups --python 3.14.7
+          uv sync --locked --all-groups --python 3.14.9
           uv run python -m scripts.compose_conditions_manifest \
             --search-profile polish-folded-1 \
             --synonyms manifests/sources/search-synonyms-reviewed-v1.json \

@@ -1266,23 +1266,32 @@ def test_verify_mcp_requires_the_catalog_and_a_real_search(
 
 
 @pytest.mark.parametrize(
-    ("status", "accepted"),
-    [(200, True), (404, True), (422, False), (503, False)],
-    ids=["served", "bundle_without_icd11", "over_budget", "unavailable"],
+    ("answer", "accepted"),
+    [
+        ({"isError": False, "structuredContent": {"title": "x"}}, True),
+        (
+            {"isError": True, "structuredContent": {"error": {"code": "NOT_FOUND"}}},
+            True,
+        ),
+        ({"isError": True, "structuredContent": {"error": {"code": "LIMIT"}}}, False),
+        ({"isError": True, "structuredContent": {"error": {"code": "BUSY"}}}, False),
+    ],
+    ids=["served", "bundle_without_icd11", "over_budget", "busy"],
 )
-def test_verify_code_page_refuses_a_failing_icd11_page(
-    monkeypatch: pytest.MonkeyPatch, status: int, accepted: bool
+def test_verify_code_read_refuses_a_failing_icd11_read(
+    monkeypatch: pytest.MonkeyPatch, answer: dict[str, object], accepted: bool
 ) -> None:
-    def answer(url: str) -> tuple[int, bytes]:
-        assert url == "https://example.test/slowniki/icd-11/BA00"
-        return status, b""
+    # Pages are cached at the edge, so this must be a call that reaches the API.
+    def call(_base: str, method: str, params: dict[str, object]) -> dict[str, object]:
+        assert (method, params["name"]) == ("tools/call", "get_code")
+        return answer
 
-    monkeypatch.setattr(deploy_validation, "get", answer)
+    monkeypatch.setattr(deploy_validation, "_mcp", call)
     if accepted:
-        assert str(status) in deploy_validation.verify_code_page("https://example.test")
+        assert "ICD-11" in deploy_validation.verify_code_read("https://example.test")
     else:
-        with pytest.raises(DeployError, match="ICD-11 code page"):
-            _ = deploy_validation.verify_code_page("https://example.test")
+        with pytest.raises(DeployError, match="ICD-11 code read"):
+            _ = deploy_validation.verify_code_read("https://example.test")
 
 
 def test_long_events_print_a_summary_and_keep_every_event_in_the_log(

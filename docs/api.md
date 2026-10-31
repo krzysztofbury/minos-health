@@ -264,7 +264,7 @@ link. List members, conditions and reverse links use the same selected day.
 Each answer carries the exact characteristics release, worksheet, act, source
 checksum, applicability evidence and reviewed knowledge horizon. An uncovered
 dated ICD context returns uncached 404 `no_characteristics_for_date`, never
-latest. Undated code pages with a today's membership section are `no-store`;
+latest. Undated code pages with a today's membership section are cacheable until Polish midnight, at most an hour;
 explicit dated pages are cacheable for the immutable bundle. A group present
 only in characteristics has `product_code: null`, no base values and
 `catalog_row_status: not_on_date`, not invented catalog data.

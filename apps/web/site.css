@@ -504,10 +504,12 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .answer-date .tree-search-label { margin-bottom: 0.2rem; color: var(--muted); font-size: var(--text-sm); font-weight: 400; }
 .answer-date .jgp-date-row .control-picker { width: 100%; max-width: 19rem; }
 .answer-date .jgp-quick .dictionary-tab { min-height: 44px; padding: 0.15rem 0.65rem; font-size: 0.8125rem; }
-.jgp-memberships { position: relative; }
 .answer-root { min-width: 0; margin-top: 0.1rem; color: #fff; background: var(--accent); }
-.answer-root + .jgp-note { margin-top: 1rem; }
-.answer-toggle { position: absolute; top: 0; right: 0; min-height: 44px; padding: 0.2rem 0.7rem; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--accent); background: var(--surface); cursor: pointer; font-size: var(--text-sm); font-weight: 600; transition: transform 100ms var(--ease-out); }
+/* One row, so the button can never ride over the first group. The chip sits
+   low to meet the line drawn down to the groups. */
+.answer-roothead { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.5rem; }
+.answer-roothead + .jgp-note { margin-top: 0.45rem; }
+.answer-toggle { min-height: 44px; padding: 0.2rem 0.7rem; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--accent); background: var(--surface); cursor: pointer; font-size: var(--text-sm); font-weight: 600; transition: transform 100ms var(--ease-out); }
 .answer-toggle:active { transform: scale(0.97); }
 .answer-toggle[hidden] { display: none; }
 .answer-flow { margin: 0; padding: 0.7rem 0 0 1.3rem; list-style: none; }
@@ -593,7 +595,6 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
   .answer-page { grid-template-columns: minmax(0, 1fr) 19rem; grid-template-rows: auto auto 1fr; grid-template-areas: "lead date" "main date" "main rail"; align-items: start; }
   .answer-page:not(:has(.answer-lead)) { grid-template-rows: auto; grid-template-areas: "main rail"; }
   .answer-day { display: none; }
-  .answer-rail { position: sticky; top: 5rem; max-height: calc(100dvh - 6rem); overflow-y: auto; overscroll-behavior: contain; }
 }
 @media (max-width: 40rem) {
   .answer-flow { padding-left: 0.9rem; }

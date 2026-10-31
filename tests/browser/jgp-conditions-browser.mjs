@@ -69,6 +69,8 @@ try {
     await evaluate("document.querySelector('a[href*=\"/E11.0/jgp/\"]').click()");
     await wait("location.pathname === '/slowniki/icd-10/E11.0/jgp/2026-07-10' && document.querySelector('.jgp-memberships')");
     assert.ok(await evaluate("document.querySelector('.answer-sentence').textContent.includes('występuje w')"));
+    // The side column reads with the page, never in a scroller of its own.
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.answer-rail')).overflowY"), "visible");
     assert.ok(await evaluate("document.querySelector('.site-header .brand') && document.querySelector('.site-footer')"));
     assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
     const reverseImage = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });

@@ -553,15 +553,25 @@ def verify_mcp(base: str) -> str:
     return f"{len(tools)} tools listed, search_codes answered in every dictionary"
 
 
-def verify_code_page(base: str) -> str:
+def verify_code_read(base: str) -> str:
     """A code with a deep tree path, which cost the most under #294's plans.
 
-    ICD-11 is optional in a bundle, so its absence is a correct 404.
+    Through MCP, because Cloudflare caches /slowniki/ pages and a page check
+    could pass without reaching the new API. ICD-11 is optional in a bundle.
     """
-    status, _body = get(base + "/slowniki/icd-11/BA00")
-    if status not in (200, 404):
-        raise DeployError(f"ICD-11 code page answered HTTP {status}")
-    return f"ICD-11 code page answered HTTP {status}"
+    found = _mcp(
+        base,
+        "tools/call",
+        {
+            "name": "get_code",
+            "arguments": {"system": "icd11-pl", "code": "BA00"},
+        },
+    )
+    content = cast(dict[str, object], found.get("structuredContent") or {})
+    error = cast(dict[str, object], content.get("error") or {})
+    if found.get("isError") and error.get("code") != "NOT_FOUND":
+        raise DeployError(f"ICD-11 code read failed: {error.get('code')}")
+    return "ICD-11 code read answered through the API"
 
 
 def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
@@ -574,7 +584,7 @@ def verify(value: Plan, chromium: Path | None, base: str) -> dict[str, object]:
     checks: dict[str, object] = {"readyz": "ready", "dataset_id": value.dataset_id}
     checks["home"] = verify_home(base)
     checks["mcp"] = verify_mcp(base)
-    checks["code_page"] = verify_code_page(base)
+    checks["code_read"] = verify_code_read(base)
     if value.rank_sample is not None:
         code, rank = value.rank_sample
         status, body = get(f"{base}/slowniki/icd-9/{code}")
