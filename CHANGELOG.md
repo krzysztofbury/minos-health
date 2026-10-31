@@ -37,6 +37,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
   in their own sections. Rank, sources and hierarchy moved to a side column,
   one click away. The concept API and MCP `get_code` carry the same points and
   conditions (#298).
+- JGP group pages lead with the points and the NFZ condition in its source
+  wording, with direct links to the procedure and diagnosis lists. The rule
+  structure, all catalog values, NFZ settlements and release evidence are one
+  click away. Source lists read as one line per code, and the catalog keeps
+  release evidence folded beside the tree (#298).
 - Home search: each result section opens and closes from its header, the title
   steps aside once results are on screen, and rows drop the repeated label
   (#298).

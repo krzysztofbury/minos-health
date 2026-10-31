@@ -9,6 +9,7 @@ from minos.http.pages import (
     JgpPanel,
     _e,  # pyright: ignore[reportPrivateUsage]
     display_date,
+    fold,
 )
 from minos.ingest.jgp_conditions_codec import decode_condition
 
@@ -269,15 +270,19 @@ def conditions_section(answer: Json) -> str:
             "group_not_in_characteristics": "Grupy nie ma w wybranym wydaniu charakterystyki.",
         }
         return (
-            '<section class="detail-notes"><h2>Warunki grupy</h2><p>'
+            '<section class="jgp-conditions"><h2>Warunki grupy</h2><p>'
             + _e(labels[cast(str, status)])
             + "</p></section>"
         )
     source = cast(Json, answer["source"])
-    parts = [
-        '<section class="detail-notes jgp-conditions"><h2>Warunki grupy</h2>',
-        "<p>Charakterystyka referencyjna, nie wynik grupowania. Obecność kodu na liście nie oznacza kwalifikacji przypadku ani możliwości rozliczenia.</p>",
-    ]
+    source_text = cast(list[Json], answer["source_text"])
+    clauses = [item for item in source_text if item["category"] == "label"]
+    parts = ['<section class="jgp-conditions"><h2>Warunki grupy</h2>']
+    parts.extend(f'<p class="cond-clause">{_e(item["text"])}</p>' for item in clauses)
+    parts.append(_list_links(answer))
+    parts.append(
+        '<p class="answer-caveat">Charakterystyka referencyjna, nie wynik grupowania. Obecność kodu na liście nie oznacza kwalifikacji przypadku ani możliwości rozliczenia.</p>'
+    )
     if status == "fully_interpreted":
         import json
 
@@ -292,30 +297,48 @@ def conditions_section(answer: Json) -> str:
             if node.status != "proposed" or node.kind is None:
                 raise ArtifactError("whole-group interpretation gate is inconsistent")
             nodes[node.identity] = node
-        parts.append(
+        structure = [
             "<p>Wszystkie zapisy grupy mają strukturę. Zasady zliczania, granic i wykonania nadal wymagają osobnej weryfikacji przed uruchomieniem grupera.</p>"
-        )
+        ]
         roots = cast(list[int], answer["roots"])
         if len(roots) > 1:
-            parts.append(
+            structure.append(
                 "<p>Grupa ma kilka odrębnych zapisów źródłowych; nie łączymy ich domyślnie w jeden warunek.</p>"
             )
-        parts.append(_rule_tree(roots, nodes, selectors, sum(map(len, parts))))
+        structure.append(
+            _rule_tree(roots, nodes, selectors, sum(map(len, parts + structure)))
+        )
+        parts.append(fold("Struktura warunku", "".join(structure)))
     else:
         parts.append(
             '<p class="badge badge-warn">Jeszcze nie zinterpretowano całej grupy. Pokazujemy zapis źródłowy, bez częściowych reguł strukturalnych.</p>'
         )
-    parts.append("<details open><summary>Zapis źródłowy</summary><ul>")
+    rows: list[str] = []
     rendered_characters = sum(map(len, parts))
-    for item in cast(list[Json], answer["source_text"]):
+    for item in source_text:
         text = f'<li><span class="jgp-rows">Wiersz {_e(item["row"])}</span>: {_e(item["text"])}</li>'
         rendered_characters += len(text)
         if rendered_characters > MAX_SECTION_CHARACTERS:
             raise ArtifactError("condition source display exceeds bound")
-        parts.append(text)
-    parts.append("</ul></details>")
-    parts.append(source_facts(source) + "</section>")
+        rows.append(text)
+    parts.append(fold("Zapis źródłowy", f"<ul>{''.join(rows)}</ul>"))
+    parts.append(fold("Źródło", source_facts(source)))
+    parts.append("</section>")
     return "".join(parts)
+
+
+def _list_links(answer: Json) -> str:
+    """The lists a condition names: the way from a group back to its codes."""
+    source = cast(Json, answer["source"])
+    day, catalog = cast(str, source["service_date"]), cast(str, source["catalog"])
+    names = {"icd9-pl": "procedury", "icd10-pl": "rozpoznania"}
+    links = [
+        f'<li><a href="/jgp/{_e(day)}/listy/{_e(catalog)}/{_e(item["id"])}/1">'
+        + f"{_e(names.get(cast(str, item['system']), item['system']))} {_e(item['label'])}</a>"
+        + f' <span class="jgp-rows">{cast(int, item["occurrences"])} poz.</span></li>'
+        for item in cast(list[Json], answer["lists"])
+    ]
+    return f'<ul class="jgp-lists">{"".join(links)}</ul>' if links else ""
 
 
 def shared_procedure_section(answers: list[Json]) -> str:

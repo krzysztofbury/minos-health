@@ -10,8 +10,11 @@ from typing import Final, cast
 
 from minos.domain.reference import ArtifactError
 from minos.http.jgp_condition_pages import (
+    HOSPITALIZATION,
+    MEASURES,
     code_link,
     conditions_section,
+    points_short,
     source_facts,
     source_positions,
 )
@@ -20,6 +23,7 @@ from minos.http.pages import (
     _e,  # pyright: ignore[reportPrivateUsage]
     _page,  # pyright: ignore[reportPrivateUsage]
     display_date,
+    fold,
     polish_date_input,
 )
 from minos.ingest.jgp_catalog_layout import (
@@ -226,7 +230,7 @@ def index_page(
     parts = [
         _head(crumbs),
         f"        <h1>Katalog grup JGP na {_e(display_date(service_date))}</h1>\n",
-        f'        <p class="page-lead">{lead}</p>\n',
+        f'        <p class="answer-meta">{lead}</p>\n',
         '        <div class="jgp-controls">\n',
         date_bar(service_date, suffix, calendar),
         _scope_picker(service_date, scopes, scope),
@@ -251,7 +255,8 @@ def index_page(
         '          <aside class="detail jgp-release" aria-label="Wydanie katalogu">'
         + f'<p class="jgp-points-note"><strong>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}.</strong>'
         + f" {_e(modifiers_note(ruleset))}</p>"
-        + provenance(ruleset)
+        + f'<p class="jgp-note">Zarządzenie {_e(ruleset["act_number"])}, świadczenia od {_e(display_date(ruleset["service_from"]))}.</p>'
+        + fold("Wydanie katalogu", provenance(ruleset))
         + f'<p class="detail-source">{_e(LEGEND[0])}</p>'
         + "</aside>\n"
         + "        </div>\n"
@@ -363,8 +368,10 @@ def _group_row(service_date: str, group: dict[str, object], with_marker: bool) -
 def group_page(
     answer: dict[str, object], calendar: list[str], neighbours: list[tuple[str, str]]
 ) -> str:
-    """The /slowniki code-page layout. `neighbours` are (label, day) links
-    already verified to have this group."""
+    """The points and the condition first, evidence one click away.
+
+    `neighbours` are (label, day) links already verified to have this group.
+    """
     ruleset = cast(dict[str, object], answer["ruleset"])
     group = cast(dict[str, object], answer["group"])
     service_date = cast(str, ruleset["service_date"])
@@ -375,42 +382,60 @@ def group_page(
         f'<a href="/jgp/{service_date}">{display_date(service_date)}</a>',
         f'<span aria-current="page">{_e(code)}</span>',
     ]
-    badges = [
-        f'<span class="code-chip">{_e(code)}</span>',
-        f'<span class="badge badge-muted">Katalog {_e(catalog)}'
+    meta = [
+        f"Katalog {_e(catalog)}"
         + (
             f", produkt {_e(group['product_code'])}"
             if group["product_code"]
             else ", bez wiersza katalogu na ten dzień"
         )
-        + "</span>",
     ]
     if group["procedural"] is True:
-        badges.append('<span class="badge badge-muted">Grupa zabiegowa (*)</span>')
-    parts = [
-        _head(crumbs),
-        f'        <p class="detail-code">{" ".join(badges)}</p>\n',
-        f"        <h1>{_e(group['name'])}</h1>\n",
-        '        <div class="jgp-controls">\n',
-        date_bar(service_date, f"/{code}", calendar),
-        "        </div>\n",
-        '        <p class="code-actions">'
-        + f'<a class="button" href="/jgp/{service_date}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">Pokaż w katalogu</a>'
-        + f'<a class="button button-quiet" href="/jgp/{service_date}">Wszystkie grupy na {display_date(service_date)}</a></p>\n',
-        "      </div>\n",
-        '      <div class="shell code-page jgp-group">\n',
-        _values(answer, catalog),
-        statistics_section(cast(dict[str, object], answer["statistics"]))
-        if "statistics" in answer
-        else "",
-        _row_window(code, group, neighbours),
-        _scopes(cast(list[dict[str, object]], answer["scopes"])),
-        _notes(cast(str | None, group["notes"])),
+        meta.append("Grupa zabiegowa (*)")
+    scopes = cast(list[dict[str, object]], answer["scopes"])
+    main: list[str] = [
         conditions_section(cast(dict[str, object], answer["conditions"]))
         if "conditions" in answer
         else "",
-        f'        <section class="detail-notes jgp-provenance">{provenance(ruleset)}</section>\n',
-        f'        <p class="detail-source">{_e(LEGEND[0])}</p>\n',
+        fold(
+            "Wszystkie wartości katalogu",
+            _values(answer, catalog),
+            name="jgp-values",
+        ),
+    ]
+    if "statistics" in answer:
+        main.append(
+            fold(
+                "Rozliczenia NFZ",
+                statistics_section(cast(dict[str, object], answer["statistics"])),
+                name="jgp-statistics",
+            )
+        )
+    main.append(fold(f"Zakresy świadczeń ({len(scopes)})", _scopes(scopes)))
+    notes = _notes(cast(str | None, group["notes"]))
+    if notes:
+        main.append(fold("Uwagi", notes))
+    main.append(f'<p class="detail-source">{_e(LEGEND[0])}</p>')
+    parts = [
+        '      <div class="shell answer-head">\n',
+        '        <nav class="breadcrumbs" aria-label="Okruszki">'
+        + '<span aria-hidden="true">/</span>'.join(crumbs)
+        + "</nav>\n",
+        f'        <div class="detail-code answer-title"><span class="code-chip">{_e(code)}</span>'
+        + f"<h1>{_e(cast(str, group['name']).removesuffix(' *'))}</h1></div>\n",
+        f'        <p class="answer-meta">{" · ".join(meta)}</p>\n',
+        "      </div>\n",
+        '      <div class="shell answer-page jgp-group">\n',
+        f'        <div class="answer-lead">{_points_lead(answer)}</div>\n',
+        f'        <div class="answer-date">{date_bar(service_date, f"/{code}", calendar)}</div>\n',
+        f'        <div class="answer-main">{"".join(main)}</div>\n',
+        '        <aside class="answer-rail">'
+        + _row_window(code, group, neighbours)
+        + fold("Wydanie katalogu", provenance(ruleset), name="jgp-provenance")
+        + '<p class="code-actions">'
+        + f'<a href="/jgp/{service_date}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">Pokaż w katalogu</a>'
+        + f'<a href="/jgp/{service_date}">Wszystkie grupy na {display_date(service_date)}</a></p>'
+        + "</aside>\n",
         "      </div>",
     ]
     return _jgp_page(
@@ -421,8 +446,31 @@ def group_page(
     )
 
 
-def _values(answer: dict[str, object], catalog: str) -> str:
+def _points_lead(answer: dict[str, object]) -> str:
     ruleset = cast(dict[str, object], answer["ruleset"])
+    values = {
+        cast(str, value["measure"]): value
+        for value in cast(list[dict[str, object]], answer["base_values"])
+    }
+    headline = values.get(HOSPITALIZATION)
+    sentence = (
+        f"Hospitalizacja: <strong>{points_short(cast(int, headline['amount']))}{NBSP}pkt</strong>"
+        if headline
+        else "Brak wartości w katalogu na ten dzień"
+    )
+    tiles = "".join(
+        f"<div><dt>{_e(label)}</dt><dd>{points_short(cast(int, values[measure]['amount']))}</dd></div>"
+        for measure, label in MEASURES.items()
+        if measure in values and measure != HOSPITALIZATION
+    )
+    return (
+        f'<p class="answer-sentence">{sentence}</p>'
+        + f'<p class="answer-caveat">{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. {_e(modifiers_note(ruleset))}</p>'
+        + (f'<dl class="answer-tiles">{tiles}</dl>' if tiles else "")
+    )
+
+
+def _values(answer: dict[str, object], catalog: str) -> str:
     values = {
         cast(str, value["measure"]): value
         for value in cast(list[dict[str, object]], answer["base_values"])
@@ -438,12 +486,7 @@ def _values(answer: dict[str, object], catalog: str) -> str:
         else:
             shown = f'<dd class="jgp-value">{points_pl(cast(int, value["amount"]))}{NBSP}pkt</dd>'
         rows.append(f"<div><dt>{_e(label)}</dt>{shown}</div>")
-    return (
-        '        <section class="detail-notes jgp-values">'
-        + f"<h2>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}</h2>"
-        + f'<p class="jgp-note">{_e(modifiers_note(ruleset))}</p>'
-        + f'<dl class="detail-facts">{"".join(rows)}</dl></section>\n'
-    )
+    return f'<dl class="detail-facts">{"".join(rows)}</dl>'
 
 
 def _month_pl(month: object) -> str:
@@ -478,8 +521,7 @@ def statistics_section(statistics: dict[str, object]) -> str:
         + "według NFZ, nie punkty bazowe katalogu. NFZ ukrywa liczby mniejsze niż 5, "
         + "dlatego część wartości to przedziały."
     )
-    parts = ['        <section class="detail-notes jgp-statistics">',
-             "<h2>Rozliczenia NFZ</h2>", f'<p class="jgp-note">{note}</p>']  # fmt: skip
+    parts = [f'<p class="jgp-note">{note}</p>']
     if not months:
         parts.append("<p>Przypięte raporty NFZ nie wykazują rozliczeń tej grupy.</p>")
     if mature["months"]:
@@ -527,7 +569,6 @@ def statistics_section(statistics: dict[str, object]) -> str:
             + "<th>Hospitalizacje</th><th>Punkty (pkt)</th><th>Raport</th></tr></thead>"
             + f"<tbody>{rows}</tbody></table></div></details>"
         )
-    parts.append("</section>\n")
     return "".join(parts)
 
 
@@ -535,7 +576,11 @@ def _row_window(
     code: str, group: dict[str, object], neighbours: list[tuple[str, str]]
 ) -> str:
     if group["applicability"] is None:
-        return '<section class="detail-notes"><h2>Wiersz katalogu</h2><p>Charakterystyka zawiera grupę, lecz katalog nie ma dla niej wiersza na wybrany dzień. Nie oznacza to wartości zero ani możliwości rozliczenia.</p></section>'
+        return fold(
+            "Wiersz katalogu",
+            "<p>Charakterystyka zawiera grupę, lecz katalog nie ma dla niej wiersza na wybrany dzień. Nie oznacza to wartości zero ani możliwości rozliczenia.</p>",
+            opened=True,
+        )
     window = cast(dict[str, object], group["applicability"])
     start = cast(str, window["service_from"])
     end = cast(str | None, window["service_to"])
@@ -548,12 +593,12 @@ def _row_window(
         f'<a class="button button-quiet" href="/jgp/{_e(day)}/{_e(code)}">{_e(label)}</a>'
         for label, day in neighbours
     )
-    return (
-        '        <section class="detail-notes jgp-window"><h2>Obowiązywanie wiersza</h2>'
-        + f"<p>{text}</p>"
+    return fold(
+        "Obowiązywanie wiersza",
+        f"<p>{text}</p>"
         + (f'<p class="code-actions">{links}</p>' if links else "")
-        + f'<p class="detail-source">{_e(window["evidence"])}</p>'
-        + "</section>\n"
+        + f'<p class="detail-source">{_e(window["evidence"])}</p>',
+        name="jgp-window",
     )
 
 
@@ -564,21 +609,16 @@ def _scopes(scopes: list[dict[str, object]]) -> str:
         for scope in scopes
     )
     return (
-        '        <section class="code-children"><h2>Zakresy świadczeń</h2>'
-        + (
-            f'<ul class="code-list jgp-scope-list">{items}</ul>'
-            if items
-            else '<p class="detail-empty">Brak oznaczeń w katalogu.</p>'
-        )
-        + "</section>\n"
+        f'<ul class="code-list jgp-scope-list">{items}</ul>'
+        if items
+        else '<p class="detail-empty">Brak oznaczeń w katalogu.</p>'
     )
 
 
 def _notes(notes: str | None) -> str:
     if not notes:
         return ""
-    lines = "".join(f"<p>{_e(line)}</p>" for line in notes.splitlines() if line.strip())
-    return f'        <section class="detail-notes"><h2>Uwagi</h2>{lines}</section>\n'
+    return "".join(f"<p>{_e(line)}</p>" for line in notes.splitlines() if line.strip())
 
 
 def _without_code(text: str, code: str) -> str:
@@ -601,7 +641,7 @@ def directional_list_page(answer: dict[str, object]) -> str:
             member["correspondence"] == "matched",
         )
         + f" <span>{_e(_without_code(cast(str, member['source_text']), cast(str, member['code'])))}</span>"
-        + f' <span class="jgp-rows">(wiersz {_e(member["row"])})</span></li>'
+        + f' <span class="jgp-rows">wiersz {_e(member["row"])}</span></li>'
         for member in cast(list[dict[str, object]], answer["members"])
     )
     links: list[str] = []
@@ -624,12 +664,14 @@ def directional_list_page(answer: dict[str, object]) -> str:
             ]
         )
         + f'<h1>{title}</h1><p class="page-lead">Dzień świadczenia: {_e(display_date(day))}. '
-        + f"{_e(source_positions(cast(int, answer['total_occurrences'])))}, strona {page}.</p></div>"
-        + f'<div class="shell code-page"><section class="code-children"><ul class="code-list">{rows}</ul></section>'
-        + "<p>Powtórzenia i oznaczenia pozostają dowodami źródłowymi, nie dodatkowym zliczeniem procedur. "
+        + f"{_e(source_positions(cast(int, answer['total_occurrences'])))}"
+        + (f", strona {page}" if page > 1 or len(links) else "")
+        + ".</p></div>"
+        + f'<div class="shell code-page"><section class="code-children"><ul class="code-list jgp-source-list">{rows}</ul></section>'
+        + '<p class="jgp-note">Powtórzenia i oznaczenia pozostają dowodami źródłowymi, nie dodatkowym zliczeniem procedur. '
         + "Obecność kodu na liście nie oznacza kwalifikacji przypadku. Numery list są lokalne dla wydania.</p>"
         + f'<nav class="code-actions" aria-label="Strony listy">{" ".join(links)}</nav>'
-        + source_facts(source)
+        + fold("Źródło", source_facts(source))
         + "</div>"
     )
     return _jgp_page(

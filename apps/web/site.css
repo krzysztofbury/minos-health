@@ -520,6 +520,20 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .cond-tag { display: block; margin-bottom: 0.1rem; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
 .cond summary { display: flex; align-items: center; min-height: 32px; color: var(--accent); font-size: 0.8125rem; cursor: pointer; }
 .cond details p { margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px dashed var(--line); }
+.jgp-conditions { padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.jgp-conditions h2 { font-size: var(--text-lg); }
+.jgp-conditions > p { margin-top: 0.35rem; }
+.cond-clause { line-height: 1.45; }
+.cond-clause + .cond-clause { padding-top: 0.35rem; border-top: 1px dashed var(--line); }
+.jgp-lists { display: flex; flex-wrap: wrap; gap: 0.1rem 1rem; margin: 0.4rem 0 0; padding: 0; list-style: none; font-size: var(--text-sm); font-weight: 600; }
+.jgp-lists li { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; }
+.jgp-lists .jgp-rows { font-weight: 400; }
+.jgp-conditions .fold:first-of-type { margin-top: 0.5rem; }
+.jgp-conditions .fold:last-child > summary { min-height: 44px; }
+.jgp-conditions > details { margin-top: 0.5rem; font-size: var(--text-sm); }
+.jgp-conditions > details > summary { display: flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-weight: 600; cursor: pointer; }
+.answer-lead .answer-tiles { margin-top: 0.5rem; }
+.answer-rail .code-actions { flex-direction: column; gap: 0.2rem; }
 .answer-open { margin-top: 0.5rem; font-size: var(--text-sm); font-weight: 600; }
 .answer-section { margin-top: 0.8rem; }
 .answer-section > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
@@ -538,7 +552,8 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .answer-main > .detail-source { margin-top: 0; }
 .answer-rail > .detail-facts { margin-top: 0; }
 .answer-rail > .detail-facts div:first-child { padding-top: 0; border-top: 0; }
-.answer-rail > .fold:first-of-type, .answer-rail > .detail-facts + .fold { margin-top: 0.6rem; }
+.answer-rail > .detail-facts + .fold { margin-top: 0.6rem; }
+.answer-rail > .fold:first-child { border-top: 0; }
 .answer-place { padding-block: 0.6rem; border-top: 1px solid var(--line); }
 .answer-place h2 { margin-bottom: 0.2rem; font-size: var(--text-sm); }
 .answer-place .code-chip { min-width: 0; }
@@ -699,7 +714,7 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .not-found-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }
 
 /* JGP catalog (#26): the /slowniki tree and code-page system, nothing new. */
-.jgp-controls { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem 1.5rem; margin-top: 1.25rem; }
+.jgp-controls { position: relative; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 0.75rem 1.5rem; margin-top: 0.75rem; }
 .jgp-date-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
 .jgp-date-row .control-picker { flex: none; width: 12rem; }
 .jgp-date-row .control-picker .tree-search-input { width: 100%; padding-right: 2.9rem; }
@@ -734,11 +749,15 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .jgp-marker { display: block; color: var(--muted); font-size: var(--text-xs); }
 .jgp-absent { color: var(--muted); font-family: var(--font); font-style: italic; }
 .jgp-release .jgp-points-note { margin: 0 0 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); font-size: var(--text-sm); }
-.jgp-release h2 { font-size: var(--text-lg); }
 .jgp-note { color: var(--muted); font-size: var(--text-sm); }
 .jgp-value { font-family: var(--font-code); font-size: var(--text-md); font-variant-numeric: tabular-nums; }
 .jgp-window .code-actions { margin-top: 0.75rem; }
 .jgp-scope-list li { grid-template-columns: minmax(0, 1fr); }
+.jgp-source-list li { grid-template-columns: 5rem minmax(0, 1fr) auto; }
+.jgp-source-list .jgp-rows { white-space: nowrap; }
+.jgp-source-list .code-chip { min-width: 0; }
+.jgp-release .fold { margin-top: 0.5rem; }
+.jgp-release h2 { font-size: var(--text-sm); }
 @media (max-width: 40rem) {
   .jgp-branch { margin-left: 0.55rem; padding-left: 0.35rem; }
   .jgp-row { grid-template-columns: 1.25rem auto minmax(0, 1fr); grid-template-areas: "spacer chip points" "spacer name name"; }

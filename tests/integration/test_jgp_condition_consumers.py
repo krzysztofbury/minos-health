@@ -184,6 +184,10 @@ def test_http_exposes_source_traced_rules_and_dated_list_pages(tmp_path: Path) -
         response = client.get("/api/v1/jgp/2026-07-01/groups/A01")
         assert response.status_code == 200
         assert response.json()["conditions"]["status"] == "fully_interpreted"
+        page = client.get("/jgp/2026-07-01/A01").text
+        # The source's own words come first; the structure is one click away.
+        assert page.index('class="cond-clause"') < page.index("Struktura warunku")
+        assert 'href="/jgp/2026-07-01/listy/1a/' in page.split("Struktura warunku")[0]
         listing = client.get("/api/v1/jgp/2026-07-01/lists/1a/2/pages/1")
         assert listing.status_code == 200
         assert listing.json()["total_occurrences"] == 3
