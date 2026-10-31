@@ -249,7 +249,7 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
   .wizard-steps ol { gap: 0.3rem; }
   /* A slim progress bar on screen, a whole finger on the glass. */
   .wizard-steps button { position: relative; min-height: 20px; padding: 0; border-top-width: 6px; font-size: 0; }
-  .wizard-steps button::after { position: absolute; inset: -0.75rem 0; content: ""; }
+  .wizard-steps button::after { position: absolute; inset: -1.1rem 0; content: ""; }
   .wizard-steps button::before { display: none; }
   .wizard-panel { padding: 1.1rem; }
   .is-result .wizard-nav { position: static; box-shadow: none; }
@@ -308,9 +308,9 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 44px; padding: 0.55rem 1.1rem; border: 1px solid var(--accent); border-radius: var(--radius); color: #fff; background: var(--accent); cursor: pointer; font-weight: 600; text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { .button:hover { color: #fff; background: var(--accent-strong); text-decoration: none; } }
 /* Small controls keep their look and take a finger-sized hit area. */
-.tree-toggle, .picker-button, .tip { position: relative; }
-.picker-button { position: absolute; }
-.tree-toggle::after, .picker-button::after, .tip::after { position: absolute; inset: -0.45rem; content: ""; }
+.tree-toggle, .tip { position: relative; }
+.tree-toggle::after, .picker-button::after { position: absolute; inset: -0.45rem; content: ""; }
+.tip::after { position: absolute; inset: -0.625rem; content: ""; }
 /* Controls answer the press itself, not the release. */
 .button, .dictionary-tab, .link-button, .suggestion-button, .source-tabs button, .picker-nav, .picker-cell, .tip, .search-submit, .menu-toggle { transition: transform 120ms var(--ease-out), background-color 120ms ease, border-color 120ms ease, color 120ms ease; }
 .button:active, .dictionary-tab:active, .link-button:active, .suggestion-button:active, .source-tabs button:active, .search-submit:active, .menu-toggle:active { transform: scale(0.97); }
@@ -506,7 +506,7 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .answer-date .jgp-quick .dictionary-tab { min-height: 44px; padding: 0.15rem 0.65rem; font-size: 0.8125rem; }
 .jgp-memberships { position: relative; }
 .answer-root { min-width: 0; margin-top: 0.1rem; color: #fff; background: var(--accent); }
-.answer-root + .jgp-note { margin-top: 0.45rem; }
+.answer-root + .jgp-note { margin-top: 1rem; }
 .answer-toggle { position: absolute; top: 0; right: 0; min-height: 44px; padding: 0.2rem 0.7rem; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--accent); background: var(--surface); cursor: pointer; font-size: var(--text-sm); font-weight: 600; transition: transform 100ms var(--ease-out); }
 .answer-toggle:active { transform: scale(0.97); }
 .answer-toggle[hidden] { display: none; }
@@ -559,8 +559,8 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .answer-section-title span { color: var(--muted); font-weight: 400; }
 .fold { border-top: 1px solid var(--line); }
 .fold > summary { display: flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
-.fold > summary::before { flex: none; width: 0.45rem; height: 0.45rem; margin: 0 0.6rem 0 0.15rem; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms var(--ease-out); content: ""; }
-.fold[open] > summary::before { transform: rotate(45deg); }
+.fold > summary::before, .source-note > summary::before, .jgp-statistics details > summary::before { flex: none; width: 0.45rem; height: 0.45rem; margin: 0 0.6rem 0 0.15rem; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms var(--ease-out); content: ""; }
+.fold[open] > summary::before, .source-note[open] > summary::before, .jgp-statistics details[open] > summary::before { transform: rotate(45deg); }
 .fold-body { padding-bottom: 0.8rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
 .fold-body > * + * { margin-top: 0.5rem; }
 .fold-body ul { margin: 0; padding-left: 1.1rem; }
@@ -821,7 +821,7 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .jgp-statistics th, .jgp-statistics td { text-align: left; padding: .5rem; border-bottom: 1px solid var(--line, #ccc); }
 .jgp-statistics td { font-variant-numeric: tabular-nums; }
 .jgp-statistics caption { text-align: left; font-weight: 600; }
-.jgp-statistics summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
+.jgp-statistics summary { display: flex; align-items: center; min-height: 44px; margin-top: 0.5rem; cursor: pointer; }
 @media (max-width: 640px) {
   .compare-controls, .compare-sides { grid-template-columns: 1fr; }
   .compare-change { padding: .75rem; }

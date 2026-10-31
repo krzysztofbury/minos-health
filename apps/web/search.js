@@ -388,7 +388,10 @@
           fillGroup(group, system, query, next, MAX_RESULTS);
         }).catch(function (error) {
           more.disabled = false;
+          var previous = group.foot.querySelector(".is-error");
+          if (previous) previous.remove();
           group.foot.prepend(element("p", "group-message is-error", failureMessage(error.code)));
+          group.show(true);
         });
       });
       group.foot.append(more);

@@ -280,6 +280,33 @@ def test_failures_are_closed_codes_without_input(
     assert (error, payload) == (True, {"error": {"code": code}})
 
 
+def test_get_code_compacts_a_long_listing_instead_of_failing(
+    grouping: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    arguments: Json = {
+        "system": "icd10-pl",
+        "code": "E11.0",
+        "service_date": "2026-07-01",
+    }
+    _, whole = _call(grouping, "get_code", arguments)
+    listing = cast(Json, whole["jgp_lists"])
+    assert "compact" not in listing
+    monkeypatch.setattr(mcp, "MAX_JGP_LIST_BYTES", 1)
+
+    error, answer = _call(grouping, "get_code", arguments)
+
+    compact = cast(Json, answer["jgp_lists"])
+    assert error is False
+    assert compact["compact"] is True
+    assert "get_jgp_group" in cast(str, compact["compact_note"])
+    catalogs = cast(list[Json], compact["catalogs"])
+    assert catalogs and all(
+        "conditions" not in group
+        for catalog in catalogs
+        for group in cast(list[Json], catalog["groups"])
+    )
+
+
 def test_a_result_over_the_bound_is_limit_not_a_cut(
     reference: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:

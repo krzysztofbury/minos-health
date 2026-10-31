@@ -56,7 +56,8 @@ ICON: Final = SITE + "/icon-512.png"
 MAX_RESULT_BYTES: Final = 256 * 1024
 # A result carries its value twice, as text and as structured content, so this
 # leaves room for the rest of a code: past it, groups keep their headline only.
-MAX_JGP_LIST_BYTES: Final = 48 * 1024
+# Only 425 of 12,371 ICD-10 codes on 2026-10-31 list this much.
+MAX_JGP_LIST_BYTES: Final = 80 * 1024
 MAX_NOTES: Final = 100
 MAX_SOURCE_ITEMS: Final = 200
 _POLAND: Final = ZoneInfo("Europe/Warsaw")
@@ -389,8 +390,11 @@ class MinosServer(MCPServer[None]):
 
 
 def compact_jgp_lists(jgp: Json) -> Json:
-    """Every group of a long listing, with its hospitalization value only."""
-    if len(json.dumps(jgp, ensure_ascii=False).encode()) <= MAX_JGP_LIST_BYTES:
+    """The groups of a long listing page, with the hospitalization value only."""
+    if (
+        "catalogs" not in jgp
+        or len(json.dumps(jgp, ensure_ascii=False).encode()) <= MAX_JGP_LIST_BYTES
+    ):
         return jgp
     catalogs = [
         {

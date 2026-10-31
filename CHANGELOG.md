@@ -37,7 +37,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   above that, with procedural and conservative groups in their own sections.
   Rank, sources and hierarchy moved to a side column, one click away, also on
   ICD-11. The concept API and MCP `get_code` carry the same points, notes and
-  conditions (#298).
+  conditions; for the long listings past 80 KiB, MCP keeps the hospitalization
+  value and points to `get_jgp_group` (#298).
 - JGP group pages lead with the points and the NFZ condition in its source
   wording, with direct links to the procedure and diagnosis lists. The rule
   structure, all catalog values, NFZ settlements and release evidence are one
