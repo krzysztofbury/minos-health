@@ -15,8 +15,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The watcher runs Python 3.14.10, which refuses compromised eMudhra CA keys in
+  its TLS connections (#301).
 - The social preview image is now a JPEG at a new address, because WhatsApp
-  fetched the PNG without showing it.
+  fetched the PNG without showing it. Whether JPEG cures that needs a phone test.
 - Far fewer "busy" answers under load: up to 12 requests wait for a database
   connection, matching the 16 the API admits (#296).
 - ICD-10 text search and many ICD-11 code pages failed with `limit_exceeded`

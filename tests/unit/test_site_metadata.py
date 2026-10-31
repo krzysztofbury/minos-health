@@ -51,8 +51,8 @@ def test_social_metadata_matches_the_served_site_artifact(mode: Mode) -> None:
     if mode == "validation":
         image = files["social-preview-v2.jpg"]
         assert image[:3] == b"\xff\xd8\xff"
-        frame = image.index(b"\xff\xc0")
-        assert struct.unpack(">HH", image[frame + 5 : frame + 9]) == (630, 1200)
+        # Baseline frame header: precision, then height and width.
+        assert b"\xff\xc0\x00\x11\x08" + struct.pack(">HH", 630, 1200) in image
         assert len(image) < 500 * 1024
 
 

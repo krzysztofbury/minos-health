@@ -162,7 +162,7 @@ expand into analytics, identifiers, query history or broader personalization
 without a new review. Expired data is rejected and deletion is attempted on
 next access, not promised while the browser is closed or storage is blocked.
 
-The 1200 x 630 static PNG uses original branding and existing OFL fonts.
+The 1200 x 630 static JPEG uses original branding and existing OFL fonts.
 Shared Open Graph/Twitter metadata keeps page-specific titles and provenance;
 homepage copy covers reference ICD and JGP search, conditions and base points,
 not an implemented encounter grouper or final settlement calculation.
