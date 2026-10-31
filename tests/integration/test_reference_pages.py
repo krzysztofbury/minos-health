@@ -48,7 +48,7 @@ def test_code_page_is_crawlable_html_with_hierarchy_and_structured_data(
         in page
     )
     assert (
-        '<meta property="og:image" content="https://minoshealth.pl/social-preview-v1.png">'
+        '<meta property="og:image" content="https://minoshealth.pl/social-preview-v2.png">'
         in page
     )
     assert '<meta name="robots" content="index, follow">' in page

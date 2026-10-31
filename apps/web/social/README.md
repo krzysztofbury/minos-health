@@ -1,6 +1,6 @@
 # Social preview
 
-`social-preview-v1.png` is an original Minos Health design rendered from
+`social-preview-v2.png` is an original Minos Health design rendered from
 `preview.html` at 1200 x 630 pixels. It uses the existing brand mark and
 self-hosted Atkinson Hyperlegible Next fonts under the SIL OFL 1.1; see
 `../fonts/OFL.txt`. No external artwork, source data or third-party runtime
@@ -16,7 +16,7 @@ To regenerate with an installed Chromium, run from the repository root:
     --allow-file-access-from-files --hide-scrollbars \
     --force-device-scale-factor=1 --window-size=1200,630 \
     --virtual-time-budget=2000 \
-    --screenshot="$PWD/apps/web/social/social-preview-v1.png" \
+    --screenshot="$PWD/apps/web/social/social-preview-v2.png" \
     "file://$PWD/apps/web/social/preview.html"
 '
 uv run python scripts/build_site.py

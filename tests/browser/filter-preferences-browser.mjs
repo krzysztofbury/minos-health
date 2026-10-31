@@ -172,7 +172,7 @@ async function checkMetadata() {
     preferences: document.querySelector('#filter-preferences').textContent,
     privacy: document.querySelector('footer a[href="/polityka-prywatnosci"]').getAttribute('href')})`);
   for (const text of [metadata.title, metadata.description]) for (const source of ["ICD-10", "ICD-9", "JGP"]) assert.ok(text.includes(source));
-  assert.equal(metadata.og, "https://minoshealth.pl/social-preview-v1.png");
+  assert.equal(metadata.og, "https://minoshealth.pl/social-preview-v2.png");
   assert.equal(metadata.twitter, metadata.og);
   assert.equal(metadata.width, "1200"); assert.equal(metadata.height, "630");
   assert.equal(metadata.card, "summary_large_image");
@@ -182,7 +182,7 @@ async function checkMetadata() {
   // Probe this stack's route, not the canonical public host when testing locally.
   const rasters = await evaluate(`(async () => {
     const result = [];
-    for (const [path, method] of [['/social-preview-v1.png', 'GET'], ['/social-preview-v1.png', 'HEAD'], ['/icon-512.png', 'GET']]) {
+    for (const [path, method] of [['/social-preview-v2.png', 'GET'], ['/social-preview-v2.png', 'HEAD'], ['/icon-512.png', 'GET']]) {
       const response = await fetch(path, {method, credentials:'omit'});
       const bytes = new Uint8Array(await response.arrayBuffer());
       result.push({method, status:response.status, type:response.headers.get('Content-Type'), length:bytes.length,

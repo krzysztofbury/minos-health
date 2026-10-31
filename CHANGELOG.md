@@ -17,6 +17,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 - The watcher runs Python 3.14.10, which refuses compromised eMudhra CA keys in
   its TLS connections (#301).
+- The social preview image has a new address, so platforms that cached a failed
+  fetch request it again.
 - Far fewer "busy" answers under load: up to 12 requests wait for a database
   connection, matching the 16 the API admits (#296).
 - ICD-10 text search and many ICD-11 code pages failed with `limit_exceeded`

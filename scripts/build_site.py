@@ -31,12 +31,12 @@ FONT_PRELOAD = (
     '    <link rel="preload" href="/fonts/atkinson-next-400.woff2" as="font"'
     + ' type="font/woff2" crossorigin>\n'
 )
-SOCIAL_IMAGE = """    <meta property="og:image" content="https://minoshealth.pl/social-preview-v1.png">
+SOCIAL_IMAGE = """    <meta property="og:image" content="https://minoshealth.pl/social-preview-v2.png">
     <meta property="og:image:type" content="image/png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:image:alt" content="Minos Health - rozpoznania ICD-10, procedury ICD-9 i grupy JGP">
-    <meta name="twitter:image" content="https://minoshealth.pl/social-preview-v1.png">
+    <meta name="twitter:image" content="https://minoshealth.pl/social-preview-v2.png">
     <meta name="twitter:image:alt" content="Minos Health - rozpoznania ICD-10, procedury ICD-9 i grupy JGP">
 """
 FONTS = (
@@ -499,8 +499,8 @@ def render_site(mode: Mode) -> dict[str, bytes]:
     else:
         files["site.css"] = stylesheet
     if mode == "validation":
-        files["social-preview-v1.png"] = (
-            WEB / "social" / "social-preview-v1.png"
+        files["social-preview-v2.png"] = (
+            WEB / "social" / "social-preview-v2.png"
         ).read_bytes()
         # The MCP server and its registry listing name this raster icon (#266).
         files["icon-512.png"] = (WEB / "social" / "icon-512.png").read_bytes()
