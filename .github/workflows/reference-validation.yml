@@ -32,7 +32,7 @@ jobs:
           checksum: f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f
 
       - name: Install dependencies
-        run: uv sync --locked --all-groups --python 3.14.7
+        run: uv sync --locked --all-groups --python 3.14.9
 
       - name: Classify the complete change set
         id: scope
@@ -137,7 +137,7 @@ jobs:
           checksum: f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f
 
       - name: Install locked publisher dependencies
-        run: uv sync --locked --no-dev --python 3.14.7
+        run: uv sync --locked --no-dev --python 3.14.9
 
       - name: Require the exact artifact ID
         env:

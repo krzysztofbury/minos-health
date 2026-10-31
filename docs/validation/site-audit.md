@@ -105,9 +105,12 @@ On 2026-10-31, at the owner's request (#296), a Cache Rule on the `.pl` zone mad
 browser TTLs taken from the origin's `Cache-Control`. Checked live: code pages go
 from `MISS` to `HIT`, `no-store` errors are `BYPASS`, the `no-cache` dictionary
 shells revalidate, and a query string stays `DYNAMIC`. Code pages cost crawlers
-no API work while cached. A release or bundle change can therefore take up to
-an hour to reach a code page at the edge; the rule can be disabled without a
-release.
+no API work while cached, per Cloudflare location. A release or bundle change can
+therefore take up to an hour to reach a code page at the edge, so
+`deploy_validation verify` reads a code through MCP, which is never cached. Its
+rank browser check still opens a page and can fail on a rank change until the
+page expires. The rule can be disabled without a release. Kuma probes `/healthz`,
+which the rule does not touch.
 
 ## Indexing
 

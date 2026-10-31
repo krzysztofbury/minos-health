@@ -31,7 +31,7 @@ jobs:
       - name: Build pinned search bundle without activating it
         run: |
           set -euo pipefail
-          uv sync --locked --all-groups --python 3.14.7
+          uv sync --locked --all-groups --python 3.14.9
           uv run python -m scripts.compose_conditions_manifest \
             --search-profile polish-folded-1 \
             --synonyms manifests/sources/search-synonyms-reviewed-v1.json \

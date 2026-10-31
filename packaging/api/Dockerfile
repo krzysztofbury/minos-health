@@ -20,7 +20,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     "$python_home/lib/python3.14/tkinter" "$python_home/lib/python3.14/turtledemo" \
     "$python_home/lib/python3.14/ensurepip" "$python_home/lib/python3.14/site-packages/pip"* \
     "$python_home/lib/libpython3.14.a" "$python_home/lib/tcl"* "$python_home/lib/tk"* \
-    "$python_home/lib/itcl"* "$python_home/lib/thread"* "$python_home/include" && \
+    "$python_home/lib/itcl"* "$python_home/lib/thread"* "$python_home/lib/libtcl"* \
+    "$python_home/lib/libtk"* "$python_home/include" && \
     find "$python_home" -name '*.a' -delete && \
     find "$python_home" -name __pycache__ -prune -exec rm -rf {} +
 
@@ -33,7 +34,8 @@ LABEL org.opencontainers.image.revision="${VCS_REF}" \
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/nonexistent OTEL_SDK_DISABLED=true
 # The pinned base predates the PCRE2, Perl and OpenSSL (CVE-2026-84782)
 # security updates. Keep the Debian fixes pinned until the upstream base is
-# refreshed.
+# refreshed. The runtime does not load Debian's libssl: the managed Python links
+# its own OpenSSL and SQLite, which the image scan does not see (#301).
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
       "libpcre2-8-0=10.42-1+deb12u2" "perl-base=5.36.0-7+deb12u4" \
