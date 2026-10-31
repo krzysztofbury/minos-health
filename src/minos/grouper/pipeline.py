@@ -11,6 +11,7 @@ returns domain values and never a wire schema (decision 2026-10-08).
 
 import sqlite3
 import threading
+import time
 from datetime import date
 from typing import cast, final
 
@@ -40,7 +41,7 @@ from minos.domain.grouping_request import (
     ProductCatalogMissing,
     UnsupportedProductReport,
 )
-from minos.domain.reference import SourceError
+from minos.domain.reference import QueryTimeoutError, SourceError
 from minos.grouper.budget import checkpoint, evaluation_budget
 from minos.grouper.candidates import derive
 from minos.grouper.conditions import evaluate_group, facts_from
@@ -72,6 +73,9 @@ from minos.store.product_catalogs import (
 )
 from minos.store.query_budget import query_budget
 
+# Waiting for a sheet another caller is reading, inside a request's 3 s deadline.
+SHEET_WAIT_SECONDS = 2.5
+
 
 @final
 class PreparedSources:
@@ -79,7 +83,7 @@ class PreparedSources:
 
     Own exactly one per opened, checksum-verified bundle and never share it
     across bundles: entries are keyed by release, not by database bytes. The
-    first request builds an entry under the lock; later requests reuse it.
+    first request builds an entry; later requests reuse it.
     """
 
     def __init__(self) -> None:
@@ -88,6 +92,7 @@ class PreparedSources:
         self._sheets: dict[
             tuple[str, Catalog], tuple[CharacteristicsGraph, DirectionalIndex]
         ] = {}
+        self._loading: dict[tuple[str, Catalog], threading.Event] = {}
         # Keyed by catalog release; None records that its act has no pins.
         self._products: dict[str, ProductClassification | None] = {}
         # Keyed by MODTAR and catalog release. Validating and reconciling them
@@ -103,15 +108,44 @@ class PreparedSources:
             return self._algorithm
 
     def sheet(
-        self, connection: sqlite3.Connection, release_id: str, catalog: Catalog
+        self,
+        connection: sqlite3.Connection,
+        release_id: str,
+        catalog: Catalog,
+        *,
+        seconds: float = 1.0,
+        wait: float = SHEET_WAIT_SECONDS,
     ) -> tuple[CharacteristicsGraph, DirectionalIndex]:
-        with self._lock:
-            found = self._sheets.get((release_id, catalog))
-            if found is None:
-                graph = load_graph(connection, release_id, catalog)
-                found = (graph, index_from_graph(graph))
-                self._sheets[(release_id, catalog)] = found
+        """Load once outside the lock; a slow read never blocks other entries.
+
+        A second caller waits for the first, holding only its lease. If the
+        first fails, a caller with time left loads with a fresh `seconds` (#310).
+        """
+        key = (release_id, catalog)
+        deadline = time.monotonic() + wait
+        while True:
+            with self._lock:
+                found = self._sheets.get(key)
+                if found is not None:
+                    return found
+                loading = self._loading.get(key)
+                if loading is None:
+                    if time.monotonic() >= deadline:
+                        raise QueryTimeoutError("sheet is still loading")
+                    loading = self._loading[key] = threading.Event()
+                    break
+            if not loading.wait(max(deadline - time.monotonic(), 0)):
+                raise QueryTimeoutError("sheet is still loading")
+        try:
+            graph = load_graph(connection, release_id, catalog, seconds=seconds)
+            found = (graph, index_from_graph(graph))
+            with self._lock:
+                self._sheets[key] = found
             return found
+        finally:
+            with self._lock:
+                del self._loading[key]
+            loading.set()
 
     def products(
         self, connection: sqlite3.Connection, catalog_release_id: str

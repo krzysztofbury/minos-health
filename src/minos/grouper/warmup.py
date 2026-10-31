@@ -19,6 +19,11 @@ from minos.grouper.pipeline import PreparedSources
 from minos.store.grouper_bundle import sheet_releases
 from minos.store.product_catalogs import product_catalog_releases
 
+# The first read of a sheet can outlast a request's one second on the host while
+# activation shares its CPU, and a failed warm-up leaves that read to visitors
+# (#310). Requests never wait for it past their own budget.
+SHEET_SECONDS = 5.0
+
 type Stage = Literal[
     "sheet_inventory", "product_inventory", "algorithm", "sheet", "products"
 ]
@@ -100,7 +105,9 @@ class Warmup:
                 "sheet",
                 release,
                 catalog,
-                partial(prepared.sheet, connection, release, catalog),
+                partial(
+                    prepared.sheet, connection, release, catalog, seconds=SHEET_SECONDS
+                ),
             )
             for release, catalog in sheets
         )
@@ -123,7 +130,7 @@ class Warmup:
 
     def run(self, connection: sqlite3.Connection, prepared: PreparedSources) -> None:
         # At most two passes over 64 sheets, 64 product releases and one
-        # algorithm. The ordinary per-reader query/row budgets remain unchanged.
+        # algorithm. Only a sheet read has a longer budget than a request.
         for attempt in (1, 2):
             self.attempt = attempt
             try:
