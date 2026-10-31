@@ -239,9 +239,15 @@ bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
 - `/jgp/{service_date}/listy/{catalog}/{identity}/{page}` renders that page.
 - Existing `/slowniki/icd-9/{code}` and `/slowniki/icd-10/{code}` remain intact.
   Additive `/slowniki/{dictionary}/{code}/jgp/{service_date}` pages show dated
-  "Występuje w grupach" membership. Further membership pages use
+  membership: each group with its catalog base points and source conditions,
+  opened by default up to six groups. Further membership pages use
   `/jgp/{service_date}/{catalog}/{page}` after the code-page path. Changing the
   date resets membership pagination. Dated variants are `noindex, follow`.
+
+Each membership group carries its catalog `name`, `procedural`, `base_values`
+(amount and exact `display`, base points without modifiers) and the source
+`conditions` clauses. A group with no catalog row on that day has `name: null`
+and empty `base_values`, never a zero.
 
 Reverse lookup includes explicit group-local lists and lists reached through
 stored condition selectors, including unsupported source evidence. It never

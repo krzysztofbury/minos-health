@@ -52,6 +52,23 @@
     dateInput.addEventListener("minos:picked", go);
   }
 
+  // Long group lists open one by one; this opens or closes them together.
+  var toggle = document.querySelector(".answer-toggle");
+  if (toggle instanceof HTMLButtonElement) {
+    var groups = Array.prototype.slice.call(document.querySelectorAll(".answer-group"));
+    var allOpen = function () { return groups.every(function (group) { return group.open; }); };
+    var label = function () { toggle.textContent = allOpen() ? "Zwiń wszystkie" : "Rozwiń wszystkie"; };
+    toggle.hidden = false;
+    toggle.addEventListener("click", function () {
+      var open = !allOpen();
+      groups.forEach(function (group) { group.open = open; });
+      if (open) document.querySelectorAll(".answer-section").forEach(function (section) { section.open = true; });
+      label();
+    });
+    groups.forEach(function (group) { group.addEventListener("toggle", label); });
+    label();
+  }
+
   var box = document.querySelector(".jgp-filter");
   var input = document.getElementById("jgp-filter");
   var status = document.querySelector(".jgp-filter-status");

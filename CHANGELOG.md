@@ -29,6 +29,15 @@ signed-release and deployment-acceptance gates remain #41/#27.
   retries its release lookup. `robots.txt` keeps crawlers off the noindex `/jgp/`
   and dated `/slowniki/*/jgp/` pages, which took most of the API's load (#296).
 
+### Changed
+
+- ICD-9 and ICD-10 code pages answer first: each JGP group with its catalog
+  base points and NFZ condition directly under the title, opened by default up
+  to six groups and closed above that, with procedural and conservative groups
+  in their own sections. Rank, sources and hierarchy moved to a side column,
+  one click away. The concept API and MCP `get_code` carry the same points and
+  conditions (#298).
+
 ### Added
 
 - JGP group pages, `GET /api/v1/jgp/{service_date}/groups/{code}` and the

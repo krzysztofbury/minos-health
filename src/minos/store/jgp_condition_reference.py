@@ -14,7 +14,12 @@ from minos.ingest.jgp_conditions_codec import decode_condition, decode_selector,
 from minos.ingest.jgp_conditions_manifest import ConditionsManifest
 from minos.store.bundle_cache import BundleCache
 from minos.store.jgp_conditions import resolve_characteristics
-from minos.store.jgp_ruleset import POINTS_KIND, POINTS_LABEL, catalog_group
+from minos.store.jgp_ruleset import (
+    POINTS_KIND,
+    POINTS_LABEL,
+    catalog_group,
+    points_display,
+)
 from minos.store.query_budget import query_budget
 
 PAGE_SIZE = 100
@@ -523,6 +528,91 @@ def _membership_rows(
     )
 
 
+def _condition_labels(
+    connection: sqlite3.Connection, release: str, catalog: Catalog
+) -> dict[int, tuple[str, ...]]:
+    """Each group title row with the source clauses printed under it."""
+    labels: dict[int, list[str]] = {}
+    current: list[str] | None = None
+    for row, category, text in cast(
+        list[tuple[int, str, str]],
+        connection.execute(
+            """SELECT row, category, source_text FROM characteristics_evidence
+            WHERE release_id=? AND catalog=? AND category IN ('title', 'label')
+            ORDER BY row""",
+            (release, catalog),
+        ).fetchall(),
+    ):
+        if category == "title":
+            current = labels.setdefault(row, [])
+        elif current is not None:
+            current.append(" ".join(text.split()))
+    return {row: tuple(clauses) for row, clauses in labels.items()}
+
+
+def _catalog_rows(
+    connection: sqlite3.Connection,
+    release: str,
+    catalog: Catalog,
+    codes: list[str],
+    day: date,
+) -> dict[str, Json]:
+    """The catalog row of each code on the day, read in one pass for the page.
+
+    Single-table statements for the reason in store/hierarchy_walk.py (#294).
+    """
+    rows = cast(
+        list[tuple[str, int, str, int]],
+        connection.execute(
+            """SELECT code, source_row, name, procedural FROM group_definition
+            WHERE release_id=:release AND catalog=:catalog
+              AND code IN (SELECT value FROM json_each(:codes))
+              AND service_from<=:day AND (service_to IS NULL OR :day<=service_to)""",
+            {
+                "release": release,
+                "catalog": catalog,
+                "codes": json.dumps(codes),
+                "day": day.isoformat(),
+            },
+        ).fetchall(),
+    )
+    if len({row[0] for row in rows}) != len(rows):
+        raise ArtifactError("several catalog rows apply to one code and date")
+    values: dict[int, list[Json]] = {}
+    for source_row, measure, unit, amount in cast(
+        list[tuple[int, str, str, int]],
+        connection.execute(
+            """SELECT source_row, measure, unit, amount FROM group_base_value
+            WHERE release_id=:release AND catalog=:catalog
+              AND source_row IN (SELECT value FROM json_each(:rows))
+            ORDER BY source_column""",
+            {
+                "release": release,
+                "catalog": catalog,
+                "rows": json.dumps([row[1] for row in rows]),
+            },
+        ).fetchall(),
+    ):
+        values.setdefault(source_row, []).append(
+            {
+                "measure": measure,
+                "unit": unit,
+                "amount": amount,
+                "display": points_display(amount)
+                if unit == "points_hundredths"
+                else str(amount),
+            }
+        )
+    return {
+        code: {
+            "name": name,
+            "procedural": bool(procedural),
+            "base_values": values.get(source_row, []),
+        }
+        for code, source_row, name, procedural in rows
+    }
+
+
 def code_memberships(
     connection: sqlite3.Connection,
     system: c.System,
@@ -550,6 +640,23 @@ def code_memberships(
         )
     if not rows and page != 1:
         raise SearchInputError("characteristics membership page is absent")
+    release = cast(str, source["release_id"])
+    with query_budget(connection):
+        catalog_rows = _catalog_rows(
+            connection,
+            cast(str, source["catalog_release_id"]),
+            catalog,
+            [row[0] for row in rows],
+            service_date,
+        )
+        labels = (
+            cache.get(
+                ("condition_labels", release, catalog),
+                lambda: _condition_labels(connection, release, catalog),
+            )
+            if cache is not None
+            else _condition_labels(connection, release, catalog)
+        )
     return {
         "source": source,
         "system": system,
@@ -565,6 +672,12 @@ def code_memberships(
                 "source_title": title,
                 "list_ids": sorted(cast(list[int], json.loads(lists))),
                 "fully_interpreted": bool(interpreted),
+                # A group only in the characteristics has no catalog row that day.
+                "name": catalog_rows.get(group, {}).get("name"),
+                "procedural": catalog_rows.get(group, {}).get("procedural"),
+                "base_values": catalog_rows.get(group, {}).get("base_values", []),
+                "points_kind": POINTS_KIND,
+                "conditions": list(labels.get(row, ())),
             }
             for group, row, title, lists, interpreted, _ in rows
         ],

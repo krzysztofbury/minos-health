@@ -149,6 +149,30 @@ def test_dated_reference_members_keep_duplicates_exact_codes_and_missing_corresp
             (g["code"], g["list_ids"])
             for g in cast(list[dict[str, object]], reverse["groups"])
         ] == [("A01", [2])]
+        listed = cast(list[dict[str, object]], reverse["groups"])[0]
+        assert (listed["name"], listed["procedural"]) == (
+            "Zabiegi wewnątrzczaszkowe *",
+            True,
+        )
+        assert listed["base_values"] == [
+            {
+                "measure": "hospitalization",
+                "unit": "points_hundredths",
+                "amount": 1358600,
+                "display": "13586.00",
+            },
+            {"measure": "financed_stay", "unit": "days", "amount": 25, "display": "25"},
+            {
+                "measure": "extra_stay_day",
+                "unit": "points_hundredths",
+                "amount": 64100,
+                "display": "641.00",
+            },
+        ]
+        assert listed["conditions"] == [
+            "wymagane wskazanie procedury z listy procedur A01 oraz rozpoznania"
+            + " zasadniczego z listy rozpoznań A01"
+        ]
         assert code_memberships(connection, "icd10-pl", "G60", "1a", day)["total"] == 0
         assert code_memberships(connection, "icd9-pl", "G60.4", "1a", day)["total"] == 0
         with pytest.raises(NoRulesetForDate):

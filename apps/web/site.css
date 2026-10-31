@@ -27,6 +27,7 @@
   --bad: #9f2a1d;
   --bad-bg: #fcebe8;
   --ok-bg: #edf6f0;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --radius: 10px;
   --radius-lg: 14px;
   --shadow: 0 8px 24px rgb(22 32 42 / 12%);
@@ -49,7 +50,9 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-padding-top: 5rem; }
+html { scroll-padding-top: 5rem; -webkit-tap-highlight-color: transparent; }
+a, button, summary, label { touch-action: manipulation; }
+button, summary { user-select: none; -webkit-user-select: none; }
 body { display: flex; flex-direction: column; min-width: 20rem; min-height: 100vh; margin: 0; font-size: var(--text-md); background: var(--canvas); }
 main { flex: 1; padding-bottom: 3.5rem; }
 main:focus { outline: none; }
@@ -460,12 +463,83 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 
 .detail-permalink { display: inline-flex; align-items: center; min-height: 44px; margin-top: 0.5rem; font-size: var(--text-sm); font-weight: 600; }
 
-/* Server-rendered code pages (reference API). */
+/* Server-rendered code pages: the answer first, the rest one click away. */
+.answer-head { padding-top: 1rem; }
+.answer-head .breadcrumbs { margin-bottom: 0.55rem; }
+.answer-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.7rem; margin: 0; }
+.answer-title .code-chip { min-width: 0; font-size: var(--text-lg); padding: 0.1rem 0.5rem; }
+.answer-title h1 { font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem); letter-spacing: -0.015em; line-height: 1.15; }
+.answer-meta { margin-top: 0.3rem; color: var(--muted); font-size: var(--text-sm); }
+.answer-head .badge { margin-top: 0.5rem; white-space: normal; }
+.answer-page { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "main" "date" "rail"; gap: 0.9rem 2rem; margin-top: 0.9rem; }
+.answer-day { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--text-sm); }
+.answer-lead { grid-area: lead; min-width: 0; }
+.answer-date { grid-area: date; min-width: 0; }
+.answer-main { grid-area: main; min-width: 0; }
+.answer-rail { grid-area: rail; min-width: 0; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); font-size: var(--text-sm); }
+.answer-sentence { font-size: var(--text-lg); line-height: 1.35; letter-spacing: -0.005em; }
+.answer-caveat { margin-top: 0.35rem; color: var(--ink-soft); font-size: var(--text-sm); line-height: 1.45; }
+.answer-lead .jgp-note { margin-top: 0.3rem; }
+.answer-date .tree-search-label { margin-bottom: 0.2rem; color: var(--muted); font-size: var(--text-sm); font-weight: 400; }
+.answer-date .jgp-date-row .control-picker { width: 100%; max-width: 19rem; }
+.answer-date .jgp-quick .dictionary-tab { min-height: 36px; padding: 0.15rem 0.65rem; font-size: 0.8125rem; }
+.jgp-memberships { position: relative; }
+.answer-root { min-width: 0; margin-top: 0.1rem; color: #fff; background: var(--accent); }
+.answer-toggle { position: absolute; top: 0; right: 0; min-height: 36px; padding: 0.2rem 0.7rem; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--accent); background: var(--surface); cursor: pointer; font-size: var(--text-sm); font-weight: 600; transition: transform 100ms var(--ease-out); }
+.answer-toggle:active { transform: scale(0.97); }
+.answer-toggle[hidden] { display: none; }
+.answer-flow { margin: 0; padding: 0.7rem 0 0 1.3rem; list-style: none; }
+.answer-card { position: relative; margin-bottom: 0.75rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+/* The line from the code to its groups: the page's point, drawn. */
+.answer-card::before { position: absolute; top: 1.45rem; left: -0.7rem; width: 0.7rem; height: 2px; background: var(--line-strong); content: ""; }
+.answer-card::after { position: absolute; top: -0.8rem; bottom: -1px; left: -0.7rem; width: 2px; background: var(--line-strong); content: ""; }
+.answer-card:last-child::after { bottom: auto; height: calc(0.8rem + 1.45rem); }
+.answer-group > summary, .answer-section > summary { list-style: none; cursor: pointer; }
+.answer-group > summary::-webkit-details-marker, .answer-section > summary::-webkit-details-marker { display: none; }
+.answer-row { display: flex; align-items: center; gap: 0.6rem; min-height: 44px; padding: 0.55rem 0.9rem; border-radius: var(--radius-lg); transition: background-color 120ms ease; }
+.answer-group[open] > .answer-row { border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+.answer-row:active { background: var(--canvas); }
+.answer-row .code-chip { flex: none; min-width: 0; }
+.answer-name { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.answer-name .badge { margin-left: 0.4rem; white-space: normal; }
+.pts { flex: none; color: var(--muted); font-size: var(--text-sm); white-space: nowrap; }
+.pts b { color: var(--ink); font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.chevron { flex: none; width: 0.55rem; height: 0.55rem; margin: 0 0.15rem 0 0.2rem; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms var(--ease-out); }
+details[open] > summary > .chevron { transform: rotate(45deg); }
+.answer-body { padding: 0.1rem 0.9rem 0.8rem; }
+.answer-tiles { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; margin: 0; }
+.answer-tiles dt { color: var(--muted); font-size: 0.8125rem; line-height: 1.2; }
+.answer-tiles dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cond { margin-top: 0.6rem; padding-top: 0.55rem; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: var(--text-sm); line-height: 1.45; }
+.cond-tag { display: block; margin-bottom: 0.1rem; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.cond summary { display: flex; align-items: center; min-height: 32px; color: var(--accent); font-size: 0.8125rem; cursor: pointer; }
+.cond details p { margin-top: 0.3rem; padding-top: 0.3rem; border-top: 1px dashed var(--line); }
+.answer-open { margin-top: 0.5rem; font-size: var(--text-sm); font-weight: 600; }
+.answer-section { margin-top: 0.8rem; }
+.answer-section > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.answer-section-title { font-weight: 700; }
+.answer-section-title span { color: var(--muted); font-weight: 400; }
+.fold { border-top: 1px solid var(--line); }
+.fold > summary { display: flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.fold > summary::before { flex: none; width: 0.45rem; height: 0.45rem; margin: 0 0.6rem 0 0.15rem; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms var(--ease-out); content: ""; }
+.fold[open] > summary::before { transform: rotate(45deg); }
+.fold-body { padding-bottom: 0.8rem; font-size: var(--text-sm); overflow-wrap: anywhere; }
+.fold-body > * + * { margin-top: 0.5rem; }
+.fold-body ul { margin: 0; padding-left: 1.1rem; }
+.fold-body h3 { font-size: var(--text-sm); }
+.fold-body .code-list { padding-left: 0; }
+.answer-main > .fold:first-of-type { margin-top: 0.75rem; }
+.answer-main > .detail-source { margin-top: 0; }
+.answer-rail > .detail-facts { margin-top: 0; }
+.answer-rail > .detail-facts div:first-child { padding-top: 0; border-top: 0; }
+.answer-rail > .fold:first-of-type, .answer-rail > .detail-facts + .fold { margin-top: 0.6rem; }
+.answer-place { padding-block: 0.6rem; border-top: 1px solid var(--line); }
+.answer-place h2 { margin-bottom: 0.2rem; font-size: var(--text-sm); }
+.answer-place .code-chip { min-width: 0; }
+.answer-rail .code-actions { margin-top: 0; padding-top: 0.6rem; border-top: 1px solid var(--line); }
 .code-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.1rem; }
 .code-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
 .code-page > * { min-width: 0; max-width: 52rem; margin: 0; }
-.code-facts { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
-.code-facts div:first-child { padding-top: 0; border-top: 0; }
 .code-page .detail-notes, .code-children { padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
 .code-page .detail-notes h2, .code-children h2 { margin-bottom: 0.5rem; font-size: var(--text-lg); }
 .code-list { margin: 0; padding: 0; list-style: none; }
@@ -475,7 +549,30 @@ a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-d
 .code-block > .result-label { font-weight: 700; }
 .code-block > .code-list { margin: 0.35rem 0 0 1rem; }
 .code-link { display: contents; color: var(--ink); text-decoration: none; }
-.code-link:hover .result-label { color: var(--accent); text-decoration: underline; }
+@media (min-width: 60rem) {
+  /* The date may outgrow the sentence; the main column must not wait for it. */
+  .answer-page { grid-template-columns: minmax(0, 1fr) 19rem; grid-template-rows: auto auto 1fr; grid-template-areas: "lead date" "main date" "main rail"; align-items: start; }
+  .answer-page:not(:has(.answer-lead)) { grid-template-rows: auto; grid-template-areas: "main rail"; }
+  .answer-day { display: none; }
+  .answer-rail { position: sticky; top: 5rem; max-height: calc(100dvh - 6rem); overflow-y: auto; overscroll-behavior: contain; }
+}
+@media (max-width: 40rem) {
+  .answer-flow { padding-left: 0.9rem; }
+  .answer-card::before { left: -0.5rem; width: 0.5rem; }
+  .answer-card::after { left: -0.5rem; }
+  /* A long name keeps the full width; the code and the points share a line. */
+  .answer-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "chip points mark" "name name name"; gap: 0.25rem 0.45rem; padding-inline: 0.7rem; }
+  .answer-row .code-chip { grid-area: chip; }
+  .answer-row .pts, .answer-row .jgp-absent { grid-area: points; justify-self: end; }
+  .answer-row .chevron { grid-area: mark; }
+  .answer-name { grid-area: name; }
+  .pts b { font-size: 1.125rem; }
+  .answer-body { padding-inline: 0.7rem; }
+}
+@media (hover: hover) and (pointer: fine) {
+  .answer-row:hover { background: var(--canvas); }
+  .code-link:hover .result-label { color: var(--accent); text-decoration: underline; }
+}
 
 /* Sources catalog (rendered by sources.js). */
 .source-legend { display: grid; gap: 0.4rem; max-width: 52rem; margin: 1.25rem 0 0; font-size: var(--text-sm); }

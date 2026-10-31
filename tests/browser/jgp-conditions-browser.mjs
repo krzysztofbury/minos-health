@@ -68,7 +68,7 @@ try {
     assert.equal(await evaluate("Boolean(document.querySelector('a[href*=\"G60.4\"]'))"), false);
     await evaluate("document.querySelector('a[href*=\"/E11.0/jgp/\"]').click()");
     await wait("location.pathname === '/slowniki/icd-10/E11.0/jgp/2026-07-10' && document.querySelector('.jgp-memberships')");
-    assert.ok(await evaluate("document.querySelector('.jgp-memberships').textContent.includes('Występuje w grupach')"));
+    assert.ok(await evaluate("document.querySelector('.answer-sentence').textContent.includes('występuje w')"));
     assert.ok(await evaluate("document.querySelector('.site-header .brand') && document.querySelector('.site-footer')"));
     assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
     const reverseImage = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
