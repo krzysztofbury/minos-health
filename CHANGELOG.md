@@ -23,6 +23,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - `deploy_validation verify` now searches with the full result limit, fails
   when any dictionary answers an error status, which it used to pass, and opens
   an ICD-11 code page (#294).
+- A busy API now answers with a branded page that retries a few times by
+  itself, or JSON for `/api/`, instead of uvicorn's bare `Service Unavailable`.
+  Health checks, sitemaps and the outer `/mcp` call are not counted. Home search
+  retries its release lookup. `robots.txt` keeps crawlers off the noindex `/jgp/`
+  and dated `/slowniki/*/jgp/` pages, which took most of the API's load (#296).
 
 ### Added
 

@@ -16,6 +16,7 @@ from minos.http.jgp_condition_pages import (
     source_positions,
 )
 from minos.http.pages import (
+    RETRY_HEAD,
     _e,  # pyright: ignore[reportPrivateUsage]
     _page,  # pyright: ignore[reportPrivateUsage]
     display_date,
@@ -68,14 +69,17 @@ def measure_labels(layout: CatalogLayout) -> dict[str, str]:
     return {measure.code: headers[measure.column] for measure in layout.measures}
 
 
-def _jgp_page(*, title: str, description: str, path: str, content: str) -> str:
+def _jgp_page(
+    *, title: str, description: str, path: str, content: str, head: str = ""
+) -> str:
     return _page(
         title=title,
         description=description,
         path=path,
         content=content,
         head='    <script src="/datepicker.js" defer></script>\n'
-        + '    <script src="/jgp.js" defer></script>\n',
+        + '    <script src="/jgp.js" defer></script>\n'
+        + head,
         robots=ROBOTS,
         template=SHELL,
     )
@@ -712,4 +716,5 @@ def error_page(
         description=lead,
         path="/jgp",
         content=content,
+        head=RETRY_HEAD if code == "busy" else "",
     )

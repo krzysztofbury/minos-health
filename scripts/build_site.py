@@ -481,6 +481,7 @@ def render_site(mode: Mode) -> dict[str, bytes]:
         files["icon-512.png"] = (WEB / "social" / "icon-512.png").read_bytes()
         for name in (
             "request.js",
+            "retry.js",
             "datepicker.js",
             "search.js",
             "dictionary.js",
@@ -563,6 +564,10 @@ def _crawler_files() -> dict[str, bytes]:
         "User-agent: *\n"
         + "Allow: /\n"
         + "Disallow: /api/\n"
+        # Noindex pages: crawling them gave nothing and cost most of the API's
+        # load (#296). The undated /slowniki code pages stay open.
+        + "Disallow: /jgp/\n"
+        + "Disallow: /slowniki/*/jgp/\n"
         + "Sitemap: https://minoshealth.pl/sitemap.xml\n"
     )
     pages = "".join(

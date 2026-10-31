@@ -541,11 +541,7 @@
   // A first submit must not race the exact release pins required by the API.
   input.disabled = true;
   submit.disabled = true;
-  fetch("/api/v1/releases", { cache: "no-store", credentials: "omit" })
-    .then(function (response) {
-      if (!response.ok) throw new Error("releases unavailable");
-      return response.json();
-    })
+  window.MinosRequest("/api/v1/releases")
     .then(function (answer) {
       if (!answer || !Array.isArray(answer.releases)) throw new Error("invalid releases");
       // The API lists the release in force today first; the grouper takes it too (#235).

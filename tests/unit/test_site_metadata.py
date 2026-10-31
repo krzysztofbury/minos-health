@@ -1,4 +1,5 @@
 import json
+import re
 import struct
 from dataclasses import replace
 from html.parser import HTMLParser
@@ -6,7 +7,7 @@ from typing import override
 
 import pytest
 
-from scripts.build_site import PAGES, Mode, render_page, render_site
+from scripts.build_site import PAGES, SITEMAP_PATHS, Mode, render_page, render_site
 
 
 class Metadata(HTMLParser):
@@ -79,3 +80,29 @@ def test_social_title_and_description_escape_untrusted_metadata() -> None:
     metadata = Metadata(page).values
     assert metadata["twitter:title"] == hostile
     assert metadata["og:description"] == hostile
+
+
+def _allowed(robots: str, path: str) -> bool:
+    """RFC 9309 matching: the longest rule wins, and `*` matches any characters."""
+    best = (0, True)
+    for line in robots.splitlines():
+        field, _, value = line.partition(": ")
+        if field in ("Allow", "Disallow") and re.match(
+            ".*".join(map(re.escape, value.split("*"))), path
+        ):
+            best = max(best, (len(value), field == "Allow"))
+    return best[1]
+
+
+def test_robots_keep_crawlers_on_the_indexable_pages() -> None:
+    robots = render_site("validation")["robots.txt"].decode()
+    for path in (*SITEMAP_PATHS, "/jgp", "/slowniki/icd-9/52.191", "/sitemap.xml"):
+        assert _allowed(robots, path), path
+    for path in (
+        "/api/v1/releases",
+        "/jgp/2026-10-31",
+        "/jgp/2026-10-31/G35",
+        "/jgp/porownaj/a/b",
+        "/slowniki/icd-9/52.191/jgp/2026-10-31",
+    ):
+        assert not _allowed(robots, path), path

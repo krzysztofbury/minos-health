@@ -39,4 +39,4 @@ RUN mkdir -p /app/data && \
     /usr/local/lib/python3.14/site-packages/pip* /usr/bin/apt* /bin/sh /bin/bash
 USER 10004:10004
 WORKDIR /app
-ENTRYPOINT ["/build/.venv/bin/uvicorn", "minos.http.app:application", "--factory", "--host", "0.0.0.0", "--port", "8081", "--workers", "1", "--limit-concurrency", "16", "--timeout-keep-alive", "5", "--no-access-log", "--log-level", "critical"]
+ENTRYPOINT ["/build/.venv/bin/uvicorn", "minos.http.app:application", "--factory", "--host", "0.0.0.0", "--port", "8081", "--workers", "1", "--limit-concurrency", "64", "--timeout-keep-alive", "5", "--no-access-log", "--log-level", "critical"]
