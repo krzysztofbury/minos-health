@@ -229,7 +229,8 @@ Group answers add `conditions`. Its status is `fully_interpreted` only when
 every stored node of the group is proposed. `nodes`, `roots` and `selectors`
 are empty for `not_yet_interpreted`; `source_text` retains the original clauses
 and cited cell evidence, with `own` false on rows cited from another group's
-section. Separate roots do not imply a conjunction. These are
+section. `lists` holds the lists the selectors reach, the group prints in its
+section and its own clauses name by exact label. Separate roots do not imply a conjunction. These are
 reference fragments, not executable encounter qualification. Older base-only
 bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
 

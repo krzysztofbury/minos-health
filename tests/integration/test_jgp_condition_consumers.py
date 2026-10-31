@@ -216,6 +216,10 @@ def test_one_unsupported_root_hides_every_structured_rule_but_not_source_members
         )
         assert answer["status"] == "not_yet_interpreted"
         assert answer["nodes"] == answer["selectors"] == answer["roots"] == []
+        # Without a structure the page still links the lists the group prints.
+        assert "A01" in [
+            item["label"] for item in cast(list[dict[str, object]], answer["lists"])
+        ]
         assert any(
             "Unreviewed allocation" in cast(str, row["text"])
             for row in cast(list[dict[str, object]], answer["source_text"])

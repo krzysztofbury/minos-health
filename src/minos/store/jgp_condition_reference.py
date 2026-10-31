@@ -1,6 +1,7 @@
 """Bounded dated attachment 9 reference answers, never encounter qualification."""
 
 import json
+import re
 import sqlite3
 from datetime import date
 from typing import Literal, cast
@@ -28,6 +29,7 @@ from minos.store.jgp_ruleset import (
 from minos.store.query_budget import query_budget
 
 PAGE_SIZE = 100
+LIST_WORD = re.compile(r"[A-Za-z0-9]+")
 MAX_GROUP_NODES = 2048
 MAX_GROUP_EVIDENCE = 2048
 MAX_SELECTORS = 20_000
@@ -182,7 +184,27 @@ def group_conditions(
             ).fetchall(),
         )
         _bounded(cast(list[object], evidence), MAX_GROUP_EVIDENCE)
-        lists = _list_summaries(connection, key, physical_lists)
+        # The lists a group prints or names, whatever the structure reached: an
+        # uninterpreted group has no selectors, and its page still needs them.
+        named = {
+            word
+            for _, text, category, own in evidence
+            if own and category == "label"
+            for word in cast(list[str], LIST_WORD.findall(text))
+        }
+        printed = cast(
+            list[tuple[int]],
+            connection.execute(
+                """SELECT id FROM directional_list WHERE release_id=? AND catalog=?
+                AND (trim(context)=? OR label IN (SELECT value FROM json_each(?)))
+                LIMIT 3001""",
+                (*key, code, json.dumps(sorted({code, *named}))),
+            ).fetchall(),
+        )
+        _bounded(cast(list[object], printed), 3000)
+        lists = _list_summaries(
+            connection, key, sorted({*physical_lists, *(row[0] for row in printed)})
+        )
         code_keys = sorted(
             {
                 item.body.system + ":" + code
