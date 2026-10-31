@@ -495,13 +495,13 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .answer-meta { margin-top: 0.3rem; color: var(--muted); font-size: var(--text-sm); }
 .answer-head .badge { margin-top: 0.5rem; white-space: normal; }
 .answer-page { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "main" "date" "rail"; gap: 0.9rem 2rem; margin-top: 0.9rem; }
-.answer-day { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--text-sm); }
+.answer-day { white-space: nowrap; }
+.answer-day a { padding-block: 0.8rem; }
 .answer-lead { grid-area: lead; min-width: 0; }
 .answer-date { grid-area: date; min-width: 0; }
 .answer-main { grid-area: main; min-width: 0; }
 .answer-rail { grid-area: rail; min-width: 0; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); font-size: var(--text-sm); }
 .answer-sentence { font-size: var(--text-lg); line-height: 1.35; letter-spacing: -0.005em; }
-.answer-caveat { margin-top: 0.35rem; color: var(--ink-soft); font-size: var(--text-sm); line-height: 1.45; }
 .answer-lead .jgp-note { margin-top: 0.3rem; }
 .answer-date .tree-search-label { margin-bottom: 0.2rem; color: var(--muted); font-size: var(--text-sm); font-weight: 400; }
 .answer-date .jgp-date-row .control-picker { width: 100%; max-width: 19rem; }

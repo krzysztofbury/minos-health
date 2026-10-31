@@ -656,7 +656,37 @@ def test_group_page_without_characteristics_shows_no_build_jargon(
         )
     assert page.status_code == 200
     assert "Warunki grupy" not in page.text and "pakiet" not in page.text
+    assert "Charakterystyka referencyjna" not in page.text
     assert api["conditions"] == {"status": "not_in_bundle"}
+
+
+def test_pages_start_with_the_answer_and_keep_the_notes_one_click_away(
+    tmp_path: Path,
+) -> None:
+    def part(page: str, start: str, end: str) -> str:
+        return page[page.index(start) : page.index(end)]
+
+    with TestClient(create_app(consumer_bundle(tmp_path))) as client:
+        group = client.get("/jgp/2026-07-01/A01").text
+        code = client.get("/slowniki/icd-10/E11.0/jgp/2026-07-01").text
+
+    lead = part(group, '"answer-lead"', '"answer-main"')
+    assert "pkt</strong> bazowych" in lead
+    assert "Punkty bazowe" not in lead
+    rail = group[group.index('"answer-rail"') :]
+    assert "Punkty bazowe wg katalogu, bez modyfikatorów" in rail
+    assert "Charakterystyka referencyjna, nie wynik grupowania" in rail
+
+    lead = part(code, '"answer-lead"', '"answer-main"')
+    assert "występuje w" in lead
+    assert "Punkty bazowe" not in lead and "stan na" not in lead
+    rail = code[code.index('"answer-rail"') :]
+    assert "Punkty bazowe z katalogu, bez modyfikatorów" in rail
+    # The day link names a picker that exists, and the licence stays in view.
+    assert part(code, '"answer-meta"', '"answer-lead"').count('href="#jgp-date"') == 1
+    assert code.count('id="jgp-date"') == 1
+    assert "licencja CC BY-NC-SA" in part(code, '"answer-main"', '"answer-rail"')
+    assert "Źródła: słownik" not in code
 
 
 def test_structured_rules_read_as_a_nested_tree_in_polish(tmp_path: Path) -> None:

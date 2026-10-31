@@ -91,7 +91,7 @@ def test_a_few_groups_open_with_points_condition_and_the_value_range() -> None:
     assert "wymagane wskazanie procedury z listy G35" in panel.groups
     assert 'href="/jgp/2026-10-31/G35"' in panel.groups
     assert "Nazwa G35 *" not in panel.groups
-    assert "Brak pozycji nie dowodzi wykluczenia" in panel.lead
+    assert "Brak pozycji nie dowodzi wykluczenia" in panel.sources
 
 
 def test_a_long_list_closes_its_groups_and_splits_them_by_kind() -> None:
@@ -214,7 +214,8 @@ def test_a_diagnosis_day_past_the_sources_says_so() -> None:
     cast(Json, answer["source"])["service_date_after_knowledge"] = True
     panel = _panel([answer])
 
-    assert "Według źródeł sprawdzonych do 13.10.2026" in panel.lead
+    assert "Według źródeł sprawdzonych do 13.10.2026" in panel.sources
+    assert "Według źródeł" not in panel.lead
 
 
 def test_nothing_covered_is_not_reported_as_not_listed() -> None:

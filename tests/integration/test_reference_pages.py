@@ -67,6 +67,8 @@ def test_code_page_is_crawlable_html_with_hierarchy_and_structured_data(
 
 def test_unplaced_icd9_code_has_a_canonical_page(client: TestClient) -> None:
     response = client.get("/slowniki/icd-9/00.00001")
+    assert "Źródła: słownik ICD-9" in response.text
+    assert "detail-source" not in response.text.split("Źródła: słownik ICD-9")[0]
     assert response.status_code == 200
     assert "Synthetic numeric procedure" in response.text
     assert "Obowiązuje od" in response.text

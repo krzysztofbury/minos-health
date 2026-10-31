@@ -491,10 +491,13 @@ rather than repurposed; no issue tracked it.
   `/jgp` and `/api/v1/jgp/`, which also removes the duplicate header the JGP
   API carried after #24.
 - Measure labels quote the reviewed source column headers, empty catalog cells
-  read "brak wartości w katalogu" (never 0), and every page states "punkty
-  bazowe wg katalogu, bez modyfikatorów" with the governing act, BAW document,
-   service-start evidence and workbook checksum. The knowledge horizon remains
-   part of the bundle and API provenance rather than repeated page copy.
+  read "brak wartości w katalogu" (never 0). Every answer sentence says the
+  points are base points; "punkty bazowe wg katalogu, bez modyfikatorów" with
+  the governing act, BAW document, service-start evidence and workbook checksum
+  sits one click away on code and group pages (owner, 2026-10-31: practitioners
+  read the answer first), and stays in view on the catalog. The knowledge
+  horizon remains part of the bundle and API provenance rather than repeated
+  page copy.
 - A group page links to the next row window when its row ends, and to the
   previous day only when the row starts inside its release; before a release
   start the group may not exist, so only the date picker reaches that day.

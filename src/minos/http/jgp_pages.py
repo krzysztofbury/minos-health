@@ -12,6 +12,8 @@ from minos.domain.reference import ArtifactError
 from minos.http.jgp_condition_pages import (
     HOSPITALIZATION,
     MEASURES,
+    READING_TITLE,
+    REFERENCE_NOTE,
     code_link,
     conditions_section,
     points_short,
@@ -402,6 +404,9 @@ def group_page(
     if group["procedural"] is True:
         meta.append("Grupa zabiegowa (*)")
     scopes = cast(list[dict[str, object]], answer["scopes"])
+    conditions_status = cast(dict[str, object], answer.get("conditions") or {}).get(
+        "status"
+    )
     main: list[str] = [
         conditions_section(cast(dict[str, object], answer["conditions"]))
         if "conditions" in answer
@@ -442,6 +447,16 @@ def group_page(
         '        <aside class="answer-rail">'
         + _row_window(code, group, neighbours)
         + fold(
+            READING_TITLE,
+            f"<p>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. {_e(modifiers_note(ruleset))}</p>"
+            + (
+                f"<p>{_e(REFERENCE_NOTE)}</p>"
+                if conditions_status in ("fully_interpreted", "not_yet_interpreted")
+                else ""
+            )
+            + horizon_note(ruleset),
+        )
+        + fold(
             "Wydanie katalogu",
             provenance(ruleset, heading="h3"),
             name="jgp-provenance",
@@ -461,14 +476,13 @@ def group_page(
 
 
 def _points_lead(answer: dict[str, object]) -> str:
-    ruleset = cast(dict[str, object], answer["ruleset"])
     values = {
         cast(str, value["measure"]): value
         for value in cast(list[dict[str, object]], answer["base_values"])
     }
     headline = values.get(HOSPITALIZATION)
     sentence = (
-        f"Hospitalizacja: <strong>{points_short(cast(int, headline['amount']))}{NBSP}pkt</strong>"
+        f"Hospitalizacja: <strong>{points_short(cast(int, headline['amount']))}{NBSP}pkt</strong> bazowych"
         if headline
         else "Brak wartości w katalogu na ten dzień"
     )
@@ -477,11 +491,8 @@ def _points_lead(answer: dict[str, object]) -> str:
         for measure, label in MEASURES.items()
         if measure in values and measure != HOSPITALIZATION
     )
-    return (
-        f'<p class="answer-sentence">{sentence}</p>'
-        + f'<p class="answer-caveat">{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. {_e(modifiers_note(ruleset))}</p>'
-        + horizon_note(ruleset)
-        + (f'<dl class="answer-tiles">{tiles}</dl>' if tiles else "")
+    return f'<p class="answer-sentence">{sentence}</p>' + (
+        f'<dl class="answer-tiles">{tiles}</dl>' if tiles else ""
     )
 
 

@@ -34,6 +34,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - The agents page gains copy buttons and folds each tool, the legal pages gain
   a contents list with their text unchanged, and the Gruper result no longer
   repeats its scope notice (#298).
+- Code and group pages start with the answer alone: the reading notes, the
+  date the sources were checked to and the dictionary source moved to closed
+  rows, and the day sits in the line under the title (#298).
 - JGP group pages of groups not interpreted yet link the lists they print and
   the lists their conditions name, by list kind and including ranges such as
   T1-T8 (#298).
