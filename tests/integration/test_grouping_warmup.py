@@ -182,9 +182,7 @@ def test_a_request_never_waits_past_its_budget_behind_a_slow_sheet(
                 # Other entries stay free while the sheet is being read.
                 _ = prepared.algorithm(lease.connection)
                 with pytest.raises(QueryTimeoutError):
-                    _ = prepared.sheet(
-                        lease.connection, release_id, catalog, seconds=0.05
-                    )
+                    _ = prepared.sheet(lease.connection, release_id, catalog, wait=0.05)
                 assert monotonic() - began < 0.5
         finally:
             release.set()
@@ -195,6 +193,71 @@ def test_a_request_never_waits_past_its_budget_behind_a_slow_sheet(
             graph, _index = prepared.sheet(lease.connection, release_id, catalog)
             again, _index = prepared.sheet(lease.connection, release_id, catalog)
         assert graph is again
+
+
+@pytest.mark.parametrize(("owner_fails", "loads"), [(False, 1), (True, 2)])
+def test_a_waiter_gets_the_sheet_or_takes_over_from_a_failed_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, owner_fails: bool, loads: int
+) -> None:
+    bundle = grouping_bundle(tmp_path)
+    entered, release = Event(), Event()
+    calls: list[str] = []
+
+    def slow(
+        db: sqlite3.Connection, identity: str, catalog: Catalog, *, seconds: float
+    ) -> CharacteristicsGraph:
+        calls.append(identity)
+        entered.set()
+        assert release.wait(10)
+        if owner_fails and len(calls) == 1:
+            raise QueryTimeoutError("first reader failed")
+        return load_graph(db, identity, catalog, seconds=seconds)
+
+    monkeypatch.setattr(pipeline, "load_graph", slow)
+    prepared = pipeline.PreparedSources()
+    (release_id, catalog) = sheet_list(bundle)[0]
+    with _pool(bundle) as pool, ThreadPoolExecutor(2) as threads:
+
+        def read() -> object:
+            with pool.borrow() as lease:
+                return prepared.sheet(lease.connection, release_id, catalog, wait=5)
+
+        first = threads.submit(read)
+        try:
+            assert entered.wait(10)
+            second = threads.submit(read)
+            sleep(0.1)  # The waiter reaches the owner's event.
+        finally:
+            release.set()
+        answer = second.result(4)
+        if owner_fails:
+            with pytest.raises(QueryTimeoutError):
+                _ = first.result(10)
+        else:
+            assert first.result(10) is answer
+    assert len(calls) == loads
+
+
+def test_a_waiter_out_of_time_does_not_take_over(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = grouping_bundle(tmp_path)
+    calls: list[str] = []
+
+    def counted(
+        db: sqlite3.Connection, identity: str, catalog: Catalog, *, seconds: float
+    ) -> CharacteristicsGraph:
+        calls.append(identity)
+        return load_graph(db, identity, catalog, seconds=seconds)
+
+    monkeypatch.setattr(pipeline, "load_graph", counted)
+    (release_id, catalog) = sheet_list(bundle)[0]
+    with _pool(bundle) as pool, pool.borrow() as lease:
+        with pytest.raises(QueryTimeoutError):
+            _ = pipeline.PreparedSources().sheet(
+                lease.connection, release_id, catalog, wait=0
+            )
+    assert calls == []
 
 
 def sheet_list(bundle: Path) -> list[tuple[str, Catalog]]:

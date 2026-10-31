@@ -73,6 +73,9 @@ from minos.store.product_catalogs import (
 )
 from minos.store.query_budget import query_budget
 
+# Waiting for a sheet another caller is reading, inside a request's 3 s deadline.
+SHEET_WAIT_SECONDS = 2.5
+
 
 @final
 class PreparedSources:
@@ -80,7 +83,7 @@ class PreparedSources:
 
     Own exactly one per opened, checksum-verified bundle and never share it
     across bundles: entries are keyed by release, not by database bytes. The
-    first request builds an entry under the lock; later requests reuse it.
+    first request builds an entry; later requests reuse it.
     """
 
     def __init__(self) -> None:
@@ -111,14 +114,15 @@ class PreparedSources:
         catalog: Catalog,
         *,
         seconds: float = 1.0,
+        wait: float = SHEET_WAIT_SECONDS,
     ) -> tuple[CharacteristicsGraph, DirectionalIndex]:
         """Load once outside the lock; a slow read never blocks other entries.
 
-        A second caller waits for the first within its own budget, holding only
-        its lease, and takes over if the first fails (#310).
+        A second caller waits for the first, holding only its lease. If the
+        first fails, a caller with time left loads with a fresh `seconds` (#310).
         """
         key = (release_id, catalog)
-        deadline = time.monotonic() + seconds
+        deadline = time.monotonic() + wait
         while True:
             with self._lock:
                 found = self._sheets.get(key)
@@ -126,6 +130,8 @@ class PreparedSources:
                     return found
                 loading = self._loading.get(key)
                 if loading is None:
+                    if time.monotonic() >= deadline:
+                        raise QueryTimeoutError("sheet is still loading")
                     loading = self._loading[key] = threading.Event()
                     break
             if not loading.wait(max(deadline - time.monotonic(), 0)):

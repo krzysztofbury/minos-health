@@ -130,7 +130,7 @@ class Warmup:
 
     def run(self, connection: sqlite3.Connection, prepared: PreparedSources) -> None:
         # At most two passes over 64 sheets, 64 product releases and one
-        # algorithm. The ordinary per-reader query/row budgets remain unchanged.
+        # algorithm. Only a sheet read has a longer budget than a request.
         for attempt in (1, 2):
             self.attempt = attempt
             try:
