@@ -249,6 +249,7 @@ def index_page(
         + '<label class="tree-search-label" for="jgp-filter">Szukaj w katalogu grup</label>'
         + '<div class="tree-search-row"><input class="tree-search-input" type="search"'
         + ' id="jgp-filter" placeholder="np. H21 albo endoproteza" autocomplete="off"'
+        + ' enterkeyhint="search" autocapitalize="none" autocorrect="off"'
         + ' spellcheck="false"></div></div>\n',
         f'        <p class="tree-status jgp-filter-status" role="status" aria-live="polite">{status}</p>\n',
         '        <div class="tree-layout">\n',
