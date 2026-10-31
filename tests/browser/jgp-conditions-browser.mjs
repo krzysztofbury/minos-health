@@ -57,7 +57,7 @@ try {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     await navigate("/jgp/2026-07-10/A01", ".jgp-conditions");
     assert.ok(await evaluate("document.querySelector('.jgp-rules').textContent.includes('Wskazanie rozpoznania')"));
-    assert.ok(await evaluate("document.querySelector('.jgp-conditions').textContent.includes('nie wynik grupowania')"));
+    assert.ok(await evaluate("document.querySelector('.answer-rail').textContent.includes('nie wynik grupowania')"));
     const list = await evaluate("document.querySelector('.jgp-rules a[href*=" + JSON.stringify("/listy/") + "]').getAttribute('href')");
     assert.equal(list, "/jgp/2026-07-10/listy/1a/1/1");
     assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
