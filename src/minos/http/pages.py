@@ -72,6 +72,7 @@ class JgpPanel(NamedTuple):
     """The rendered JGP answer of a code page, placed by `code_page`."""
 
     date_bar: str
+    day_link: str
     lead: str
     groups: str
     sources: str
@@ -366,7 +367,7 @@ def code_page(
         + "</nav>",
         f'        <div class="detail-code answer-title"><span class="code-chip">{_e(code)}</span>'
         + f"<h1>{_e(label)}</h1></div>",
-        f'        <p class="answer-meta">{" · ".join(meta)}</p>',
+        f'        <p class="answer-meta">{" · ".join(meta)}{jgp.day_link if jgp else ""}</p>',
     ]
     status = next(
         (item["value"] for item in attributes if item["key"] == "status"), None
@@ -450,7 +451,6 @@ def code_page(
                 name="shared-procedures",
             )
         )
-    main.append(f'<p class="detail-source">{_e(dictionary.source)}</p>')
     parts.append(f'        <div class="answer-main">{"".join(main)}</div>')
     if jgp is not None:
         parts.append(f'        <div class="answer-date">{jgp.date_bar}</div>')
@@ -479,6 +479,10 @@ def code_page(
         )
     if jgp is not None:
         rail.append(jgp.sources)
+    rail.append(
+        f'<details class="fold"><summary>Źródła: słownik {_e(dictionary.name)}</summary>'
+        + f'<div class="fold-body"><p>{_e(dictionary.source)}</p></div></details>'
+    )
     rail.append(
         '<p class="code-actions">'
         + f'<a href="/slowniki/{dictionary.slug}#kod={_e(code)}">Pokaż w drzewie słownika</a></p>'

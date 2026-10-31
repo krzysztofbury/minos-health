@@ -12,6 +12,8 @@ from minos.domain.reference import ArtifactError
 from minos.http.jgp_condition_pages import (
     HOSPITALIZATION,
     MEASURES,
+    READING_TITLE,
+    REFERENCE_NOTE,
     code_link,
     conditions_section,
     points_short,
@@ -442,6 +444,13 @@ def group_page(
         '        <aside class="answer-rail">'
         + _row_window(code, group, neighbours)
         + fold(
+            READING_TITLE,
+            f"<p>{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. {_e(modifiers_note(ruleset))}</p>"
+            + f"<p>{_e(REFERENCE_NOTE)}</p>"
+            + horizon_note(ruleset),
+            level=3,
+        )
+        + fold(
             "Wydanie katalogu",
             provenance(ruleset, heading="h3"),
             name="jgp-provenance",
@@ -461,7 +470,6 @@ def group_page(
 
 
 def _points_lead(answer: dict[str, object]) -> str:
-    ruleset = cast(dict[str, object], answer["ruleset"])
     values = {
         cast(str, value["measure"]): value
         for value in cast(list[dict[str, object]], answer["base_values"])
@@ -477,11 +485,8 @@ def _points_lead(answer: dict[str, object]) -> str:
         for measure, label in MEASURES.items()
         if measure in values and measure != HOSPITALIZATION
     )
-    return (
-        f'<p class="answer-sentence">{sentence}</p>'
-        + f'<p class="answer-caveat">{_e(BASE_POINTS_LABEL[0].upper() + BASE_POINTS_LABEL[1:])}. {_e(modifiers_note(ruleset))}</p>'
-        + horizon_note(ruleset)
-        + (f'<dl class="answer-tiles">{tiles}</dl>' if tiles else "")
+    return f'<p class="answer-sentence">{sentence}</p>' + (
+        f'<dl class="answer-tiles">{tiles}</dl>' if tiles else ""
     )
 
 

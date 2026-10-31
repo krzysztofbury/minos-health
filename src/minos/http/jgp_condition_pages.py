@@ -284,9 +284,6 @@ def conditions_section(answer: Json) -> str:
         elif item["own"] and item["category"] == "connector":
             parts.append('<p class="cond-or">lub</p>')
     parts.append(_list_links(answer))
-    parts.append(
-        '<p class="answer-caveat">Charakterystyka referencyjna, nie wynik grupowania. Obecność kodu na liście nie oznacza kwalifikacji przypadku ani możliwości rozliczenia.</p>'
-    )
     if status == "fully_interpreted":
         import json
 
@@ -379,6 +376,11 @@ def shared_procedure_section(answers: list[Json]) -> str:
 OPEN_LIMIT: Final = 6
 # A value range is an answer for a few groups and noise for a hundred.
 RANGE_LIMIT: Final = 8
+REFERENCE_NOTE: Final = (
+    "Charakterystyka referencyjna, nie wynik grupowania. Obecność kodu na liście"
+    + " nie oznacza kwalifikacji przypadku ani możliwości rozliczenia."
+)
+READING_TITLE: Final = "Jak czytać te dane"
 CAVEAT: Final = (
     "Punkty bazowe z katalogu, bez modyfikatorów. Obecność na jawnej liście to nie"
     + " kwalifikacja przypadku: liczy się warunek przy grupie. Brak pozycji nie"
@@ -554,10 +556,7 @@ def _lead(slug: str, items: list[_Listed], total: int, day: str, covered: bool) 
         # The hospitalization tariff, not the range: other stays can pay less.
         worth = f":{part} hospitalizacja <strong>{span}{NBSP}pkt</strong> bazowych"
     place = "grupie" if total == 1 else "grupach"
-    return (
-        f'<p class="answer-sentence">{noun} występuje w <strong>{total} {place} JGP</strong>{worth}.</p>'
-        + f'<p class="answer-caveat">{CAVEAT}</p>'
-    )
+    return f'<p class="answer-sentence">{noun} występuje w <strong>{total} {place} JGP</strong>{worth}.</p>'
 
 
 def _sources(answers: list[Json]) -> str:
@@ -568,7 +567,12 @@ def _sources(answers: list[Json]) -> str:
     ]
     if not covered:
         return ""
-    return "".join(
+    horizon = (
+        f"<p>Według źródeł sprawdzonych do {_e(display_date(covered[0]['knowledge_as_of']))}.</p>"
+        if any(source["service_date_after_knowledge"] for source in covered)
+        else ""
+    )
+    return fold(READING_TITLE, f"<p>{CAVEAT}</p>{horizon}", level=3) + "".join(
         f'<details class="fold"><summary>Źródła: katalog {_e(source["catalog"])}</summary>'
         + f'<div class="fold-body">{source_facts(source)}</div></details>'
         for source in covered
@@ -600,10 +604,6 @@ def membership_panel(
         for answer in answers
         if answer["status"] != "covered" and covered
     ]
-    if any(source["service_date_after_knowledge"] for source in covered):
-        notes.append(
-            f'<p class="jgp-note">Według źródeł sprawdzonych do {_e(display_date(covered[0]["knowledge_as_of"]))}.</p>'
-        )
     if slug == "icd-10":
         # Procedure-led groups (for example hernia repair) often have no
         # diagnosis list, so a diagnosis alone never shows them here.
@@ -631,10 +631,9 @@ def membership_panel(
     )
     return JgpPanel(
         date_bar=date_bar,
-        lead=_lead(slug, items, total, day, bool(covered))
-        + "".join(notes)
+        lead=_lead(slug, items, total, day, bool(covered)) + "".join(notes),
         # Phones show the date picker below the groups, so the day stays in view.
-        + f'<a class="answer-day" href="#jgp-date">Stan na {_e(display_date(day))}, zmień dzień</a>',
+        day_link=f'<span class="answer-day"> · <a href="#jgp-date">stan na {_e(display_date(day))}</a></span>',
         groups=(
             '<section class="jgp-memberships">'
             + (

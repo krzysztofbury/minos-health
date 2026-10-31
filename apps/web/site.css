@@ -495,7 +495,8 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .answer-meta { margin-top: 0.3rem; color: var(--muted); font-size: var(--text-sm); }
 .answer-head .badge { margin-top: 0.5rem; white-space: normal; }
 .answer-page { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "main" "date" "rail"; gap: 0.9rem 2rem; margin-top: 0.9rem; }
-.answer-day { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--text-sm); }
+.answer-day { white-space: nowrap; }
+.answer-day a { padding-block: 0.8rem; }
 .answer-lead { grid-area: lead; min-width: 0; }
 .answer-date { grid-area: date; min-width: 0; }
 .answer-main { grid-area: main; min-width: 0; }
