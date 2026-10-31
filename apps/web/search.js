@@ -301,7 +301,6 @@
         meta.append(badge);
       }
       if (meta.childNodes.length) link.append(meta);
-      link.append(element("span", "result-go", "Szczegóły"));
       item.append(link);
       listNode.append(item);
     });
@@ -310,15 +309,31 @@
   function groupSection(system) {
     var section = element("section", "result-group");
     section.setAttribute("aria-labelledby", "group-" + system);
-    var head = element("div", "result-group-head");
-    var title = element("h2", "", SYSTEMS[system].group);
+    var heading = element("h2", "result-group-head");
+    var toggle = element("button", "result-toggle");
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", "true");
+    toggle.setAttribute("aria-controls", "results-" + system);
+    var title = element("span", "result-title", SYSTEMS[system].group);
     title.id = "group-" + system;
-    var count = element("p", "", "Szukam…");
-    head.append(title, count);
+    var count = element("span", "result-count", "Szukam…");
+    var chevron = element("span", "chevron");
+    chevron.setAttribute("aria-hidden", "true");
+    toggle.append(title, count, chevron);
+    heading.append(toggle);
     var body = element("ul", "result-list");
     var foot = element("div", "result-group-foot");
     foot.hidden = true;
-    section.append(head, body, foot);
+    var content = element("div");
+    content.id = "results-" + system;
+    content.append(body, foot);
+    // Sections fold from their headers, so a long list never hides the next one.
+    toggle.addEventListener("click", function () {
+      var open = toggle.getAttribute("aria-expanded") !== "true";
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      content.hidden = !open;
+    });
+    section.append(heading, content);
     return { section: section, title: title, count: count, body: body, foot: foot };
   }
 

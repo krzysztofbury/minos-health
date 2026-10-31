@@ -37,6 +37,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
   in their own sections. Rank, sources and hierarchy moved to a side column,
   one click away. The concept API and MCP `get_code` carry the same points and
   conditions (#298).
+- Home search: each result section opens and closes from its header, the title
+  steps aside once results are on screen, and rows drop the repeated label
+  (#298).
 
 ### Added
 
