@@ -26,6 +26,7 @@ ASSET_ROUTES = (
     "/datepicker.js",
     "/request.js",
     "/retry.js",
+    "/copy.js",
     "/search.js",
     "/dictionary.js",
     "/jgp.js",

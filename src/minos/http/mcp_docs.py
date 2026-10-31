@@ -205,14 +205,15 @@ def reference_html(tools: list[MCPTool]) -> str:
             {"name": tool.name, "arguments": example}, ensure_ascii=False, indent=2
         )
         sections.append(
-            f'        <section class="mcp-tool" id="{html.escape(tool.name)}">'
-            + f"<h3>{html.escape(tool.title or '')} <code>{html.escape(tool.name)}</code></h3>"
+            f'        <details class="fold mcp-tool" id="{html.escape(tool.name)}">'
+            + f'<summary><h3 class="fold-title">{html.escape(tool.title or "")} <code>{html.escape(tool.name)}</code></h3></summary>'
+            + '<div class="fold-body">'
             + f"<p>{html.escape(tool.description or '')}</p>"
             + _inputs(tool)
             + (_stay_fields(tool) if tool.name == "group_case" else "")
             + _outputs(tool)
             + f"<p>Example call:</p><pre><code>{html.escape(call)}</code></pre>"
-            + "</section>"
+            + "</div></details>"
         )
     errors = "".join(
         f"<tr><td><code>{code}</code></td><td>{html.escape(meaning)}</td></tr>"
@@ -225,11 +226,11 @@ def reference_html(tools: list[MCPTool]) -> str:
     return (
         f'        <nav aria-label="Narzędzia"><ul class="mcp-contents">{contents}</ul></nav>\n'
         + "\n".join(sections)
-        + '\n        <section class="mcp-tool" id="errors"><h3>Error codes</h3>'
+        + '\n        <details class="fold mcp-tool" id="errors"><summary><h3 class="fold-title">Error codes</h3></summary><div class="fold-body">'
         + "<p>Failures return <code>isError: true</code> and"
         + ' <code>{"error": {"code": "…"}}</code>, never input or exception text.</p>'
         + '<div class="table-scroll"><table class="mcp-table"><thead><tr><th>Code</th>'
-        + f"<th>Meaning</th></tr></thead><tbody>{errors}</tbody></table></div></section>"
+        + f"<th>Meaning</th></tr></thead><tbody>{errors}</tbody></table></div></div></details>"
     )
 
 

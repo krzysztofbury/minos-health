@@ -31,6 +31,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The agents page gains copy buttons and folds each tool, the legal pages gain
+  a contents list with their text unchanged, and the Gruper result no longer
+  repeats its scope notice (#298).
+- JGP group pages of groups not interpreted yet link the lists they print and
+  the lists their conditions name, by list kind and including ranges such as
+  T1-T8 (#298).
 - The code page's side column scrolls with the page instead of in its own
   scrollbar, and the open-all button keeps its own row above the groups (#298).
 - `/slowniki/*` pages are cached at Cloudflare by their `Cache-Control`, so a

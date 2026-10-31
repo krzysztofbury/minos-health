@@ -335,6 +335,7 @@ PAGES = (
         None,
         ("validation",),
         analytics=False,
+        script="/copy.js",
         body_class="page-agents",
         computed=lambda: _mcp_values(),
     ),
@@ -419,12 +420,36 @@ def _fill(template: str, values: dict[str, str]) -> str:
     return re.sub(r"\{\{([a-z_]+)\}\}", replace, template)
 
 
+def _legal_contents(content: str) -> str:
+    """A contents list built from the numbered headings; the text stays as written."""
+    items: list[str] = []
+
+    def anchor(match: re.Match[str]) -> str:
+        number, title = match.group(1), match.group(2)
+        items.append(f'<li><a href="#s{number}">{title}</a></li>')
+        return f'<h2 id="s{number}">{number}. {title}</h2>'
+
+    numbered = re.sub(r"<h2>(\d+)\. ([^<]+)</h2>", anchor, content)
+    contents = (
+        '      <div class="shell"><nav class="legal-contents" aria-label="Spis treści">'
+        + '<details class="fold"><summary><span class="fold-title">Spis treści</span></summary>'
+        + f'<div class="fold-body"><ol>{"".join(items)}</ol></div></details></nav></div>\n'
+    )
+    return numbered.replace(
+        '      <article class="shell prose">',
+        contents + '      <article class="shell prose">',
+        1,
+    )
+
+
 def render_page(page: Page, mode: Mode) -> str:
     layout = (SITE / "layout.html").read_text(encoding="utf-8")
     content = _fill(
         (SITE / "pages" / page.source).read_text(encoding="utf-8"),
         {**page.values, **(page.computed() if page.computed else {})},
     )
+    if page.source in ("privacy.html", "terms.html"):
+        content = _legal_contents(content)
     scripts = PLAUSIBLE if page.analytics else ""
     if page.script:
         if page.script in ("/search.js", "/dictionary.js", "/grouper.js"):
@@ -482,6 +507,7 @@ def render_site(mode: Mode) -> dict[str, bytes]:
         for name in (
             "request.js",
             "retry.js",
+            "copy.js",
             "datepicker.js",
             "search.js",
             "dictionary.js",

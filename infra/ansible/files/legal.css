@@ -182,6 +182,8 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .group-help { margin-block: 0.6rem; color: var(--muted); font-size: var(--text-sm); }
 .group-callout { margin-block: 0.75rem; padding: 0.8rem 1rem; border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; color: var(--ink); background: var(--accent-tint); font-size: var(--text-sm); }
 .group-notice { margin-block: 0.75rem; padding: 0.8rem; border-left: 3px solid var(--warn); background: var(--warn-bg); font-size: var(--text-sm); }
+/* The notice sits above the form until the result repeats it in place. */
+.page-grouper:has(.wizard-panel.is-result) #group-availability { display: none; }
 #group-status { margin-block: 0.5rem 1rem; color: var(--ink-soft); }
 /* Result: qualifying groups first, then why, then everything else. */
 .verdict { margin-bottom: 1.25rem; }
@@ -717,8 +719,15 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .prose ul { margin: 0.5rem 0 0; padding-left: 1.25rem; }
 .page-agents pre { margin: 0.5rem 0 0.75rem; padding: 0.75rem; border-radius: var(--radius); background: var(--canvas); font-size: var(--text-xs); white-space: pre-wrap; overflow-wrap: anywhere; }
 .mcp-contents { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; margin: 0.75rem 0 0; padding: 0; list-style: none; }
-.prose .mcp-tool { margin-top: 1.25rem; padding: 1rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
-.mcp-tool h3 { margin-bottom: 0.4rem; font-size: var(--text-md); }
+.prose .mcp-tool { margin-top: 0.5rem; padding: 0 1.1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
+.mcp-tool .fold-title { overflow-wrap: anywhere; }
+.page-agents section > pre { position: relative; display: flex; align-items: center; min-height: 3.25rem; padding-right: 6.5rem; }
+.copy-button { position: absolute; top: 0.25rem; right: 0.25rem; min-height: 44px; padding: 0.2rem 0.7rem; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--accent); background: var(--surface); cursor: pointer; font: 600 var(--text-xs)/1.2 var(--font); transition: transform 100ms var(--ease-out); }
+.copy-button:active { transform: scale(0.97); }
+.legal-contents { max-width: 48rem; margin-bottom: 0.25rem; }
+.legal-contents ol { columns: 2; margin: 0; padding-left: 1.2rem; list-style: decimal; }
+.legal-contents li { padding-block: 0.1rem; break-inside: avoid; }
+@media (max-width: 40rem) { .legal-contents ol { columns: 1; } }
 .mcp-tool .table-scroll { overflow-x: auto; }
 .mcp-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .mcp-table th, .mcp-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }

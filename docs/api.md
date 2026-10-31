@@ -229,8 +229,11 @@ Group answers add `conditions`. Its status is `fully_interpreted` only when
 every stored node of the group is proposed. `nodes`, `roots` and `selectors`
 are empty for `not_yet_interpreted`; `source_text` retains the original clauses
 and cited cell evidence, with `own` false on rows cited from another group's
-section. Separate roots do not imply a conjunction. These are
-reference fragments, not executable encounter qualification. Older base-only
+section. `lists` holds the lists the selectors reach, the group prints in its
+section and, while the group is uninterpreted, those its own clauses name:
+same list kind as the clause's noun, ranges such as `T1-T8` expanded. Separate
+roots do not imply a conjunction. These are reference fragments, not executable
+encounter qualification. Older base-only
 bundles return `not_in_bundle`; uncovered contexts return `context_not_covered`.
 
 - `GET /api/v1/jgp/{service_date}/lists/{catalog}/{identity}/pages/{page}`
