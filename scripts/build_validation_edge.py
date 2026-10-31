@@ -30,7 +30,7 @@ ASSET_ROUTES = (
     "/search.js",
     "/dictionary.js",
     "/jgp.js",
-    "/social-preview-v2.png",
+    "/social-preview-v2.jpg",
     "/icon-512.png",
 )
 

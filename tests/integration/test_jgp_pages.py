@@ -79,7 +79,7 @@ def test_catalog_lists_the_release_for_the_day_by_chapter(client: TestClient) ->
     assert '<div class="tree-search jgp-filter" hidden>' in page  # shown by jgp.js
     assert "6 grup w 3 rozdziałach." in page
     assert (
-        '<meta property="og:image" content="https://minoshealth.pl/social-preview-v2.png">'
+        '<meta property="og:image" content="https://minoshealth.pl/social-preview-v2.jpg">'
         in page
     )
     assert '<meta name="twitter:card" content="summary_large_image">' in page
