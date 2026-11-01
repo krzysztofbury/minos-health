@@ -192,24 +192,28 @@ def _czs_transport(state: dict[str, bool]) -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
-def _aotmit_transport() -> httpx.MockTransport:
-    listing = (
-        b'<div class="blog-item"><div class="item-content"><dd class="published">'
-        b'<time datetime="2026-07-02T12:41:34+02:00">2026</time></dd>'
-        b'<div class="introtext"><p><strong>Obwieszczenie leczenia szpitalnego</strong></p>'
-        b'<a href="/assets/files/taryfikacja/taryfy/obwieszczenia/2026/szpital.pdf">PDF</a>'
-        b"</div></div></div>"
-    )
+def _aotmit_transport(state: dict[str, bool]) -> httpx.MockTransport:
+    def listing(name: str) -> bytes:
+        return (
+            b'<div class="blog-item"><div class="item-content"><dd class="published">'
+            + b'<time datetime="2026-07-02T12:41:34+02:00">2026</time></dd>'
+            + b'<div class="introtext"><p><strong>Obwieszczenie leczenia szpitalnego</strong></p>'
+            + b'<a href="/assets/files/taryfikacja/taryfy/obwieszczenia/2026/'
+            + name.encode()
+            + b'.pdf">PDF</a></div></div></div>'
+        )
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("860-taryfikacja-obwieszczenia"):
+            name = "inny" if state.get("aotmit_left") else "szpital"
             return httpx.Response(
-                200, content=listing, headers={"content-type": "text/html"}
+                200, content=listing(name), headers={"content-type": "text/html"}
             )
-        if request.url.path.endswith("/2026/szpital.pdf"):
+        if request.url.path.endswith(("/2026/szpital.pdf", "/2026/inny.pdf")):
+            revised = b"revised" if state.get("aotmit_revised") else b"fixture"
             return httpx.Response(
                 200,
-                content=b"%PDF-1.4\nfixture\n%%EOF",
+                content=b"%PDF-1.4\n" + revised + b"\n%%EOF",
                 headers={"content-type": "application/pdf"},
             )
         raise AssertionError("unexpected AOTMiT request")
@@ -536,7 +540,9 @@ def _setup(
                     transport=_czs_transport(czs_state if czs_state is not None else {})
                 ),
                 aotmit_client_factory=lambda: create_aotmit_client(
-                    transport=_aotmit_transport()
+                    transport=_aotmit_transport(
+                        eli_state if eli_state is not None else {}
+                    )
                 ),
                 eli_client_factory=lambda: create_eli_client(
                     transport=_eli_transport(eli_state if eli_state is not None else {})
@@ -970,6 +976,31 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             database,
             "SELECT count(*) FROM incidents WHERE incident_category = 'jgp_statistics_listing'",
         ) == [(1,)]
+        # A PDF that leaves and returns, and bytes that flip back and forth, get a
+        # review item each time. A reused ID would fail every later NFZ run (#289).
+        for flag, present in (
+            ("aotmit_left", True),
+            ("aotmit_left", False),
+            ("aotmit_revised", True),
+            ("aotmit_revised", False),
+            ("aotmit_revised", True),
+            ("aotmit_revised", False),
+        ):
+            eli_state[flag] = present
+            returned = store.claim_manual("nfz")
+            _ = orchestrator.run_claim(returned, returned.retry_policy)
+        assert _query(
+            database,
+            "SELECT count(*) FROM incidents WHERE incident_category = 'aotmit_tariff_bytes_changed'",
+        ) == [(4,)]
+        assert _query(
+            database,
+            "SELECT count(*) FROM source_changes WHERE change_category = 'aotmit_tariff_signal'",
+        ) == [(3,)]
+        for revised in (False, True):
+            revised_jgp_file = revised
+            flipped = store.claim_manual("nfz")
+            _ = orchestrator.run_claim(flipped, flipped.retry_policy)
         for flag, failure in (
             ("dane_html", SourceDriftWatcherError),
             ("dane_busy", RetryableWatcherError),

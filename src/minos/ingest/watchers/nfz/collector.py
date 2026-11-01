@@ -407,6 +407,7 @@ class NfzSourceCollector:
                                     document_id,
                                     details[key],
                                     detail_digest,
+                                    context.run.identity.run_id,
                                 ]
                             ),
                             "nfz_detail_changed",
@@ -532,6 +533,7 @@ class NfzSourceCollector:
                                         channel,
                                         previous,
                                         xml_digest,
+                                        context.run.identity.run_id,
                                     ]
                                 ),
                                 "czs_dictionary_bytes_changed",
@@ -761,7 +763,15 @@ class NfzSourceCollector:
         if previous is not None and previous != digest:
             incidents.append(
                 IncidentDraft(
-                    _digest(["nfz_icd9_xlsx_changed", url, previous, digest]),
+                    _digest(
+                        [
+                            "nfz_icd9_xlsx_changed",
+                            url,
+                            previous,
+                            digest,
+                            context.run.identity.run_id,
+                        ]
+                    ),
                     "nfz_icd9_xlsx_changed",
                     {"old_sha256": previous, "new_sha256": digest},
                 )
@@ -824,7 +834,16 @@ class NfzSourceCollector:
             if previous is None:
                 changes.append(
                     ChangeDraft(
-                        _digest(["aotmit_tariff_notice", context.source_id, item.url]),
+                        # The run keeps a PDF that leaves the listing and returns
+                        # from reusing a committed change ID (#289), as below.
+                        _digest(
+                            [
+                                "aotmit_tariff_notice",
+                                context.source_id,
+                                item.url,
+                                context.run.identity.run_id,
+                            ]
+                        ),
                         observation.observation_id,
                         "aotmit_tariff_signal",
                         {"title": item.title, "published_date": item.published},
@@ -834,7 +853,13 @@ class NfzSourceCollector:
                 incidents.append(
                     IncidentDraft(
                         _digest(
-                            ["aotmit_tariff_bytes_changed", item.url, previous, digest]
+                            [
+                                "aotmit_tariff_bytes_changed",
+                                item.url,
+                                previous,
+                                digest,
+                                context.run.identity.run_id,
+                            ]
                         ),
                         "aotmit_tariff_bytes_changed",
                         {"old_sha256": previous, "new_sha256": digest},
@@ -1074,7 +1099,14 @@ class NfzSourceCollector:
                     raise SourceDriftWatcherError("NFZ JGP cursor is full")
                 changes.append(
                     ChangeDraft(
-                        _digest(["nfz_jgp_notice", context.source_id, item.item_id]),
+                        _digest(
+                            [
+                                "nfz_jgp_notice",
+                                context.source_id,
+                                item.item_id,
+                                context.run.identity.run_id,
+                            ]
+                        ),
                         observation.observation_id,
                         "nfz_jgp_notice",
                         {
@@ -1088,7 +1120,13 @@ class NfzSourceCollector:
                 incidents.append(
                     IncidentDraft(
                         _digest(
-                            ["nfz_jgp_detail_changed", key, old_detail, detail_digest]
+                            [
+                                "nfz_jgp_detail_changed",
+                                key,
+                                old_detail,
+                                detail_digest,
+                                context.run.identity.run_id,
+                            ]
                         ),
                         "nfz_jgp_detail_changed",
                         {
@@ -1130,6 +1168,7 @@ class NfzSourceCollector:
                                     file_url,
                                     previous_digest,
                                     file_digest,
+                                    context.run.identity.run_id,
                                 ]
                             ),
                             "nfz_jgp_file_changed",
@@ -1236,7 +1275,14 @@ class NfzSourceCollector:
                         raise SourceDriftWatcherError("NFZ signal cursor is full")
                     changes.append(
                         ChangeDraft(
-                            _digest(["nfz_signal", context.source_id, key]),
+                            _digest(
+                                [
+                                    "nfz_signal",
+                                    context.source_id,
+                                    key,
+                                    context.run.identity.run_id,
+                                ]
+                            ),
                             observation.observation_id,
                             "nfz_news" if channel == "news" else "nfz_project_notice",
                             {
@@ -1250,7 +1296,13 @@ class NfzSourceCollector:
                     incidents.append(
                         IncidentDraft(
                             _digest(
-                                ["nfz_signal_bytes_changed", key, previous, digest]
+                                [
+                                    "nfz_signal_bytes_changed",
+                                    key,
+                                    previous,
+                                    digest,
+                                    context.run.identity.run_id,
+                                ]
                             ),
                             "nfz_signal_bytes_changed",
                             {
