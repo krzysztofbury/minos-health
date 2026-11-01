@@ -3,7 +3,9 @@ from collections.abc import Iterator
 
 import pytest
 
+from minos.domain.reference import QueryLimitError
 from minos.store.hierarchy_walk import walk_hierarchy
+from minos.store.tree import MAX_PATH_NODES, Hierarchy, _path  # pyright: ignore[reportPrivateUsage]
 
 
 @pytest.fixture
@@ -110,3 +112,70 @@ def test_the_row_limit_keeps_the_lowest_ordinals(
     connection: sqlite3.Connection,
 ) -> None:
     assert _walk(connection, 5, row_limit=2) == [(1, 1), (2, 3)]
+
+
+def _breadcrumb_graph(edges: list[tuple[int, int]]) -> sqlite3.Connection:
+    database = sqlite3.connect(":memory:")
+    _ = database.executescript(
+        """
+        CREATE TABLE reference_node (
+            source_release_id TEXT, ordinal INTEGER, source_code TEXT,
+            source_text TEXT, kind TEXT
+        );
+        CREATE TABLE reference_relation (
+            source_release_id TEXT, parent_ordinal INTEGER, child_ordinal INTEGER,
+            relation_type TEXT
+        );
+        CREATE TABLE concept (
+            source_release_id TEXT, node_ordinal INTEGER, lookup_code TEXT
+        );
+        """
+    )
+    _ = database.executemany(
+        "INSERT INTO reference_relation VALUES ('a', ?, ?, 'contains')", edges
+    )
+    nodes = sorted({node for edge in edges for node in edge})
+    _ = database.executemany(
+        "INSERT INTO reference_node VALUES ('a', ?, ?, ?, 'classification')",
+        [(node, f"C{node}", f"node {node}") for node in nodes],
+    )
+    return database
+
+
+def _chain(ancestors: int) -> list[tuple[int, int]]:
+    # The direct parent has the highest ordinal: the first a row limit would drop.
+    top = 1000
+    return [(top - step - 1, top - step) for step in range(ancestors)]
+
+
+def _breadcrumb(database: sqlite3.Connection, ordinal: int) -> list[object]:
+    path = _path(database, Hierarchy("a", "a"), ordinal, {})
+    return [node["ordinal"] for node in path]
+
+
+def test_a_breadcrumb_at_its_bound_ends_with_the_direct_parent() -> None:
+    database = _breadcrumb_graph(_chain(MAX_PATH_NODES))
+    path = _breadcrumb(database, 1000)
+    database.close()
+    assert path == list(range(1000 - MAX_PATH_NODES, 1000))
+
+
+@pytest.mark.parametrize(
+    "edges",
+    [
+        pytest.param(_chain(MAX_PATH_NODES + 1), id="deep chain"),
+        pytest.param(
+            [(999, 1000)] + [(p, 999) for p in range(1, MAX_PATH_NODES + 2)],
+            id="row limit drops the parent",
+        ),
+        pytest.param(
+            [(parent, 1000) for parent in range(1, MAX_PATH_NODES + 2)],
+            id="many parents",
+        ),
+    ],
+)
+def test_a_breadcrumb_past_its_bound_is_refused(edges: list[tuple[int, int]]) -> None:
+    database = _breadcrumb_graph(edges)
+    with pytest.raises(QueryLimitError):
+        _ = _breadcrumb(database, 1000)
+    database.close()
