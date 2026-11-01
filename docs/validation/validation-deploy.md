@@ -201,6 +201,13 @@ the Docker socket.
      --archive-root data/archive --output data/bundles/bundle-<revision>
    ```
 
+   A new bundle also passes the search budget. Exit 1 names any broad term past
+   95% of the 2,000,000 operations a search may use:
+
+   ```sh
+   uv run python -m scripts.check_search_budget data/bundles/bundle-<revision>
+   ```
+
 4. Deploy:
 
    ```sh

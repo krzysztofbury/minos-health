@@ -17,6 +17,10 @@ class QueryBudget:
         self._maximum_operations = operations
         self._operations = 0
 
+    @property
+    def operations(self) -> int:
+        return self._operations
+
     def check(self) -> None:
         if time.monotonic() > self._deadline:
             raise QueryTimeoutError("search exceeded elapsed deadline")
