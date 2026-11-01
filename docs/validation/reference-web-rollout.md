@@ -80,7 +80,7 @@ measurements below retain their original context.
 - The API answers `busy` itself above 16 requests in flight: a branded HTML page
   or JSON for `/api/`. Health checks, sitemaps and the outer `/mcp` call are not
   counted, since MCP tools count through the API routes they call. Uvicorn's
-  limit of 64 connections and tasks is a backstop. Capacity saturation is
+  limit of 600 connections and tasks is a backstop above what the edge can send. Capacity saturation is
   explicit HTTP 429/503, not partial results or an unbounded queue (#296).
 - JSON bodies: 4 KiB; body-read deadline: 2 seconds; query: 256 characters and
   eight tokens; output: at most 20 results and the shared 512 Ki-character budget.

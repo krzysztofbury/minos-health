@@ -214,3 +214,8 @@ def test_uvicorn_stays_a_backstop_above_the_guard() -> None:
     entrypoint = (ROOT / "packaging/api/Dockerfile").read_text()
     limit = re.search(r'"--limit-concurrency", "(\d+)"', entrypoint)
     assert limit is not None and int(limit[1]) > MAX_IN_FLIGHT
+    # Each proxied request holds two edge connections. The most the edge can send
+    # must reach the guard: past uvicorn's limit a visitor gets its bare text.
+    edge = (ROOT / "infra/ansible/files/edge-nginx.conf").read_text()
+    connections = re.search(r"worker_connections (\d+);", edge)
+    assert connections is not None and int(limit[1]) >= int(connections[1]) // 2
