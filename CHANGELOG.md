@@ -15,6 +15,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- An NFZ news item, project, JGP notice, JGP file or AOTMiT PDF that left its
+  listing and returned, or whose bytes changed back and forth, reused a committed
+  ID, which would have failed every later NFZ run. Each run now records its own
+  (#289).
 - Bursts above about 60 requests get the branded `busy` page instead of a reset
   connection: the edge allows 1,024 connections, and uvicorn's backstop moves to
   600 so its bare text stays out of reach (#296).
