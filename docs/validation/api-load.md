@@ -200,6 +200,75 @@ MCP `BUSY` included, then the two runs' p95 of served requests:
 
 Local evidence only, on code before the host run. Reports are attached to #296.
 
+## Host Run And Crawlers (#296)
+
+Release `4f2c7a1`, 12 waiters, public path, 2026-10-31, warm caches. 0% loss and
+8.6 ms to the Cloudflare address.
+
+| Phase | Search p95 | Code JSON p95 | JGP JSON p95 | Gruper p95 |
+| --- | ---: | ---: | ---: | ---: |
+| One user, 40 requests | 416 ms | 287 ms | 481 ms | 401 ms |
+| Four users, 120 requests | 419 ms | 306 ms | 926 ms | 742 ms |
+
+No 5xx, `/readyz` ready, and every public objective met. Six Gruper 429s at four
+users carry no API code, which fits the Cloudflare per-IP rule, since the workers
+share one IP. This mix has no HTML pages and four users do not reach the 12
+waiters, so it shows no regression rather than the benefit above.
+
+Six hours of Cloudflare analytics before the fixes and on 2026-11-01:
+
+| Measure | 2026-10-31 | 06:00 to 12:00 UTC |
+| --- | ---: | ---: |
+| All requests per hour | about 2,400 | 1,369 |
+| Dated `/slowniki/*/jgp/` pages | about 6,700 | 1,458 |
+| 409 comparison answers | about 1,390 | 125 |
+| 504 answers | about 790 | 38 |
+
+- `robots.txt` did this, not the Cache Rule. The rule took effect, but it served
+  12 hits of 8,213 requests, with 5,025 misses: crawlers read each long-tail URL
+  once, so there is rarely a second reader.
+- Applebot fetched `robots.txt` 16 times at 16:00 UTC, then its dated pages fell
+  from about 310 to about 70 an hour, and both disallowed paths stopped after its
+  fetch at 05:00.
+- Amazonbot's `/jgp/` and `/slowniki/*/jgp/` requests stopped together in the
+  09:00 hour, from about 750 an hour, and its total fell to about 120. No
+  `robots.txt` fetch carried its user agent in 23 hours, so that link is inferred
+  from timing.
+- Both crawlers dropped the wildcard path along with the plain prefix, so both
+  honour `*` so far, on 2.5 hours of data for Amazonbot.
+- The remaining `/jgp/` traffic comes from other readers. The remaining 504s are
+  scattered single URLs, mostly `/jgp/` group pages.
+
+## Edge Connection Limit (#296)
+
+`worker_connections 128` allowed about 60 proxied requests at once, because each
+holds a client and an upstream connection. That cap also hid uvicorn's limit of
+64, which answers bare text. Raising only the edge brought that page back, so
+both move together. Bursts of one code page through the rendered edge config:
+API built from this branch with the production bundle, 1.0 CPU, 512 MiB; edge 0.5
+CPU, 64 MiB:
+
+| Edge, uvicorn | 120 at once | 200 | 400 |
+| --- | ---: | ---: | ---: |
+| 128, 64 | 45 resets | 140 resets | 341 resets |
+| 1024, 64 | 94 bare 503 | 147 bare 503 | 399 bare 503 |
+| 1024, 600 | none | none | none |
+
+With 1024 and 600 every answer was a 200 or the API's branded `busy`. The API
+peaked at 295 MiB of 512, and a stub API peaked the edge at 14 MiB of 64. A test
+keeps uvicorn's limit at or above what the edge can send. Past about 500 at once
+the edge resets connections. Local evidence, not a host run; cloudflared was not
+in this path.
+
+## Search Budget Margin
+
+`scripts/check_search_budget.py` runs every letter and the 25 commonest words of
+each dictionary at the API's limit of 20, and refuses at 95% of the 2,000,000
+operations a search may use. On `bundle-048c57a` the broadest is `z` in ICD-11 at
+about 1.76M, 88%, the same under `uv run` and in the API image, both SQLite 3.53.1.
+It covers single terms only: longer queries of common words reach further and
+some answer `limit_exceeded`, which is the closed answer the budget exists to give.
+
 ## Planner Statistics Review (#228)
 
 On 2026-10-26 the production bundle (`b8a7ffdb112b`, built 2026-10-22 without

@@ -846,6 +846,30 @@ def test_cli_build_consumes_pinned_json_and_search_rejects_missing_or_changed_da
         assert failed.stdout == ""
 
 
+def test_the_budget_check_reports_the_broadest_terms_it_measured(
+    search_bundle: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from minos.domain.reference import QueryTimeoutError
+    from scripts import check_search_budget
+    from scripts.check_search_budget import measure, over_margin
+
+    measures = measure(search_bundle)
+    assert {item.system for item in measures} == {"icd10-pl"}
+    assert {"a", "z", "cukrzyca"} <= {item.term for item in measures}
+    # Real operations, or the margin below could never fail.
+    assert max(item.operations for item in measures) > 0
+    assert over_margin(measures) == []
+    assert over_margin(measures, margin=0) == measures
+
+    # A refused search counts few operations, so it must fail by itself.
+    def refused(*_args: object, **_kwargs: object) -> object:
+        raise QueryTimeoutError("search exceeded elapsed deadline")
+
+    monkeypatch.setattr(check_search_budget, "search_reference", refused)
+    over = over_margin(measure(search_bundle))
+    assert over and {item.error for item in over} == {"QueryTimeoutError"}
+
+
 def test_query_operation_budget_fails_closed_without_leaving_an_interrupt_handler(
     search_bundle: Path,
 ) -> None:

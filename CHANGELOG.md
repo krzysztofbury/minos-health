@@ -15,6 +15,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- Bursts above about 60 requests get the branded `busy` page instead of a reset
+  connection: the edge allows 1,024 connections, and uvicorn's backstop moves to
+  600 so its bare text stays out of reach (#296).
+- The data update judges stored inputs again after a SQLite change, so a
+  rejection made on another engine does not stay until an input changes.
 - A Gruper case waiting for a sheet another caller is reading now stops at its
   3 s deadline instead of waiting up to 2.5 s per sheet (#314).
 - A code page whose ancestors exceed the 32 the breadcrumb shows now answers
@@ -28,7 +33,7 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - The watcher runs Python 3.14.10, which refuses compromised eMudhra CA keys in
   its TLS connections (#301).
 - The social preview image is now a JPEG at a new address, because WhatsApp
-  fetched the PNG without showing it. Whether JPEG cures that needs a phone test.
+  fetched the PNG without showing it.
 - Far fewer "busy" answers under load: up to 12 requests wait for a database
   connection, matching the 16 the API admits (#296).
 - ICD-10 text search and many ICD-11 code pages failed with `limit_exceeded`
@@ -87,6 +92,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- `scripts/check_search_budget.py` measures the broadest searches of a new bundle
+  and fails before release if any nears the 2,000,000 operation limit or is
+  refused.
 - JGP group pages, `GET /api/v1/jgp/{service_date}/groups/{code}` and the
   `get_jgp_group` MCP tool show NFZ monthly settlement statistics: monthly
   hospitalizations and settled points from the newest report for each

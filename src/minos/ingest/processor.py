@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -122,6 +123,9 @@ class _Input:
             "live_database_sha256": live_database,
             "policy_sha256": policy,
             "rules": RULES_VERSION,
+            # The engine runs the candidate: a rejection made on one SQLite
+            # says nothing about the next (#294 changed its query plans).
+            "sqlite": sqlite3.sqlite_version,
         }
         encoded = json.dumps(identity, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(encoded.encode()).hexdigest()

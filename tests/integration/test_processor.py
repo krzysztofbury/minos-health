@@ -3,6 +3,7 @@ import base64
 import hashlib
 import io
 import json
+import sqlite3
 from collections.abc import Mapping
 from pathlib import Path
 from typing import cast, final
@@ -219,8 +220,21 @@ def test_new_generation_is_judged_once_and_reported_every_run(
     assert len(run.r2.reads) == reads
 
 
-def test_a_rules_change_judges_stored_inputs_again(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    ("target", "name", "value"),
+    [
+        (processor, "RULES_VERSION", processor.RULES_VERSION + 1),
+        (sqlite3, "sqlite_version", "3.99.0"),
+    ],
+    ids=["rules", "sqlite"],
+)
+def test_a_new_judge_rejudges_stored_inputs(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    target: object,
+    name: str,
+    value: object,
 ) -> None:
     run = _icd9_run(
         tmp_path,
@@ -229,7 +243,7 @@ def test_a_rules_change_judges_stored_inputs_again(
     _ = run(capsys)
     run.r2.reads.clear()
 
-    monkeypatch.setattr(processor, "RULES_VERSION", processor.RULES_VERSION + 1)
+    monkeypatch.setattr(target, name, value)
     _ = run(capsys)
 
     assert run.r2.reads != []
