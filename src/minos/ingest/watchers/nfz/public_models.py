@@ -8,6 +8,8 @@ from urllib.parse import unquote
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
+from minos.ingest.jgp_statistics_manifest import report_month
+
 
 def text(value: str) -> str:
     if any(unicodedata.category(char).startswith("C") for char in value):
@@ -71,6 +73,7 @@ URL_PATTERNS = {
     "display": r"https://slowniki\.nfz\.gov\.pl/WersjeSlownikow/Index/[1-9][0-9]{0,9}\?kod=MODTAR",
     "aotmit": r"https://bip\.aotm\.gov\.pl/assets/files/taryfikacja/taryfy/obwieszczenia/20[0-9]{2}/[\w .%-]{3,180}\.pdf",
     "eli": r"https://api\.sejm\.gov\.pl/eli/acts/DU/(19|20)[0-9]{2}/[1-9][0-9]{0,4}",
+    "statistics": r"https://api\.dane\.gov\.pl/media/resources/20[0-9]{6}/raport_SZP_i_kardiologia_20[0-9]{2}_([1-9]|1[0-2])\.xml",
 }
 
 
@@ -249,8 +252,25 @@ class Eli(Entry):
         return self
 
 
+class Statistics(Entry):
+    """The newest NFZ monthly JGP report on dane.gov.pl (#283)."""
+
+    channel: Literal["statistics"]
+    month: Annotated[str, Field(pattern=r"^20[0-9]{2}-(0[1-9]|1[0-2])$")]
+    resource_id: Annotated[int, Field(ge=1, le=999_999_999)]
+    published_date: Day
+    size_bytes: Annotated[int, Field(ge=1, le=1_073_741_824)]
+
+    @model_validator(mode="after")
+    def links(self) -> Self:
+        if report_month(official_url(self.source_url, self.channel)) != self.month:
+            raise ValueError("report month differs from URL")
+        return self
+
+
 type PublicEntry = Annotated[
-    Order | Notice | Czs | Companion | Aotmit | Eli, Field(discriminator="channel")
+    Order | Notice | Czs | Companion | Aotmit | Eli | Statistics,
+    Field(discriminator="channel"),
 ]
 
 
@@ -309,6 +329,7 @@ class NfzProjection(PublicModel):
             ("icd9_companion", 1),
             ("aotmit", 12),
             ("eli", 2),
+            ("statistics", 1),
         ):
             if sum(entry.channel == channel for entry in self.entries) > maximum:
                 raise ValueError("channel population exceeds bound")

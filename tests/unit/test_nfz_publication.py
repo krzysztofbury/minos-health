@@ -12,7 +12,11 @@ from minos.ingest.watchers.control import (
     CommittedObservationRevision,
     JsonValue,
 )
-from minos.ingest.watchers.nfz.public_models import NfzProjection, official_url
+from minos.ingest.watchers.nfz.public_models import (
+    NfzProjection,
+    Statistics,
+    official_url,
+)
 from minos.ingest.watchers.nfz.publication import build_nfz_projection
 from minos.ingest.watchers.protocols import WatcherRuntimeError
 from minos.ingest.watchers.publication import (
@@ -251,7 +255,7 @@ def test_unknown_output_fields_and_duplicate_evidence_are_refused() -> None:
 def test_shared_browser_contract_and_interrupted_nfz_generation(tmp_path: Path) -> None:
     fixture = Path(__file__).parents[1] / "fixtures/nfz_projection.json"
     result = NfzProjection.model_validate_json(fixture.read_bytes())
-    assert len(result.entries) == 9
+    assert len(result.entries) == 10
     prepare_public_root(tmp_path)
 
     def files(revision: int) -> tuple[str, dict[str, bytes]]:
@@ -293,3 +297,26 @@ def test_shared_browser_contract_and_interrupted_nfz_generation(tmp_path: Path) 
     assert (tmp_path / "current/api/v1/provenance/nfz.json").read_bytes() == second[
         "api/v1/provenance/nfz.json"
     ]
+
+
+def _report(**changes: object) -> dict[str, object]:
+    return {
+        "channel": "statistics",
+        "title": "Raport dot. hospitalizacji JGP",
+        "source_url": "https://api.dane.gov.pl/media/resources/20261020/raport_SZP_i_kardiologia_2026_8.xml",
+        "sha256": "e" * 64,
+        "observed_at": "2026-10-01T10:00:00.000Z",
+        "month": "2026-08",
+        "resource_id": 2834329,
+        "published_date": "2026-10-20",
+        "size_bytes": 57567445,
+        **changes,
+    }
+
+
+def test_a_report_entry_must_name_the_month_of_its_url() -> None:
+    _ = Statistics.model_validate(_report())
+    with pytest.raises(ValidationError):
+        _ = Statistics.model_validate(_report(month="2026-07"))
+    with pytest.raises(ValidationError):
+        _ = Statistics.model_validate(_report(source_url="https://example.org/a.xml"))

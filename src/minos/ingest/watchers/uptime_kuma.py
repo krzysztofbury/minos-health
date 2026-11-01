@@ -24,10 +24,12 @@ _PUSH_TOKEN = re.compile(r"[A-Za-z0-9]{32}")
 # fixed criteria and refusal codes may appear in them.
 _VERDICT = r"would_activate [a-z0-9][a-z0-9-]{0,95}|rejected icd(?:10|9)-pl [a-z]{1,16}/[a-z0-9_]{1,64}"
 # A BAW document whose JGP workbooks, an RSK ICD-11 PL version whose files,
-# or a legal grouping dictionary whose act changed, waits for review.
+# a legal grouping dictionary whose act changed, or an NFZ monthly report no
+# release pins, waits for review.
 _MANUAL = (
     r"manual jgp [1-9][0-9]{0,8}|manual icd11 [0-9A-Za-z.-]{1,16}"
     + r"|manual eli (?:specialties|discharge_modes)"
+    + r"|manual statistics 20[0-9]{2}-[0-9]{2}"
 )
 # Data-activation outcomes (#141 phase C) use the same closed vocabulary.
 _ACTIVATION = (

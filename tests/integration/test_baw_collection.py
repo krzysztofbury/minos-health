@@ -28,6 +28,7 @@ from minos.ingest.watchers.control import (
     SourceConfiguration,
 )
 from minos.ingest.watchers.czs.client import create_czs_client
+from minos.ingest.watchers.dane_gov.client import create_dane_gov_client
 from minos.ingest.watchers.eli.client import create_eli_client
 from minos.ingest.watchers.nfz.collector import NfzSourceCollector
 from minos.ingest.watchers.nfz.discovery import create_nfz_client
@@ -36,6 +37,7 @@ from minos.ingest.watchers.orchestrator import WatcherOrchestrator
 from minos.ingest.watchers.protocols import (
     CollectorRegistry,
     FailureCategory,
+    RetryableWatcherError,
     SourceDriftWatcherError,
     SourcePublicProjectionPublisher,
     WatcherRuntimeError,
@@ -237,6 +239,29 @@ def _eli_transport(state: dict[str, bool]) -> httpx.MockTransport:
             200,
             content=json.dumps(act).encode(),
             headers={"content-type": "application/json"},
+        )
+
+    return httpx.MockTransport(handler)
+
+
+def _dane_gov_transport(state: dict[str, bool]) -> httpx.MockTransport:
+    captured = (
+        Path(__file__).parents[1] / "fixtures/dane_gov/resources-2581.json"
+    ).read_bytes()
+    newest = b"raport_SZP_i_kardiologia_2026_8.xml"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        if state.get("dane_busy"):
+            return httpx.Response(503)
+        if state.get("dane_html"):
+            return httpx.Response(
+                200, content=b"<html>", headers={"content-type": "text/html"}
+            )
+        body = captured
+        if state.get("new_month"):
+            body = body.replace(newest, b"raport_SZP_i_kardiologia_2026_9.xml")
+        return httpx.Response(
+            200, content=body, headers={"content-type": "application/vnd.api+json"}
         )
 
     return httpx.MockTransport(handler)
@@ -516,6 +541,11 @@ def _setup(
                 eli_client_factory=lambda: create_eli_client(
                     transport=_eli_transport(eli_state if eli_state is not None else {})
                 ),
+                dane_gov_client_factory=lambda: create_dane_gov_client(
+                    transport=_dane_gov_transport(
+                        eli_state if eli_state is not None else {}
+                    )
+                ),
                 rsk_client_factory=lambda settings: create_rsk_client(
                     settings, transport=_rsk_icd9_transport()
                 ),
@@ -728,12 +758,18 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             "icd9_companion",
             "aotmit",
             "eli",
+            "statistics",
         }
         assert {
             entry["dictionary"]: (entry["in_force"], entry["findings"])
             for entry in entries
             if entry["channel"] == "eli"
         } == {"specialties": ("IN_FORCE", []), "discharge_modes": ("IN_FORCE", [])}
+        assert [
+            (entry["month"], entry["resource_id"], entry["published_date"])
+            for entry in entries
+            if entry["channel"] == "statistics"
+        ] == [("2026-08", 2834329, "2026-10-20")]
         dictionaries = {
             entry["code"]: entry for entry in entries if entry["channel"] == "czs"
         }
@@ -829,7 +865,7 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         assert _query(
             database,
             "SELECT count(*) FROM observations WHERE source_id = 'nfz'",
-        ) == [(46,)]
+        ) == [(48,)]
 
         revised_jgp_file = True
         changed_file = store.claim_manual("nfz")
@@ -920,6 +956,31 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             for entry in amended_entries
             if entry["channel"] == "eli" and entry["dictionary"] == "discharge_modes"
         ] == [["amendment:DU/2026/1500"]]
+        # A new monthly report is one review item, however many runs see it. A
+        # listing that goes backwards is one incident, and the month holds.
+        for present in (True, True, False, False):
+            eli_state["new_month"] = present
+            reported = store.claim_manual("nfz")
+            _ = orchestrator.run_claim(reported, reported.retry_policy)
+        assert _query(
+            database,
+            "SELECT summary_json FROM source_changes WHERE change_category = 'jgp_statistics_report'",
+        ) == [('{"month":"2026-09","resource_id":2834329}',)]
+        assert _query(
+            database,
+            "SELECT count(*) FROM incidents WHERE incident_category = 'jgp_statistics_listing'",
+        ) == [(1,)]
+        for flag, failure in (
+            ("dane_html", SourceDriftWatcherError),
+            ("dane_busy", RetryableWatcherError),
+        ):
+            eli_state[flag] = True
+            unread = store.claim_manual("nfz")
+            before = store.load_source_state("nfz").cursor
+            with pytest.raises(failure):
+                _ = orchestrator.run_claim(unread, unread.retry_policy)
+            assert store.load_source_state("nfz").cursor == before
+            eli_state[flag] = False
         amended_cursor = store.load_source_state("nfz").cursor
         eli_state["html"] = True
         blocked = store.claim_manual("nfz")

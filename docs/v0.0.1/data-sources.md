@@ -564,6 +564,11 @@ reports from 2025 were published in March 2026, so their figures are more
 complete than the month alone suggests, which is why each pin keeps its
 publication date.
 
+The NFZ watcher reads the dataset's listing on each run, never a report, and
+publishes the newest month. A month past the live pins alerts the owner and
+waits for a reviewed release; nothing is pinned automatically. Refreshing the
+figures is therefore one monthly `deploy_validation`.
+
 The annual dataset `3009` is not used for counts: at its granularity 94.5% of
 2025 cells are suppressed, so a group's national count spans a range about 3.7
 times wide. In August 2026, 734 of 740 reported group codes were groups of the

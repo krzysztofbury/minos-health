@@ -15,9 +15,16 @@ from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 from minos.cli.processor import execute_processor
 from minos.ingest import processor
 from minos.ingest.archive_build import ArchiveObject, R2BlobReader, source_files
+from minos.ingest.jgp_statistics_manifest import JgpStatistics
 from minos.ingest.processor import BlobReader
 from minos.ingest.reference_manifest import MAX_ICD11_SOURCE_BYTES, DatasetManifest
-from minos.ingest.watchers.nfz.public_models import Czs, Eli, Evidence, NfzProjection
+from minos.ingest.watchers.nfz.public_models import (
+    Czs,
+    Eli,
+    Evidence,
+    NfzProjection,
+    Statistics,
+)
 from minos.ingest.watchers.publication.filesystem import ImmutableGenerationPublisher
 from minos.ingest.watchers.rsk.public_models import (
     RedistributionManifest,
@@ -38,6 +45,7 @@ from tests.unit.test_sources_page import (
 _POLICIES = Path(__file__).parents[2] / "manifests/policy"
 _BUCKET = "minos-archive-synthetic"
 _TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz012345"
+ROOT = Path(__file__).parents[2]
 _OBSERVED = "2026-10-15T12:00:00.000Z"
 
 
@@ -99,7 +107,7 @@ def _publish(root: Path, source: str, content: bytes) -> None:
     )
 
 
-def _nfz(public: Path, czs: bytes, *extra: Eli) -> None:
+def _nfz(public: Path, czs: bytes, *extra: Eli | Statistics) -> None:
     entry = Czs(
         source_url="https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=94",
         sha256=hashlib.sha256(czs).hexdigest(),
@@ -366,6 +374,67 @@ def test_an_amended_legal_dictionary_holds_the_monitor_down(
     assert (code, summary) == (0, expected)
     assert run.pushes == [
         ("down", "manual eli discharge_modes") if findings else ("up", "idle")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("month", "day", "resource", "size", "pending"),
+    [
+        ("2026-08", "20261020", 2834329, 57567445, False),
+        ("2026-09", "20261120", 2900000, 57567445, True),
+        ("2026-08", "20261120", 2900000, 57567445, True),
+        ("2026-08", "20261020", 2834329, 57000000, True),
+        ("2026-07", "20261120", 2900000, 57567445, False),
+    ],
+    ids=["pinned", "new", "new resource", "new size", "older"],
+)
+def test_a_report_past_the_pins_holds_the_monitor_down(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    month: str,
+    day: str,
+    resource: int,
+    size: int,
+    pending: bool,
+) -> None:
+    base, bundle = icd9._live(tmp_path)  # pyright: ignore[reportPrivateUsage]
+    run = _Run(tmp_path, bundle)
+    pins = JgpStatistics.model_validate_json(
+        (ROOT / "manifests/sources/jgp-statistics.json").read_bytes()
+    )
+    live = processor._read_live  # pyright: ignore[reportPrivateUsage]
+
+    def pinned(path: Path) -> ArtifactManifest:
+        manifest = live(path)
+        dataset = manifest.dataset.model_copy(update={"jgp_statistics": pins})
+        return manifest.model_copy(update={"dataset": dataset})
+
+    monkeypatch.setattr(processor, "_read_live", pinned)
+    number = int(month[5:])
+    report = Statistics(
+        channel="statistics",
+        title="Raport dot. hospitalizacji JGP",
+        source_url="https://api.dane.gov.pl/media/resources/"
+        + f"{day}/raport_SZP_i_kardiologia_{month[:4]}_{number}.xml",
+        sha256="e" * 64,
+        observed_at=_OBSERVED,
+        month=month,
+        resource_id=resource,
+        published_date=f"{day[:4]}-{day[4:6]}-{day[6:]}",
+        size_bytes=size,
+    )
+    live_czs = (tmp_path / "blobs/sha256" / base.sources[1].sha256).read_bytes()
+    _nfz(run.public, live_czs, report)
+
+    code, summary = run(capsys)
+
+    expected: dict[str, object] = {"version": 1, "verdicts": []}
+    if pending:
+        expected["manual_statistics"] = month
+    assert (code, summary) == (0, expected)
+    assert run.pushes == [
+        ("down", f"manual statistics {month}") if pending else ("up", "idle")
     ]
 
 
