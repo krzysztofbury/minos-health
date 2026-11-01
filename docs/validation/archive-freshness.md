@@ -4,6 +4,7 @@ Status: useful #19 subset extracted to `feat/validation-archive-build`, 2026-10-
 The original branch and #140 preserve deferred prototypes under #141. This is
 an operator build tool, not an enabled/deployed unattended freshness pipeline.
 Contract and remaining boundaries: [archive processing](../v0.0.1/archive-processing.md).
+This is a dated record: the real-S3 tests it names were removed with AWS in #201.
 
 ## Useful-Subset Review (2026-10-06)
 
@@ -156,7 +157,12 @@ No production source selection, service, credential, schedule, notification
 configuration or deployment changes are made by this chunk. #19 and #21 remain
 open until their actual end-to-end acceptance gates pass.
 
-## Disposable Real S3 Acceptance (2026-10-05)
+## Historical: Disposable Real S3 Acceptance (2026-10-05)
+
+The archive moved to Cloudflare R2 and #201 removed `tests/aws/`, so nothing in
+this section can be rerun. It records what was true of AWS on that date. Current
+storage evidence is in [the R2 migration](r2-migration.md); the build side is
+`tests/integration/test_archive_build.py`, not a replay against R2.
 
 Eight focused tests in `tests/aws/test_archive_build.py` passed against the
 private tagged disposable stack in the project's AWS account, `eu-central-1`.

@@ -522,6 +522,8 @@ def _month_pl(month: object) -> str:
 
 def _count_pl(value: object) -> str:
     """A count, or the range a suppressed NFZ cell leaves (one to four each)."""
+    if value is None:
+        return "brak danych"
     bounds = cast(dict[str, int], value)
     low, high = (f"{bounds[key]:,}".replace(",", NBSP) for key in ("min", "max"))
     return low if low == high else f"od {low} do {high}"

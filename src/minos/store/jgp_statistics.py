@@ -14,6 +14,7 @@ from minos.store.artifact import canonical_json
 from minos.store.query_budget import query_budget
 
 type Json = dict[str, object]
+type GroupRow = tuple[str, str, str, int | None, int, int | None]
 
 
 def import_jgp_statistics(
@@ -110,9 +111,20 @@ def _months_between(earlier: str, later: str) -> int:
     return index(later) - index(earlier)
 
 
-def _range(exact: int, suppressed: int) -> dict[str, int]:
-    # A suppressed cell is one to four hospitalizations.
+def _hospitalizations(rows: list[GroupRow]) -> dict[str, int] | None:
+    # A suppressed cell is one to four hospitalizations. A cell with no count and
+    # no marker leaves the total unknown; zero would read as none settled.
+    if any(row[3] is None and not row[4] for row in rows):
+        return None
+    exact = sum(row[3] or 0 for row in rows)
+    suppressed = sum(row[4] for row in rows)
     return {"min": exact + suppressed, "max": exact + 4 * suppressed}
+
+
+def _points(rows: list[GroupRow]) -> int | None:
+    # No rows is a real zero: the report covers the month and lists no settlement.
+    points = [row[5] for row in rows]
+    return None if None in points else sum(item or 0 for item in points)
 
 
 def group_statistics(connection: sqlite3.Connection, code: str) -> Json | None:
@@ -145,7 +157,7 @@ def group_statistics(connection: sqlite3.Connection, code: str) -> Json | None:
             ).fetchall(),
         )
         rows = cast(
-            list[tuple[str, str, str, int | None, int, int | None]],
+            list[GroupRow],
             connection.execute(
                 """SELECT month, report_month, hospital_level, hospitalizations,
                 suppressed, points_ten_thousandths FROM jgp_group_statistic
@@ -174,21 +186,16 @@ def group_statistics(connection: sqlite3.Connection, code: str) -> Json | None:
                     "report_month": report_month,
                     "published_on": published[report_month],
                     "provisional": _months_between(month, report_month) < MATURE_MONTHS,
-                    "hospitalizations": _range(
-                        sum(row[3] or 0 for row in cells), sum(row[4] for row in cells)
-                    ),
-                    "points_ten_thousandths": sum(row[5] or 0 for row in cells),
+                    "hospitalizations": _hospitalizations(cells),
+                    "points_ten_thousandths": _points(cells),
                 }
             )
     mature = [item for item in months if not item["provisional"]][-12:]
     window = {cast(str, item["month"]) for item in mature}
-    levels: dict[str, list[int]] = {}
-    for month, _report, level, count, hidden, settled in chosen:
-        if month in window:
-            totals = levels.setdefault(level, [0, 0, 0])
-            totals[0] += count or 0
-            totals[1] += hidden
-            totals[2] += settled or 0
+    settled = [row for row in chosen if row[0] in window]
+    levels: dict[str, list[GroupRow]] = {}
+    for row in settled:
+        levels.setdefault(row[2], []).append(row)
     manifest = cast(Json, json.loads(release[1]))
     return {
         "source": {
@@ -202,18 +209,15 @@ def group_statistics(connection: sqlite3.Connection, code: str) -> Json | None:
             "from": mature[0]["month"] if mature else None,
             "to": mature[-1]["month"] if mature else None,
             "months": len(mature),
-            "hospitalizations": _range(
-                sum(totals[0] for totals in levels.values()),
-                sum(totals[1] for totals in levels.values()),
-            ),
-            "points_ten_thousandths": sum(totals[2] for totals in levels.values()),
+            "hospitalizations": _hospitalizations(settled),
+            "points_ten_thousandths": _points(settled),
             "levels": [
                 {
                     "hospital_level": level,
-                    "hospitalizations": _range(totals[0], totals[1]),
-                    "points_ten_thousandths": totals[2],
+                    "hospitalizations": _hospitalizations(rows),
+                    "points_ten_thousandths": _points(rows),
                 }
-                for level, totals in sorted(levels.items())
+                for level, rows in sorted(levels.items())
             ],
         },
     }

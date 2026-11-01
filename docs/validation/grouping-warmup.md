@@ -82,9 +82,12 @@ limit and answered 504, and the fourth filled the cache in 2,380 ms.
 
 Warm-up now gives each sheet 5 s of SQL while requests keep their one second.
 Operation limits are unchanged. The sheet cache no longer holds its lock while
-reading: a request needing a sheet being warmed waits up to 2.5 s, inside its
-3 s deadline, holding its lease, then answers its closed timeout, and other
-entries stay available. Algorithm, product and modifier entries still hold the lock, but
+reading: a request needing a sheet being warmed waits up to 2.5 s, cut to what
+is left of its 3 s deadline across sheets (#314), holding its lease, then answers
+its closed timeout, and other entries stay available. Admission allows two
+evaluations, so at most two leases idle this way, only while a sheet is cold;
+one of the four stays free beside warm-up, and releasing them would cost a retry
+of the evaluation for those seconds. Algorithm, product and modifier entries still hold the lock, but
 they took 248 ms at most on the host. Decoding after the read has no budget, so
 a warm-up step can run longer than 5 s; shutdown joins it.
 

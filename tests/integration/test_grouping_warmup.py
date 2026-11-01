@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from minos.domain.grouper_candidates import Catalog
 from minos.domain.reference import ArtifactError, QueryTimeoutError
 from minos.grouper import pipeline
+from minos.grouper.budget import evaluation_budget
 from minos.grouper.warmup import SHEET_SECONDS
 from minos.http import app as application
 from minos.http.app import MAX_IN_FLIGHT
@@ -193,6 +194,42 @@ def test_a_request_never_waits_past_its_budget_behind_a_slow_sheet(
             graph, _index = prepared.sheet(lease.connection, release_id, catalog)
             again, _index = prepared.sheet(lease.connection, release_id, catalog)
         assert graph is again
+
+
+def test_a_waiter_stops_at_the_deadline_of_its_evaluation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bundle = grouping_bundle(tmp_path)
+    entered, release = Event(), Event()
+
+    def slow(
+        db: sqlite3.Connection, identity: str, catalog: Catalog, *, seconds: float
+    ) -> CharacteristicsGraph:
+        entered.set()
+        assert release.wait(10)
+        return load_graph(db, identity, catalog, seconds=seconds)
+
+    monkeypatch.setattr(pipeline, "load_graph", slow)
+    prepared = pipeline.PreparedSources()
+    (release_id, catalog) = sheet_list(bundle)[0]
+    with _pool(bundle) as pool, ThreadPoolExecutor(1) as threads:
+
+        def warm() -> object:
+            with pool.borrow() as lease:
+                return prepared.sheet(lease.connection, release_id, catalog)
+
+        first = threads.submit(warm)
+        try:
+            assert entered.wait(10)
+            with pool.borrow() as lease:
+                began = monotonic()
+                # No SQL runs during the wait, so no budget check would stop it.
+                with pytest.raises(QueryTimeoutError), evaluation_budget(seconds=0.1):
+                    _ = prepared.sheet(lease.connection, release_id, catalog)
+                assert monotonic() - began < pipeline.SHEET_WAIT_SECONDS / 2
+        finally:
+            release.set()
+        _ = first.result(10)
 
 
 @pytest.mark.parametrize(("owner_fails", "loads"), [(False, 1), (True, 2)])

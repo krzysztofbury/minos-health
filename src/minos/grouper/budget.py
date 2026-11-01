@@ -29,6 +29,12 @@ def checkpoint() -> None:
         raise QueryTimeoutError("grouping deadline exceeded")
 
 
+def seconds_left() -> float | None:
+    """Time left on this evaluation, or None outside one."""
+    budget = _ACTIVE.get()
+    return None if budget is None else budget.deadline - monotonic()
+
+
 @contextmanager
 def evaluation_budget(*, seconds: float = 3.0, steps: int = 200_000) -> Generator[None]:
     token = _ACTIVE.set(_Budget(monotonic() + seconds, steps))

@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import shutil
 import sqlite3
 from pathlib import Path
 from typing import cast
@@ -286,6 +287,50 @@ def test_the_page_panel_names_its_window_and_provisional_months(
     assert "od 07.2025 do 08.2025 (2 mies.)" in html
     assert html.count("(dane wstępne)") == 3
     assert "punkty rozliczone według NFZ, nie punkty bazowe katalogu" in html
+
+
+@pytest.mark.parametrize(
+    ("change", "field"),
+    [
+        ("points_ten_thousandths = NULL", "points_ten_thousandths"),
+        ("hospitalizations = NULL, suppressed = 0", "hospitalizations"),
+    ],
+    ids=["points", "hospitalizations"],
+)
+def test_a_cell_without_a_value_leaves_its_totals_unknown(
+    built: tuple[Path, Path], tmp_path: Path, change: str, field: str
+) -> None:
+    database = tmp_path / "minos.db"
+    _ = shutil.copyfile(built[0] / "minos.db", database)
+    connection = sqlite3.connect(database)
+    try:
+        cell = cast(
+            tuple[str, str, str],
+            connection.execute(
+                """SELECT month, report_month, hospital_level
+                FROM jgp_group_statistic
+                WHERE code = 'N01' AND hospitalizations IS NOT NULL AND month = '2025-07'
+                ORDER BY report_month DESC, hospital_level LIMIT 1"""
+            ).fetchone(),
+        )
+        statement = f"""UPDATE jgp_group_statistic SET {change} WHERE code = 'N01'
+            AND month = ? AND report_month = ? AND hospital_level = ?"""
+        _ = connection.execute(statement, cell)
+        statistics = group_statistics(connection, "N01")
+    finally:
+        connection.close()
+    assert statistics is not None
+    months = cast(list[dict[str, object]], statistics["months"])
+    assert [item["month"] for item in months if item[field] is None] == ["2025-07"]
+    mature = cast(dict[str, object], statistics["mature"])
+    assert mature[field] is None
+    levels = cast(list[dict[str, object]], mature["levels"])
+    assert [item["hospital_level"] for item in levels if item[field] is None] == [
+        cell[2]
+    ]
+    assert len(levels) > 1
+    # Month, window and level rows: a zero here would read as none settled.
+    assert statistics_section(statistics).count("brak danych") == 3
 
 
 def test_a_schema_11_bundle_has_no_statistics(tmp_path: Path) -> None:

@@ -5,6 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Final, cast
 
+from minos.domain.reference import QueryLimitError
 from minos.domain.search import SearchInputError
 from minos.store.hierarchy_walk import walk_hierarchy
 from minos.store.query_budget import query_budget
@@ -17,6 +18,7 @@ MAX_NOTES: Final = 500
 MAX_UNPLACED: Final = 400
 MAX_DEPTH: Final = 8
 MAX_OWNER_DEPTH: Final = 64
+MAX_PATH_NODES: Final = 32
 # CZS and RSK attribute names stay source-faithful; only the label is translated.
 ATTRIBUTE_LABELS: Final = {
     "EN": "Nazwa angielska",
@@ -346,9 +348,13 @@ def _path(
         ordinal=ordinal,
         direction="ancestors",
         relation_type="contains",
-        max_depth=32,
-        row_limit=33,
+        max_depth=MAX_PATH_NODES,
+        row_limit=MAX_PATH_NODES + 1,
     )
+    # A chain past the depth bound also passes this one. A longer path would lose
+    # nodes by ordinal, so it never renders as if it were complete.
+    if len(rows) > MAX_PATH_NODES:
+        raise QueryLimitError("tree path exceeds graph limits")
     codes = cast(
         dict[int, str],
         dict(
