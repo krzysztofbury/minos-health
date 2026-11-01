@@ -170,7 +170,8 @@ global and to give group pages shareable URLs.
   report less than 12 months after the month. `hospitalizations` is a
   `min`/`max` range because NFZ suppresses counts below five (one to four
   each); `points_ten_thousandths` is the settled points NFZ reports, not
-  catalog base points. `mature` totals the latest twelve settled calendar
+  catalog base points. Either is `null` when a row it sums has no value, so a
+  missing cell never reads as zero. `mature` totals the latest twelve settled calendar
   months (`months` says how many), overall and per hospital level. A group
   never settled in the pinned reports has `months: []`; older bundles have no
   `statistics`.

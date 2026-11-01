@@ -20,6 +20,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 - A code page whose ancestors exceed the 32 the breadcrumb shows now answers
   `limit_exceeded` instead of a path with nodes missing. No current code has
   more than 11 (#315).
+- A group's settled points and hospitalizations show "brak danych" (`null` in
+  the API) when an NFZ row lacks the value, instead of an exact figure that
+  counted it as zero. No row in the current reports lacks either (#283).
 - Warm-up gives a sheet 5 s to load instead of a request's one second, and a
   slow sheet no longer blocks other Gruper work (#310).
 - The watcher runs Python 3.14.10, which refuses compromised eMudhra CA keys in
