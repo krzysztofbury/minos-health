@@ -20,6 +20,12 @@ _URL = re.compile(
 )
 
 
+def report_month(url: str) -> str | None:
+    """The month a dane.gov.pl report URL names, or None for any other URL."""
+    match = _URL.fullmatch(url)
+    return None if match is None else f"{match.group(1)}-{int(match.group(2)):02d}"
+
+
 class ReportExtract(BaseModel):
     """The canonical parsed figures of one report; what builds read."""
 
@@ -54,10 +60,10 @@ class ReportPin(BaseModel):
 
     @model_validator(mode="after")
     def validate_identity(self) -> Self:
-        match = _URL.fullmatch(self.source_url)
-        if match is None:
+        month = report_month(self.source_url)
+        if month is None:
             raise ValueError("monthly report URL is not a dane.gov.pl report")
-        if f"{match.group(1)}-{int(match.group(2)):02d}" != self.month:
+        if month != self.month:
             raise ValueError("monthly report URL names another month")
         if self.published_on.isoformat()[:7] <= self.month:
             raise ValueError("monthly report must be published after its month")

@@ -40,7 +40,13 @@ from minos.ingest.icd10_candidate import (
     propose_icd10_release,
 )
 from minos.ingest.reference_manifest import DatasetManifest
-from minos.ingest.watchers.nfz.public_models import Companion, Czs, Eli, NfzProjection
+from minos.ingest.watchers.nfz.public_models import (
+    Companion,
+    Czs,
+    Eli,
+    NfzProjection,
+    Statistics,
+)
 from minos.ingest.watchers.rsk.public_models import (
     MAX_PUBLIC_JSON_BYTES,
     RskProvenanceProjection,
@@ -227,6 +233,30 @@ def manual_eli(paths: ProcessorPaths) -> tuple[str, ...]:
             if isinstance(entry, Eli) and entry.findings
         )
     )
+
+
+def manual_statistics(paths: ProcessorPaths) -> str | None:
+    """The month of an NFZ monthly report the live pins do not cover, if any (#283).
+
+    Compared with the live bundle, so it clears once a reviewed release pins it. A
+    replaced report keeps its month, so resource and size decide, not the month.
+    """
+    statistics = _read_live(paths.live_bundle).dataset.jgp_statistics
+    projection = _read_projection(
+        paths.public_directory / "nfz", "api/v1/provenance/nfz.json", NfzProjection
+    )
+    if statistics is None or projection is None:
+        return None
+    pins = {(pin.month, pin.resource_id, pin.size_bytes) for pin in statistics.reports}
+    newest = max(pin.month for pin in statistics.reports)
+    for entry in projection.entries:
+        if (
+            isinstance(entry, Statistics)
+            and entry.month >= newest
+            and (entry.month, entry.resource_id, entry.size_bytes) not in pins
+        ):
+            return entry.month
+    return None
 
 
 def manual_icd11(paths: ProcessorPaths) -> str | None:

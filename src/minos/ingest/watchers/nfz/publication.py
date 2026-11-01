@@ -41,6 +41,7 @@ _KINDS = frozenset(
         "aotmit_tariff_notice",
         "eli_dictionary",
         "eli_base_act",
+        "jgp_statistics_report",
     }
 )
 _ELI_TITLES = {
@@ -239,6 +240,15 @@ def _build(snapshot: CommittedObservationRevision) -> bytes:
                     in_force=metadata["in_force"],
                     findings=metadata["findings"],
                     base_evidence=_evidence(matched[0]),
+                )
+            elif kind == "jgp_statistics_report":
+                entry.update(
+                    channel="statistics",
+                    title=metadata["title"],
+                    month=metadata["month"],
+                    resource_id=metadata["resource_id"],
+                    published_date=metadata["published_date"],
+                    size_bytes=metadata["size_bytes"],
                 )
             else:
                 entry.update(

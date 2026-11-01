@@ -24,7 +24,7 @@
   var PUBLISHERS = { nfz: "Narodowy Fundusz Zdrowia", "who-pl": "Biuro Światowej Organizacji Zdrowia w Polsce", who: "World Health Organization", ec: "Komisja Europejska", snomed: "SNOMED International", aotmit: "AOTMiT", eli: "Dziennik Ustaw (Sejm ELI)", other: "Pozostali / niepodani" };
   var FORMATS = ["xml", "xlsx", "xls", "pdf", "docx", "doc", "zip", "zipx", "html", "other"];
   var PAGE_SIZE = 50;
-  var NFZ_CHANNELS = { order: "Publikacja zarządzenia NFZ", news: "Aktualności NFZ", project: "Projekt zarządzenia", jgp: "Komunikaty JGP", czs: "Słowniki CZS NFZ", icd9_companion: "Plik ICD-9 PL NFZ", aotmit: "AOTMiT - sygnał taryfikacji", eli: "Dziennik Ustaw - słownik grupera" };
+  var NFZ_CHANNELS = { order: "Publikacja zarządzenia NFZ", news: "Aktualności NFZ", project: "Projekt zarządzenia", jgp: "Komunikaty JGP", czs: "Słowniki CZS NFZ", icd9_companion: "Plik ICD-9 PL NFZ", aotmit: "AOTMiT - sygnał taryfikacji", eli: "Dziennik Ustaw - słownik grupera", statistics: "dane.gov.pl - raport miesięczny JGP" };
   var BAW_ROLES = { 1: "Akt pierwotny", 3: "Tekst po zmianach", 4: "Porównanie zmian", 5: "Skrócone porównanie zmian", 6: "Akt zmieniający" };
 
   function fail(label) { throw new Error("Nieprawidłowe dane: " + label + "."); }
@@ -237,6 +237,7 @@
       display: /^https:\/\/slowniki\.nfz\.gov\.pl\/WersjeSlownikow\/Index\/[1-9][0-9]{0,9}\?kod=MODTAR$/,
       aotmit: /^https:\/\/bip\.aotm\.gov\.pl\/assets\/files\/taryfikacja\/taryfy\/obwieszczenia\/20[0-9]{2}\/[\p{L}\p{N}_ .%-]{3,180}\.pdf$/u,
       eli: /^https:\/\/api\.sejm\.gov\.pl\/eli\/acts\/DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}$/,
+      statistics: REPORT_URL_PATTERN,
     }[channel];
     if (!pattern || !pattern.test(value)) fail("adres NFZ");
     var filename;
@@ -244,6 +245,7 @@
     if (/\.\.|[\\/%?#]/.test(filename) || CONTROL_PATTERN.test(filename)) fail("ścieżka NFZ");
   }
   var ELI_ACTS = "https://api.sejm.gov.pl/eli/acts/";
+  var REPORT_URL_PATTERN = /^https:\/\/api\.dane\.gov\.pl\/media\/resources\/20[0-9]{6}\/raport_SZP_i_kardiologia_(20[0-9]{2})_([1-9]|1[0-2])\.xml$/;
   var ELI_PATTERN = /^DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}$/;
   var ELI_FINDING_PATTERN = /^((amendment|consolidated_text|reference_removed):DU\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}|(repeal|correction|tribunal):(pinned|base):(DU|MP)\/(19|20)[0-9]{2}\/[1-9][0-9]{0,4}|not_in_force:(pinned|base):[A-Z_]{1,32})$/;
   var ELI_FINDINGS = { amendment: "nowa zmiana aktu", consolidated_text: "nowy tekst jednolity", reference_removed: "usunięte powiązanie", not_in_force: "akt nie obowiązuje", repeal: "uchylenie", correction: "sprostowanie", tribunal: "orzeczenie TK" };
@@ -278,7 +280,7 @@
     if (value.redistribution.schema_version !== 1) fail("redystrybucja NFZ");
     expectArray(value.redistribution.artifacts, "artefakty NFZ", 0, 0);
     expectArray(value.entries, "publikacje NFZ", 0, 256);
-    var fields = { order: ["act_number", "baw_document_id", "published_date"], news: ["item_id", "published_date", "files"], project: ["item_id", "published_date", "files"], jgp: ["item_id", "published_date", "files"], czs: ["code", "generation", "generated_at", "year", "grouper_type", "version", "published_date", "publisher_valid_from", "display_evidence"], icd9_companion: ["version", "czs_xml_sha256"], aotmit: ["meaning", "published_date"], eli: ["dictionary", "eli", "base_eli", "in_force", "findings", "base_evidence"] };
+    var fields = { order: ["act_number", "baw_document_id", "published_date"], news: ["item_id", "published_date", "files"], project: ["item_id", "published_date", "files"], jgp: ["item_id", "published_date", "files"], czs: ["code", "generation", "generated_at", "year", "grouper_type", "version", "published_date", "publisher_valid_from", "display_evidence"], icd9_companion: ["version", "czs_xml_sha256"], aotmit: ["meaning", "published_date"], eli: ["dictionary", "eli", "base_eli", "in_force", "findings", "base_evidence"], statistics: ["month", "resource_id", "published_date", "size_bytes"] };
     var counts = {}, ids = new Set(), codes = new Set();
     value.entries.forEach(function (entry) {
       if (!Object.hasOwn(fields, entry.channel)) fail("kanał NFZ");
@@ -343,9 +345,15 @@
         expectKeys(entry.base_evidence, ["source_url", "sha256", "observed_at"], "akt bazowy ELI");
         expectNfzEvidence(entry.base_evidence, "eli", value.observed_at);
         if (entry.source_url !== ELI_ACTS + entry.eli || entry.base_evidence.source_url !== ELI_ACTS + entry.base_eli) fail("adres ELI");
+      } else if (entry.channel === "statistics") {
+        expectPattern(entry.month, /^20[0-9]{2}-(0[1-9]|1[0-2])$/, "miesiąc raportu", 7);
+        expectInteger(entry.resource_id, "zasób dane.gov.pl", 1, 999999999);
+        expectInteger(entry.size_bytes, "rozmiar raportu", 1, 1073741824);
+        var named = REPORT_URL_PATTERN.exec(entry.source_url);
+        if (named[1] + "-" + named[2].padStart(2, "0") !== entry.month) fail("miesiąc raportu");
       } else if (entry.meaning !== "leading_indicator") fail("znaczenie AOTMiT");
     });
-    Object.entries({ order: 32, news: 64, project: 64, jgp: 4, czs: 2, icd9_companion: 1, aotmit: 12, eli: 2 }).forEach(function (pair) { if ((counts[pair[0]] || 0) > pair[1]) fail("liczba publikacji NFZ"); });
+    Object.entries({ order: 32, news: 64, project: 64, jgp: 4, czs: 2, icd9_companion: 1, aotmit: 12, eli: 2, statistics: 1 }).forEach(function (pair) { if ((counts[pair[0]] || 0) > pair[1]) fail("liczba publikacji NFZ"); });
     value.entries.filter(function (entry) { return entry.channel === "icd9_companion"; }).forEach(function (entry) {
       var dictionary = value.entries.find(function (item) { return item.channel === "czs" && item.code === "ICD9"; });
       if (!dictionary || dictionary.sha256 !== entry.czs_xml_sha256 || dictionary.version !== entry.version) fail("powiązanie ICD9");
@@ -597,8 +605,9 @@
       fact(facts, "Status wg Sejm ELI", entry.in_force === "IN_FORCE" ? "obowiązuje" : entry.in_force);
       fact(facts, "Zmiany od przeglądu", entry.findings.length ? entry.findings.map(eliFinding).join("; ") : "brak");
     }
+    if (entry.channel === "statistics") fact(facts, "Miesiąc raportu", entry.month.slice(5) + "." + entry.month.slice(0, 4));
     article.append(facts);
-    var notice = entry.channel === "project" ? "Projekt, nie obowiązująca reguła rozliczeniowa." : entry.channel === "aotmit" ? "Sygnał taryfikacji AOTMiT, nie reguła rozliczeniowa NFZ." : entry.channel === "eli" ? "Status aktu, z którego pochodzi słownik grupera. Nowa zmiana czeka na przegląd i nie zmienia słownika automatycznie." : "Obserwacja publikacji. Okres stosowania do rozliczeń nie został tu ustalony.";
+    var notice = entry.channel === "statistics" ? "Statystyka rozliczeń NFZ, nie reguła. Nowy raport czeka na przegląd i nie zmienia danych automatycznie." : entry.channel === "project" ? "Projekt, nie obowiązująca reguła rozliczeniowa." : entry.channel === "aotmit" ? "Sygnał taryfikacji AOTMiT, nie reguła rozliczeniowa NFZ." : entry.channel === "eli" ? "Status aktu, z którego pochodzi słownik grupera. Nowa zmiana czeka na przegląd i nie zmienia słownika automatycznie." : "Obserwacja publikacji. Okres stosowania do rozliczeń nie został tu ustalony.";
     article.append(element("p", "card-notice", notice));
     var links = element("div", "nfz-links");
     links.append(entry.channel === "eli" ? externalLink(isapUrl(entry.eli), "Otwórz w ISAP ↗") : externalLink(entry.source_url, "Otwórz w oficjalnym źródle ↗"));

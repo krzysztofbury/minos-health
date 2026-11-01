@@ -34,6 +34,13 @@ Allowed channels and fields:
 - Sejm ELI (#282): per legal grouping dictionary, the pinned act and its
   base act (both Sejm ELI URLs with evidence), the in-force status and the
   findings that differ from the reviewed pin; at most two entries.
+- `dane.gov.pl` dataset `2581` (#283): the newest monthly JGP report's month,
+  resource ID, publication date, size and URL, from the listing only; one entry.
+  The stored response is the listing, whose counters change daily, so its
+  SHA-256 changes with them. Release `deploy_validation` before `deploy_watcher`:
+  an older processor and `sources.js` refuse the new channel, and once the new
+  watcher has run, the previous watcher image refuses its cursor and observations,
+  so a watcher rollback is a roll-forward.
 
 Every entry carries observation time and SHA-256 of the observed response.
 Nested file/display evidence has separate checksums and observation timestamps.
@@ -55,7 +62,8 @@ allowed. Nginx rejects query/encoded/normalized alternatives to the exact route.
   decoding metadata inside one SQLite read transaction. Blob receipts must exist.
 - Public output: at most 256 entries/1 MiB. Per-channel caps are 32 orders,
   64 news, 64 projects, four JGP notices with eight files each, two CZS dictionaries,
-  one companion and 12 AOTMiT notices. Excess is refused, never silently truncated.
+  one companion, 12 AOTMiT notices, two ELI dictionaries and one monthly report.
+  Excess is refused, never silently truncated.
 - Current live-evidence preview (read-only): 10 entries, 6,296 bytes; the observed
   ICD9 version is 5.90 and MODTAR is generation 103/display 202665. These are
   publication observations, not the versions activated in the grouper.

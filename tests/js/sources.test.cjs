@@ -48,7 +48,7 @@ test("observed sort uses timestamps and stable identity ties, not input order", 
 
 test("NFZ channels retain source meaning and support bounded local search", () => {
   const value = sources.validateNfzProjection(cloned(nfzFixture));
-  assert.equal(value.entries.length, 9);
+  assert.equal(value.entries.length, 10);
   assert.equal(value.entries.find(entry => entry.code === "MODTAR").generated_at, "2026-09-24T10:58:10");
   const catalog = sources.buildCatalogIndex(sources.nfzDatasets(value));
   assert.equal(sources.searchCatalog(catalog, "MODTAR 202664", "nfz").hits[0].card.entry.code, "MODTAR");
@@ -75,6 +75,10 @@ test("NFZ rejects private fields, unsafe links, mismatched versions and malforme
     v => { v.entries[8].eli = "DU/2025/1589"; },
     v => { v.entries[8].base_evidence.source_url = "https://api.sejm.gov.pl/eli/acts/DU/2019/1208"; },
     v => { v.entries[8].dictionary = "products"; },
+    v => { v.entries[9].month = "2026-07"; },
+    v => { v.entries[9].size_bytes = 0; },
+    v => { v.entries[9].source_url = "https://example.org/raport_SZP_i_kardiologia_2026_8.xml"; },
+    v => { v.entries.push({ ...v.entries[9], month: "2026-07", source_url: "https://api.dane.gov.pl/media/resources/20261001/raport_SZP_i_kardiologia_2026_7.xml" }); },
     v => { v.entries.push({ ...v.entries[8], dictionary: "specialties", eli: "DU/2019/173", source_url: "https://api.sejm.gov.pl/eli/acts/DU/2019/173" }, { ...v.entries[8], eli: "DU/2019/174", source_url: "https://api.sejm.gov.pl/eli/acts/DU/2019/174" }); },
   ];
   for (const mutate of mutations) {

@@ -866,6 +866,12 @@ activated release is rolled back like any other, with its stage key:
 After an activation, add the release to the repository manifest before the
 next reviewed release: `plan` refuses a bundle that drops a live release.
 
+`manual statistics <month>` means NFZ published a monthly JGP report for that
+month, or replaced one, and no release pins it. Re-pin it in
+`manifests/sources/jgp-statistics.json` with `scripts/extract_jgp_statistics.py`
+and release; the alert clears on the next run. The monitor stays down meanwhile,
+and Kuma sends no second alert for a later failure, so release it promptly.
+
 ## Mutable Product Data Gate
 
 The watcher control database is operational metadata, not product or user data.

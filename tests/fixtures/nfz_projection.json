@@ -71,6 +71,13 @@
       "source_url": "https://api.sejm.gov.pl/eli/acts/DU/2025/1588",
       "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
       "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
+    },
+    {
+      "channel": "statistics", "title": "Raport dot. hospitalizacji JGP - sierpień 2026", "month": "2026-08",
+      "resource_id": 2834329, "published_date": "2026-10-20", "size_bytes": 57567445,
+      "source_url": "https://api.dane.gov.pl/media/resources/20261020/raport_SZP_i_kardiologia_2026_8.xml",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "observed_at": "2026-10-01T10:00:00.000Z", "service_applicability": "not_reviewed"
     }
   ]
 }

@@ -48,6 +48,12 @@ from minos.ingest.watchers.czs.client import (
     fetch_pinned_xml,
 )
 from minos.ingest.watchers.czs.display import fetch_display_version
+from minos.ingest.watchers.dane_gov.client import (
+    DaneGovRetryableError,
+    DaneGovSourceError,
+    create_dane_gov_client,
+    fetch_newest_report,
+)
 from minos.ingest.watchers.eli.client import (
     WATCHED,
     EliResponse,
@@ -114,6 +120,7 @@ class _Cursor(BaseModel):
     baseline_notice_recorded: bool = False
     aotmit: dict[str, str] = Field(default_factory=dict, max_length=32)
     eli: dict[str, str] = Field(default_factory=dict, max_length=len(WATCHED))
+    statistics: dict[str, str] = Field(default_factory=dict, max_length=3)
     icd9_xlsx: dict[str, str] = Field(default_factory=dict, max_length=1)
     reported_disagreements: list[str] = Field(default_factory=list, max_length=64)
 
@@ -190,6 +197,18 @@ class _Cursor(BaseModel):
                 raise ValueError("ELI cursor entry is invalid")
         return states
 
+    @field_validator("statistics")
+    @classmethod
+    def validate_statistics(cls, states: dict[str, str]) -> dict[str, str]:
+        for name, value in states.items():
+            shape = {"month": r"20[0-9]{2}-[0-9]{2}"}.get(name, r"[0-9a-f]{64}")
+            if (
+                name not in ("month", "report", "problems")
+                or re.fullmatch(shape, value) is None
+            ):
+                raise ValueError("statistics cursor entry is invalid")
+        return states
+
     @field_validator("icd9_xlsx")
     @classmethod
     def validate_icd9_xlsx(cls, files: dict[str, str]) -> dict[str, str]:
@@ -238,6 +257,9 @@ class NfzSourceCollector:
         eli_client_factory: Callable[
             [], AbstractContextManager[httpx.Client]
         ] = create_eli_client,
+        dane_gov_client_factory: Callable[
+            [], AbstractContextManager[httpx.Client]
+        ] = create_dane_gov_client,
         rsk_client_factory: Callable[
             [RskSettings], AbstractContextManager[httpx.Client]
         ] = create_rsk_client,
@@ -249,6 +271,7 @@ class NfzSourceCollector:
         self._czs_client_factory = czs_client_factory
         self._aotmit_client_factory = aotmit_client_factory
         self._eli_client_factory = eli_client_factory
+        self._dane_gov_client_factory = dane_gov_client_factory
         self._rsk_client_factory = rsk_client_factory
         self._now_ms = now_ms or (lambda: time.time_ns() // 1_000_000)
 
@@ -263,9 +286,16 @@ class NfzSourceCollector:
             CzsRetryableError,
             AotmitRetryableError,
             EliRetryableError,
+            DaneGovRetryableError,
         ):
             raise RetryableWatcherError("transient NFZ publication failure") from None
-        except NfzListingError, CzsSourceError, AotmitSourceError, EliSourceError:
+        except (
+            NfzListingError,
+            CzsSourceError,
+            AotmitSourceError,
+            EliSourceError,
+            DaneGovSourceError,
+        ):
             raise SourceDriftWatcherError("NFZ publication contract changed") from None
 
     def _collect(self, context: CollectionContext) -> CollectedRun:
@@ -294,6 +324,7 @@ class NfzSourceCollector:
         jgp_files = dict(prior.jgp_files)
         aotmit = dict(prior.aotmit)
         eli = dict(prior.eli)
+        statistics = dict(prior.statistics)
         icd9_xlsx = dict(prior.icd9_xlsx)
         reported_disagreements = set(prior.reported_disagreements)
         archived: set[str] = set()
@@ -562,6 +593,16 @@ class NfzSourceCollector:
             )
         with self._eli_client_factory() as eli_client:
             self._collect_eli(context, eli_client, observations, changes, eli, archived)
+        with self._dane_gov_client_factory() as dane_gov_client:
+            self._collect_statistics(
+                context,
+                dane_gov_client,
+                observations,
+                changes,
+                incidents,
+                statistics,
+                archived,
+            )
         self._crosscheck_rsk_icd9(
             context,
             icd9_symbol,
@@ -584,6 +625,7 @@ class NfzSourceCollector:
                     baseline_notice_recorded=baseline_notice_recorded,
                     aotmit=aotmit,
                     eli=eli,
+                    statistics=statistics,
                     icd9_xlsx=icd9_xlsx,
                     reported_disagreements=sorted(reported_disagreements),
                 ).model_dump(mode="json"),
@@ -886,6 +928,86 @@ class NfzSourceCollector:
                     )
                 )
             known[watched.name] = state
+
+    def _collect_statistics(
+        self,
+        context: CollectionContext,
+        client: httpx.Client,
+        observations: list[ObservationDraft],
+        changes: list[ChangeDraft],
+        incidents: list[IncidentDraft],
+        known: dict[str, str],
+        archived: set[str],
+    ) -> None:
+        self._require_deadline(context)
+        answer = fetch_newest_report(client)
+        report = answer.report
+        observation = self._observation(
+            context,
+            "jgp_statistics_report",
+            report.source_url,
+            self._archive(context, answer.body, "application/json", archived),
+            {
+                "title": report.title,
+                "month": report.month,
+                "resource_id": report.resource_id,
+                "published_date": report.published_date,
+                "size_bytes": report.size_bytes,
+                "response_headers": cast(dict[str, JsonValue], answer.headers),
+            },
+        )
+        observations.append(observation)
+        latest = known.get("month")
+        regressed = latest is not None and report.month < latest
+        # One incident per distinct set of findings. The owner reads this listing
+        # by hand, so neither stops the NFZ orders and notices of the same run.
+        problems: list[JsonValue] = [
+            f"unrecognized:{item}" for item in answer.unrecognized
+        ]
+        if regressed:
+            problems.append(f"regressed:{report.month}")
+        state = _digest(["jgp_statistics_problems", problems])
+        if problems and known.get("problems") != state:
+            incidents.append(
+                IncidentDraft(
+                    _digest(
+                        ["jgp_statistics_listing", problems, observation.observation_id]
+                    ),
+                    "jgp_statistics_listing",
+                    {"findings": problems},
+                )
+            )
+        known["problems"] = state
+        if regressed:
+            return
+        identity = _digest(
+            [
+                "jgp_statistics_report",
+                report.month,
+                report.resource_id,
+                report.size_bytes,
+                report.modified,
+            ]
+        )
+        # A replaced report keeps its month, so the identity decides, not the month.
+        if known.get("report") not in (None, identity):
+            changes.append(
+                ChangeDraft(
+                    _digest(
+                        [
+                            "jgp_statistics_report",
+                            context.source_id,
+                            identity,
+                            observation.observation_id,
+                        ]
+                    ),
+                    observation.observation_id,
+                    "jgp_statistics_report",
+                    {"month": report.month, "resource_id": report.resource_id},
+                )
+            )
+        known["month"] = report.month
+        known["report"] = identity
 
     def _collect_jgp(
         self,
