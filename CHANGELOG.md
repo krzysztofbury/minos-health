@@ -15,6 +15,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- A Gruper case waiting for a sheet another caller is reading now stops at its
+  3 s deadline instead of waiting up to 2.5 s per sheet (#314).
 - Warm-up gives a sheet 5 s to load instead of a request's one second, and a
   slow sheet no longer blocks other Gruper work (#310).
 - The watcher runs Python 3.14.10, which refuses compromised eMudhra CA keys in

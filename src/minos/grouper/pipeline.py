@@ -42,7 +42,7 @@ from minos.domain.grouping_request import (
     UnsupportedProductReport,
 )
 from minos.domain.reference import QueryTimeoutError, SourceError
-from minos.grouper.budget import checkpoint, evaluation_budget
+from minos.grouper.budget import checkpoint, evaluation_budget, seconds_left
 from minos.grouper.candidates import derive
 from minos.grouper.conditions import evaluate_group, facts_from
 from minos.grouper.near_misses import near_misses
@@ -73,7 +73,8 @@ from minos.store.product_catalogs import (
 )
 from minos.store.query_budget import query_budget
 
-# Waiting for a sheet another caller is reading, inside a request's 3 s deadline.
+# Waiting for a sheet another caller is reading. A request's wait also ends at its
+# own deadline, which no SQLite progress or checkpoint reaches meanwhile (#314).
 SHEET_WAIT_SECONDS = 2.5
 
 
@@ -122,7 +123,8 @@ class PreparedSources:
         first fails, a caller with time left loads with a fresh `seconds` (#310).
         """
         key = (release_id, catalog)
-        deadline = time.monotonic() + wait
+        left = seconds_left()
+        deadline = time.monotonic() + (wait if left is None else min(wait, left))
         while True:
             with self._lock:
                 found = self._sheets.get(key)
