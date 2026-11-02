@@ -182,6 +182,17 @@ try {
     await next(4);
     await wait("document.getElementById('group-answer').textContent.includes('Raport produktów jest niepełny')");
     assert.equal(await evaluate("document.querySelectorAll('.verdict-group').length"), 0);
+    // The notice offers both ways out: it is not a dead end.
+    await click("#group-answer .button-quiet");
+    await step(3);
+    assert.equal(await evaluate("document.querySelector('input[name=product-report]:checked').value"), "present");
+    await click("input[name=product-report][value=unknown]");
+    await next(4);
+    await wait("document.querySelector('#group-answer .result-actions') !== null");
+    await click("#group-answer .result-actions .button:not(.button-quiet)");
+    await wait("document.querySelectorAll('.verdict-group').length > 0 || document.getElementById('group-answer').textContent.includes('Żadna grupa')");
+    assert.equal(await evaluate("document.querySelector('input[name=product-report]:checked').value"), "empty");
+    assert.equal(await evaluate("document.activeElement.id"), "step-4-title");
     await click("#clear-case");
     await step(0);
     assert.equal(await evaluate("document.querySelector('#principal input').value"), "");

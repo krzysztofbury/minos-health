@@ -2857,10 +2857,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     if (location.hash !== fragment) history.replaceState(null, "", location.pathname + fragment);
   }
   function render() {
-    // Clear and reset appear only when they would change something.
-    var searched = state.query.trim() !== "";
-    document.getElementById("reset-search").hidden = !searched;
-    document.getElementById("reset-catalog").hidden = !searched && state.source === "all" && state.publisher === "all" && state.format === "all" && state.sort === "relevance";
+    // With nothing filtered there is nothing to reset, and the link would be this page.
+    document.querySelector(".catalog-actions").hidden = state.query.trim() === "" && state.source === "all" && state.publisher === "all" && state.format === "all" && state.sort === "relevance" && state.page === 1;
     document.querySelectorAll("[data-fallback-source]").forEach(function (section) {
       var source = section.getAttribute("data-fallback-source");
       section.hidden = state[source] !== null || (state.source !== "all" && state.source !== source);
@@ -3003,7 +3001,6 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       state.page = 1;
       render();
     });
-    document.getElementById("reset-search").addEventListener("click", function () { setQuery(""); document.getElementById("source-search").focus(); });
     document.getElementById("reset-catalog").addEventListener("click", function () { Object.assign(state, readSelection("")); setQuery(""); document.getElementById("source-search").focus(); });
     document.getElementById("more-results").addEventListener("click", function () { state.page += 1; render(); document.getElementById("catalog-title").focus(); });
     document.getElementById("previous-results").addEventListener("click", function () { state.page -= 1; render(); document.getElementById("catalog-title").focus(); });

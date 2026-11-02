@@ -315,14 +315,20 @@
   }
   /* Official names for specialties and discharge modes; older bundles keep the interim choices.
      Annex 4 names of up to 204 characters overflow a select, so the list shows a
-     short label and the full official text appears under it once chosen. A short
-     label applies only while the official name still starts as reviewed. */
+     short label that fits a 320 px phone and the full official text appears under
+     it once chosen. Labels name the rule without narrowing it: a coder must not pick
+     a code from a label alone. A short label applies only while the official name
+     still starts as reviewed. */
   var DISCHARGE_SHORT = {
-    4: ["skierowanie do dalszego leczenia w innym niż szpital zakładzie", "dalsze leczenie w innym zakładzie (nie szpital)"],
-    7: ["osoba leczona samowolnie opuściła podmiot leczniczy", "samowolne opuszczenie przed zakończeniem leczenia lub diagnostyki"],
-    8: ["wypisanie na podstawie art. 29 ust. 1 pkt 3 ustawy", "wypis z art. 29 ust. 1 pkt 3 ustawy o działalności leczniczej"],
-    10: ["osoba leczona, przyjęta w trybie oznaczonym kodem", "samowolne opuszczenie po przyjęciu w trybie 9 lub 10"],
-    11: ["wypisanie na podstawie art. 47 ustawy", "wypis z art. 47 ustawy o postępowaniu wobec osób z zaburzeniami psychicznymi"]
+    1: ["zakończenie procesu terapeutycznego", "zakończenie leczenia"],
+    2: ["skierowanie do dalszego leczenia w lecznictwie ambulatoryjnym", "leczenie ambulatoryjne"],
+    3: ["skierowanie do dalszego leczenia w innym szpitalu", "leczenie w innym szpitalu"],
+    4: ["skierowanie do dalszego leczenia w innym niż szpital zakładzie", "inny zakład stacjonarny"],
+    6: ["wypisanie na własne żądanie", "na własne żądanie"],
+    7: ["osoba leczona samowolnie opuściła podmiot leczniczy", "samowolne opuszczenie"],
+    8: ["wypisanie na podstawie art. 29 ust. 1 pkt 3 ustawy", "art. 29 ust. 1 pkt 3"],
+    10: ["osoba leczona, przyjęta w trybie oznaczonym kodem", "samowolne (przyj. 9/10)"],
+    11: ["wypisanie na podstawie art. 47 ustawy", "art. 47 ustawy z 2013 r."]
   };
   function dischargeOptions(modes) {
     var select = byId("discharge-select"), old = select.value;
@@ -534,7 +540,15 @@
     answer.replaceChildren();
     if (data.status !== "evaluated") {
       var why = data.status === "product_catalog_unavailable" ? "Zestaw reguł nie zawiera katalogów produktów aktu obowiązującego w dniu świadczenia, więc nie można ustalić, które procedury wyłączają podane produkty. Kwalifikacja nie została oceniona." : "Raport produktów jest niepełny, więc kwalifikacja nie została oceniona: brakujący produkt mógłby wyłączyć procedury. Podaj wszystkie produkty z raportu albo potwierdź raport bez produktów.";
-      answer.append(el("p", why, "group-notice")); status.className = "visually-hidden"; status.textContent = "Brak oceny dla tego raportu produktów."; return;
+      answer.append(el("p", why, "group-notice")); status.className = "visually-hidden"; status.textContent = "Brak oceny dla tego raportu produktów.";
+      if (data.status === "unsupported_product_report") {
+        // The notice names the two ways out, so it offers them instead of a dead end.
+        var ways = el("div", undefined, "result-actions");
+        button(ways, "Potwierdź raport bez produktów", "button", function () { chooseReport("empty"); byId("step-" + RESULT + "-title").focus({ preventScroll: true }); evaluateCase(); });
+        button(ways, "Podaj produkty", "button button-quiet", function () { showStep(RESULT - 1, true); chooseReport("present"); });
+        answer.append(ways);
+      }
+      return;
     }
     var order = data.ranking.map(function (r) { return r.catalog + "/" + r.group; });
     var groups = data.groups.slice(), valid = order.map(function (key) { return groups.filter(function (g) { return g.catalog + "/" + g.group === key; })[0]; }).filter(Boolean);
@@ -620,6 +634,11 @@
     var raw = el("details"); raw.append(el("summary", "Pełny wynik JSON v1"), el("pre", JSON.stringify(data, null, 2))); tech.append(raw);
     answer.append(tech);
     var again = el("div", undefined, "result-actions"); button(again, "Nowy przypadek", "button button-quiet", function () { clearCase(); }); answer.append(again);
+  }
+
+  function chooseReport(value) {
+    var input = form.querySelector("input[name=product-report][value=" + value + "]");
+    input.checked = true; input.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   async function evaluateCase(quiet) {
