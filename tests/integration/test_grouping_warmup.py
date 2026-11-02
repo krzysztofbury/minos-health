@@ -29,6 +29,7 @@ from minos.store import grouper_bundle
 from minos.store.grouper_bundle import CharacteristicsGraph, load_graph, sheet_releases
 from minos.store.product_catalogs import product_catalog_releases
 from minos.store.query_budget import DEFAULT_SECONDS, query_budget
+from minos.store.tree import Hierarchy, tree_roots
 from tests.fixtures.grouping_interface import grouping_body, grouping_bundle
 
 
@@ -310,6 +311,24 @@ def _pool(bundle: Path) -> Generator[ReferencePool]:
         yield pool
     finally:
         pool.close()
+
+
+def test_startup_is_not_a_request_on_a_slow_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A release failed to activate here: the host's cold disk took longer than the
+    # request deadline, which a fast local disk never shows.
+    clock = [1000.0]
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+
+    def slow(connection: sqlite3.Connection, hierarchy: Hierarchy) -> dict[str, object]:
+        roots = tree_roots(connection, hierarchy)
+        clock[0] += DEFAULT_SECONDS
+        return roots
+
+    monkeypatch.setattr(application, "tree_roots", slow)
+    with _pool(grouping_bundle(tmp_path)) as pool:
+        assert application.load_trees(pool)
 
 
 def test_a_lease_shares_one_deadline_and_comes_back(tmp_path: Path) -> None:
