@@ -81,6 +81,13 @@ try {
     assert.ok(await evaluate("!document.getElementById('picker').hidden && /^(styczeń|luty|marzec|kwiecień|maj|czerwiec|lipiec|sierpień|wrzesień|październik|listopad|grudzień) \\d{4}$/.test(document.querySelector('.picker-title').textContent)"));
     assert.ok(await evaluate("Array.from(document.querySelectorAll('.picker-weekday')).map(c => c.textContent).join(' ') === 'pn wt śr cz pt so nd'"));
     await shot("grouping-calendar-" + name, false);
+    // The arrows change the month and leave the calendar open.
+    const shown = await evaluate("document.querySelector('.picker-title').textContent");
+    await click(".picker-nav:last-child");
+    assert.equal(await evaluate("document.getElementById('picker').hidden"), false);
+    assert.notEqual(await evaluate("document.querySelector('.picker-title').textContent"), shown);
+    await click(".picker-nav:first-child");
+    assert.equal(await evaluate("document.querySelector('.picker-title').textContent"), shown);
     await click(".picker-cell[data-value$='-15']");
     assert.ok(await evaluate("/^15\\.\\d{2}\\.\\d{4}$/.test(document.getElementById('admitted').value) && document.getElementById('picker').hidden"));
     await set("#admitted", pl(e.admitted_on));

@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import sqlite3
+import time
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager, contextmanager
@@ -27,7 +28,7 @@ from minos.http.reference import MAX_WAITERS, CapacityError, ReferencePool
 from minos.store import grouper_bundle
 from minos.store.grouper_bundle import CharacteristicsGraph, load_graph, sheet_releases
 from minos.store.product_catalogs import product_catalog_releases
-from minos.store.query_budget import query_budget
+from minos.store.query_budget import DEFAULT_SECONDS, query_budget
 from tests.fixtures.grouping_interface import grouping_body, grouping_bundle
 
 
@@ -127,7 +128,7 @@ def test_warm_up_gives_a_sheet_more_time_than_a_request(
     budgets: list[float] = []
 
     def recorded(
-        connection: sqlite3.Connection, *, seconds: float = 1.0
+        connection: sqlite3.Connection, *, seconds: float = DEFAULT_SECONDS
     ) -> AbstractContextManager[object]:
         budgets.append(seconds)
         return query_budget(connection, seconds=seconds)
@@ -142,7 +143,7 @@ def test_warm_up_gives_a_sheet_more_time_than_a_request(
         budgets.clear()
         response = client.post("/api/v1/group", json=grouping_body())
     assert response.status_code == 200, response.text
-    assert budgets and set(budgets) == {1.0}
+    assert budgets and set(budgets) == {DEFAULT_SECONDS}
     budgets.clear()
     with _pool(bundle) as pool:
         warm_grouping(pool, pipeline.PreparedSources(), Event())
@@ -309,6 +310,24 @@ def _pool(bundle: Path) -> Generator[ReferencePool]:
         yield pool
     finally:
         pool.close()
+
+
+def test_a_lease_shares_one_deadline_and_comes_back(tmp_path: Path) -> None:
+    bundle = grouping_bundle(tmp_path)
+    clock = [1000.0]
+    with (
+        _pool(bundle) as pool,
+        pytest.MonkeyPatch.context() as patch,
+    ):
+        patch.setattr(time, "monotonic", lambda: clock[0])
+        with pytest.raises(QueryTimeoutError), pool.borrow(seconds=2.4) as lease:
+            # Each stage is within its own budget; together they spend the request's.
+            for _stage in range(3):
+                with query_budget(lease.connection):
+                    clock[0] += 1.0
+        # A caller with its own budget opts out, and the lease went back above.
+        with pool.borrow(seconds=None) as lease, query_budget(lease.connection):
+            clock[0] += 1.0
 
 
 def test_the_waiting_room_holds_every_request_the_api_admits(tmp_path: Path) -> None:

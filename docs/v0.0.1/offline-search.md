@@ -147,7 +147,7 @@ the deadline is checked before and after it, not a preemptive native interrupt.
 Morphological analysis accepts at most 256 dictionary analyses and 16 alternatives
 per bounded word. The native analyzer is count/input-bounded, not preemptively
 interrupted by SQLite's progress handler.
-Other store stages default to one second. Nested budgets retain outer deadline
+Store stages share a 2.4 s default (`DEFAULT_SECONDS`), search included: one slow read is an answer, not a failure, and the operation limit is what stops runaway work. Nested budgets retain outer deadline
 and operation accounting. The earlier 250/400 ms refusal thresholds were
 replaced following the 2026-10-05 usability request; see
 [measured recovery evidence](../validation/dictionary-search-recovery.md).

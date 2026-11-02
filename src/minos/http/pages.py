@@ -582,6 +582,8 @@ def missing_page(dictionary: Dictionary, code: str) -> str:
 
 # A short wait clears a busy service, so these pages try again by themselves.
 RETRY_HEAD: Final = '    <script src="/retry.js" defer></script>\n'
+# Both pass by themselves: a timed-out read has warmed the cache for the retry.
+RETRIED: Final = frozenset(("busy", "query_timeout"))
 
 
 def busy_page(retry_path: str) -> str:
@@ -627,7 +629,7 @@ def recovery_page(slug: str, code: str, reason: str, retry_path: str) -> str:
         description=message,
         path=retry_path,
         content=content,
-        head=RETRY_HEAD if reason == "busy" else "",
+        head=RETRY_HEAD if reason in RETRIED else "",
         robots="noindex, follow",
     )
 

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import sqlite3
 import subprocess
 import sys
@@ -131,7 +132,7 @@ def test_folded_profile_keeps_exact_precedence_and_legacy_bundle_compatibility(
 
 
 @pytest.mark.parametrize(
-    "elapsed_seconds,refused", [(0.3, False), (0.6, False), (2.001, True)]
+    "elapsed_seconds,refused", [(0.3, False), (0.6, False), (2.401, True)]
 )
 def test_search_allows_slow_results_with_one_bounded_deadline(
     search_bundle: Path,
@@ -844,6 +845,16 @@ def test_cli_build_consumes_pinned_json_and_search_rejects_missing_or_changed_da
         assert json.loads(failed.stderr)["error"]["code"] == "data_error"
         assert str(data) not in failed.stderr
         assert failed.stdout == ""
+
+
+def test_the_read_deadline_answers_before_the_edge_gives_up() -> None:
+    from minos.store.query_budget import DEFAULT_SECONDS
+
+    edge = (ROOT / "scripts/build_validation_edge.py").read_text()
+    timeouts = cast(list[str], re.findall(r"proxy_read_timeout (\d+)s", edge))
+    shortest = min(int(value) for value in timeouts)
+    lease_wait = 0.5
+    assert DEFAULT_SECONDS + lease_wait < shortest
 
 
 def test_the_budget_check_reports_the_broadest_terms_it_measured(

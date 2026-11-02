@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from minos.http.app import MAX_IN_FLIGHT, create_app, render_code
+from minos.http.jgp_pages import error_page
 from minos.http.pages import DICTIONARIES, code_page, recovery_page
 from minos.ingest.reference_artifact import build_reference_artifact
 from tests.integration.test_canonical_reference import canonical_manifest
@@ -205,9 +206,25 @@ def test_the_slot_returns_after_success_and_after_a_failure(
     assert client.get("/slowniki/icd-10/E11.0").status_code == 200
 
 
-def test_only_a_busy_recovery_page_retries_by_itself() -> None:
-    assert "/retry.js" in recovery_page("icd-10", "E11.0", "busy", "/x")
-    assert "/retry.js" not in recovery_page("icd-10", "E11.0", "limit_exceeded", "/x")
+@pytest.mark.parametrize(
+    ("reason", "retries"),
+    [("busy", True), ("query_timeout", True), ("limit_exceeded", False)],
+)
+def test_only_a_passing_failure_retries_by_itself(
+    reason: str, *, retries: bool
+) -> None:
+    page = recovery_page("icd-10", "E11.0", reason, "/x")
+    assert ("/retry.js" in page) is retries
+
+
+@pytest.mark.parametrize(
+    ("reason", "retries"),
+    [("busy", True), ("query_timeout", True), ("limit_exceeded", False)],
+)
+def test_a_jgp_page_retries_only_a_passing_failure(
+    reason: str, *, retries: bool
+) -> None:
+    assert ("/retry.js" in error_page(504, reason, None, None)) is retries
 
 
 def test_uvicorn_stays_a_backstop_above_the_guard() -> None:

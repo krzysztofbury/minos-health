@@ -200,10 +200,10 @@ def group_conditions(
         evidence = cast(
             list[tuple[int, str, str, int]],
             connection.execute(
-                """SELECT row, source_text, category, trim(context)=? AS own
+                """SELECT row, source_text, category, context=? AS own
             FROM characteristics_evidence
             WHERE release_id=? AND catalog=? AND (
-              (trim(context)=? AND category IN ('title','label','connector','unbound_member'))
+              (context=? AND category IN ('title','label','connector','unbound_member'))
               OR row IN (SELECT value FROM json_each(?)))
             ORDER BY row LIMIT ?""",
                 (

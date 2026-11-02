@@ -106,7 +106,8 @@
     document.addEventListener("click", function (event) {
       var opener = event.target.closest && event.target.closest(".picker-button");
       if (opener) { if (!picker.hidden && pickerInput === opener.parentElement.querySelector("input")) closePicker(true); else openPicker(opener); return; }
-      if (!picker.hidden && !(event.target.closest && event.target.closest(".picker"))) closePicker(false);
+      // The path, not the target: the arrows re-render, so a click on one ends on a detached node.
+      if (!picker.hidden && !event.composedPath().includes(picker)) closePicker(false);
     });
     if (options.mask) {
       document.addEventListener("input", function (event) {

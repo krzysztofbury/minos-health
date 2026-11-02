@@ -9,10 +9,19 @@ from typing import final
 
 from minos.domain.reference import ArtifactError, QueryLimitError, QueryTimeoutError
 
+# A slow read is an answer, not a failure: a cold page on the host's disk can take
+# over a second once and milliseconds afterwards. The operation limit stops runaway
+# work; this only stops a stall. It is also the whole request's limit, set where the
+# lease is borrowed, so with the 0.5 s lease wait a lease is free again before the
+# edge gives up at 3 s.
+DEFAULT_SECONDS = 2.4
+
 
 @final
 class QueryBudget:
-    def __init__(self, *, seconds: float = 1.0, operations: int = 2_000_000) -> None:
+    def __init__(
+        self, *, seconds: float = DEFAULT_SECONDS, operations: int = 2_000_000
+    ) -> None:
         self._deadline = time.monotonic() + seconds
         self._maximum_operations = operations
         self._operations = 0
@@ -44,7 +53,7 @@ _ACTIVE: ContextVar[tuple[tuple[sqlite3.Connection, QueryBudget], ...]] = Contex
 def query_budget(
     connection: sqlite3.Connection,
     *,
-    seconds: float = 1.0,
+    seconds: float = DEFAULT_SECONDS,
     operations: int = 2_000_000,
     shared: QueryBudget | None = None,
 ) -> Generator[QueryBudget]:

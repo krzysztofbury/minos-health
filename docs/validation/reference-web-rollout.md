@@ -84,7 +84,8 @@ measurements below retain their original context.
   explicit HTTP 429/503, not partial results or an unbounded queue (#296).
 - JSON bodies: 4 KiB; body-read deadline: 2 seconds; query: 256 characters and
   eight tokens; output: at most 20 results and the shared 512 Ki-character budget.
-- SQL retrieval retains the shared 250 ms / two-million-VM-step ceiling.
+- SQL retrieval keeps the two-million-VM-step ceiling. Its time limit is 2.4 s, so a
+  cold read answers instead of failing; a page that still times out retries itself.
 - API: non-root UID 10004, read-only root/data, no capabilities or outbound
   network, one CPU, 512 MiB memory and 64 MiB temporary storage.
 - Local-only load acceptance: 48 requests at concurrency four, no unexpected

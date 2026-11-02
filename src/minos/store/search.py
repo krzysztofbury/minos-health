@@ -45,7 +45,7 @@ def search_reference(
 ) -> SearchResult:
     # Latency is a target, not a reason to discard an otherwise valid 500 ms
     # result. Keep the operation/output bounds and a finite recovery deadline.
-    with query_budget(connection, seconds=2.0) as budget:
+    with query_budget(connection) as budget:
         search_version = cast(
             tuple[str] | None,
             connection.execute(

@@ -149,7 +149,13 @@ def _extract(
         if not text or not text.strip():
             if section or context:
                 evidence.append(
-                    c.Evidence(number, section, context, text or "", "section")
+                    c.Evidence(
+                        number,
+                        section,
+                        context.strip() if context else context,
+                        text or "",
+                        "section",
+                    )
                 )
             continue
         stripped, key = text.strip(), (context or "").strip()
@@ -190,7 +196,8 @@ def _extract(
         else:
             category = "label"
             active = None
-        evidence.append(c.Evidence(number, section, context, text, category))
+        # Stripped once here, so readers match it through its index.
+        evidence.append(c.Evidence(number, section, key or None, text, category))
     if len({g.code for g in groups}) != len(groups):
         raise SourceError("characteristics group title is duplicated")
     frozen = tuple(
