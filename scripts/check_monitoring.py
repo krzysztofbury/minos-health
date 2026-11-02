@@ -86,6 +86,7 @@ def check(now: datetime, get: Fetch = fetch) -> dict[str, object]:
     beats = Beats.model_validate(get(HEARTBEATS))
     monitors: list[dict[str, object]] = []
     problems: list[str] = []
+    pending: list[str] = []
     for monitor in (m for group in page.publicGroupList for m in group.monitorList):
         history = beats.heartbeatList.get(str(monitor.id), [])
         last = history[-1] if history else None
@@ -100,6 +101,10 @@ def check(now: datetime, get: Fetch = fetch) -> dict[str, object]:
             problems.append(f"{monitor.name} is not up")
             # Watcher pushes carry only a bounded failure category.
             row["message"] = (last.msg or "")[:MAX_MESSAGE] if last else None
+        elif "pending " in (last.msg or ""):
+            # Review work for the owner, with the monitor up: not a problem.
+            row["message"] = (last.msg or "")[:MAX_MESSAGE]
+            pending.append(f"{monitor.name}: {row['message']}")
         monitors.append(row)
     edges = [row for row in monitors if row["type"] == "http"]
     stale = not edges or any(
@@ -119,6 +124,7 @@ def check(now: datetime, get: Fetch = fetch) -> dict[str, object]:
         "event": "monitoring_checked",
         "healthy": not problems,
         "problems": problems,
+        "pending": pending,
         "kuma_checking": not stale,
         "readyz_ready": ready,
         "monitors": monitors,

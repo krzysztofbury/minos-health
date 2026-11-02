@@ -68,6 +68,15 @@ def test_all_monitors_up_and_fresh_is_healthy() -> None:
     ]  # fmt: skip
 
 
+def test_a_pending_report_is_listed_without_being_a_problem() -> None:
+    waiting = [{**UP_WATCHER[0], "msg": "pending statistics 2026-09"}]
+    result = check_monitoring.check(
+        NOW, fetcher(answers(heartbeats=beats(UP_EDGE, waiting)))
+    )
+    assert result["healthy"] is True and result["problems"] == []
+    assert result["pending"] == ["RSK watcher: pending statistics 2026-09"]
+
+
 @pytest.mark.parametrize(
     ("change", "problem"),
     [

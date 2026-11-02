@@ -87,7 +87,7 @@ class _R2:
         pass
 
 
-def _publish(root: Path, source: str, content: bytes) -> None:
+def _publish(root: Path, source: str, content: bytes, revision: int = 7) -> None:
     """Publish through the watcher's own publisher, so the layout is real."""
     root.mkdir(exist_ok=True)
     digest = hashlib.sha256(content).hexdigest()
@@ -99,15 +99,15 @@ def _publish(root: Path, source: str, content: bytes) -> None:
         "redistribution": {"artifacts": [], "schema_version": 1},
         "schema_version": 1,
         "source": source,
-        "state_revision": 7,
+        "state_revision": revision,
     }
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     _ = ImmutableGenerationPublisher(root, source=source).publish(
-        7, digest, {"manifest.json": encoded, path: content}
+        revision, digest, {"manifest.json": encoded, path: content}
     )
 
 
-def _nfz(public: Path, czs: bytes, *extra: Eli | Statistics) -> None:
+def _nfz(public: Path, czs: bytes, *extra: Eli | Statistics, revision: int = 7) -> None:
     entry = Czs(
         source_url="https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=94",
         sha256=hashlib.sha256(czs).hexdigest(),
@@ -125,9 +125,9 @@ def _nfz(public: Path, czs: bytes, *extra: Eli | Statistics) -> None:
         display_evidence=None,
     )
     projection = NfzProjection(
-        through_state_revision=7, observed_at=_OBSERVED, entries=(entry, *extra)
+        through_state_revision=revision, observed_at=_OBSERVED, entries=(entry, *extra)
     )
-    _publish(public / "nfz", "NFZ", projection.model_dump_json().encode())
+    _publish(public / "nfz", "NFZ", projection.model_dump_json().encode(), revision)
 
 
 @final
@@ -157,12 +157,15 @@ class _Run:
         self.targets = targets
         self.r2 = _R2(root)
         self.pushes: list[tuple[str, str]] = []
+        self.push_fails = False
 
     def __call__(self, capsys: pytest.CaptureFixture[str]) -> tuple[int, object]:
         def kuma(targets: UptimeKumaTargets) -> UptimeKumaClient:
             def handle(request: httpx.Request) -> httpx.Response:
                 params = request.url.params
                 self.pushes.append((params["status"], params["msg"]))
+                if self.push_fails:
+                    return httpx.Response(500)
                 return httpx.Response(200, json={"ok": True})
 
             return UptimeKumaClient(targets, transport=httpx.MockTransport(handle))
@@ -377,29 +380,24 @@ def test_an_amended_legal_dictionary_holds_the_monitor_down(
     ]
 
 
-@pytest.mark.parametrize(
-    ("month", "day", "resource", "size", "pending"),
-    [
-        ("2026-08", "20261020", 2834329, 57567445, False),
-        ("2026-09", "20261120", 2900000, 57567445, True),
-        ("2026-08", "20261120", 2900000, 57567445, True),
-        ("2026-08", "20261020", 2834329, 57000000, True),
-        ("2026-07", "20261120", 2900000, 57567445, False),
-    ],
-    ids=["pinned", "new", "new resource", "new size", "older"],
-)
-def test_a_report_past_the_pins_holds_the_monitor_down(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    monkeypatch: pytest.MonkeyPatch,
-    month: str,
-    day: str,
-    resource: int,
-    size: int,
-    pending: bool,
-) -> None:
+def _report(month: str, day: str, resource: int, size: int) -> Statistics:
+    return Statistics(
+        channel="statistics",
+        title="Raport dot. hospitalizacji JGP",
+        source_url="https://api.dane.gov.pl/media/resources/"
+        + f"{day}/raport_SZP_i_kardiologia_{month[:4]}_{int(month[5:])}.xml",
+        sha256="e" * 64,
+        observed_at=_OBSERVED,
+        month=month,
+        resource_id=resource,
+        published_date=f"{day[:4]}-{day[4:6]}-{day[6:]}",
+        size_bytes=size,
+    )
+
+
+def _pinned_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[_Run, bytes]:
+    """A live bundle pinning the real reports; August 2026 is the newest pin."""
     base, bundle = icd9._live(tmp_path)  # pyright: ignore[reportPrivateUsage]
-    run = _Run(tmp_path, bundle)
     pins = JgpStatistics.model_validate_json(
         (ROOT / "manifests/sources/jgp-statistics.json").read_bytes()
     )
@@ -411,31 +409,104 @@ def test_a_report_past_the_pins_holds_the_monitor_down(
         return manifest.model_copy(update={"dataset": dataset})
 
     monkeypatch.setattr(processor, "_read_live", pinned)
-    number = int(month[5:])
-    report = Statistics(
-        channel="statistics",
-        title="Raport dot. hospitalizacji JGP",
-        source_url="https://api.dane.gov.pl/media/resources/"
-        + f"{day}/raport_SZP_i_kardiologia_{month[:4]}_{number}.xml",
-        sha256="e" * 64,
-        observed_at=_OBSERVED,
-        month=month,
-        resource_id=resource,
-        published_date=f"{day[:4]}-{day[4:6]}-{day[6:]}",
-        size_bytes=size,
-    )
-    live_czs = (tmp_path / "blobs/sha256" / base.sources[1].sha256).read_bytes()
-    _nfz(run.public, live_czs, report)
+    czs = (tmp_path / "blobs/sha256" / base.sources[1].sha256).read_bytes()
+    return _Run(tmp_path, bundle), czs
+
+
+AUGUST = ("2026-08", "20261020", 2834329, 57567445)
+SEPTEMBER = ("2026-09", "20261120", 2900000, 57567445)
+
+
+@pytest.mark.parametrize(
+    ("report", "pending"),
+    [
+        (AUGUST, False),
+        (SEPTEMBER, True),
+        (("2026-08", "20261120", 2900000, 57567445), True),
+        (("2026-08", "20261020", 2834329, 57000000), True),
+        (("2026-07", "20261120", 2900000, 57567445), False),
+    ],
+    ids=["pinned", "new", "new resource", "new size", "older"],
+)
+def test_a_report_past_the_pins_alerts(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    report: tuple[str, str, int, int],
+    *,
+    pending: bool,
+) -> None:
+    run, czs = _pinned_run(tmp_path, monkeypatch)
+    _nfz(run.public, czs, _report(*report))
 
     code, summary = run(capsys)
 
     expected: dict[str, object] = {"version": 1, "verdicts": []}
     if pending:
-        expected["manual_statistics"] = month
+        expected["manual_statistics"] = report[0]
     assert (code, summary) == (0, expected)
     assert run.pushes == [
-        ("down", f"manual statistics {month}") if pending else ("up", "idle")
+        ("down", f"manual statistics {report[0]}") if pending else ("up", "idle")
     ]
+
+
+def test_a_report_alerts_once_then_stays_listed_without_holding_the_monitor(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run, czs = _pinned_run(tmp_path, monkeypatch)
+    _nfz(run.public, czs, _report(*SEPTEMBER))
+
+    _ = run(capsys)
+    code, summary = run(capsys)
+
+    assert (code, summary) == (
+        0,
+        {"version": 1, "verdicts": [], "pending_statistics": "2026-09"},
+    )
+    assert run.pushes == [
+        ("down", "manual statistics 2026-09"),
+        ("up", "pending statistics 2026-09"),
+    ]
+
+    # A replaced report keeps its month and is news again; a pin ends it all.
+    run.pushes.clear()
+    _nfz(run.public, czs, _report("2026-09", "20261120", 2900001, 57567445), revision=8)
+    _ = run(capsys)
+    _nfz(run.public, czs, _report(*AUGUST), revision=9)
+    _ = run(capsys)
+    assert run.pushes == [("down", "manual statistics 2026-09"), ("up", "idle")]
+
+
+def test_a_real_failure_after_the_alert_is_not_hidden(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run, czs = _pinned_run(tmp_path, monkeypatch)
+    _nfz(run.public, czs, _report(*SEPTEMBER))
+    _ = run(capsys)
+    _ = run(capsys)
+
+    run.pushes.clear()
+    _ = run.state.write_text("not json")
+    code, _summary = run(capsys)
+
+    assert code == 1
+    assert run.pushes == [("down", "failed: state")]
+
+
+def test_an_alert_that_never_left_is_sent_again(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run, czs = _pinned_run(tmp_path, monkeypatch)
+    _nfz(run.public, czs, _report(*SEPTEMBER))
+
+    run.push_fails = True
+    code, _summary = run(capsys)
+    assert code == 1
+
+    run.push_fails = False
+    run.pushes.clear()
+    _ = run(capsys)
+    assert run.pushes == [("down", "manual statistics 2026-09")]
 
 
 def test_new_rsk_product_is_judged_from_its_projection_entry(

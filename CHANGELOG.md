@@ -113,8 +113,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 ### Added
 
 - The NFZ watcher reads the `dane.gov.pl` listing of monthly JGP reports, `/zrodla`
-  shows the newest one, and a month no release pins holds the data update down
-  until a reviewed release does (#283).
+  shows the newest one, and a month no release pins alerts once, then stays listed
+  as pending until a reviewed release pins it (#283).
 - `scripts/check_search_budget.py` measures the broadest searches of a new bundle
   and fails before release if any nears the 2,000,000 operation limit or is
   refused.

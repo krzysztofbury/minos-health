@@ -29,7 +29,7 @@ _VERDICT = r"would_activate [a-z0-9][a-z0-9-]{0,95}|rejected icd(?:10|9)-pl [a-z
 _MANUAL = (
     r"manual jgp [1-9][0-9]{0,8}|manual icd11 [0-9A-Za-z.-]{1,16}"
     + r"|manual eli (?:specialties|discharge_modes)"
-    + r"|manual statistics 20[0-9]{2}-[0-9]{2}"
+    + r"|(?:manual|pending) statistics 20[0-9]{2}-[0-9]{2}"
 )
 # Data-activation outcomes (#141 phase C) use the same closed vocabulary.
 _ACTIVATION = (
