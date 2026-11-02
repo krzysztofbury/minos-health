@@ -71,7 +71,7 @@ from minos.store.product_catalogs import (
     product_names,
     read_product_classification,
 )
-from minos.store.query_budget import query_budget
+from minos.store.query_budget import DEFAULT_SECONDS, query_budget
 
 # Waiting for a sheet another caller is reading. A request's wait also ends at its
 # own deadline, which no SQLite progress or checkpoint reaches meanwhile (#314).
@@ -114,7 +114,7 @@ class PreparedSources:
         release_id: str,
         catalog: Catalog,
         *,
-        seconds: float = 1.0,
+        seconds: float = DEFAULT_SECONDS,
         wait: float = SHEET_WAIT_SECONDS,
     ) -> tuple[CharacteristicsGraph, DirectionalIndex]:
         """Load once outside the lock; a slow read never blocks other entries.

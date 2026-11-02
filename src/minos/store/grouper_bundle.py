@@ -28,7 +28,7 @@ from minos.ingest.jgp_conditions_codec import decode_condition, decode_selector
 from minos.ingest.jgp_conditions_manifest import ConditionsManifest
 from minos.store.jgp_conditions import resolve_characteristics
 from minos.store.jgp_ruleset import resolve_ruleset
-from minos.store.query_budget import query_budget
+from minos.store.query_budget import DEFAULT_SECONDS, query_budget
 
 MAX_CONDITIONS = 20_000
 MAX_SELECTORS = 20_000
@@ -251,7 +251,7 @@ def load_graph(
     release_id: str,
     catalog: Catalog,
     *,
-    seconds: float = 1.0,
+    seconds: float = DEFAULT_SECONDS,
 ) -> CharacteristicsGraph:
     key = (release_id, catalog)
     with query_budget(connection, seconds=seconds):

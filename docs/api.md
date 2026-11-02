@@ -41,7 +41,7 @@ Use the explicit catalog/page route to continue; absent pages return 404.
 dated answer. Zero is an explicit source rank; a missing/unselected rank stays
 null. Dictionary source status and dates do not establish legal applicability.
 
-One connection lease and the existing 1 second / 2,000,000 SQLite-operation
+One connection lease and the existing 2.4 second / 2,000,000 SQLite-operation
 budget cover the complete lookup and JSON encoding. Limits: 128 descriptions,
 64 attributes and 400 direct neighbours per direction per source, at most 16
 manifest sources, and 1 MiB UTF-8 output. Overflow fails closed with

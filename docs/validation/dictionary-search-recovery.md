@@ -67,8 +67,8 @@ code precedence are retained. Proposed mappings do not enter runtime tables.
 
 ## Recovery contract
 
-- Search has a 2-second aggregate elapsed budget. Other store stages allow
-  1 second by default. The existing SQL-operation and output bounds remain.
+- Search and every other store stage allow 2.4 seconds, shared by the whole
+  request. The existing SQL-operation and output bounds remain.
   Nested budgets preserve outer deadlines and operation accounting instead
   of clearing the caller's SQLite progress handler.
 - These are cooperative checks, not preemptive cancellation of arbitrary

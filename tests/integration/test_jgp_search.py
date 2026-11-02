@@ -136,7 +136,7 @@ def test_group_query_is_body_only_and_absent_from_logs(
     assert client.get("/api/v1/releases").json()["jgp_search"] is True
 
 
-@pytest.mark.parametrize(("elapsed", "status"), [(0.3, 200), (0.6, 200), (2.001, 504)])
+@pytest.mark.parametrize(("elapsed", "status"), [(0.3, 200), (1.2, 200), (2.401, 504)])
 def test_group_search_allows_slow_results_but_keeps_a_total_deadline(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

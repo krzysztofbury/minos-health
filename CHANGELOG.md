@@ -15,6 +15,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- One slow read no longer shows an error. Pages and search failed at 1 s and 2 s
+  on cold reads that took milliseconds a moment later. Each request now has one
+  2.4 s limit, so a slow step gets the time it needs and a stalled disk frees its
+  connection before the edge gives up, where a page could hold one for 20 s. A page
+  that still times out retries by itself. Operation limits are unchanged.
+- A JGP group page scanned its whole sheet because of a `trim()` no index could
+  serve, about 25 MiB of reads per page. It now uses the existing index.
+- The calendar's arrows closed it instead of changing the month or year.
 - An NFZ news item, project, JGP notice, JGP file or AOTMiT PDF that left its
   listing and returned, or whose bytes changed back and forth, reused a committed
   ID, which would have failed every later NFZ run. Each run now records its own

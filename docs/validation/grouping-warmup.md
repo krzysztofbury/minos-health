@@ -80,7 +80,8 @@ against the one second budget of `load_graph`, while activation still shared the
 CPU; every other entry completed. The first three Gruper cases then met the same
 limit and answered 504, and the fourth filled the cache in 2,380 ms.
 
-Warm-up now gives each sheet 5 s of SQL while requests keep their one second.
+Warm-up now gives each sheet 5 s of SQL. Requests had one second then and share
+the 2.4 s default now, inside the Gruper's 3 s.
 Operation limits are unchanged. The sheet cache no longer holds its lock while
 reading: a request needing a sheet being warmed waits up to 2.5 s, cut to what
 is left of its 3 s deadline across sheets (#314), holding its lease, then answers

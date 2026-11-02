@@ -21,6 +21,7 @@ from minos.http.jgp_condition_pages import (
     source_positions,
 )
 from minos.http.pages import (
+    RETRIED,
     RETRY_HEAD,
     _e,  # pyright: ignore[reportPrivateUsage]
     _page,  # pyright: ignore[reportPrivateUsage]
@@ -788,5 +789,5 @@ def error_page(
         description=lead,
         path="/jgp",
         content=content,
-        head=RETRY_HEAD if code == "busy" else "",
+        head=RETRY_HEAD if code in RETRIED else "",
     )

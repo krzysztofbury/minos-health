@@ -77,7 +77,7 @@ def evaluate(
     marks["started"] = time.monotonic()
     request = parse_grouping_request(body)
     marks["parsed"] = time.monotonic()
-    with pool.borrow() as lease:
+    with pool.borrow(seconds=None) as lease:
         marks["leased"] = time.monotonic()
         outcome = group_request(
             lease.connection, pool.manifest.dataset, request, prepared
@@ -144,7 +144,7 @@ def warm_grouping(
     started = time.monotonic()
     warmup = Warmup(stop, _warmup_step)
     try:
-        with pool.borrow() as lease:
+        with pool.borrow(seconds=None) as lease:
             warmup.run(lease.connection, prepared)
         status = "completed"
     except WarmupCancelled:

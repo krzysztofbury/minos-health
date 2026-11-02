@@ -17,6 +17,7 @@ from minos.store.bundle_cache import BundleCache
 from minos.store.comparison_snapshot import build_comparison_cache
 from minos.store.jgp_comparison import catalog_versions
 from minos.store.jgp_search import GroupIndex, build_group_index
+from minos.store.query_budget import DEFAULT_SECONDS, query_budget
 from minos.store.reference import open_reference_bundle
 
 LOGGER = logging.getLogger("minos.http.comparison")
@@ -24,6 +25,7 @@ LOGGER = logging.getLogger("minos.http.comparison")
 # tree lookups and start-up warm-up use the pool outside that count, so a
 # saturated pool can still refuse. Measured in docs/validation/api-load.md.
 MAX_WAITERS = 12
+_NO_OPERATION_LIMIT = 1_000_000_000_000
 
 
 class CapacityError(Exception):
@@ -97,7 +99,14 @@ class ReferencePool:
         return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns
 
     @contextmanager
-    def borrow(self) -> Generator[Lease]:
+    def borrow(self, *, seconds: float | None = DEFAULT_SECONDS) -> Generator[Lease]:
+        """One lease under one deadline for the whole request.
+
+        A page runs about twenty budgeted stages, so without this a stalled disk
+        holds a lease long after the edge gave up. Only the deadline applies here:
+        the stages keep their operation limits. Warm-up and the Gruper keep their
+        own longer budgets and pass None.
+        """
         # Checksums are verified at startup. Runtime artifacts must be mounted
         # read-only; identity changes still fail closed before each lookup.
         if self._file_identity() != self._identity:
@@ -118,7 +127,13 @@ class ReferencePool:
                 raise CapacityError
             lease = self._leases.pop()
         try:
-            yield lease
+            if seconds is None:
+                yield lease
+            else:
+                with query_budget(
+                    lease.connection, seconds=seconds, operations=_NO_OPERATION_LIMIT
+                ):
+                    yield lease
         finally:
             with self._lock:
                 self._leases.append(lease)

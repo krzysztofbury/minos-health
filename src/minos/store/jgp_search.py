@@ -139,7 +139,7 @@ def search_groups(
         raise ValueError("invalid group search limit")
     # The resolver's bounded SQL stages retain their own operation limits. This
     # deadline additionally covers their total time and all Python matching.
-    budget = QueryBudget(seconds=2.0)
+    budget = QueryBudget()
     ruleset = resolve_ruleset(connection, day, None)
     budget.check()
     release = cast(str, ruleset["release_id"])
