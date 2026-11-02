@@ -238,9 +238,13 @@ class Tree:
 
 
 def load_trees(pool: ReferencePool) -> dict[str, Tree]:
-    """Precompute each catalog's root listing; the release scan is too slow per request."""
+    """Precompute each catalog's root listing; the release scan is too slow per request.
+
+    Startup, not a request: it reads every dictionary on a cold disk, so it keeps
+    the per-stage budgets and has no whole-lease deadline.
+    """
     trees: dict[str, Tree] = {}
-    with pool.borrow() as lease:
+    with pool.borrow(seconds=None) as lease:
         for source in pool.manifest.dataset.sources:
             if source.context_for is not None:
                 continue
