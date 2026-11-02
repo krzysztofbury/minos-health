@@ -52,7 +52,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html { scroll-padding-top: 5rem; -webkit-tap-highlight-color: transparent; }
 a, button, summary, label { touch-action: manipulation; }
-button { user-select: none; -webkit-user-select: none; }
+button, .button, .dictionary-tab { user-select: none; -webkit-user-select: none; }
 body { display: flex; flex-direction: column; min-width: 20rem; min-height: 100dvh; margin: 0; font-size: var(--text-md); background: var(--canvas); }
 main { flex: 1; padding-bottom: 3.5rem; }
 main:focus { outline: none; }
@@ -310,12 +310,14 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 44px; padding: 0.55rem 1.1rem; border: 1px solid var(--accent); border-radius: var(--radius); color: #fff; background: var(--accent); cursor: pointer; font-weight: 600; text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { .button:hover { color: #fff; background: var(--accent-strong); text-decoration: none; } }
 /* Small controls keep their look and take a finger-sized hit area. */
-.tree-toggle, .tip { position: relative; }
+.tree-toggle, .tip, .breadcrumbs a, a.code-chip, .case-card .link-button { position: relative; }
 .tree-toggle::after, .picker-button::after { position: absolute; inset: -0.45rem; content: ""; }
+/* These stay compact to the eye and give a finger more room than they show. */
+.breadcrumbs a::after, a.code-chip::after, .case-card .link-button::after { position: absolute; inset: -0.5rem -0.15rem; content: ""; }
 .tip::after { position: absolute; inset: -0.625rem; content: ""; }
 /* Controls answer the press itself, not the release. */
 .button, .dictionary-tab, .link-button, .suggestion-button, .source-tabs button, .picker-nav, .picker-cell, .tip, .search-submit, .menu-toggle { transition: transform 120ms var(--ease-out), background-color 120ms ease, border-color 120ms ease, color 120ms ease; }
-.button:active, .dictionary-tab:active, .link-button:active, .suggestion-button:active, .source-tabs button:active, .search-submit:active, .menu-toggle:active { transform: scale(0.97); }
+.button:active, .dictionary-tab:active, .link-button:active, .suggestion-button:active, .source-tabs button:active, .search-submit:active, .menu-toggle:active, .picker-nav:active, .picker-cell:active, .tip:active, .filter:active { transform: scale(0.97); }
 .result:active, .start-link:active, a.dictionary-card:active, .tree-row:active, .jgp-row:active, .suggestion:active { background: var(--canvas); }
 .button-quiet { color: var(--accent); background: var(--surface); border-color: var(--line-strong); }
 @media (hover: hover) and (pointer: fine) { .button-quiet:hover { color: var(--accent-strong); background: var(--accent-tint); } }
@@ -329,7 +331,7 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .page-head-compact { padding-top: 1rem; padding-bottom: 0.75rem; }
 .page-lead { max-width: 46rem; margin-top: 0.3rem; color: var(--ink-soft); font-size: var(--text-md); line-height: 1.45; }
 .page-meta { margin-bottom: 0.5rem; color: var(--muted); font-size: var(--text-sm); }
-.breadcrumbs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; color: var(--muted); font-size: var(--text-sm); }
+.breadcrumbs { display: flex; flex-wrap: wrap; gap: 1rem 0.4rem; margin-bottom: 0.75rem; color: var(--muted); font-size: var(--text-sm); }
 
 /* Home: search first. */
 .search-hero { padding-top: clamp(1.25rem, 6vh, 3.5rem); padding-bottom: 1rem; }
@@ -429,7 +431,7 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .tree-status { margin-bottom: 0.75rem; color: var(--muted); font-size: var(--text-sm); }
 .tree-status.is-error { padding: 0.75rem 1rem; border-radius: var(--radius); color: var(--bad); background: var(--bad-bg); }
 .tree-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; align-items: start; }
-@media (min-width: 60rem) { .tree-layout { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); } .detail { position: sticky; top: 5rem; max-height: calc(100dvh - 6rem); overflow-y: auto; } }
+@media (min-width: 60rem) { .tree-layout { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); } .detail { position: sticky; top: 5rem; max-height: calc(100dvh - 6rem); overflow-y: auto; overscroll-behavior: contain; } }
 .tree-pane { min-width: 0; padding: 0.5rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); }
 .tree, .tree [role="group"] { margin: 0; padding: 0; list-style: none; }
 .tree [role="group"] { margin-left: 1.1rem; padding-left: 0.6rem; border-left: 1px solid var(--line); }
@@ -562,6 +564,8 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .answer-section > summary { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
 .answer-section-title span { color: var(--muted); font-weight: 400; }
 .fold { border-top: 1px solid var(--line); }
+.source-note > summary, .jgp-statistics details > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
+.fold-body details > summary { padding-block: 0.65rem; cursor: pointer; }
 .fold > summary { display: flex; align-items: center; min-height: 44px; color: var(--ink-soft); font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
 .fold > summary::before, .source-note > summary::before, .jgp-statistics details > summary::before { flex: none; width: 0.45rem; height: 0.45rem; margin: 0 0.6rem 0 0.15rem; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(-45deg); transition: transform 150ms var(--ease-out); content: ""; }
 .fold[open] > summary::before, .source-note[open] > summary::before, .jgp-statistics details[open] > summary::before { transform: rotate(45deg); }
@@ -587,8 +591,10 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .code-page .detail-notes h2, .code-children h2 { margin-bottom: 0.5rem; font-size: var(--text-lg); }
 .code-list { margin: 0; padding: 0; list-style: none; }
 .code-list li + li { border-top: 1px solid var(--line); }
-.code-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.6rem; align-items: baseline; padding: 0.45rem 0; }
-.code-list li.code-block { display: block; }
+/* Wide enough for the longest code in any dictionary (eight characters, 23.13141),
+   so every description in a list starts at the same edge. */
+.code-list li { display: grid; grid-template-columns: 6rem minmax(0, 1fr); gap: 0.6rem; align-items: baseline; padding: 0.45rem 0; }
+.code-list li.code-block, .code-list li:not(:has(.code-chip)) { display: block; }
 .code-block > .result-label { font-weight: 700; }
 .code-block > .code-list { margin: 0.35rem 0 0 1rem; }
 .code-link { display: contents; color: var(--ink); text-decoration: none; }
@@ -752,7 +758,7 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .jgp-scopes > summary { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; min-width: 20rem; cursor: pointer; list-style: none; }
 .jgp-scopes > summary::-webkit-details-marker { display: none; }
 .jgp-scopes[open] > summary { border-color: var(--accent); }
-.jgp-scopes ul { position: absolute; z-index: 5; left: 0; width: min(46rem, 100%); max-height: 22rem; margin: 0.4rem 0 0; padding: 0.5rem; overflow-y: auto; columns: 15rem; column-gap: 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); list-style: none; font-size: var(--text-sm); }
+.jgp-scopes ul { position: absolute; z-index: 5; left: 0; width: min(46rem, 100%); max-height: 22rem; margin: 0.4rem 0 0; padding: 0.5rem; overflow-y: auto; overscroll-behavior: contain; columns: 15rem; column-gap: 1rem; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow); list-style: none; font-size: var(--text-sm); }
 .jgp-scopes li { break-inside: avoid; }
 .jgp-scopes a { display: block; padding: 0.35rem 0.5rem; border-radius: 6px; color: var(--ink); text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { .jgp-scopes a:hover { background: var(--canvas); } }

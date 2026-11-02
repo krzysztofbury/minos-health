@@ -276,7 +276,7 @@ try {
     const focused = document.activeElement.id;
     query('one two three four five six seven eight nine');
     const invalid = input.getAttribute('aria-invalid');
-    document.getElementById('reset-search').click();
+    document.getElementById('reset-catalog').click();
     return { first, evidence, reversed, numericMiss, correctedHits, labelled, accepted, focused,
       invalid, restored: document.querySelectorAll('.source-card').length,
       location: location.search + location.hash, persisted: localStorage.length + sessionStorage.length };
@@ -313,6 +313,7 @@ try {
   assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 8);
   assert.equal(await evaluate(client, `document.getElementById('more-results').hidden`), true);
   assert.match(await evaluate(client, `document.getElementById('share-catalog').hash`), /page=2/);
+  assert.equal(await evaluate(client, `document.querySelector('.catalog-actions').hidden`), false);
   await evaluate(client, `document.getElementById('previous-results').click()`);
   assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 50);
   await evaluate(client, `document.getElementById('tab-rsk').click()`);
@@ -355,6 +356,8 @@ try {
   await screenshot(client, 'sources-facets-mobile.png');
   await evaluate(client, `document.getElementById('reset-catalog').click()`);
   assert.equal(await evaluate(client, `location.hash + location.search`), '');
+  // Nothing to reset and nothing to share: the row goes, not just its button.
+  assert.equal(await evaluate(client, `document.querySelector('.catalog-actions').hidden`), true);
   assert.equal(await evaluate(client, `document.querySelectorAll('.source-card').length`), 4);
   assert.equal(requests.concat(requestBodies).some(value => value.includes('PRIVATE_QUERY_CANARY')), false);
   await evaluate(client, `(() => { const input = document.getElementById('source-search'); input.value = 'zalacznikx'; input.dispatchEvent(new Event('input', {bubbles:true})); })()`);
@@ -363,7 +366,7 @@ try {
   await evaluate(client, `document.querySelector('.suggestion-button').click()`);
   assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
   await screenshot(client, "sources-search-mobile.png");
-  await evaluate(client, `document.getElementById('reset-search').click()`);
+  await evaluate(client, `document.getElementById('reset-catalog').click()`);
   await evaluate(client, `document.querySelectorAll('.source-card details:not(.technical-details)').forEach(node => node.open = true)`);
   assert.equal(await evaluate(client, `document.documentElement.scrollWidth > innerWidth`), false);
   await screenshot(client, "sources-expanded-mobile.png");

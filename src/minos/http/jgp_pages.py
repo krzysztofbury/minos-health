@@ -121,10 +121,12 @@ def date_bar(
     `calendar` lists the days on which the bundle's answer can change; the
     first is the earliest covered service date.
     """
+    # The chosen day keeps its place and reads as pressed, so the row never reflows.
+    chosen = ' aria-current="page"'
     links = "".join(
-        f'<li><a class="dictionary-tab" href="{_e(prefix)}{_e(day)}{_e(suffix)}">{_e(display_date(day))}</a></li>'
+        f'<li><a class="dictionary-tab"{chosen if day == service_date else ""}'
+        + f' href="{_e(prefix)}{_e(day)}{_e(suffix)}">{_e(display_date(day))}</a></li>'
         for day in calendar
-        if day != service_date
     )
     return (
         '        <div class="jgp-date">\n'

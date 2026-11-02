@@ -137,6 +137,18 @@ def test_group_page_quotes_source_headers_and_keeps_absent_values(
     assert 'min="2026-05-01"' in page
 
 
+def test_the_chosen_quick_date_stays_in_the_row_and_reads_as_current(
+    client: TestClient,
+) -> None:
+    page = client.get("/jgp/2026-07-01/PZD02").text
+    assert (
+        '<a class="dictionary-tab" aria-current="page" href="/jgp/2026-07-01/PZD02">'
+        + "01.07.2026</a>"
+    ) in page
+    assert page.count('class="dictionary-tab" aria-current="page"') == 1
+    assert 'href="/jgp/2026-05-01/PZD02">01.05.2026</a>' in page
+
+
 def test_group_page_links_across_the_2027_row_switch(client: TestClient) -> None:
     before = client.get("/jgp/2026-12-31/H21").text
     after = client.get("/jgp/2027-01-01/H21").text

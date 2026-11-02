@@ -56,6 +56,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- The Gruper no longer dead-ends on an incomplete product report: the notice offers
+  "Potwierdź raport bez produktów" and "Podaj produkty". Discharge mode labels fit
+  a 320 px phone, with the official text under the select (#255).
+- The chosen `/jgp` date stays in its row and reads as pressed, code lists keep one
+  left edge for descriptions, and `/zrodla` drops the duplicate clear button and
+  shows its reset and link row only when a filter is active (#255).
+- On phones, breadcrumbs, code links, the case card's "Zmień" and nested folds get
+  larger touch targets, and the calendar, filters and help buttons react to a press.
 - The agents page gains copy buttons and folds each tool, the legal pages gain
   a contents list with their text unchanged, and the Gruper result no longer
   repeats its scope notice (#298).
