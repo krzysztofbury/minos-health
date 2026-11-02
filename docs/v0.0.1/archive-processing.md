@@ -299,10 +299,12 @@ One run:
    re-pin cover the change.
 8. Reports NFZ monthly JGP reports that wait for review (#283). A `statistics`
    entry of the NFZ projection that the live bundle's pins do not cover pushes
-   `data-update` down with `manual statistics <month>`: a newer month, or the
-   newest month with another resource ID or size. The watcher reads only the
-   listing, and the alert clears on the first run after a reviewed release pins
-   the report. It is silent while the live bundle has no statistics.
+   `data-update` down once with `manual statistics <month>`: a newer month, or the
+   newest month with another resource ID or size. Later runs stay up with
+   `pending statistics <month>` until a reviewed release pins the report. The
+   alerted report sits in `statistics-alert.json` beside the verdicts, and is
+   written only after the push succeeds. The watcher reads only the listing. It is
+   silent while the live bundle has no statistics.
 
 Judging activates nothing; [phase C](#data-only-activation-141-phase-c) does,
 for allowlisted classes. Every live input must be in R2: release bundles are built

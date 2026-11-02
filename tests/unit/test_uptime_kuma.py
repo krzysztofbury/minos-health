@@ -239,6 +239,8 @@ def test_uptime_kuma_target_file_rejects_duplicate_keys(tmp_path: Path) -> None:
         ("manual icd11 https://rsk3.ezdrowie.gov.pl/x", False),
         ("manual jgp 44042; manual eli discharge_modes; manual eli specialties", True),
         ("manual eli products", False),
+        ("manual statistics 2026-09; pending statistics 2026-10", True),
+        ("pending statistics 09-2026", False),
         ("manual jgp Zalacznik1a.xlsx", False),
         ("rejected jgp history/x", False),
         ("", False),

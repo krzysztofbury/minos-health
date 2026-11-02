@@ -1,5 +1,6 @@
 """Host processor adapter (#141 phase B3); it reports and never activates."""
 
+import contextlib
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -19,7 +20,9 @@ from minos.ingest.processor import (
     manual_icd11,
     manual_jgp,
     manual_statistics,
+    mark_statistics_alerted,
     run_processor,
+    statistics_alerted,
 )
 from minos.ingest.receipts import ReceiptClient, append_receipt
 from minos.ingest.watchers.uptime_kuma import (
@@ -79,18 +82,26 @@ def execute_processor(
         manual = manual_jgp(paths)
         icd11 = manual_icd11(paths)
         eli = manual_eli(paths)
-        statistics = manual_statistics(paths)
+        report = manual_statistics(paths)
     except ProcessorError as error:
         return _report(targets, kuma_factory, failure=error.failure)
-    return _report(
+    # One alert per report: reports arrive monthly and take days to pin, and a
+    # monitor held down all that time would hide a real failure (#283).
+    fresh = report is not None and report != statistics_alerted(paths)
+    outcome = _report(
         targets,
         kuma_factory,
         verdicts=verdicts,
         manual=manual,
         icd11=icd11,
         eli=eli,
-        statistics=statistics,
+        statistics=report.month if report is not None and fresh else None,
+        pending=report.month if report is not None and not fresh else None,
     )
+    if report is not None and fresh and outcome == 0:
+        with contextlib.suppress(OSError):  # The next run tells the owner again.
+            mark_statistics_alerted(paths, report)
+    return outcome
 
 
 class Outcome(BaseModel):
@@ -182,8 +193,9 @@ def _report(
     icd11: str | None = None,
     eli: tuple[str, ...] = (),
     statistics: str | None = None,
+    pending: str | None = None,
 ) -> int:
-    up, message = _message(failure, verdicts, manual, icd11, eli, statistics)
+    up, message = _message(failure, verdicts, manual, icd11, eli, statistics, pending)
     summary: dict[str, object] = {"version": 1}
     if failure is None:
         summary["verdicts"] = [
@@ -202,6 +214,8 @@ def _report(
             summary["manual_eli"] = list(eli)
         if statistics is not None:
             summary["manual_statistics"] = statistics
+        if pending is not None:
+            summary["pending_statistics"] = pending
     else:
         summary["failed"] = failure
     try:
@@ -222,6 +236,7 @@ def _message(
     icd11: str | None,
     eli: tuple[str, ...] = (),
     statistics: str | None = None,
+    pending: str | None = None,
 ) -> tuple[bool, str]:
     if failure is not None:
         return False, f"failed: {failure}"
@@ -230,7 +245,14 @@ def _message(
     reported = [
         item for item in verdicts if item.report.code != "release_content_unchanged"
     ]
-    if not reported and not manual and icd11 is None and not eli and statistics is None:
+    if (
+        not reported
+        and not manual
+        and icd11 is None
+        and not eli
+        and statistics is None
+        and pending is None
+    ):
         return True, "idle"
     parts = [
         f"would_activate {item.report.release_id}"
@@ -248,6 +270,9 @@ def _message(
     # A new NFZ monthly report waits for a reviewed release to pin it (#283).
     if statistics is not None:
         parts.append(f"manual statistics {statistics}")
+    # Already told once: it stays visible and does not hold the monitor down.
+    if pending is not None:
+        parts.append(f"pending statistics {pending}")
     up = (
         not manual
         and icd11 is None

@@ -867,10 +867,15 @@ After an activation, add the release to the repository manifest before the
 next reviewed release: `plan` refuses a bundle that drops a live release.
 
 `manual statistics <month>` means NFZ published a monthly JGP report for that
-month, or replaced one, and no release pins it. Re-pin it in
+month, or replaced one, and no release pins it. It alerts once per report: the
+next run goes back up with `pending statistics <month>`, because reports arrive
+monthly and a monitor held down would hide a real failure for days. A failure
+during that one window, about six hours, sends no second alert. Kuma only notifies
+on a change, so a report arriving while the monitor is already down sends none
+either; it still shows as pending. `check_monitoring` lists it under `pending`
+without failing. Re-pin it in
 `manifests/sources/jgp-statistics.json` with `scripts/extract_jgp_statistics.py`
-and release; the alert clears on the next run. The monitor stays down meanwhile,
-and Kuma sends no second alert for a later failure, so release it promptly.
+and release; the message clears on the next run.
 
 ## Mutable Product Data Gate
 

@@ -235,8 +235,19 @@ def manual_eli(paths: ProcessorPaths) -> tuple[str, ...]:
     )
 
 
-def manual_statistics(paths: ProcessorPaths) -> str | None:
-    """The month of an NFZ monthly report the live pins do not cover, if any (#283).
+class PendingReport(BaseModel):
+    """An NFZ monthly report no live pin covers. A replacement keeps its month."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid", strict=True, frozen=True
+    )
+    month: str
+    resource_id: int
+    size_bytes: int
+
+
+def manual_statistics(paths: ProcessorPaths) -> PendingReport | None:
+    """The NFZ monthly report the live pins do not cover, if any (#283).
 
     Compared with the live bundle, so it clears once a reviewed release pins it. A
     replaced report keeps its month, so resource and size decide, not the month.
@@ -255,8 +266,31 @@ def manual_statistics(paths: ProcessorPaths) -> str | None:
             and entry.month >= newest
             and (entry.month, entry.resource_id, entry.size_bytes) not in pins
         ):
-            return entry.month
+            return PendingReport(
+                month=entry.month,
+                resource_id=entry.resource_id,
+                size_bytes=entry.size_bytes,
+            )
     return None
+
+
+def statistics_alerted(paths: ProcessorPaths) -> PendingReport | None:
+    """The report the owner was last told about; unreadable means tell them again."""
+    try:
+        return PendingReport.model_validate_json(
+            _read_bounded(_alert_path(paths), MAX_STATE_BYTES)
+        )
+    except ValidationError, OSError, ProcessorError:
+        return None
+
+
+def mark_statistics_alerted(paths: ProcessorPaths, report: PendingReport) -> None:
+    """Beside the verdicts, not in them: an older image still reads that file."""
+    _write_private(_alert_path(paths), report.model_dump_json().encode())
+
+
+def _alert_path(paths: ProcessorPaths) -> Path:
+    return paths.state.with_name("statistics-alert.json")
 
 
 def manual_icd11(paths: ProcessorPaths) -> str | None:
