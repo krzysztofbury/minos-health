@@ -15,6 +15,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The validation edge pins Alpine `libexpat` 2.10.0-r0 for CVE-2026-117610 and
+  CVE-2026-118370 (HIGH): the newest upstream NGINX 1.31.7 digest still ships
+  2.9.0-r0, and the edge scan blocked every validation publish.
 - One slow read no longer shows an error. Pages and search failed at 1 s and 2 s
   on cold reads that took milliseconds a moment later. Each request now has one
   2.4 s limit, so a slow step gets the time it needs and a stalled disk frees its
