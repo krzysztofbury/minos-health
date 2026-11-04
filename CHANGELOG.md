@@ -73,6 +73,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Agent release gates (`AGENTS.md`): the owner approves a release once in chat
+  after the agent lists every command with revisions and digests from command
+  output; the approval covers those commands, their `verify` and `rollback`. An
+  auto mode classifier denial cannot be approved in `/permissions`, so the owner
+  runs any command still denied after one retry. Read-only SSH diagnostics
+  (`docker logs`, `docker ps`, a `docker inspect --format` of state, health,
+  image or restart fields, `journalctl`, `systemctl status`, `free`, `df`) need
+  no approval; environment, configuration, mounts and secrets stay out of it.
 - Uptime Kuma 2.5.9 for GHSA-86ch-2247-gr56 (RSS cache poisoning) and its
   monitor fixes, released through `scripts/deploy_kuma.py`. The Kuma release
   smoke now upgrades from 2.5.8, the release production runs, on real data.
