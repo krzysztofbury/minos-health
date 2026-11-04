@@ -328,3 +328,79 @@ def test_retirement_has_its_own_bound_after_a_slow_startup(
     assert startup.retired == [8]
     assert startup.retire_bounds == [8 + host.RETIRE_TIMEOUT_S]
     assert startup.clock.now > host.UP_WAIT_TIMEOUT_S
+
+
+@pytest.fixture
+def warming(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Probe times of the new API's /readyz; the deadline is 10 s in this clock."""
+    monkeypatch.setattr(host, "WARM_WAIT_S", 3)
+    monkeypatch.setattr(host, "EDGE_RESERVE_S", 2)
+    return []
+
+
+def test_the_edge_moves_once_the_new_api_reports_warm(
+    startup: Startup,
+    warming: list[float],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def probe(identifier: str, timeout_s: float) -> str:
+        assert identifier == "reference-api-new" and timeout_s >= 1
+        warming.append(startup.clock.now)
+        return "warm" if startup.clock.now >= 6 else "cold"
+
+    monkeypatch.setattr(host, "search_warm", probe)
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "completed"
+    assert result["search_warm"] == "warm"
+    # Healthy at 4, warm at 6: the edge starts only then.
+    assert warming == [4, 6]
+    assert startup.launched["edge"] == 6
+
+
+@pytest.mark.parametrize(
+    ("answer", "outcome"),
+    [("cold", "not_warm"), ("unknown", "unknown"), ("unsupported", "unsupported")],
+)
+def test_a_new_api_that_is_not_warm_still_gets_the_edge_in_time(
+    startup: Startup,
+    warming: list[float],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    answer: str,
+    outcome: str,
+) -> None:
+    def probe(_identifier: str, _timeout_s: float) -> str:
+        warming.append(startup.clock.now)
+        return answer
+
+    monkeypatch.setattr(host, "search_warm", probe)
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "completed"
+    assert result["search_warm"] == outcome
+    # The wait ends by its own bound, before the time the edge needs.
+    assert startup.launched["edge"] <= 10 - host.EDGE_RESERVE_S
+    if answer == "unsupported":
+        assert warming == [4]
+    if answer == "unknown":
+        assert len(warming) == host.WARM_PROBE_FAILURES
+
+
+@pytest.mark.usefixtures("startup", "warming")
+def test_no_warm_wait_once_the_old_api_is_already_gone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def probe(_identifier: str, _timeout_s: float) -> str:
+        raise AssertionError("waited while the site was down")
+
+    monkeypatch.setattr(host, "search_warm", probe)
+
+    result = host.compose_result(layout(tmp_path), overlap=False)
+
+    assert result["status"] == "completed"
+    assert result["search_warm"] == "skipped"

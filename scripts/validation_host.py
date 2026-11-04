@@ -74,6 +74,18 @@ MAX_KEEP = 5
 INSPECT_FORMAT = '{{.Id}} {{.RestartCount}} {{if .State.Running}}{{if index .State "Health"}}{{.State.Health.Status}}{{else}}none{{end}}{{else}}{{.State.Status}}{{end}}'
 PULL_TIMEOUT_S = 900
 UP_WAIT_TIMEOUT_S = 300
+# A new API answers its first requests from a cold disk and timed out on them
+# (#332). The edge moves once its warm-up has finished, but a cold colour is
+# slower, not broken: the wait never takes the time the edge needs to start.
+WARM_WAIT_S = 90
+EDGE_RESERVE_S = 60
+WARM_PROBE_TIMEOUT_S = 10
+WARM_PROBE_FAILURES = 3
+WARM_PROBE = (
+    "import json, urllib.request; "
+    "ready = json.load(urllib.request.urlopen('http://127.0.0.1:8081/readyz', timeout=5)); "
+    "print({True: 'warm', False: 'cold'}.get(ready.get('search_warm'), 'unsupported'))"
+)
 COMPOSE_TIMEOUT_S = 300
 DOCKER_TIMEOUT_S = 60
 DIAGNOSTIC_TIMEOUT_S = 10
@@ -666,6 +678,40 @@ def retire_superseded(layout: Layout, api: str, deadline: float) -> list[str]:
     return sorted(retired)
 
 
+def search_warm(identifier: str, timeout_s: float) -> str:
+    """The new API's own /readyz from inside its container; it has no host port."""
+    try:
+        answer = run(
+            ["docker", "exec", identifier, "/build/.venv/bin/python", "-c", WARM_PROBE],
+            timeout_s,
+        ).strip()
+    except (HostError, OSError):
+        return "unknown"
+    return answer if answer in ("warm", "cold", "unsupported") else "unknown"
+
+
+def await_warm(identifier: str, deadline: float) -> str:
+    """Bounded and never fatal; the outcome is recorded with the transition."""
+    bound = min(time.monotonic() + WARM_WAIT_S, deadline - EDGE_RESERVE_S)
+    if bound <= time.monotonic():
+        return "no_time"
+    failures = 0
+    while True:
+        state = search_warm(
+            identifier, min(WARM_PROBE_TIMEOUT_S, max(1.0, bound - time.monotonic()))
+        )
+        # An API before #332 never reports it, so waiting would gain nothing.
+        if state in ("warm", "unsupported"):
+            return state
+        if state == "unknown":
+            failures += 1
+            if failures >= WARM_PROBE_FAILURES:
+                return state
+        if time.monotonic() >= bound:
+            return "not_warm"
+        time.sleep(min(2.0, bound - time.monotonic()))
+
+
 def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]:
     """One real-health deadline for API, edge and retirement, also for rollback.
 
@@ -683,11 +729,13 @@ def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]
     ready: dict[str, StartupState] = {}
     unhealthy: set[str] = set()
     retired: list[str] = []
+    warm = "skipped"
 
     def result(details: dict[str, object]) -> dict[str, object]:
         return {
             **details,
             "phase": phase,
+            "search_warm": warm,
             "startup_wait_seconds": UP_WAIT_TIMEOUT_S,
             "duration_ms": round((time.monotonic() - began) * 1000),
             "output_bytes": output_bytes,
@@ -756,6 +804,11 @@ def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]
                 if current.health == "unhealthy":
                     unhealthy.add(service)
                 time.sleep(min(2.0, remaining(deadline)))
+            # Without overlap the old API is already gone, so waiting only
+            # lengthens the outage.
+            if service == api and overlap:
+                phase = "warm"
+                warm = await_warm(ready[service].identifier, deadline)
         check_ready(deadline)
         _ = remaining(deadline)
         if overlap:

@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
@@ -264,11 +265,18 @@ def test_busy_sql_workers_do_not_block_liveness_and_overload_is_explicit(
         assert release.wait(5)
         return real_search(connection, request, analyzer=analyzer, cache=cache)
 
-    monkeypatch.setattr(adapter, "search_reference", slow)
     with (
         TestClient(create_app(bundle(tmp_path))) as client,
         ThreadPoolExecutor(max_workers=4) as executor,
     ):
+        # The startup warm-up searches too; only these four may hold the leases.
+        for _ in range(500):
+            if client.get("/readyz").json()["search_warm"] is True:
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("search warm-up never finished")
+        monkeypatch.setattr(adapter, "search_reference", slow)
         futures = [
             executor.submit(client.post, "/api/v1/search", json=request_body())
             for _ in range(4)

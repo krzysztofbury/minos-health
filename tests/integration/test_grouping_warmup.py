@@ -17,7 +17,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from minos.domain.grouper_candidates import Catalog
+from minos.domain.morphology import PolishMorphology
 from minos.domain.reference import ArtifactError, QueryTimeoutError
+from minos.domain.search import SearchRequest, SearchResult
 from minos.grouper import pipeline
 from minos.grouper.budget import evaluation_budget
 from minos.grouper.warmup import SHEET_SECONDS
@@ -26,9 +28,11 @@ from minos.http.app import MAX_IN_FLIGHT
 from minos.http.grouping import warm_grouping
 from minos.http.reference import MAX_WAITERS, CapacityError, ReferencePool
 from minos.store import grouper_bundle
+from minos.store.bundle_cache import BundleCache
 from minos.store.grouper_bundle import CharacteristicsGraph, load_graph, sheet_releases
 from minos.store.product_catalogs import product_catalog_releases
 from minos.store.query_budget import DEFAULT_SECONDS, query_budget
+from minos.store.search import search_reference
 from minos.store.tree import Hierarchy, tree_roots
 from tests.fixtures.grouping_interface import grouping_body, grouping_bundle
 
@@ -446,3 +450,104 @@ def test_shutdown_waits_for_active_reader_before_closing_sqlite(
     assert not cast(
         pipeline.PreparedSources, app.state.grouping_prepared
     ).warmed.is_set()
+
+
+def _search_warmup(caplog: pytest.LogCaptureFixture) -> dict[str, object]:
+    (summary,) = (
+        event
+        for record in caplog.records
+        if record.name == "minos.http.warmup"
+        and (event := cast(dict[str, object], json.loads(record.message)))["event"]
+        == "search_warmup"
+    )
+    return summary
+
+
+def test_search_warm_up_retries_a_cold_read_until_it_answers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # #332: the first read of a page on the host's disk outlasted the request
+    # deadline; the pages read so far stay cached, so the next attempt answers.
+    calls = 0
+
+    def cold_once(
+        connection: sqlite3.Connection,
+        request: SearchRequest,
+        *,
+        analyzer: PolishMorphology | None = None,
+        cache: BundleCache | None = None,
+    ) -> SearchResult:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise QueryTimeoutError("cold page")
+        return search_reference(connection, request, analyzer=analyzer, cache=cache)
+
+    monkeypatch.setattr(application, "search_reference", cold_once)
+    with (
+        caplog.at_level(logging.INFO, logger="minos.http"),
+        _pool(grouping_bundle(tmp_path)) as pool,
+    ):
+        application.warm_requests(pool, application.load_trees(pool), Event())
+    items = len(application.WARM_SEARCHES) + len(application.WARM_PAGES)
+    # The bundle has no ICD-11, the one item left cold; the timed-out one answered.
+    assert _search_warmup(caplog) | {"duration_ms": 0} == {
+        "event": "search_warmup",
+        "status": "completed",
+        "items": items,
+        "answered": items - 1,
+        "attempts": items + 1,
+        "duration_ms": 0,
+    }
+
+
+def test_a_read_that_never_answers_ends_the_warm_up_and_readiness_holds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    calls = 0
+
+    def stalled(*_args: object, **_kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        raise QueryTimeoutError("stalled disk")
+
+    monkeypatch.setattr(application, "search_reference", stalled)
+    app = application.create_app(grouping_bundle(tmp_path))
+    with caplog.at_level(logging.INFO, logger="minos.http"), TestClient(app) as client:
+        for _ in range(500):
+            ready = client.get("/readyz")
+            assert ready.status_code == 200
+            if ready.json()["search_warm"] is True:
+                break
+            sleep(0.02)
+        else:
+            raise AssertionError("search warm-up never finished")
+    # Three ICD searches in this bundle, each bounded by the attempt limit.
+    assert calls == 3 * application.WARM_ATTEMPTS
+    summary = _search_warmup(caplog)
+    # Only JGP and the three code pages answer; ICD-11 is not in this bundle.
+    assert (summary["status"], summary["answered"]) == ("completed", 4)
+
+
+def test_stopping_ends_the_search_warm_up_between_attempts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    stop = Event()
+    calls = 0
+
+    def shutdown(*_args: object, **_kwargs: object) -> object:
+        nonlocal calls
+        calls += 1
+        stop.set()
+        raise QueryTimeoutError("cold page")
+
+    monkeypatch.setattr(application, "search_reference", shutdown)
+    with (
+        caplog.at_level(logging.INFO, logger="minos.http"),
+        _pool(grouping_bundle(tmp_path)) as pool,
+    ):
+        application.warm_requests(pool, application.load_trees(pool), stop)
+    assert calls == 1
+    summary = _search_warmup(caplog)
+    assert summary["status"] == "cancelled"
+    assert summary["answered"] == 0 and summary["attempts"] == 1

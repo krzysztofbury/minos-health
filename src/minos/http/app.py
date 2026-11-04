@@ -36,6 +36,7 @@ from minos.domain.search import (
 from minos.grouper.pipeline import PreparedSources
 from minos.http.concepts import CONCEPT_ROUTE, register_concept_routes
 from minos.http.grouping import (
+    WARMUP_LOGGER,
     grouping_phases,
     register_grouping_routes,
     warm_grouping,
@@ -458,6 +459,71 @@ def browse(
 # A child of the configured `minos.http` logger, like the warm-up status (#155).
 STARTUP_LOGGER = logging.getLogger("minos.http.startup")
 
+# Startup hashes the whole database through a page cache the API's memory limit
+# cannot hold, so the first requests after a switch read the VPS disk and time out
+# (#332). One broad search and one code page per dictionary bring in the index
+# levels and JGP membership every later request shares.
+WARM_SEARCHES = (
+    ("icd10-pl", "zapalenie płuc"),
+    ("icd10-pl", "choroba"),
+    ("icd9-pl", "usunięcie"),
+    ("icd11-pl", "zapalenie"),
+    ("jgp", "leczenie"),
+)
+WARM_PAGES = (("icd-10", "J18.9"), ("icd-9", "51.22"), ("icd-11", "CA40"))
+# Each attempt is a real request under its real deadline. One that times out
+# leaves what it read cached, so the next gets further; this bounds the stall.
+WARM_ATTEMPTS = 5
+
+
+def _warm_search(pool: ReferencePool, system: str, query: str) -> object:
+    day = None if system == "jgp" else today_in_poland()
+    return lookup(pool, Lookup(system=system, query=query, limit=20, service_date=day))
+
+
+def warm_requests(
+    pool: ReferencePool, trees: dict[str, Tree], stop: threading.Event
+) -> None:
+    """Best effort: an item a bundle lacks or keeps refusing is left cold."""
+    started = time.monotonic()
+    items: list[Callable[[], object]] = [
+        *(
+            partial(_warm_search, pool, system, query)
+            for system, query in WARM_SEARCHES
+        ),
+        *(partial(render_code, pool, trees, slug, code) for slug, code in WARM_PAGES),
+    ]
+    answered = attempts = 0
+    status = "completed"
+    for item in items:
+        for _attempt in range(WARM_ATTEMPTS):
+            if stop.is_set():
+                status = "cancelled"
+                break
+            attempts += 1
+            try:
+                _ = item()
+            except QueryTimeoutError, CapacityError:
+                continue
+            except Exception:  # noqa: BLE001 - never crash the API for a warm-up
+                break
+            answered += 1
+            break
+        if status == "cancelled":
+            break
+    WARMUP_LOGGER.info(
+        json.dumps(
+            {
+                "event": "search_warmup",
+                "status": status,
+                "items": len(items),
+                "answered": answered,
+                "attempts": attempts,
+                "duration_ms": round((time.monotonic() - started) * 1000),
+            }
+        )
+    )
+
 
 def create_app(
     bundle: Path,
@@ -469,7 +535,6 @@ def create_app(
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
-        warmup: threading.Thread | None = None
         warmup_stop = threading.Event()
         try:
             started = time.monotonic()
@@ -495,7 +560,8 @@ def create_app(
                 )
             _app.state.pool = pool
             try:
-                _app.state.trees = await run_in_threadpool(load_trees, pool)
+                trees = await run_in_threadpool(load_trees, pool)
+                _app.state.trees = trees
             except BaseException:
                 pool.close()
                 raise
@@ -510,22 +576,32 @@ def create_app(
                     }
                 )
             )
-            # Readiness never waits for grouping inputs; they warm in the background.
+            # Readiness never waits for warm-up; the edge moves to a new colour
+            # only after `search_warm`, read from /readyz (#332). Search runs last,
+            # so its pages are the most recently read when traffic arrives.
             prepared = cast(
                 PreparedSources | None, getattr(_app.state, "grouping_prepared", None)
             )
-            if (
+            if not (
                 prepared is not None
                 and pool.manifest.dataset.characteristics
                 and pool.manifest.dataset.komunikaty
             ):
-                warmup = threading.Thread(
-                    target=warm_grouping,
-                    args=(pool, prepared, warmup_stop),
-                    name="grouping-warmup",
-                    daemon=True,
-                )
-                warmup.start()
+                prepared = None
+            _app.state.search_warm = False
+
+            def warm() -> None:
+                try:
+                    if prepared is not None:
+                        warm_grouping(pool, prepared, warmup_stop)
+                    warm_requests(pool, trees, warmup_stop)
+                finally:
+                    # Finished, not necessarily complete: activation must never
+                    # wait out its bound for a warm-up that already gave up.
+                    _app.state.search_warm = True
+
+            warmup = threading.Thread(target=warm, name="warmup", daemon=True)
+            warmup.start()
         except BaseException as error:
             # Uvicorn logs startup failures only at error level, which the image
             # suppresses; the class name alone survives for #198. Never the
@@ -542,11 +618,10 @@ def create_app(
                 yield
             await close_mcp()
         finally:
-            if warmup is not None:
-                warmup_stop.set()
-                # Do not close SQLite underneath a still-running warm-up lease.
-                # Readers are bounded; cancellation prevents the next step/retry.
-                warmup.join()
+            warmup_stop.set()
+            # Do not close SQLite underneath a still-running warm-up lease.
+            # Readers are bounded; cancellation prevents the next step/retry.
+            warmup.join()
             pool.close()
 
     app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -660,6 +735,7 @@ def create_app(
                     "api": 1,
                     "status": "ready",
                     "dataset_id": dataset_identity(pool.manifest.dataset),
+                    "search_warm": getattr(app.state, "search_warm", False) is True,
                 }
             )
         except CapacityError:

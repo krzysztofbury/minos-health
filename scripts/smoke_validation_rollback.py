@@ -239,6 +239,8 @@ os.execv(docker,[docker,*args])
             list[str], delayed["startup_unhealthy_seen"]
         ), delayed
         assert delayed["retired"] == ["reference-api"], delayed
+        # The real API image answers the in-container /readyz probe (#332).
+        assert delayed["search_warm"] == "warm", delayed
         assert cast(int, delayed["duration_ms"]) >= API_DELAY_S * 1000, delayed
         outage = longest_outage()
         assert outcomes and outage < MAX_OUTAGE_S, (outage, len(outcomes))
