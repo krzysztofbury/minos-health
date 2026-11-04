@@ -83,8 +83,12 @@ Production health, without credentials:
 - Deeper state needs the host. `uv run python -m scripts.deploy_validation
   inspect` is read-only (identities, Compose SHA-256, memory, disk, container
   health and restart counts). Watcher status and bounded logs
-  ([operations](docs/v0.0.1/operations.md#logging)) need SSH, so the owner
-  approves that exact command first.
+  ([operations](docs/v0.0.1/operations.md#logging)) need SSH over the tailnet.
+  Read-only SSH needs no approval: `docker logs`, `docker ps`, `docker inspect
+  --format` of state, health, image or restart fields, `journalctl`, `systemctl
+  status` or `list-timers`, `free` and `df`. Environment variables,
+  configuration, mounts, secret files and an unfiltered `docker inspect` are
+  never routine; any command that changes the host is part of a release (below).
 - Unit tests, fakes and the Docker smokes (`scripts/smoke_*_deploy.py`) prove
   the tools, never production health. An empty log or query through a filter is
   evidence only after the filter is shown to match running containers.
@@ -108,10 +112,13 @@ Releases ([validation deployment guide](docs/validation/validation-deploy.md)):
 
 Human gates:
 
-- An agent runs a host-changing command only after the owner approves that
-  exact command text in `/permissions`; a chat approval does not lift a
-  permission denial. Ask for every command of a release in one message, with
-  revisions and digests taken from command output.
+- An agent runs a host-changing command only after the owner approves the
+  release in chat. First list every command of that release in one message,
+  with revisions and digests taken from command output; the approval covers
+  those commands, their `verify` and `rollback`, and nothing after the
+  release. An auto mode classifier denial cannot be approved in `/permissions`:
+  after the owner's approval, retry once, and if it is still denied, ask the
+  owner to run the remaining commands with `!` and read their output.
 - Ansible playbooks run only when the owner authorises that exact run;
   `site.yml` never runs over the live validation deployment. Secret files,
   1Password items, the R2 key and Cloudflare or Tailscale settings change only

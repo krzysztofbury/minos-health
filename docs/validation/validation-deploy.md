@@ -376,7 +376,11 @@ dropped after startup, that warm set cut what six unseen searches and four
 unseen code pages read from disk from 56.5 MiB to 4.9 MiB (local, in process).
 Under only the 512 MiB container limit a local start keeps about 225 MiB of the
 database cached with or without the warm set, so the local stack cannot show
-the host's cold start; the next host activation records the effect.
+the host's cold start. The host can: the next release, `9d34f58` (2026-11-04),
+returned `search_warm` `warm` after a 160-second transition. Its API logged the
+search warm-up answering all eight items in 8.2 seconds after an 81-second
+startup, and the first public requests after the edge moved took 17 ms to
+1.07 s with no 5xx; `verify` passed on its first run.
 
 Local regression evidence covers nonzero remote refusals, partial restoration,
 missing edge despite a successful Compose exit, unrelated Compose refusal,
