@@ -407,8 +407,8 @@ docker compose --project-name minos --file /opt/minos/compose.yaml \
 Keep the service stopped until the complete directory has been archived,
 encrypted, transferred off-host, and checked. Never copy the live SQLite
 database, WAL, or shared-memory files. Restore the same pinned version first:
-Uptime Kuma 2.5.8, official MIT `slim-rootless` on `linux/amd64`, digest
-`sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437`.
+Uptime Kuma 2.5.9, official MIT `slim-rootless` on `linux/amd64`, digest
+`sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0`.
 Ansible refuses an image change while preserved data exists. A Kuma upgrade
 goes through `scripts.deploy_kuma` (#274), which stops Kuma, keeps a stopped
 copy of this directory and restores it on recovery or rollback; refresh the

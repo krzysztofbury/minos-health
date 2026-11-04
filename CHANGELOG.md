@@ -67,6 +67,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Uptime Kuma 2.5.9 for GHSA-86ch-2247-gr56 (RSS cache poisoning) and its
+  monitor fixes, released through `scripts/deploy_kuma.py`. The Kuma release
+  smoke now upgrades from 2.5.8, the release production runs, on real data.
 - `cloudflared` is pinned to 2026.10.7 in the runtime pins, Ansible and the CI
   ingress check; the tunnel gets its own release through `scripts/deploy_tunnel.py`.
 - The Gruper no longer dead-ends on an incomplete product report: the notice offers
