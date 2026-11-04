@@ -132,12 +132,13 @@ Run from the repository root with the materialized inventory described in
    unhealthy status may recover; exits, OOMs, new restarts, ambiguous state or
    lost API readiness fail the transition. Between the two starts the helper
    polls the new API's `/readyz` with `docker exec` for `search_warm` for up to
-   90 seconds, never past 60 seconds before the deadline, and records the
-   outcome as `search_warm` in the transition: `warm`, `not_warm` at the bound,
-   `unknown` after three failed probes, `unsupported` for an API before #332,
-   `no_time` when startup left no room, or `skipped` without overlap, when the
-   old API is already gone. None of them fails the transition: a cold API is
-   slower, not broken. If activation fails, reinstall the
+   90 seconds, stopping about 60 seconds before the deadline, and records the
+   outcome as `search_warm` in `compose-operations.log` and in the `activated`
+   answer: `warm`, `not_warm` at the bound, `unknown` after three failed probes,
+   `unsupported` for an API before #332, `no_time` when startup left no room, or
+   `skipped` without overlap, when the old API is already gone, and on rollback,
+   which restores service first. None of them fails the transition: a cold API
+   is slower, not broken. If activation fails, reinstall the
    rollback file and attempt the same transition once with a new deadline.
 9. **Confirm isolation.** Record `oa` and require it to equal `ob`: watcher,
    tunnel and Kuma keep the same container IDs and restart counts.

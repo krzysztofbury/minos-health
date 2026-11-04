@@ -697,9 +697,12 @@ def await_warm(identifier: str, deadline: float) -> str:
         return "no_time"
     failures = 0
     while True:
-        state = search_warm(
-            identifier, min(WARM_PROBE_TIMEOUT_S, max(1.0, bound - time.monotonic()))
-        )
+        # One clock read per decision: a bound passing between two reads would
+        # hand sleep a negative length, a ValueError, and roll the release back.
+        left = bound - time.monotonic()
+        if left <= 0:
+            return "not_warm"
+        state = search_warm(identifier, min(WARM_PROBE_TIMEOUT_S, left))
         # An API before #332 never reports it, so waiting would gain nothing.
         if state in ("warm", "unsupported"):
             return state
@@ -707,12 +710,15 @@ def await_warm(identifier: str, deadline: float) -> str:
             failures += 1
             if failures >= WARM_PROBE_FAILURES:
                 return state
-        if time.monotonic() >= bound:
+        left = bound - time.monotonic()
+        if left <= 0:
             return "not_warm"
-        time.sleep(min(2.0, bound - time.monotonic()))
+        time.sleep(min(2.0, left))
 
 
-def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]:
+def compose_result(
+    layout: Layout, *, overlap: bool = True, warm: bool = True
+) -> dict[str, object]:
     """One real-health deadline for API, edge and retirement, also for rollback.
 
     Compose's unhealthy abort can precede --wait-timeout. Poll health explicitly
@@ -729,13 +735,13 @@ def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]
     ready: dict[str, StartupState] = {}
     unhealthy: set[str] = set()
     retired: list[str] = []
-    warm = "skipped"
+    warm_state = "skipped"
 
     def result(details: dict[str, object]) -> dict[str, object]:
         return {
             **details,
             "phase": phase,
-            "search_warm": warm,
+            "search_warm": warm_state,
             "startup_wait_seconds": UP_WAIT_TIMEOUT_S,
             "duration_ms": round((time.monotonic() - began) * 1000),
             "output_bytes": output_bytes,
@@ -805,10 +811,10 @@ def compose_result(layout: Layout, *, overlap: bool = True) -> dict[str, object]
                     unhealthy.add(service)
                 time.sleep(min(2.0, remaining(deadline)))
             # Without overlap the old API is already gone, so waiting only
-            # lengthens the outage.
-            if service == api and overlap:
+            # lengthens the outage; a rollback restores service first.
+            if service == api and overlap and warm:
                 phase = "warm"
-                warm = await_warm(ready[service].identifier, deadline)
+                warm_state = await_warm(ready[service].identifier, deadline)
         check_ready(deadline)
         _ = remaining(deadline)
         if overlap:
@@ -908,10 +914,12 @@ def bounded_command(
     }
 
 
-def compose_up(layout: Layout, log: Path, *, overlap: bool = True) -> None:
+def compose_up(
+    layout: Layout, log: Path, *, overlap: bool = True, warm: bool = True
+) -> dict[str, object]:
     details: dict[str, object]
     try:
-        details = compose_result(layout, overlap=overlap)
+        details = compose_result(layout, overlap=overlap, warm=warm)
     except OSError:
         details = {"status": "os_error"}
     # Keep the last attempt and its predecessor, bounded across explicit retries.
@@ -920,6 +928,7 @@ def compose_up(layout: Layout, log: Path, *, overlap: bool = True) -> None:
     write_private(log, canonical(details))
     if details["status"] != "completed":
         raise HostError("compose up failed", details)
+    return details
 
 
 def transition_state(layout: Layout, before: list[list[str]]) -> dict[str, object]:
@@ -999,10 +1008,11 @@ def restore(
     write_private(layout.compose, content)
     failure: dict[str, object] | None = None
     try:
-        compose_up(
+        _ = compose_up(
             layout,
             directory / "rollback-operations.log",
             overlap=overlap_fits(cast(dict[str, object], json.loads(content))),
+            warm=False,
         )
     except (HostError, OSError) as error:
         failure = (
@@ -1310,7 +1320,7 @@ def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
     write_private(layout.compose, staged)
     log = directory / "compose-operations.log"
     try:
-        compose_up(layout, log)
+        transition = compose_up(layout, log)
         state = transition_state(layout, before)
         if not restored(state):
             raise HostError(
@@ -1349,6 +1359,9 @@ def activate(layout: Layout, params: dict[str, object]) -> dict[str, object]:
         "activated_at": activated_at,
         "available_mib": memory_available_mib(),
         "operational": "unchanged",
+        # Evidence for #332 without reading the root-only operations log.
+        "search_warm": transition.get("search_warm"),
+        "transition_ms": transition.get("duration_ms"),
     }
 
 
