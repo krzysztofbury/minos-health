@@ -307,6 +307,8 @@ def test_update_changes_only_validation_services_and_is_resumable(
     _ = host("stage", {**params, "archive_sha256": "0" * 64})  # resumed: bundle exists
     activated = host("activate", params)
     assert activated["status"] == "activated"
+    # Returned to the workstation (#332); this host's 5 s deadline leaves no room.
+    assert activated["search_warm"] == "no_time"
     assert (root / "compose.yaml").read_bytes() == (stage / "compose.json").read_bytes()
     containers = cast(dict[str, dict[str, object]], docker_state(site)["containers"])
     assert sorted(str(value["service"]) for value in containers.values()) == [

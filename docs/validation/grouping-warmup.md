@@ -47,6 +47,12 @@ product release; the single algorithm is identified by its stage. No exception
 message, SQL, input, query or local path enters these records. The summary keeps
 `grouping_warmup`, adds `attempts`, and reports completed sheet/product counts.
 
+The search warm-up (#332) follows it in the same thread and logs one
+`search_warmup` summary on the same logger: `status` (`completed` or
+`cancelled`), `items`, `answered`, `attempts` and `duration_ms`, never a query,
+code or path. `/readyz` reports `search_warm` once both have finished, complete
+or not; activation waits for it before moving the edge.
+
 ## Verification
 
 The matched CPU-starvation burst caused two real sheet-read timeouts. The fix

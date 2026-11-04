@@ -15,6 +15,9 @@ class Clock:
         return self.now
 
     def sleep(self, seconds: float) -> None:
+        # Like time.sleep, which raises on a negative length.
+        if seconds < 0:
+            raise ValueError("sleep length must be non-negative")
         self.now += seconds
 
 
@@ -301,6 +304,8 @@ def test_superseded_api_retires_only_after_the_new_edge_is_ready(
     assert result["overlap"] is True
     assert result["retired"] == ["reference-api-blue"]
     assert startup.retired == [6]
+    # A 10 s deadline cannot spare the edge's reserve for a warm-up wait.
+    assert result["search_warm"] == "no_time"
 
 
 def test_without_overlap_superseded_api_retires_before_the_target_starts(
@@ -328,3 +333,106 @@ def test_retirement_has_its_own_bound_after_a_slow_startup(
     assert startup.retired == [8]
     assert startup.retire_bounds == [8 + host.RETIRE_TIMEOUT_S]
     assert startup.clock.now > host.UP_WAIT_TIMEOUT_S
+
+
+@pytest.fixture
+def warming(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Probe times of the new API's /readyz; the deadline is 10 s in this clock."""
+    monkeypatch.setattr(host, "WARM_WAIT_S", 5)
+    monkeypatch.setattr(host, "EDGE_RESERVE_S", 3)
+    return []
+
+
+def test_the_edge_moves_once_the_new_api_reports_warm(
+    startup: Startup,
+    warming: list[float],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def probe(identifier: str, timeout_s: float) -> str:
+        assert identifier == "reference-api-new" and timeout_s >= 1
+        warming.append(startup.clock.now)
+        return "warm" if startup.clock.now >= 6 else "cold"
+
+    monkeypatch.setattr(host, "search_warm", probe)
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "completed"
+    assert result["search_warm"] == "warm"
+    # Healthy at 4, warm at 6: the edge starts only then.
+    assert warming == [4, 6]
+    assert startup.launched["edge"] == 6
+
+
+@pytest.mark.parametrize(
+    ("answer", "outcome"),
+    [("cold", "not_warm"), ("unknown", "unknown"), ("unsupported", "unsupported")],
+)
+def test_a_new_api_that_is_not_warm_still_gets_the_edge_in_time(
+    startup: Startup,
+    warming: list[float],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    answer: str,
+    outcome: str,
+) -> None:
+    def probe(_identifier: str, _timeout_s: float) -> str:
+        warming.append(startup.clock.now)
+        return answer
+
+    monkeypatch.setattr(host, "search_warm", probe)
+    # Healthy at 2, so three probes fit before the bound at 7.
+    startup.delays = {"reference-api": 1, "edge": 1}
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "completed"
+    assert result["search_warm"] == outcome
+    # The wait ends by its own bound, before the time the edge needs.
+    assert startup.launched["edge"] <= 10 - host.EDGE_RESERVE_S
+    if answer == "unsupported":
+        assert warming == [2]
+    if answer == "unknown":
+        assert len(warming) == host.WARM_PROBE_FAILURES
+
+
+def test_a_probe_that_outlasts_the_bound_ends_the_wait_without_failing(
+    startup: Startup,
+    warming: list[float],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def slow(_identifier: str, timeout_s: float) -> str:
+        warming.append(startup.clock.now)
+        # A probe killed at its timeout still returns a moment later.
+        startup.clock.sleep(timeout_s + 0.5)
+        return "cold"
+
+    monkeypatch.setattr(host, "search_warm", slow)
+
+    result = host.compose_result(layout(tmp_path))
+
+    assert result["status"] == "completed"
+    assert result["search_warm"] == "not_warm"
+    assert warming == [4]
+
+
+# Without overlap the site is already down; a rollback restores service first.
+@pytest.mark.parametrize(("overlap", "warm"), [(False, True), (True, False)])
+@pytest.mark.usefixtures("startup", "warming")
+def test_no_warm_wait_without_overlap_or_on_rollback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    overlap: bool,
+    warm: bool,
+) -> None:
+    def probe(_identifier: str, _timeout_s: float) -> str:
+        raise AssertionError("waited for a warm-up")
+
+    monkeypatch.setattr(host, "search_warm", probe)
+
+    result = host.compose_result(layout(tmp_path), overlap=overlap, warm=warm)
+
+    assert result["status"] == "completed"
+    assert result["search_warm"] == "skipped"

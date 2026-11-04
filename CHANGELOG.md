@@ -15,6 +15,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The first requests after an API release no longer meet a cold disk (#332). The
+  new API warms five searches and three code pages after startup and reports
+  `search_warm` on `/readyz`; activation moves the edge once it is warm, waiting
+  at most 90 seconds and never into the time the edge needs. On 2026-11-04 the
+  first verify requests timed out at 2.9 to 6.8 s and took milliseconds a minute
+  later.
 - The validation edge pins Alpine `libexpat` 2.10.0-r0 for CVE-2026-117610 and
   CVE-2026-118370 (HIGH): the newest upstream NGINX 1.31.7 digest still ships
   2.9.0-r0, and the edge scan blocked every validation publish.

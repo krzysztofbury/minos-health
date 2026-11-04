@@ -118,7 +118,8 @@ Run from the repository root with the materialized inventory described in
    ```sh
    docker compose --project-name minos --file /opt/minos/compose.yaml \
       up --detach --no-deps reference-api-blue
-   # The helper requires real API health before starting edge.
+   # The helper requires real API health before starting edge, then waits for
+   # `search_warm` on the new API's own /readyz (#332).
    docker compose --project-name minos --file /opt/minos/compose.yaml \
      up --detach --no-deps edge
    # Only after real edge health: stop and remove the previous colour.
@@ -129,7 +130,15 @@ Run from the repository root with the materialized inventory described in
    Never restart `minos-compose.service`: its start path stops the watcher.
    Both starts and all inspections share one 300-second deadline. Initial
    unhealthy status may recover; exits, OOMs, new restarts, ambiguous state or
-   lost API readiness fail the transition. If activation fails, reinstall the
+   lost API readiness fail the transition. Between the two starts the helper
+   polls the new API's `/readyz` with `docker exec` for `search_warm` for up to
+   90 seconds, stopping about 60 seconds before the deadline, and records the
+   outcome as `search_warm` in `compose-operations.log` and in the `activated`
+   answer: `warm`, `not_warm` at the bound, `unknown` after three failed probes,
+   `unsupported` for an API before #332, `no_time` when startup left no room, or
+   `skipped` without overlap, when the old API is already gone, and on rollback,
+   which restores service first. None of them fails the transition: a cold API
+   is slower, not broken. If activation fails, reinstall the
    rollback file and attempt the same transition once with a new deadline.
 9. **Confirm isolation.** Record `oa` and require it to equal `ob`: watcher,
    tunnel and Kuma keep the same container IDs and restart counts.
@@ -346,6 +355,28 @@ the edge transition took 120.5 of 300 seconds against 267.6; the API was never
 unhealthy. That activation reused the bundle installed an hour earlier, so the
 page cache may have been warm; a freshly uploaded bundle records the cold case
 in the same log.
+
+### Warm Before The Edge Moves (#332)
+
+Release `470a4ac` (2026-11-04) reached `api_startup` 147 seconds after container
+start (pool 99.6 s for the 730 MiB database, trees 9.5 s), so readiness cannot
+take more work before the 120-second health grace. The edge moved 53 seconds
+after readiness; the first public verify requests then took 2.9 to 6.8 seconds
+and two code pages and one search answered `query_timeout`, while the same calls
+took 2 to 16 ms a minute later. Startup reads the whole file, but on the 2 GiB
+host, with two APIs running during the transition, the pages it read did not
+stay cached until traffic arrived.
+
+After the grouping warm-up the API now runs five searches and three code pages
+through the real request paths and deadline, retrying an item that times out
+(the pages it read stay cached) at most five times, and then reports
+`search_warm` on `/readyz`. It reads last, just before the edge moves, the index
+levels and JGP membership that every later request shares. With the page cache
+dropped after startup, that warm set cut what six unseen searches and four
+unseen code pages read from disk from 56.5 MiB to 4.9 MiB (local, in process).
+Under only the 512 MiB container limit a local start keeps about 225 MiB of the
+database cached with or without the warm set, so the local stack cannot show
+the host's cold start; the next host activation records the effect.
 
 Local regression evidence covers nonzero remote refusals, partial restoration,
 missing edge despite a successful Compose exit, unrelated Compose refusal,

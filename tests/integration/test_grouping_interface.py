@@ -176,13 +176,16 @@ def test_warmup_status_reaches_the_configured_api_logger(
     from minos.grouper import pipeline
 
     app = create_app(grouping_bundle(tmp_path))
-    with caplog.at_level(logging.INFO, logger="minos.http"), TestClient(app):
+    with caplog.at_level(logging.INFO, logger="minos.http"), TestClient(app) as client:
         prepared = cast(pipeline.PreparedSources, app.state.grouping_prepared)
         assert prepared.warmed.wait(10)
-        for _ in range(100):
-            if any(r.name == "minos.http.warmup" for r in caplog.records):
+        # #332: activation moves the edge only once /readyz reports this.
+        for _ in range(500):
+            if client.get("/readyz").json()["search_warm"] is True:
                 break
             time.sleep(0.02)
+        else:
+            raise AssertionError("search warm-up never finished")
     events = [
         cast(dict[str, object], json.loads(record.getMessage()))
         for record in caplog.records
@@ -201,6 +204,18 @@ def test_warmup_status_reaches_the_configured_api_logger(
     }
     assert summaries[0]["status"] == "completed"
     assert summaries[0]["attempts"] == 1
+    # Fixed fields only: never a query, code or path.
+    searched = [event for event in events if event["event"] == "search_warmup"]
+    assert len(searched) == 1
+    assert set(searched[0]) == {
+        "event",
+        "status",
+        "items",
+        "answered",
+        "attempts",
+        "duration_ms",
+    }
+    assert searched[0]["status"] == "completed"
     # #189: startup phase timings reach the same configured hierarchy.
     startup = [
         cast(dict[str, object], json.loads(record.getMessage()))
