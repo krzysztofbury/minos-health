@@ -67,6 +67,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- `cloudflared` is pinned to 2026.10.7 in the runtime pins, Ansible and the CI
+  ingress check; the tunnel gets its own release through `scripts/deploy_tunnel.py`.
 - The Gruper no longer dead-ends on an incomplete product report: the notice offers
   "Potwierdź raport bez produktów" and "Podaj produkty". Discharge mode labels fit
   a 320 px phone, with the official text under the select (#255).
