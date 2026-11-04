@@ -18,7 +18,7 @@ from tests.unit.test_validation_deploy import site as site
 
 OLD_KUMA = "docker.io/louislam/uptime-kuma@sha256:" + "a" * 64
 NEW_KUMA = "docker.io/louislam/uptime-kuma@sha256:" + "b" * 64
-VERSION = "2.5.8"
+VERSION = "2.5.9"
 ORIGINAL = b"original monitors\n"
 # Written by the fake on each clean Kuma stop and on each start.
 CHECKPOINT = b"checkpoint\n"

@@ -28,7 +28,7 @@
     watcher_secrets_gid: 10002
     uptime_kuma_uid: 10003
     uptime_kuma_gid: 10003
-    uptime_kuma_image_reference: docker.io/louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437
+    uptime_kuma_image_reference: docker.io/louislam/uptime-kuma@sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0
     uptime_kuma_public_status_enabled: false
     watcher_uptime_kuma_required: false
     watcher_nfz_activation_enabled: false
@@ -46,7 +46,7 @@
           - uptime_kuma_gid == 10003
           - >-
             uptime_kuma_image_reference ==
-            'docker.io/louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437'
+            'docker.io/louislam/uptime-kuma@sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0'
           - uptime_kuma_public_status_enabled is boolean
           - watcher_uptime_kuma_required is boolean
           - watcher_nfz_activation_enabled is boolean
@@ -1282,7 +1282,7 @@
           - uptime_kuma_image.stdout.split('|')[0] == 'linux/amd64'
           - uptime_kuma_image.stdout.split('|')[1] == 'node'
           - >-
-            'louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437' in
+            'louislam/uptime-kuma@sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0' in
             (uptime_kuma_image.stdout.split('|')[2] | from_json)
         fail_msg: The pinned Uptime Kuma image identity architecture or user is invalid.
       when: not ansible_check_mode
@@ -1371,7 +1371,7 @@
           - none
           - --volume
           - /opt/minos/candidate/cloudflared-config.yml:/etc/cloudflared/config.yml:ro
-          - docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53
+          - docker.io/cloudflare/cloudflared@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba
           - tunnel
           - --config
           - /etc/cloudflared/config.yml
@@ -1407,7 +1407,7 @@
           - /opt/minos/candidate/cloudflared-config.yml:/etc/cloudflared/config.yml:ro
           - --volume
           - /etc/minos/cloudflared/candidate/{{ cloudflared_tunnel_id }}.json:/run/secrets/cloudflared-credentials.json:ro
-          - docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53
+          - docker.io/cloudflare/cloudflared@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba
           - tunnel
           - --config
           - /etc/cloudflared/config.yml
@@ -2829,7 +2829,7 @@
           - minos_edge_boundary[18] == "10"
           - minos_cloudflared_boundary[0] == "healthy"
           - minos_cloudflared_boundary[1] == "{}"
-          - minos_cloudflared_boundary[2] == "docker.io/cloudflare/cloudflared@sha256:1b1d34d0a9c0bfca9de72db8460d328db3f19edd2b96169114e3e893a97bbe53"
+          - minos_cloudflared_boundary[2] == "docker.io/cloudflare/cloudflared@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba"
           - minos_cloudflared_boundary[3] == "minos_edge"
           - minos_cloudflared_boundary[4] == "65532:65532"
           - minos_cloudflared_boundary[5] == "true"

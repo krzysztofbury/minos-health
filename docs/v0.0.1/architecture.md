@@ -142,9 +142,9 @@ container. Bounded, privacy-safe lifecycle logs remain local under Docker's
 
 ### Uptime Kuma
 
-The same Mikr.us Compose host runs self-hosted Uptime Kuma 2.5.8 from the
+The same Mikr.us Compose host runs self-hosted Uptime Kuma 2.5.9 from the
 official MIT `slim-rootless` image (Compose selects `linux/amd64`) pinned to
-`sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437`.
+`sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0`.
 It runs as `10003:10003`, has no Docker socket or host port, joins a private
 monitoring network shared with the watcher and `cloudflared`, and separately
 joins an outbound network for HTTP monitors and notifications. Its only

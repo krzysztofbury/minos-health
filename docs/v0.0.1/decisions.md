@@ -1147,10 +1147,10 @@ monitoring request. The watcher sends only up or down to Uptime Kuma after a
 durable terminal result; a failed monitor request is best-effort and never
 blocks or changes watcher completion.
 
-The accepted monitor is self-hosted Uptime Kuma 2.5.8 on the same Mikr.us host,
+The accepted monitor is self-hosted Uptime Kuma 2.5.9 on the same Mikr.us host,
 not a paid external monitoring SaaS. It uses the official MIT `slim-rootless`
 image on `linux/amd64`, pinned by its multi-arch digest
-`sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437`,
+`sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0`,
 numeric identity `10003:10003`, no Docker socket, no host port, a private
 Compose monitoring network, a separate outbound notification and HTTP monitor
 network, and persistent `/app/data` at `/var/lib/minos/uptime-kuma`. The

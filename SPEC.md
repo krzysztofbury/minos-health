@@ -431,7 +431,7 @@ GitHub-hosted Actions build, test, scan, attest, and publish artifacts but do no
 run production workloads. The watcher and APScheduler run on the same Mikr.us
 Compose host as the edge and API, with a separate mutable control SQLite
 database protected by revisioned recovery images in R2. The same host runs
-self-hosted Uptime Kuma 2.5.5 for coarse public service state and watcher
+self-hosted Uptime Kuma 2.5.9 for coarse public service state and watcher
 completion notifications. This avoids paid external monitoring SaaS, but cannot
 detect or notify for a total Mikr.us host, network, or power outage. That
 same-host limitation is accepted for now. Object storage is one EU-jurisdiction
