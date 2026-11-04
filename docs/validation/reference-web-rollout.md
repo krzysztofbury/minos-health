@@ -222,6 +222,12 @@ which ships libexpat 2.9.0-r0, libx11 1.8.14-r0 and tiff 4.7.2-r0, so the tiff
 pin was dropped. A local Trivy 0.70.0 scan of that base found no fixable high
 or critical vulnerabilities.
 
+On 2026-11-03 the gate found fixable `CVE-2026-117610` and `CVE-2026-118370`
+(libexpat 2.9.0-r0). The newest upstream `1.31.7-alpine` digest still ships
+2.9.0-r0, so the edge's package layer pins libexpat 2.10.0-r0 beside the
+brotli-libs and curl pins. A local Trivy 0.70.0 scan of the rebuilt edge found
+no fixable high or critical vulnerabilities.
+
 Host pre-cutover canaries stopped promotion when ordinary cold searches returned
 HTTP 429. Profiling isolated 320 ms in the first native dictionary construction
 inside the 250 ms request budget; later searches in that same process took
