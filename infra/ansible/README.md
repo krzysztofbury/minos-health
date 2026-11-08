@@ -186,7 +186,7 @@ Enabling, by the owner, once:
    device the owner keeps, so one lost device does not lock the tailnet.
 2. Run the `tailscale lock init` command the console shows on one of them
    (`sudo` on the workstation). It prints ten disablement secrets once; store
-   them in 1Password as item `minos-tailnet-lock-disablement`. One secret
+   them in the project's 1Password vault. One secret
    disables the lock if every signing node is lost.
 3. Run `tailscale lock status` on `minos-production` (over SSH) and on each
    device. A device that reports it is locked out is signed with the
