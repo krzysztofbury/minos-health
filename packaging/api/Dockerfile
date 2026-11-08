@@ -32,14 +32,17 @@ LABEL org.opencontainers.image.revision="${VCS_REF}" \
       org.opencontainers.image.title="Minos validation reference API" \
       org.opencontainers.image.licenses="MIT OR Apache-2.0"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/nonexistent OTEL_SDK_DISABLED=true
-# The pinned base predates the PCRE2, Perl and OpenSSL (CVE-2026-84782)
-# security updates. Keep the Debian fixes pinned until the upstream base is
-# refreshed. The runtime does not load Debian's libssl: the managed Python links
-# its own OpenSSL and SQLite, which the image scan does not see (#301).
+# The pinned base predates the PCRE2, Perl, OpenSSL (CVE-2026-84782) and APT
+# (CVE-2026-109518, DLA-4880-1) security updates. Keep the Debian fixes pinned
+# until the upstream base is refreshed. The runtime does not load Debian's
+# libssl: the managed Python links its own OpenSSL and SQLite, which the image
+# scan does not see (#301). APT never runs in the final image, whose apt
+# binaries are removed below, but its package record is what the scan reads.
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
       "libpcre2-8-0=10.42-1+deb12u2" "perl-base=5.36.0-7+deb12u4" \
-      "libssl3=3.0.22-1~deb12u2" "openssl=3.0.22-1~deb12u2" && \
+      "libssl3=3.0.22-1~deb12u2" "openssl=3.0.22-1~deb12u2" \
+      "apt=2.6.2" "libapt-pkg6.0=2.6.2" && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=builder /opt/python /opt/python
 COPY --from=builder /build/.venv /build/.venv

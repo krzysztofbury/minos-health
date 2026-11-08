@@ -228,6 +228,12 @@ On 2026-11-03 the gate found fixable `CVE-2026-117610` and `CVE-2026-118370`
 brotli-libs and curl pins. A local Trivy 0.70.0 scan of the rebuilt edge found
 no fixable high or critical vulnerabilities.
 
+On 2026-11-08 the gate found fixable `CVE-2026-107891` (musl and musl-utils
+1.2.6-r2) and `CVE-2026-85091` (zlib 1.3.2-r0) in the same upstream digest. The
+layer now also pins musl and musl-utils 1.2.6-r3 and zlib 1.4-r0, the version
+Alpine 3.24 carries the fix in. No local container runtime was available, so
+the pull request's container job is the scan evidence.
+
 Host pre-cutover canaries stopped promotion when ordinary cold searches returned
 HTTP 429. Profiling isolated 320 ms in the first native dictionary construction
 inside the 250 ms request budget; later searches in that same process took

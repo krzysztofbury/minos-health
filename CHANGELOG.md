@@ -15,6 +15,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The validation API image pins Debian `apt` and `libapt-pkg6.0` 2.6.2 for
+  CVE-2026-109518 (HIGH, DLA-4880-1): the pinned `python:3.14.10-slim-bookworm`
+  base ships 2.6.1, and the API scan blocked every pull request. APT never runs
+  in the final image; the pin clears its package record.
+- The validation edge also pins Alpine `musl` and `musl-utils` 1.2.6-r3 for
+  CVE-2026-107891 and `zlib` 1.4-r0 for CVE-2026-85091 (HIGH): the upstream
+  NGINX 1.31.7 digest ships musl 1.2.6-r2 and zlib 1.3.2-r0.
 - The first requests after an API release no longer meet a cold disk (#332). The
   new API warms five searches and three code pages after startup and reports
   `search_warm` on `/readyz`; activation moves the edge once it is warm, waiting
