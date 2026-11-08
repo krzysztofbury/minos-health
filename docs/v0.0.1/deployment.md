@@ -443,10 +443,10 @@ After legal clearance and registration:
 - `status.minoshealth.pl` routes to Uptime Kuma only when
   `uptime_kuma_public_status_enabled=true` after private bootstrap;
   the tunnel sends every path of that host to Kuma, so a Cloudflare Access
-  application (`minos-status-admin`, owner email only, 24-hour session) guards
-  the Kuma login and admin paths: `/socket.io*`, `/dashboard*`, `/setup*`,
-  `/settings*`, `/manage-status-page`, `/add*`, `/edit/*`, `/clone/*`,
-  `/maintenance*`, `/api/push/*`, `/api/badge/*` and `/metrics`. The public page
+  application (owner email only, 24-hour session) guards the Kuma login,
+  admin, management, push, badge and metrics paths. Its name and exact path
+  list live in the Cloudflare dashboard, not in this public repository. The
+  public page
   needs only `/`, `/assets/*`, `/icon.svg`, `/api/entry-page` and the three
   `minos-health` status-page reads, and never opens `/socket.io`. Watcher pushes
   stay on the internal network and never pass through Cloudflare (2026-10-20);
