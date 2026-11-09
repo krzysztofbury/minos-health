@@ -100,6 +100,32 @@ def test_dictionary_sitemaps_list_every_code_page(client: TestClient) -> None:
     assert client.get("/sitemap-icd-11.xml").status_code == 404
 
 
+def test_dictionary_hubs_link_their_top_level_without_javascript(
+    client: TestClient,
+) -> None:
+    # The tree loads from /api/, which robots.txt disallows; these links are a
+    # crawler's only way from a hub to the code pages (#342).
+    hub = client.get("/slowniki/icd-10")
+    assert hub.status_code == 200
+    assert hub.headers["cache-control"] == "no-cache"
+    assert '<meta name="robots" content="index, follow">' in hub.text
+    assert '<script defer src="/dictionary.js"></script>' in hub.text
+    assert "{{" not in hub.text
+    index = hub.text.split('class="source-note chapter-index"')[1].split("</details>")[
+        0
+    ]
+    links = cast(list[str], re.findall(r'href="(/slowniki/icd-10/[^"]+)"', index))
+    assert links and all(client.get(link).status_code == 200 for link in links)
+    # Codes outside the workbook hierarchy are listed too: no tree row links them.
+    icd9 = client.get("/slowniki/icd-9").text
+    assert "Spis kodów spoza hierarchii (" in icd9
+    assert 'href="/slowniki/icd-9/00.00001"' in icd9
+    # A bundle without ICD-11 keeps the hub, with nothing to link.
+    icd11 = client.get("/slowniki/icd-11")
+    assert icd11.status_code == 200 and "chapter-index" not in icd11.text
+    assert client.get("/slowniki/icd-10?x=1").status_code == 400
+
+
 def test_source_text_is_escaped_in_markup_and_structured_data() -> None:
     hostile = '</script><img src=x onerror="alert(1)">'
     page = code_page(
@@ -133,6 +159,7 @@ def test_a_shedding_api_answers_in_the_visitors_format_and_keeps_monitoring(
     assert client.get("/readyz").status_code == 200
     assert client.get("/healthz").status_code == 200
     assert client.get("/sitemap-icd-10.xml").status_code == 200
+    assert client.get("/slowniki/icd-10").status_code == 200
 
 
 def test_mcp_is_not_shed_at_the_door_and_reports_busy_from_its_tools(

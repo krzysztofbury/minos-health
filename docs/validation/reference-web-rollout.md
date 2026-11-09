@@ -78,8 +78,10 @@ measurements below retain their original context.
   changes fail closed. Up to 12 requests wait 0.5 s for an occupied SQL
   connection; beyond that the API answers `busy` at once.
 - The API answers `busy` itself above 16 requests in flight: a branded HTML page
-  or JSON for `/api/`. Health checks, sitemaps and the outer `/mcp` call are not
-  counted, since MCP tools count through the API routes they call. Uvicorn's
+  or JSON for `/api/`. Health checks, dictionary sitemaps and hubs (precomputed
+  at startup) and the outer `/mcp` call are not counted, since MCP tools count
+  through the API routes they call. The JGP sitemap reads the catalog once a day
+  and counts. Uvicorn's
   limit of 600 connections and tasks is a backstop above what the edge can send. Capacity saturation is
   explicit HTTP 429/503, not partial results or an unbounded queue (#296).
 - JSON bodies: 4 KiB; body-read deadline: 2 seconds; query: 256 characters and

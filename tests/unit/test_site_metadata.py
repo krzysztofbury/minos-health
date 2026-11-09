@@ -96,12 +96,23 @@ def _allowed(robots: str, path: str) -> bool:
 
 def test_robots_keep_crawlers_on_the_indexable_pages() -> None:
     robots = render_site("validation")["robots.txt"].decode()
-    for path in (*SITEMAP_PATHS, "/jgp", "/slowniki/icd-9/52.191", "/sitemap.xml"):
+    for path in (
+        *SITEMAP_PATHS,
+        "/jgp",
+        "/jgp/G35",
+        "/jgp/D53A",
+        "/jgp/a01",
+        "/sitemap-jgp.xml",
+        "/slowniki/icd-9/52.191",
+        "/sitemap.xml",
+    ):
         assert _allowed(robots, path), path
     for path in (
         "/api/v1/releases",
         "/jgp/2026-10-31",
         "/jgp/2026-10-31/G35",
+        "/jgp/2026-10-31/zakres/48",
+        "/jgp/2026-10-31/listy/1a/448/1",
         "/jgp/porownaj/a/b",
         "/slowniki/icd-9/52.191/jgp/2026-10-31",
     ):

@@ -27,7 +27,7 @@ from minos.domain.reference import ArtifactError, QueryLimitError, QueryTimeoutE
 from minos.domain.search import SearchInputError
 from minos.http.jgp_comparison_pages import comparison_link
 from minos.http.jgp_pages import error_page, group_page, index_page
-from minos.http.pages import display_date
+from minos.http.pages import display_date, until_polish_midnight, url_sitemap
 from minos.http.reference import CapacityError, ReferencePool
 from minos.ingest.jgp_catalog import GROUP_CODE_REGEX
 from minos.store.artifact import dataset_identity
@@ -241,6 +241,21 @@ def verified_neighbours(
     return links
 
 
+def jgp_sitemap(connection: sqlite3.Connection, today: date) -> bytes:
+    """The undated JGP pages (#342) in force today: /jgp and each group page.
+
+    Empty when today's ruleset cannot be resolved, as those pages answer errors.
+    """
+    try:
+        ruleset = resolve_ruleset(connection, today, None)
+    except NoRulesetForDate, AmbiguousRuleset:
+        return b""
+    codes = dict.fromkeys(
+        cast(str, item["code"]) for item in catalog_index(connection, ruleset, None)
+    )
+    return url_sitemap(["/jgp", *(f"/jgp/{code}" for code in codes)])
+
+
 def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
     """Server-rendered /jgp pages: one resolved release per page, no queries."""
 
@@ -260,22 +275,11 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
             response.headers["Retry-After"] = "1"
         return response
 
-    def today_redirect(suffix: str) -> Response:
-        try:
-            today = today_in_poland().isoformat()
-        except TimeZoneUnavailable:
-            return error(503, "timezone_unavailable")
-        # "Today" changes at midnight, so the redirect itself is never cached.
-        return RedirectResponse(
-            f"/jgp/{today}{suffix}",
-            status_code=302,
-            headers={"Cache-Control": "no-store"},
-        )
-
     def render(
         service_date: str,
         group: str | None,
         page: Callable[[sqlite3.Connection, dict[str, object], list[str]], str],
+        cache: str = cache_control,
     ) -> HTMLResponse:
         if not SERVICE_DATE.fullmatch(service_date):
             return error(404, "not_found")
@@ -293,7 +297,7 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
                 calendar = catalog_calendar(lease.connection)
                 ruleset = resolve_ruleset(lease.connection, selected, None)
                 body = page(lease.connection, ruleset, calendar)
-            return html(200, body, cache_control)
+            return html(200, body, cache)
         except NoRulesetForDate:
             return error(404, "no_ruleset_for_date", service_date, group, calendar)
         except GroupNotOnDate:
@@ -315,7 +319,9 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
         except ArtifactError, KnowledgeBeyondBundle, OSError:
             return error(503, "unavailable")
 
-    def catalog(service_date: str, scope_position: int | None) -> HTMLResponse:
+    def catalog(
+        service_date: str, scope_position: int | None, *, current: bool = False
+    ) -> HTMLResponse:
         def page(
             connection: sqlite3.Connection,
             ruleset: dict[str, object],
@@ -342,18 +348,35 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
                     ),
                     cast(str, scope["label"]) if scope else None,
                 ),
+                current=current,
             )
 
-        return render(service_date, None, page)
+        # The undated page shows today, so it is cached until midnight at most.
+        cache = until_polish_midnight() if current else cache_control
+        return render(service_date, None, page, cache)
 
+    def today() -> str | HTMLResponse:
+        try:
+            return today_in_poland().isoformat()
+        except TimeZoneUnavailable:
+            return error(503, "timezone_unavailable")
+
+    # /jgp and /jgp/{code} are the indexable pages (#342): today's answer under
+    # a URL that does not change daily. Dated pages remain for any other day.
     def jgp_root() -> Response:
-        return today_redirect("")
+        day = today()
+        return (
+            day if isinstance(day, HTMLResponse) else catalog(day, None, current=True)
+        )
 
     def jgp_segment(segment: str) -> Response:
         if SERVICE_DATE.fullmatch(segment):
             return catalog(segment, None)
         if GROUP_CODE.fullmatch(segment):
-            return today_redirect(f"/{segment}")
+            day = today()
+            if isinstance(day, HTMLResponse):
+                return day
+            return group(day, segment, current=True)
         if GROUP_CODE.fullmatch(segment.upper()):
             return RedirectResponse(f"/jgp/{segment.upper()}", status_code=301)
         return error(404, "not_found")
@@ -367,7 +390,9 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
                     f"/jgp/{service_date}/{code.upper()}", status_code=301
                 )
             return error(404, "not_found")
+        return group(service_date, code)
 
+    def group(service_date: str, code: str, *, current: bool = False) -> HTMLResponse:
         def page(
             connection: sqlite3.Connection,
             ruleset: dict[str, object],
@@ -383,10 +408,14 @@ def register_jgp_pages(app: FastAPI, *, cache_control: str) -> None:
             )
             neighbours = verified_neighbours(connection, code, answer)
             return group_page(
-                with_statistics(connection, code, answer), calendar, neighbours
+                with_statistics(connection, code, answer),
+                calendar,
+                neighbours,
+                current=current,
             )
 
-        return render(service_date, code, page)
+        cache = until_polish_midnight() if current else cache_control
+        return render(service_date, code, page, cache)
 
     def jgp_scope_page(service_date: str, position: str) -> Response:
         if not POSITION.fullmatch(position):

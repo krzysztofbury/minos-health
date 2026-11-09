@@ -163,6 +163,13 @@ def get_page(base: str, route: str) -> tuple[int, list[str]]:
         return error.code, headers
 
 
+def fetch_text(base: str, route: str) -> str:
+    """A successful page body, bounded like get_page."""
+    request = urllib.request.Request(base + route, headers={"Host": "minoshealth.pl"})
+    with cast(HTTPResponse, urllib.request.urlopen(request, timeout=5)) as response:
+        return response.read(1_048_577).decode()
+
+
 def docker(*arguments: str) -> str:
     return subprocess.check_output(
         ["docker", *arguments], text=True, timeout=120
@@ -455,7 +462,11 @@ def main(arguments: Arguments) -> None:
             ("/jgp/2026-07-10", 200, "public"),
             ("/jgp/2026-07-10/PZD02", 200, "public"),
             ("/jgp/2026-07-10/zakres/15", 200, "public"),
-            ("/jgp", 302, "no-store"),
+            # Today's catalog under the indexable URL, cached until midnight (#342).
+            ("/jgp", 200, "public, max-age="),
+            ("/slowniki/icd-10", 200, "no-cache"),
+            ("/slowniki/icd-9", 200, "no-cache"),
+            ("/slowniki/icd-11", 200, "no-cache"),
             ("/jgp/2026-06-30/PZD02", 404, "no-store"),
             ("/jgp/2026-07-10/zakres/69", 404, "no-store"),
         ):
@@ -466,6 +477,11 @@ def main(arguments: Arguments) -> None:
                 answer,
             )
         assert get_page(base, "/jgp/2026-07-10?x=1")[0] == 404
+        assert get_page(base, "/slowniki/icd-10?x=1")[0] == 404
+        assert 'href="/slowniki/icd-10/' in fetch_text(base, "/slowniki/icd-10")
+        assert "<loc>https://minoshealth.pl/jgp</loc>" in fetch_text(
+            base, "/sitemap-jgp.xml"
+        )
         assert get_page(base, "/jgp/2026-07-10/zakres/1000")[0] == 404
         assert len(get_page(base, group_route)[1]) == 1  # was doubled before #26
         if cast(dict[str, object], manifest["dataset"]).get("characteristics"):

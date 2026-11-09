@@ -8,6 +8,7 @@ Every source value is HTML-escaped; JSON-LD escapes "<" to stay a data block.
 import html
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from importlib.resources import files
 from typing import Final, NamedTuple, cast
@@ -178,6 +179,23 @@ def _page(
     return re.sub(
         r"\{\{([a-z_]+)\}\}", lambda match: values[match.group(1)], _shell(template)
     )
+
+
+def until_polish_midnight() -> str:
+    """Undated ICD and JGP pages show JGP data for today, which changes at midnight in
+    Poland; cache them until then (at most an hour), never across the change."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    try:
+        now = datetime.now(ZoneInfo("Europe/Warsaw"))
+    except ZoneInfoNotFoundError:
+        return "no-store"
+    midnight = (now + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    seconds = int((midnight - now).total_seconds())
+    return f"public, max-age={min(3600, seconds)}" if seconds > 0 else "no-store"
 
 
 def code_path(dictionary: Dictionary, code: str) -> str:
@@ -634,10 +652,52 @@ def recovery_page(slug: str, code: str, reason: str, retry_path: str) -> str:
     )
 
 
+def hub_page(dictionary: Dictionary, roots: dict[str, object] | None) -> bytes:
+    """The dictionary hub with plain links to its top level (#342).
+
+    The tree itself loads with JavaScript from /api/, which robots.txt keeps
+    crawlers off, so without these links no code page is reachable from the
+    hub. Codes outside the workbook hierarchy have no other link at all.
+    ``roots`` is None when the bundle lacks the dictionary (ICD-11 is optional).
+    """
+    sections: list[str] = []
+    for key, title in (
+        (
+            "children",
+            "Spis działów" if dictionary.slug == "icd-9" else "Spis rozdziałów",
+        ),
+        # The tree shows these under its own heading once JavaScript runs.
+        ("unplaced", "Spis kodów spoza hierarchii"),
+    ):
+        items = [
+            item
+            for item in cast(list[dict[str, object]], (roots or {}).get(key, []))
+            if item.get("code")
+        ]
+        if items:
+            links = "".join(
+                _item(dictionary, cast(str, item["code"]), cast(str, item["label"]))
+                for item in items
+            )
+            sections.append(
+                '        <details class="source-note chapter-index">'
+                + f"<summary>{title} ({len(items)})</summary>"
+                + f'<ul class="code-list">{links}</ul></details>\n'
+            )
+    slot = "{{chapter_index}}\n"
+    template = _shell(f"hub_{dictionary.slug}.html")
+    if template.count(slot) != 1:
+        raise RuntimeError("dictionary hub template lacks its chapter index slot")
+    return template.replace(slot, "".join(sections)).encode()
+
+
 def sitemap(dictionary: Dictionary, codes: list[str]) -> bytes:
+    return url_sitemap(code_path(dictionary, code) for code in codes)
+
+
+def url_sitemap(paths: Iterable[str]) -> bytes:
     entries = "".join(
-        f"  <url><loc>{html.escape(SITE + code_path(dictionary, code))}</loc></url>\n"
-        for code in codes
+        f"  <url><loc>{html.escape(SITE + path)}</loc></url>\n" for path in paths
     )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'

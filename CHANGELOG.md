@@ -13,6 +13,20 @@ These entries include public validation deployments, not a versioned product
 release. No version tags or GitHub Releases have been published; the complete
 signed-release and deployment-acceptance gates remain #41/#27.
 
+### Changed
+
+- `/jgp` and `/jgp/{code}` show today's catalog and group under their own URL
+  instead of redirecting to the dated page, and are the indexable JGP pages:
+  `index, follow`, self canonical, cached until midnight in Poland. Code pages
+  and today's JGP pages link these URLs, `/sitemap-jgp.xml` lists them, and
+  `robots.txt` disallows only dated JGP pages and comparisons. Search Console
+  had indexed 166 of about 25,000 known pages, and no JGP URL could be indexed
+  (#342).
+- The `/slowniki/icd-10`, `/slowniki/icd-9` and `/slowniki/icd-11` hubs come
+  from the API with plain links to the dictionary's top level, and for ICD-9 to
+  the codes outside the workbook hierarchy. The tree loads from `/api/`, which
+  crawlers may not fetch, so the hubs linked no code page (#342).
+
 ### Fixed
 
 - The validation API image pins Debian `apt` and `libapt-pkg6.0` 2.6.2 for

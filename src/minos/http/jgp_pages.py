@@ -16,6 +16,7 @@ from minos.http.jgp_condition_pages import (
     REFERENCE_NOTE,
     code_link,
     conditions_section,
+    group_href,
     points_short,
     source_facts,
     source_positions,
@@ -37,7 +38,10 @@ from minos.ingest.jgp_catalog_layout import (
 )
 
 SHELL: Final = "page_shell_jgp.html"
+# Dated pages stay out of the index: one per day and group would compete with
+# the undated page of the same group (#342).
 ROBOTS: Final = "noindex, follow"
+INDEXED: Final = "index, follow"
 BASE_POINTS_LABEL: Final = "punkty bazowe wg katalogu, bez modyfikatorów"
 MODIFIERS_NOTE: Final = (
     "To nie są punkty do rozliczenia. Modyfikatory (MODTAR) nie są jeszcze"
@@ -77,7 +81,13 @@ def measure_labels(layout: CatalogLayout) -> dict[str, str]:
 
 
 def _jgp_page(
-    *, title: str, description: str, path: str, content: str, head: str = ""
+    *,
+    title: str,
+    description: str,
+    path: str,
+    content: str,
+    head: str = "",
+    robots: str = ROBOTS,
 ) -> str:
     return _page(
         title=title,
@@ -87,7 +97,7 @@ def _jgp_page(
         head='    <script src="/datepicker.js" defer></script>\n'
         + '    <script src="/jgp.js" defer></script>\n'
         + head,
-        robots=ROBOTS,
+        robots=robots,
         template=SHELL,
     )
 
@@ -212,8 +222,16 @@ def index_page(
     scope: dict[str, object] | None,
     calendar: list[str],
     comparison: str = "",
+    *,
+    current: bool = False,
 ) -> str:
-    """The dictionary-tree layout of /slowniki: catalog, chapter, group."""
+    """The dictionary-tree layout of /slowniki: catalog, chapter, group.
+
+    `current` renders the undated, indexable /jgp: today's catalog, whose group
+    rows link the undated group pages.
+    """
+    if current and scope is not None:
+        raise ValueError("the undated catalog has no scope filter")
     service_date = cast(str, ruleset["service_date"])
     suffix = f"/zakres/{scope['position']}" if scope else ""
     crumbs = [
@@ -262,7 +280,7 @@ def index_page(
     # No groups: the status line says so; an empty bordered pane would not.
     if groups:
         parts.append('          <div class="tree-pane">\n')
-        parts.extend(_catalog_lists(service_date, groups, scope is not None))
+        parts.extend(_catalog_lists(service_date, groups, scope is not None, current))
         parts.append("          </div>\n")
     parts.append(
         '          <aside class="detail jgp-release" aria-label="Wydanie katalogu">'
@@ -276,6 +294,15 @@ def index_page(
         + "        </div>\n"
         + "      </div>"
     )
+    if current:
+        return _jgp_page(
+            title="Katalog grup JGP i punkty bazowe - Minos Health",
+            description="Aktualny katalog grup JGP NFZ: punkty bazowe wg katalogu,"
+            + f" bez modyfikatorów, dla świadczeń z {display_date(service_date)}.",
+            path="/jgp",
+            content="".join(parts),
+            robots=INDEXED,
+        )
     title = f"Katalog grup JGP na {display_date(service_date)} - Minos Health"
     return _jgp_page(
         title=title,
@@ -314,7 +341,10 @@ def _scope_picker(
 
 
 def _catalog_lists(
-    service_date: str, groups: list[dict[str, object]], with_markers: bool
+    service_date: str,
+    groups: list[dict[str, object]],
+    with_markers: bool,
+    current: bool,
 ) -> list[str]:
     if not groups:
         return []
@@ -352,12 +382,14 @@ def _catalog_lists(
                 + f'<span class="result-count">{counts[(catalog, chapter)]}</span></summary>'
                 + '<ul class="jgp-branch jgp-list">'
             )
-        parts.append(_group_row(service_date, group, with_markers))
+        parts.append(_group_row(service_date, group, with_markers, current))
     parts.append("</ul></details></li></ul></details></li>\n            </ul>\n")
     return parts
 
 
-def _group_row(service_date: str, group: dict[str, object], with_marker: bool) -> str:
+def _group_row(
+    service_date: str, group: dict[str, object], with_marker: bool, current: bool
+) -> str:
     points = cast(int | None, group["hospitalization_hundredths"])
     shown = (
         f"{points_pl(points)}{NBSP}pkt"
@@ -371,7 +403,7 @@ def _group_row(service_date: str, group: dict[str, object], with_marker: bool) -
     )
     search = f"{group['code']} {group['name']}"
     return (
-        f'<li data-search="{_e(search)}"><a class="tree-row jgp-row" href="/jgp/{service_date}/{_e(group["code"])}">'
+        f'<li data-search="{_e(search)}"><a class="tree-row jgp-row" href="{group_href(service_date, cast(str, group["code"]), current)}">'
         + '<span class="tree-spacer"></span>'
         + f'<span class="code-chip">{_e(group["code"])}</span>'
         + f'<span class="jgp-name">{_e(group["name"])}{note}</span>'
@@ -380,20 +412,26 @@ def _group_row(service_date: str, group: dict[str, object], with_marker: bool) -
 
 
 def group_page(
-    answer: dict[str, object], calendar: list[str], neighbours: list[tuple[str, str]]
+    answer: dict[str, object],
+    calendar: list[str],
+    neighbours: list[tuple[str, str]],
+    *,
+    current: bool = False,
 ) -> str:
     """The points and the condition first, evidence one click away.
 
     `neighbours` are (label, day) links already verified to have this group.
+    `current` renders the undated, indexable /jgp/{code} for today.
     """
     ruleset = cast(dict[str, object], answer["ruleset"])
     group = cast(dict[str, object], answer["group"])
     service_date = cast(str, ruleset["service_date"])
     code = cast(str, group["code"])
     catalog = cast(str, group["catalog"])
+    catalog_path = "/jgp" if current else f"/jgp/{service_date}"
     crumbs = [
         '<a href="/jgp">Grupy JGP</a>',
-        f'<a href="/jgp/{service_date}">{display_date(service_date)}</a>',
+        f'<a href="{catalog_path}">{display_date(service_date)}</a>',
         f'<span aria-current="page">{_e(code)}</span>',
     ]
     meta = [
@@ -411,7 +449,9 @@ def group_page(
         "status"
     )
     main: list[str] = [
-        conditions_section(cast(dict[str, object], answer["conditions"]))
+        conditions_section(
+            cast(dict[str, object], answer["conditions"]), current=current
+        )
         if "conditions" in answer
         else "",
         fold(
@@ -465,11 +505,21 @@ def group_page(
             name="jgp-provenance",
         )
         + '<p class="code-actions">'
-        + f'<a href="/jgp/{service_date}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">Pokaż w katalogu</a>'
-        + f'<a href="/jgp/{service_date}">Wszystkie grupy na {display_date(service_date)}</a></p>'
+        + f'<a href="{catalog_path}#k-{_e(catalog)}-{_e(group.get("chapter_position", ""))}">Pokaż w katalogu</a>'
+        + f'<a href="{catalog_path}">Wszystkie grupy na {display_date(service_date)}</a></p>'
         + "</aside>\n",
         "      </div>",
     ]
+    name = cast(str, group["name"]).rstrip(" *")
+    if current:
+        return _jgp_page(
+            title=f"{code} {name} - grupa JGP - Minos Health",
+            description=f"Grupa JGP {code} {name}: punkty bazowe wg katalogu, bez"
+            + f" modyfikatorów, dla świadczeń z {display_date(service_date)}.",
+            path=f"/jgp/{code}",
+            content="".join(parts),
+            robots=INDEXED,
+        )
     return _jgp_page(
         title=f"{code} {group['name']} - grupa JGP na {display_date(service_date)} - Minos Health",
         description=f"Grupa JGP {code}: punkty bazowe wg katalogu, bez modyfikatorów, dla świadczeń z {display_date(service_date)}.",
