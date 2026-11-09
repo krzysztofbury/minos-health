@@ -16,9 +16,6 @@ from scripts.build_site import FONTS, render_site  # noqa: E402
 PAGE_ROUTES = (
     ("/gruper", "grouper.html"),
     ("/slowniki", "dictionaries.html"),
-    ("/slowniki/icd-10", "dictionary-icd-10.html"),
-    ("/slowniki/icd-9", "dictionary-icd-9.html"),
-    ("/slowniki/icd-11", "dictionary-icd-11.html"),
     ("/dla-agentow", "agents.html"),
 )
 ASSET_ROUTES = (
@@ -160,6 +157,17 @@ def _routes() -> str:
             proxy_read_timeout 7s;
             error_log /dev/null;
         }
+        # Dictionary hubs link the chapters of the release in force (#342), which
+        # only the API knows; they keep the static hubs' revalidating cache.
+        location ~ "^/slowniki/icd-(10|9|11)$" {
+            if ($request_uri !~ "^/slowniki/icd-(10|9|11)$") { return 404; }
+            if ($request_method !~ ^(GET|HEAD)$) { return 405; }
+            proxy_hide_header Cache-Control;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
         # Code pages and sitemaps are server-rendered by the API for crawlers.
         location ~ "^/slowniki/icd-(10|9|11)/[A-Za-z0-9][A-Za-z0-9.-]{0,15}(/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(/1ae?/[1-9][0-9]{0,1})?)?$" {
             if ($request_uri ~ "\\?") { return 404; }
@@ -173,6 +181,15 @@ def _routes() -> str:
             if ($request_uri ~ "\\?") { return 404; }
             if ($request_method !~ ^(GET|HEAD)$) { return 405; }
             proxy_hide_header Cache-Control;
+            proxy_pass http://reference-api:8081;
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 3s;
+            error_log /dev/null;
+        }
+        # Today's undated JGP pages (#342); the API caches it until midnight.
+        location = /sitemap-jgp.xml {
+            if ($request_uri != "/sitemap-jgp.xml") { return 404; }
+            if ($request_method !~ ^(GET|HEAD)$) { return 405; }
             proxy_pass http://reference-api:8081;
             proxy_connect_timeout 1s;
             proxy_read_timeout 3s;

@@ -472,8 +472,10 @@ rather than repurposed; no issue tracked it.
   `/jgp/{date}/zakres/{n}` (catalog limited to one "Zakres świadczeń" column).
   No query string is accepted, and the date picker navigates by path because
   the CSP forbids form submission.
-- `/jgp` and `/jgp/{CODE}` redirect (302, `no-store`) to today in
-  Europe/Warsaw; missing time-zone data is an explicit 503, never a UTC guess.
+- `/jgp` and `/jgp/{CODE}` show today in Europe/Warsaw under their own URL,
+  cached until the next Polish midnight and for an hour at most (owner,
+  2026-11-09, #342; they redirected to the dated page before). Missing time-zone
+  data is an explicit 503, never a UTC guess.
    The original horizon notice was removed by the 2026-10-12 source-freshness
    presentation decision above. Lowercase codes redirect permanently to the
    uppercase URL.
@@ -485,8 +487,13 @@ rather than repurposed; no issue tracked it.
   URL and stores nothing. The zakres filter is a server-side page because it
   must use the scope markers of the row valid on the date: a section 4(5)
   twin and its deferred 2027-01-01 row can carry different markers.
-- Pages are `noindex, follow` until the validation launch decides otherwise.
-  Dated pages use the page cache policy; redirects and errors are `no-store`.
+- `/jgp` and `/jgp/{CODE}` are `index, follow` with self canonicals, and the
+  sitemap index lists them through `/sitemap-jgp.xml`, built on the first
+  request of each day (owner, 2026-11-09, #342). Pages for today link these
+  URLs: code pages, the undated catalog and the undated group page. Dated pages
+  stay `noindex, follow`, and `robots.txt` disallows them with comparisons, so
+  crawlers spend no API capacity on them (#296). Dated pages use the page cache
+  policy; errors are `no-store`.
   The edge cache map passes the application's `Cache-Control` through for
   `/jgp` and `/api/v1/jgp/`, which also removes the duplicate header the JGP
   API carried after #24.

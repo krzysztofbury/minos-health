@@ -46,7 +46,15 @@ MAX_SELECTOR_CHARACTERS = 65_536
 MAX_SECTION_CHARACTERS = 1_048_576
 
 
-def code_link(system: str, code: str, day: str, matched: bool) -> str:
+def group_href(day: str, code: str, current: bool) -> str:
+    """A page showing today links the indexable undated group page (#342);
+    any other day keeps its dated, noindex page."""
+    return f"/jgp/{_e(code)}" if current else f"/jgp/{_e(day)}/{_e(code)}"
+
+
+def code_link(
+    system: str, code: str, day: str, matched: bool, *, current: bool = False
+) -> str:
     label = f'<span class="code-chip">{_e(code)}</span>'
     if not matched:
         return (
@@ -54,7 +62,9 @@ def code_link(system: str, code: str, day: str, matched: bool) -> str:
             + ' <span class="badge badge-muted">brak odpowiednika w wybranym słowniku</span>'
         )
     slug = "icd-9" if system == "icd9-pl" else "icd-10"
-    return f'<a href="/slowniki/{slug}/{_e(code)}/jgp/{_e(day)}">{label}</a>'
+    # The undated code page shows today's groups, like the undated group page.
+    suffix = "" if current else f"/jgp/{_e(day)}"
+    return f'<a href="/slowniki/{slug}/{_e(code)}{suffix}">{label}</a>'
 
 
 def source_facts(source: Json) -> str:
@@ -73,7 +83,7 @@ def source_facts(source: Json) -> str:
     )
 
 
-def _selector_links(answer: Json) -> dict[int, str]:
+def _selector_links(answer: Json, current: bool) -> dict[int, str]:
     source = cast(Json, answer["source"])
     day, catalog = cast(str, source["service_date"]), cast(str, source["catalog"])
     codes = {
@@ -98,6 +108,7 @@ def _selector_links(answer: Json) -> dict[int, str]:
                     code,
                     day,
                     codes.get((body["system"], code), False),
+                    current=current,
                 )
                 for code in cast(list[str], body["codes"])
             )
@@ -258,7 +269,7 @@ def _rule_tree(
     return "".join(out)
 
 
-def conditions_section(answer: Json) -> str:
+def conditions_section(answer: Json, *, current: bool = False) -> str:
     status = answer["status"]
     if status == "not_in_bundle":
         # Nothing to say to a visitor when the deployed data has no
@@ -287,7 +298,7 @@ def conditions_section(answer: Json) -> str:
     if status == "fully_interpreted":
         import json
 
-        selectors = _selector_links(answer)
+        selectors = _selector_links(answer, current)
         nodes: dict[int, c.Condition] = {}
         for raw in cast(list[Json], answer["nodes"]):
             node = decode_condition(
@@ -342,7 +353,7 @@ def _list_links(answer: Json) -> str:
     return f'<ul class="jgp-lists">{"".join(links)}</ul>' if links else ""
 
 
-def shared_procedure_section(answers: list[Json]) -> str:
+def shared_procedure_section(answers: list[Json], *, current: bool = False) -> str:
     rows: list[str] = []
     for answer in answers:
         day = cast(str, answer["service_date"])
@@ -350,13 +361,13 @@ def shared_procedure_section(answers: list[Json]) -> str:
             code = cast(str, procedure["code"])
             groups = cast(list[str], procedure["shared_groups"])
             links = ", ".join(
-                f'<a href="/jgp/{_e(day)}/{_e(group)}">{_e(group)}</a>'
+                f'<a href="{group_href(day, group, current)}">{_e(group)}</a>'
                 for group in groups
             )
             if cast(int, procedure["shared_group_count"]) > len(groups):
                 links += f" (pierwsze {len(groups)} z {procedure['shared_group_count']} grup)"
             rows.append(
-                f'<li><a href="/slowniki/icd-9/{_e(code)}/jgp/{_e(day)}">{_e(code)} {_e(procedure["label"])}</a> - wspólne grupy ({_e(answer["catalog"])}): {links}</li>'
+                f'<li><a href="/slowniki/icd-9/{_e(code)}{"" if current else f"/jgp/{_e(day)}"}">{_e(code)} {_e(procedure["label"])}</a> - wspólne grupy ({_e(answer["catalog"])}): {links}</li>'
             )
         if answer["truncated"]:
             rows.append(
@@ -440,7 +451,9 @@ def _days(days: object) -> str:
     return f"{_e(days)}{NBSP}{'dzień' if days == 1 else 'dni'}"
 
 
-def _group_card(group: Json, catalog: str, day: str, opened: bool) -> str:
+def _group_card(
+    group: Json, catalog: str, day: str, opened: bool, current: bool
+) -> str:
     code = cast(str, group["code"])
     priced = group["name"] is not None
     name = cast(str | None, group["name"]) or cast(str, group["source_title"])
@@ -490,7 +503,7 @@ def _group_card(group: Json, catalog: str, day: str, opened: bool) -> str:
         + (f'<dl class="answer-tiles">{tiles}</dl>' if tiles else "")
         + _condition(group)
         + notes
-        + f'<p class="answer-open"><a href="/jgp/{_e(day)}/{_e(code)}">Otwórz grupę {_e(code)}</a></p>'
+        + f'<p class="answer-open"><a href="{group_href(day, code, current)}">Otwórz grupę {_e(code)}</a></p>'
         + "</div></details></li>"
     )
 
@@ -500,18 +513,21 @@ class _Listed(NamedTuple):
     catalog: str
 
 
-def _flow(items: list[_Listed], day: str, opened: bool) -> str:
+def _flow(items: list[_Listed], day: str, opened: bool, current: bool) -> str:
     return (
         '<ul class="answer-flow">'
-        + "".join(_group_card(item.group, item.catalog, day, opened) for item in items)
+        + "".join(
+            _group_card(item.group, item.catalog, day, opened, current)
+            for item in items
+        )
         + "</ul>"
     )
 
 
-def _groups(items: list[_Listed], day: str, total: int) -> str:
+def _groups(items: list[_Listed], day: str, total: int, current: bool) -> str:
     opened = total <= OPEN_LIMIT
     if opened:
-        return _flow(items, day, True)
+        return _flow(items, day, True, current)
     parts = [
         '<p class="jgp-note">Warunek NFZ i pozostałe wartości po rozwinięciu grupy.</p>',
     ]
@@ -527,7 +543,7 @@ def _groups(items: list[_Listed], day: str, total: int) -> str:
             parts.append(
                 f'<details class="answer-section" open><summary><h3 class="answer-section-title">{title}'
                 + f" <span>{count}</span></h3>{CHEVRON_MARK}</summary>"
-                + _flow(chosen, day, False)
+                + _flow(chosen, day, False, current)
                 + "</details>"
             )
     return "".join(parts)
@@ -580,9 +596,20 @@ def _sources(answers: list[Json]) -> str:
 
 
 def membership_panel(
-    answers: list[Json], *, slug: str, code: str, day: str, date_bar: str, shared: str
+    answers: list[Json],
+    *,
+    slug: str,
+    code: str,
+    day: str,
+    date_bar: str,
+    shared: str,
+    current: bool = False,
 ) -> JgpPanel:
-    """The page's answer: which groups list this code, and what each is worth."""
+    """The page's answer: which groups list this code, and what each is worth.
+
+    `current` marks the undated page, whose day is today: its group links go to
+    the undated group pages.
+    """
     items = [
         _Listed(group, cast(str, cast(Json, answer["source"])["catalog"]))
         for answer in answers
@@ -639,7 +666,7 @@ def membership_panel(
             + (
                 '<h2 class="visually-hidden">Grupy JGP</h2>'
                 + f'<div class="answer-roothead"><span class="code-chip answer-root">{_e(code)}</span>{toggle}</div>'
-                + _groups(items, day, total)
+                + _groups(items, day, total, current)
                 if items
                 else ""
             )

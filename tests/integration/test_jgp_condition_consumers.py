@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import sqlite3
 from datetime import date
@@ -12,6 +13,7 @@ from minos.domain import jgp_conditions as c
 from minos.domain.jgp_ruleset import NoRulesetForDate
 from minos.domain.search import SearchInputError
 from minos.http.app import create_app
+from minos.http.jgp_condition_pages import code_link
 from minos.ingest.reference_artifact import build_reference_artifact
 from minos.ingest.reference_manifest import DatasetManifest
 from minos.store.bundle_cache import BundleCache
@@ -625,6 +627,32 @@ def test_pending_modifier_candidate_never_changes_catalog_binding(
     report = (tmp_path / "candidate-bundle/review.txt").read_text()
     # Checked per catalog window of each mapping's months, never one catalog.
     assert "remain unresolved: A02 in " in report and "block binding" in report
+
+
+def test_pages_for_today_link_each_other_by_their_undated_urls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Search engines may index only the undated pages (#342), so today's pages
+    # must lead to them rather than to dated twins that robots.txt disallows.
+    monkeypatch.setattr("minos.http.app.today_in_poland", lambda: date(2026, 7, 1))
+    monkeypatch.setattr("minos.http.jgp.today_in_poland", lambda: date(2026, 7, 1))
+    with TestClient(create_app(consumer_bundle(tmp_path))) as client:
+        concept = client.get("/slowniki/icd-10/E11.0").text
+        group = client.get("/jgp/A01").text
+        dated_concept = client.get("/slowniki/icd-10/E11.0/jgp/2026-07-01").text
+        dated_group = client.get("/jgp/2026-07-01/A01").text
+    assert 'href="/jgp/A01"' in concept and 'href="/jgp/2026-07-01/A01"' not in concept
+    assert re.search(r'href="/jgp#k-1a-[0-9]+">Pokaż w katalogu', group)
+    assert 'href="/jgp/2026-07-01#' not in group
+    # Codes a rule names lead to the undated code page; dated pages keep the day.
+    assert code_link("icd10-pl", "E11.0", "2026-07-01", True, current=True) == (
+        '<a href="/slowniki/icd-10/E11.0"><span class="code-chip">E11.0</span></a>'
+    )
+    assert 'href="/slowniki/icd-10/E11.0/jgp/2026-07-01"' in code_link(
+        "icd10-pl", "E11.0", "2026-07-01", True
+    )
+    assert 'href="/jgp/2026-07-01/A01"' in dated_concept
+    assert 'href="/jgp/2026-07-01#' in dated_group
 
 
 def test_undated_concept_page_survives_a_missing_time_zone(

@@ -229,77 +229,6 @@ PAGES = (
         analytics=False,
     ),
     Page(
-        "dictionary-icd-10.html",
-        "dictionary.html",
-        "/slowniki/icd-10",
-        "Słownik ICD-10 - Minos Health",
-        "Pełny słownik ICD-10: rozdziały, grupy i kody rozpoznań z uwagami źródła.",
-        "index, follow",
-        "/slowniki",
-        ("validation",),
-        analytics=False,
-        script="/dictionary.js",
-        body_class="page-dictionary",
-        values={
-            "system": "icd10-pl",
-            "dictionary_short": "ICD-10",
-            "dictionary_title": "Słownik ICD-10",
-            "dictionary_lead": "Międzynarodowa Statystyczna Klasyfikacja Chorób i"
-            + " Problemów Zdrowotnych z Rejestru Systemów Kodowania.",
-            "tree_placeholder": "np. J18 albo zapalenie płuc",
-            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-10"),
-            "source_note": ICD10_NOTE,
-        },
-    ),
-    Page(
-        "dictionary-icd-9.html",
-        "dictionary.html",
-        "/slowniki/icd-9",
-        "Słownik ICD-9 - Minos Health",
-        "Pełny słownik ICD-9: działy i kody procedur medycznych z uwagami źródła.",
-        "index, follow",
-        "/slowniki",
-        ("validation",),
-        analytics=False,
-        script="/dictionary.js",
-        body_class="page-dictionary",
-        values={
-            "system": "icd9-pl",
-            "dictionary_short": "ICD-9",
-            "dictionary_title": "Słownik ICD-9",
-            "dictionary_lead": "Międzynarodowa Klasyfikacja Procedur Medycznych"
-            + " z Centralnych Zasobów Słownikowych NFZ.",
-            "tree_placeholder": "np. 89.00 albo badanie moczu",
-            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-9"),
-            "source_note": ICD9_NOTE,
-        },
-    ),
-    Page(
-        "dictionary-icd-11.html",
-        "dictionary.html",
-        "/slowniki/icd-11",
-        "Słownik ICD-11 - Minos Health",
-        "Polska wersja przedostateczna ICD-11: rozdziały, bloki i kody z"
-        + " włączeniami i terminami indeksu.",
-        "index, follow",
-        "/slowniki",
-        ("validation",),
-        analytics=False,
-        script="/dictionary.js",
-        body_class="page-dictionary",
-        values={
-            "system": "icd11-pl",
-            "dictionary_short": "ICD-11",
-            "dictionary_title": "Słownik ICD-11",
-            "dictionary_lead": "Międzynarodowa Statystyczna Klasyfikacja Chorób i"
-            + " Problemów Zdrowotnych, 11. rewizja: polska wersja przedostateczna,"
-            + " jeszcze nieobowiązująca.",
-            "tree_placeholder": "np. BA00 albo nadciśnienie",
-            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-11"),
-            "source_note": ICD11_NOTE,
-        },
-    ),
-    Page(
         "sources.html",
         "sources.html",
         "/zrodla",
@@ -481,6 +410,91 @@ def render_page(page: Page, mode: Mode) -> str:
     return "\n".join(lines) + "\n"
 
 
+# The dictionary hubs are API templates: the API fills {{chapter_index}} with
+# plain links to the chapters of the release in force, which the site build
+# cannot know, so crawlers reach the code pages without JavaScript (#342).
+HUB_PAGES = (
+    Page(
+        "dictionary-icd-10.html",
+        "dictionary.html",
+        "/slowniki/icd-10",
+        "Słownik ICD-10 - Minos Health",
+        "Pełny słownik ICD-10: rozdziały, grupy i kody rozpoznań z uwagami źródła.",
+        "index, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+        script="/dictionary.js",
+        body_class="page-dictionary",
+        values={
+            "system": "icd10-pl",
+            "dictionary_short": "ICD-10",
+            "dictionary_title": "Słownik ICD-10",
+            "dictionary_lead": "Międzynarodowa Statystyczna Klasyfikacja Chorób i"
+            + " Problemów Zdrowotnych z Rejestru Systemów Kodowania.",
+            "tree_placeholder": "np. J18 albo zapalenie płuc",
+            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-10"),
+            "source_note": ICD10_NOTE,
+            "chapter_index": "{{chapter_index}}",
+        },
+    ),
+    Page(
+        "dictionary-icd-9.html",
+        "dictionary.html",
+        "/slowniki/icd-9",
+        "Słownik ICD-9 - Minos Health",
+        "Pełny słownik ICD-9: działy i kody procedur medycznych z uwagami źródła.",
+        "index, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+        script="/dictionary.js",
+        body_class="page-dictionary",
+        values={
+            "system": "icd9-pl",
+            "dictionary_short": "ICD-9",
+            "dictionary_title": "Słownik ICD-9",
+            "dictionary_lead": "Międzynarodowa Klasyfikacja Procedur Medycznych"
+            + " z Centralnych Zasobów Słownikowych NFZ.",
+            "tree_placeholder": "np. 89.00 albo badanie moczu",
+            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-9"),
+            "source_note": ICD9_NOTE,
+            "chapter_index": "{{chapter_index}}",
+        },
+    ),
+    Page(
+        "dictionary-icd-11.html",
+        "dictionary.html",
+        "/slowniki/icd-11",
+        "Słownik ICD-11 - Minos Health",
+        "Polska wersja przedostateczna ICD-11: rozdziały, bloki i kody z"
+        + " włączeniami i terminami indeksu.",
+        "index, follow",
+        "/slowniki",
+        ("validation",),
+        analytics=False,
+        script="/dictionary.js",
+        body_class="page-dictionary",
+        values={
+            "system": "icd11-pl",
+            "dictionary_short": "ICD-11",
+            "dictionary_title": "Słownik ICD-11",
+            "dictionary_lead": "Międzynarodowa Statystyczna Klasyfikacja Chorób i"
+            + " Problemów Zdrowotnych, 11. rewizja: polska wersja przedostateczna,"
+            + " jeszcze nieobowiązująca.",
+            "tree_placeholder": "np. BA00 albo nadciśnienie",
+            "dictionary_tabs": _dictionary_tabs("/slowniki/icd-11"),
+            "source_note": ICD11_NOTE,
+            "chapter_index": "{{chapter_index}}",
+        },
+    ),
+)
+HUB_TEMPLATES = {
+    page.path: ROOT / f"src/minos/http/hub_{page.path.rsplit('/', 1)[1]}.html"
+    for page in HUB_PAGES
+}
+
+
 def render_site(mode: Mode) -> dict[str, bytes]:
     """Every file one edge serves from its static root, keyed by file name."""
     files = {
@@ -533,7 +547,12 @@ SITEMAP_PATHS = (
     "/dla-agentow",
 )
 # The reference API generates one sitemap per dictionary from the verified bundle.
-CODE_SITEMAPS = ("/sitemap-icd-10.xml", "/sitemap-icd-9.xml", "/sitemap-icd-11.xml")
+CODE_SITEMAPS = (
+    "/sitemap-icd-10.xml",
+    "/sitemap-icd-9.xml",
+    "/sitemap-icd-11.xml",
+    "/sitemap-jgp.xml",
+)
 LLMS = """# Minos Health
 
 > Bezpłatna, niekomercyjna wyszukiwarka i przeglądarka oficjalnych polskich
@@ -554,11 +573,12 @@ LLMS = """# Minos Health
   Zawiera nazwę, miejsce w hierarchii, kody podrzędne, uwagi „obejmuje” i
   „nie obejmuje” oraz źródło. Pełne listy kodów są w mapach witryny:
   https://minoshealth.pl/sitemap-icd-10.xml i https://minoshealth.pl/sitemap-icd-9.xml.
-- [Grupy JGP](https://minoshealth.pl/jgp): katalog grup JGP (załącznik 1a do
-  zarządzenia Prezesa NFZ 46/2026/DSOZ) na wybrany dzień udzielenia świadczenia.
-  Strona grupy: `https://minoshealth.pl/jgp/{RRRR-MM-DD}/{KOD}`, np.
-  /jgp/2026-10-02/A01. Wartości to punkty bazowe wg katalogu, bez modyfikatorów,
-  nie punkty do rozliczenia.
+- [Grupy JGP](https://minoshealth.pl/jgp): aktualny katalog grup JGP
+  (załączniki 1a i 1ae do zarządzenia Prezesa NFZ) na dziś. Strona grupy:
+  `https://minoshealth.pl/jgp/{KOD}`, np. /jgp/A01, na dziś, albo
+  `https://minoshealth.pl/jgp/{RRRR-MM-DD}/{KOD}` na wybrany dzień udzielenia
+  świadczenia. Lista grup: https://minoshealth.pl/sitemap-jgp.xml. Wartości to
+  punkty bazowe wg katalogu, bez modyfikatorów, nie punkty do rozliczenia.
 - [Źródła danych](https://minoshealth.pl/zrodla): wersje słowników i zarządzenia NFZ.
 - [Dla agentów AI](https://minoshealth.pl/dla-agentow): serwer MCP
   https://minoshealth.pl/mcp (Streamable HTTP, bez klucza, tylko odczyt) z
@@ -590,9 +610,12 @@ def _crawler_files() -> dict[str, bytes]:
         "User-agent: *\n"
         + "Allow: /\n"
         + "Disallow: /api/\n"
-        # Noindex pages: crawling them gave nothing and cost most of the API's
-        # load (#296). The undated /slowniki code pages stay open.
-        + "Disallow: /jgp/\n"
+        # Dated and comparison pages are noindex: crawling them gave nothing and
+        # cost most of the API's load (#296). The undated /slowniki code pages,
+        # /jgp and /jgp/{code} are the indexable ones (#342). Group codes start
+        # with a letter, so /jgp/20 matches dated paths only.
+        + "Disallow: /jgp/20\n"
+        + "Disallow: /jgp/porownaj/\n"
         + "Disallow: /slowniki/*/jgp/\n"
         + "Sitemap: https://minoshealth.pl/sitemap.xml\n"
     )
@@ -689,6 +712,13 @@ def main() -> None:
     outputs[JGP_PAGE_SHELL] = render_page_shell("/jgp", "page-jgp").encode()
     outputs[SOURCES_PAGE_SHELL] = render_page_shell("/zrodla", "page-sources").encode()
     outputs[SOURCES_CONTENT] = (SITE / "pages/sources.html").read_bytes()
+    hubs = {
+        HUB_TEMPLATES[page.path].name: render_page(page, "validation").encode()
+        for page in HUB_PAGES
+    }
+    _reject_typography(hubs)
+    for page in HUB_PAGES:
+        outputs[HUB_TEMPLATES[page.path]] = hubs[HUB_TEMPLATES[page.path].name]
     for target, content in outputs.items():
         name = target.name
         if arguments.check:

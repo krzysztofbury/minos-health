@@ -129,7 +129,11 @@ Unknown releases, supporting releases and non-structural nodes return 404.
 
 `/healthz` checks API process liveness; `/readyz` also checks the verified dataset.
 The website search is `/` (the old `/szukaj` redirects there); dictionaries are
-`/slowniki`, and the metadata-only catalog remains `/zrodla`.
+`/slowniki`, and the metadata-only catalog remains `/zrodla`. The API serves the
+`/slowniki/icd-10`, `/slowniki/icd-9` and `/slowniki/icd-11` hubs from a
+template the site build renders, adding plain links to the top level of the
+release in force and to ICD-9 codes outside the workbook hierarchy, so crawlers
+reach code pages without the JavaScript tree (#342).
 
 See [deployment scope and acceptance](validation/reference-web-rollout.md).
 
@@ -220,7 +224,8 @@ The same data is served as HTML pages under `/jgp` (`GET` only, no query
 strings): `/jgp/{service_date}`, `/jgp/{service_date}/{code}` and
 `/jgp/{service_date}/zakres/{position}`, where `position` is the 1-based
 "Zakres świadczeń" column of the reviewed layout. `/jgp` and `/jgp/{code}`
-redirect to today in Europe/Warsaw. Page errors use the same cases as the API,
+show today in Europe/Warsaw under their own URL and are the indexable JGP pages;
+`/sitemap-jgp.xml` lists them. Page errors use the same cases as the API,
 rendered as uncached HTML; see the
 [JGP page decision](v0.0.1/decisions.md#jgp-group-browser-pages-2026-10-03).
 

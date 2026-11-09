@@ -23,6 +23,7 @@ from starlette.concurrency import run_in_threadpool
 from minos.cli.reference_output import search_envelope
 from minos.domain import jgp_conditions as c
 from minos.domain.jgp_ruleset import (
+    KnowledgeBeyondBundle,
     NoRulesetForDate,
     TimeZoneUnavailable,
     today_in_poland,
@@ -44,6 +45,7 @@ from minos.http.grouping import (
 from minos.http.jgp import (
     JGP_PAGE_ROUTE,
     JGP_ROUTE,
+    jgp_sitemap,
     register_jgp_pages,
     register_jgp_routes,
 )
@@ -56,10 +58,12 @@ from minos.http.pages import (
     JgpPanel,
     busy_page,
     code_page,
+    hub_page,
     icd11_map_section,
     missing_page,
     recovery_page,
     sitemap,
+    until_polish_midnight,
 )
 from minos.http.reference import CapacityError, ReferencePool
 from minos.http.source_pages import SOURCE_ROUTE, register_source_pages
@@ -92,13 +96,16 @@ MAX_IN_FLIGHT = 16
 def sheds(path: str) -> bool:
     """Routes that wait on the reference pool, so that count against the limit.
 
-    Monitoring must keep seeing the truth, and sitemaps are precomputed bytes.
+    Monitoring must keep seeing the truth, and dictionary sitemaps and hubs are
+    precomputed bytes; the JGP sitemap reads the catalog once a day, so it counts.
     An MCP tool calls the API routes in-process, which count and shed for it:
     counting /mcp too would spend two slots per call and let a few agents shut
     out the website.
     """
-    return path not in ("/healthz", "/readyz", "/mcp") and not path.startswith(
-        "/sitemap-"
+    return (
+        path not in ("/healthz", "/readyz", "/mcp")
+        and not path.startswith("/sitemap-icd-")
+        and not HUB_ROUTE.fullmatch(path)
     )
 
 
@@ -106,28 +113,12 @@ TREE_ROUTE = re.compile(r"/api/v1/tree/([a-z0-9-]{1,80})/(0|[1-9][0-9]{0,6})")
 PAGE_ROUTE = re.compile(
     r"/slowniki/icd-(?:10|9|11)/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}(?:/jgp/20[0-9]{2}-[0-9]{2}-[0-9]{2}(?:/1ae?/[1-9][0-9]{0,1})?)?"
 )
-SITEMAP_ROUTE = re.compile(r"/sitemap-icd-(?:10|9|11)\.xml")
+HUB_ROUTE = re.compile(r"/slowniki/icd-(?:10|9|11)")
+SITEMAP_ROUTE = re.compile(r"/sitemap-(?:icd-(?:10|9|11)|jgp)\.xml")
 RANK_ROUTE = re.compile(
     r"/api/v1/procedure-ranks/[a-z0-9-]{1,80}/[A-Za-z0-9][A-Za-z0-9.\-]{0,15}"
 )
 PAGE_CACHE = "public, max-age=3600"
-
-
-def until_polish_midnight() -> str:
-    """Undated ICD pages show JGP data for today, which changes at midnight in
-    Poland; cache them until then (at most an hour), never across the change."""
-    from datetime import datetime, timedelta
-    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
-    try:
-        now = datetime.now(ZoneInfo("Europe/Warsaw"))
-    except ZoneInfoNotFoundError:
-        return "no-store"
-    midnight = (now + timedelta(days=1)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    seconds = int((midnight - now).total_seconds())
-    return f"public, max-age={min(3600, seconds)}" if seconds > 0 else "no-store"
 
 
 DISCLAIMER = "Validation only. Reference data, not medical advice or a binding settlement decision. Code documented care only; never infer billability."
@@ -236,6 +227,7 @@ class Tree:
     system: str
     version: str
     sitemap: bytes
+    hub: bytes
 
 
 def load_trees(pool: ReferencePool) -> dict[str, Tree]:
@@ -268,6 +260,7 @@ def load_trees(pool: ReferencePool) -> dict[str, Tree]:
                 source.system,
                 source.source_version,
                 sitemap(dictionary, codes) if dictionary else b"",
+                hub_page(dictionary, roots) if dictionary else b"",
             )
     return trees
 
@@ -399,7 +392,8 @@ def render_code(
                 shared_procedure_section(
                     shared_procedures(
                         lease.connection, code, day, tree.hierarchy.release_id
-                    )
+                    ),
+                    current=service_date is None,
                 )
                 if dictionary.system == "icd10-pl" and pool.manifest.schema_version >= 8
                 else ""
@@ -416,6 +410,7 @@ def render_code(
                     prefix=f"/slowniki/{slug}/{code}/jgp/",
                 ),
                 shared=shared,
+                current=service_date is None,
             )
         elif service_date is not None:
             raise NoRulesetForDate("bundle has no characteristics")
@@ -562,6 +557,8 @@ def create_app(
             try:
                 trees = await run_in_threadpool(load_trees, pool)
                 _app.state.trees = trees
+                # Today's JGP sitemap, built on its first request of the day.
+                _app.state.jgp_sitemap = ("", b"")
             except BaseException:
                 pool.close()
                 raise
@@ -689,6 +686,8 @@ def create_app(
                     if PAGE_ROUTE.fullmatch(request.url.path)
                     else "/sitemap"
                     if SITEMAP_ROUTE.fullmatch(request.url.path)
+                    else "/slowniki/hub"
+                    if HUB_ROUTE.fullmatch(request.url.path)
                     else "/zrodla"
                     if SOURCE_ROUTE.fullmatch(request.url.path)
                     else "/api/v1/procedure-ranks"
@@ -977,7 +976,53 @@ def create_app(
             },
         )
 
+    def dictionary_hub(slug: str) -> Response:
+        dictionary = DICTIONARIES[slug]
+        tree = tree_in_force(
+            cast(ReferencePool, app.state.pool),
+            cast(dict[str, Tree], app.state.trees),
+            dictionary.system,
+            None,
+        )
+        # The static hub this replaces revalidated on every visit (no-cache).
+        return HTMLResponse(
+            tree.hub if tree is not None else hub_page(dictionary, None),
+            headers={"Cache-Control": "no-cache"},
+        )
+
     def dictionary_sitemap(dictionary: str) -> Response:
+        if dictionary == "jgp.xml":
+            pool = cast(ReferencePool, app.state.pool)
+            if pool.manifest.schema_version < 4:
+                return failure(404, "not_found")
+            try:
+                today = today_in_poland()
+            except TimeZoneUnavailable:
+                return failure(503, "timezone_unavailable")
+            day, body = cast(tuple[str, bytes], app.state.jgp_sitemap)
+            if day != today.isoformat():
+                try:
+                    with pool.borrow() as lease:
+                        body = jgp_sitemap(lease.connection, today)
+                except CapacityError:
+                    return failure(429, "busy")
+                except QueryTimeoutError, TimeoutError:
+                    return failure(504, "query_timeout")
+                except QueryLimitError:
+                    return failure(422, "limit_exceeded")
+                except ArtifactError, KnowledgeBeyondBundle, OSError:
+                    return failure(503, "unavailable")
+                # One tuple, replaced whole: a concurrent request at worst
+                # builds the same bytes again.
+                app.state.jgp_sitemap = (today.isoformat(), body)
+            if not body:
+                return failure(404, "not_found")
+            # The group set changes at midnight in Poland, never within a day.
+            return Response(
+                body,
+                media_type="application/xml",
+                headers={"Cache-Control": until_polish_midnight()},
+            )
         slug = dictionary.removesuffix(".xml")
         tree = (
             tree_in_force(
@@ -1035,6 +1080,12 @@ def create_app(
         methods=["GET"],
     )
     app.add_api_route("/sitemap-{dictionary}", dictionary_sitemap, methods=["GET"])
+    for hub_slug in DICTIONARIES:
+        app.add_api_route(
+            f"/slowniki/{hub_slug}",
+            partial(dictionary_hub, hub_slug),
+            methods=["GET"],
+        )
     app.add_api_route(
         "/api/v1/procedure-ranks/{release_id}/{code}", procedure_rank, methods=["GET"]
     )

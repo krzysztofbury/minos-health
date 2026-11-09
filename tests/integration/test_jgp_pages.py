@@ -30,17 +30,62 @@ def listed_codes(page: str) -> list[str]:
     )
 
 
-@pytest.mark.parametrize(
-    ("path", "location"),
-    [("/jgp", "/jgp/2026-10-03"), ("/jgp/PZD02", "/jgp/2026-10-03/PZD02")],
-)
-def test_undated_pages_redirect_to_today_in_poland_without_caching(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, path: str, location: str
+def robots_and_canonical(page: str) -> tuple[str, str]:
+    robots = re.search(r'<meta name="robots" content="([^"]*)">', page)
+    canonical = re.search(
+        r'<link rel="canonical" href="https://minoshealth.pl([^"]*)">', page
+    )
+    assert robots is not None and canonical is not None
+    return robots.group(1), canonical.group(1)
+
+
+@pytest.mark.parametrize("path", ["/jgp", "/jgp/PZD02"])
+def test_undated_pages_show_today_under_the_one_indexable_url(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, path: str
 ) -> None:
-    monkeypatch.setattr("minos.http.jgp.today_in_poland", lambda: date(2026, 10, 3))
+    monkeypatch.setattr("minos.http.jgp.today_in_poland", lambda: date(2026, 7, 10))
     response = client.get(path)
-    assert (response.status_code, response.headers["location"]) == (302, location)
+    dated = client.get(path.replace("/jgp", "/jgp/2026-07-10", 1))
+    assert response.status_code == dated.status_code == 200
+    assert robots_and_canonical(response.text) == ("index, follow", path)
+    # A dated twin of the same answer stays out of the index under its own URL.
+    assert robots_and_canonical(dated.text) == (
+        "noindex, follow",
+        path.replace("/jgp", "/jgp/2026-07-10", 1),
+    )
+    # "Today" changes at midnight in Poland, so neither cache may outlive it.
+    cache = response.headers["Cache-Control"]
+    seconds = re.fullmatch(r"public, max-age=([0-9]+)", cache)
+    assert cache == "no-store" or (
+        seconds is not None and int(seconds.group(1)) <= 3600
+    )
+    assert f"{NBSP}pkt" in response.text
+
+
+def test_the_undated_catalog_links_only_undated_group_pages(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("minos.http.jgp.today_in_poland", lambda: date(2026, 7, 10))
+    page = client.get("/jgp").text
+    assert listed_codes(page) == []
+    assert re.findall(r'class="tree-row jgp-row" href="/jgp/([A-Z0-9]+)"', page) == [
+        "A01",
+        "PZD02",
+        "H21",
+        "J01AJ",
+        "AU35C",
+        "SU52",
+    ]
+
+
+def test_an_undated_group_missing_today_is_an_uncached_error(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("minos.http.jgp.today_in_poland", lambda: date(2026, 4, 30))
+    response = client.get("/jgp/PZD02")
+    assert response.status_code == 404
     assert response.headers["Cache-Control"] == "no-store"
+    assert robots_and_canonical(response.text)[0] == "noindex, follow"
 
 
 def test_missing_time_zone_data_is_explicit(
@@ -206,3 +251,27 @@ def test_app_routing_agrees_with_the_edge_allowlist(
             assert response.headers["content-type"].startswith("text/html")
     else:
         assert response.status_code != 200
+
+
+def test_the_jgp_sitemap_lists_the_undated_pages_in_force_today(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def sitemap_on(day: date) -> tuple[int, list[str]]:
+        monkeypatch.setattr("minos.http.app.today_in_poland", lambda: day)
+        monkeypatch.setattr("minos.http.jgp.today_in_poland", lambda: day)
+        response = client.get("/sitemap-jgp.xml")
+        return response.status_code, re.findall(
+            r"<loc>https://minoshealth.pl([^<]*)</loc>", response.text
+        )
+
+    status, paths = sitemap_on(date(2026, 7, 10))
+    assert status == 200
+    assert paths == [
+        "/jgp",
+        *(f"/jgp/{code}" for code in ("A01", "PZD02", "H21", "J01AJ", "AU35C", "SU52")),
+    ]
+    # Every listed page answers on that day; the list follows the date.
+    assert all(client.get(path).status_code == 200 for path in paths)
+    assert sitemap_on(date(2026, 6, 15)) == (200, ["/jgp", "/jgp/A01", "/jgp/PZD02"])
+    # Before the first covered day there is nothing to index.
+    assert sitemap_on(date(2026, 4, 30))[0] == 404
