@@ -173,6 +173,13 @@ class IncidentDraft:
 
 
 @dataclass(frozen=True, slots=True)
+class IncidentResolution:
+    matched: int
+    resolved: int
+    remaining: int
+
+
+@dataclass(frozen=True, slots=True)
 class BawDispatchDraft:
     document_id: int
     source_url: str

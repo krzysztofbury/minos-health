@@ -15,6 +15,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- `minos watcher resolve-incidents <source> --category <category>` closes one
+  source's reviewed open incidents of one category, oldest first and at most
+  1000 per call, with `--created-before` and `--dry-run`, and writes one audit
+  event. Nothing closed an incident before, so the NFZ source carried 160 open
+  `collection_failure` incidents after one day of retries (#344).
 - Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
   the project board, `.agents/escalation.md` lists what the approver role must
   hand to the owner, and `.agents/retro.jsonl` keeps the retro history in the

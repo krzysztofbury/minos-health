@@ -551,6 +551,24 @@ docker compose --project-name minos --file /opt/minos/compose.yaml \
   exec --no-TTY watcher /app/.venv/bin/minos watcher status rsk --json
 ```
 
+An incident stays open until the owner closes it after review. Close one
+source's open incidents of one category, oldest first and at most 1000 per call,
+optionally only those created at or before a UTC time; `--dry-run` reports what
+would close. Each call that closes anything writes one `incidents_resolved`
+audit event:
+
+```sh
+docker compose --project-name minos --file /opt/minos/compose.yaml \
+  exec --no-TTY watcher /app/.venv/bin/minos watcher resolve-incidents nfz \
+  --category collection_failure --created-before 2026-11-10T10:30:00Z --dry-run
+```
+
+Run it only inside the live watcher container. Opening the control database
+applies the image's schema migrations, so a newer image would migrate the live
+database under the running watcher. It needs no process lock: SQLite's writer
+lock orders it with the watcher, and a busy database fails the call after 5 s
+without changing anything.
+
 Read a bounded recent log window from the host-local Docker log store:
 
 ```sh
