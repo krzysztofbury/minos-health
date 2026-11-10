@@ -39,6 +39,7 @@ from minos.ingest.watchers.control.models import (
     CommittedRun,
     ConfiguredSource,
     IncidentDraft,
+    IncidentResolution,
     JsonValue,
     ObservationCommit,
     ObservationDraft,
@@ -75,6 +76,7 @@ _MAX_ENABLED_SOURCES = 1000
 _MAX_SCHEDULED_SOURCES = 2000
 _MAX_STALE_CLAIMS = 1000
 _MAX_DURABLE_RETRY_FAILURES = 31
+_MAX_RESOLVED_INCIDENTS = 1000
 # A failed durable run waits before the next claim: 1 min, doubling to 1 h. The
 # schedule's retry policy spaces attempts inside one run; reusing its 30 s cap
 # here re-ran a source with an unreachable upstream twice a minute.
@@ -1274,6 +1276,76 @@ class ControlStore:
                 now_ms=now_ms,
             )
             return state_revision
+
+    def resolve_incidents(
+        self,
+        source_id: str,
+        incident_category: str,
+        *,
+        created_before_ms: int | None = None,
+        apply: bool = True,
+    ) -> IncidentResolution:
+        """Close one source's open incidents of one category, oldest first.
+
+        The owner's review is the only way an incident closes. At most 1000 close
+        per call, so one transaction stays short beside a running watcher.
+        """
+        self._require_open()
+        _validate_identifier(source_id, "source ID", 64)
+        _validate_identifier(incident_category, "incident category", 64)
+        if created_before_ms is not None:
+            _validate_timestamp(created_before_ms, "incident cutoff")
+        with self._write_transaction() as now_ms:
+            self._require_source(source_id)
+            # resolved_at_ms may not precede created_at_ms, so nothing newer
+            # than this transaction's clock closes.
+            cutoff = (
+                now_ms if created_before_ms is None else min(created_before_ms, now_ms)
+            )
+            predicate = """source_id = ? AND incident_category = ?
+                AND resolved_at_ms IS NULL AND created_at_ms <= ?"""
+            parameters = (source_id, incident_category, cutoff)
+            (total,) = cast(
+                tuple[int],
+                self._connection.execute(
+                    f"SELECT count(*) FROM incidents WHERE {predicate}",  # nosec B608 - fixed text.
+                    parameters,
+                ).fetchone(),
+            )
+            selected = [
+                row[0]
+                for row in cast(
+                    list[tuple[str]],
+                    self._connection.execute(
+                        f"""SELECT incident_id FROM incidents WHERE {predicate}
+                        ORDER BY created_at_ms, incident_id LIMIT ?""",  # nosec B608 - fixed text.
+                        (*parameters, _MAX_RESOLVED_INCIDENTS),
+                    ).fetchall(),
+                )
+            ]
+            if not apply or not selected:
+                return IncidentResolution(len(selected), 0, total)
+            state_revision = self._advance_state_revision(now_ms)
+            _ = self._connection.executemany(
+                """UPDATE incidents SET resolved_at_ms = ?
+                WHERE incident_id = ? AND resolved_at_ms IS NULL""",
+                [(now_ms, incident_id) for incident_id in selected],
+            )
+            self._insert_audit(
+                source_id=source_id,
+                run_id=None,
+                event_type="incidents_resolved",
+                details={
+                    "incident_category": incident_category,
+                    "resolved": len(selected),
+                    "created_before_ms": cutoff,
+                },
+                state_revision=state_revision,
+                now_ms=now_ms,
+            )
+            return IncidentResolution(
+                len(selected), len(selected), total - len(selected)
+            )
 
     def expire_claim(
         self,

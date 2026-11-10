@@ -13,6 +13,14 @@ These entries include public validation deployments, not a versioned product
 release. No version tags or GitHub Releases have been published; the complete
 signed-release and deployment-acceptance gates remain #41/#27.
 
+### Added
+
+- `minos watcher resolve-incidents <source> --category <category>` closes one
+  source's reviewed open incidents of one category, oldest first and at most
+  1000 per call, with `--created-before` and `--dry-run`, and writes one audit
+  event. Nothing closed an incident before, so the NFZ source carried 160 open
+  `collection_failure` incidents after one day of retries (#344).
+
 ### Changed
 
 - `/jgp` and `/jgp/{code}` show today's catalog and group under their own URL
