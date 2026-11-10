@@ -5,7 +5,8 @@ FROM docker.io/nginxinc/nginx-unprivileged:1.31.7-alpine@sha256:b5047b9b76845eac
 # CVE-2026-107891, CVE-2026-85091, CVE-2026-87636 and CVE-2026-9947: the newest
 # upstream digest still ships brotli-libs 1.2.0-r1, curl 8.22.0-r0, libexpat
 # 2.9.0-r0, libxslt 1.1.43-r3, musl 1.2.6-r2 and zlib 1.3.2-r0. Pin the fixed
-# Alpine packages until upstream rebuilds, then drop this layer. Alpine 3.24 carries the zlib fix as 1.4-r0.
+# Alpine packages until upstream rebuilds, then drop this layer. Alpine 3.24
+# carries the zlib fix as 1.4-r0.
 USER root
 RUN apk add --no-cache "brotli-libs=1.2.1-r0" "curl=8.23.0-r0" "libcurl=8.23.0-r0" \
     "libexpat=2.10.0-r0" "libxslt=1.1.43-r4" "musl=1.2.6-r3" "musl-utils=1.2.6-r3" \
