@@ -13,6 +13,13 @@ These entries include public validation deployments, not a versioned product
 release. No version tags or GitHub Releases have been published; the complete
 signed-release and deployment-acceptance gates remain #41/#27.
 
+### Added
+
+- Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
+  the project board, `.agents/escalation.md` lists what the approver role must
+  hand to the owner, and `.agents/retro.jsonl` keeps the retro history in the
+  repository (union merge in `.gitattributes`).
+
 ### Changed
 
 - `/jgp` and `/jgp/{code}` show today's catalog and group under their own URL

@@ -1,0 +1,6 @@
+{
+  "board": {"owner": "krzysztofbury", "number": 1},
+  "repos": ["krzysztofbury/minos-health"],
+  "runner": "~/.local/bin/agent-run",
+  "max_parallel": 2
+}
