@@ -1950,14 +1950,14 @@ def test_failed_due_obligation_retries_after_persisted_backoff_and_restart(
         _ = first.fail_claim(claim.identity, error_category="exhausted")
         assert first.claim_one_overdue() is None
 
-    clock.set(_NOW_MS + 499)
+    clock.set(_NOW_MS + 59_999)
     with ControlStore.open(
         database_path,
         source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
     ) as before_backoff:
         assert before_backoff.claim_one_overdue() is None
 
-    clock.set(_NOW_MS + 500)
+    clock.set(_NOW_MS + 60_000)
     with ControlStore.open(
         database_path,
         source_configuration_codecs=RSK_SOURCE_CONFIGURATION_CODECS,
@@ -1967,6 +1967,40 @@ def test_failed_due_obligation_retries_after_persisted_backoff_and_restart(
     assert retry is not None
     assert retry.run_mode == expected_run_mode
     assert retry.scheduled_at_ms == schedule.next_due_at_ms
+
+
+def test_a_failing_source_backs_off_to_one_run_an_hour(
+    store: ControlStore,
+    database_path: Path,
+    clock: _TestClock,
+) -> None:
+    # The schedule's 30 s in-run retry cap once spaced whole runs too: an
+    # unreachable upstream was collected twice a minute for hours.
+    clock.set(_NOW_MS - 86_400_000)
+    _configure_source(store)
+    _ = store.set_schedule(_schedule())
+    now = _NOW_MS
+    waits: list[int] = []
+    for _failure in range(8):
+        clock.set(now)
+        claim = store.claim_one_overdue()
+        assert claim is not None
+        _ = store.fail_claim(claim.identity, error_category="exhausted")
+        [(retry_at,)] = _query(
+            database_path, "SELECT retry_not_before_ms FROM source_schedules"
+        )
+        waits.append(cast(int, retry_at) - now)
+        now = cast(int, retry_at)
+    assert [wait // 1000 for wait in waits] == [
+        60,
+        120,
+        240,
+        480,
+        960,
+        1920,
+        3600,
+        3600,
+    ]
 
 
 def test_concurrent_retry_claimers_create_one_fenced_claim(
@@ -1988,7 +2022,7 @@ def test_concurrent_retry_claimers_create_one_fenced_claim(
         claim = setup.claim_one_overdue()
         assert claim is not None
         _ = setup.fail_claim(claim.identity, error_category="exhausted")
-    clock.set(_NOW_MS + 500)
+    clock.set(_NOW_MS + 60_000)
     barrier = threading.Barrier(2)
     claims: list[RunClaim | None] = []
     errors: list[BaseException] = []

@@ -381,7 +381,10 @@ expires, terminal states never reopen, and no transition may be skipped.
 Claiming a durable schedule advances its cron cursor but retains the original
 scheduled time and run mode as a pending obligation until the run reaches
 `successful`. Failure or expiry atomically records a bounded exponential
-retry-not-before time. A single scheduler interval job checks eligible durable
+retry-not-before time: 1 minute after the first failure, doubling to at most 1
+hour (#344). The schedule's retry policy spaces attempts inside one run only;
+its 30-second cap once re-ran a source with an unreachable upstream twice a
+minute. A single scheduler interval job checks eligible durable
 work, while SQLite serialization and the source blocking-run guard permit only
 one claimant. Restart reconstruction uses the same persisted state, so an
 exhausted daily, catch-up, or weekly collection is delayed rather than lost or

@@ -98,6 +98,10 @@ _LISTING_URL = (
 _MAX_CANDIDATES = 8
 _MAX_KNOWN_DOCUMENTS = 1024
 _MAX_SIGNALS = 256
+# dane.gov.pl answers only Polish addresses (seen 2026-11-10) and publishes one
+# report a month. While it is unreachable the rest of the NFZ run goes on, for at
+# most this long; after that the run fails so the owner hears of it.
+_STATISTICS_GRACE_MS = 7 * 86_400_000
 _BASELINE_NOTICE = NfzSignal(
     "news",
     8987,
@@ -120,7 +124,7 @@ class _Cursor(BaseModel):
     baseline_notice_recorded: bool = False
     aotmit: dict[str, str] = Field(default_factory=dict, max_length=32)
     eli: dict[str, str] = Field(default_factory=dict, max_length=len(WATCHED))
-    statistics: dict[str, str] = Field(default_factory=dict, max_length=3)
+    statistics: dict[str, str] = Field(default_factory=dict, max_length=4)
     icd9_xlsx: dict[str, str] = Field(default_factory=dict, max_length=1)
     reported_disagreements: list[str] = Field(default_factory=list, max_length=64)
 
@@ -201,9 +205,12 @@ class _Cursor(BaseModel):
     @classmethod
     def validate_statistics(cls, states: dict[str, str]) -> dict[str, str]:
         for name, value in states.items():
-            shape = {"month": r"20[0-9]{2}-[0-9]{2}"}.get(name, r"[0-9a-f]{64}")
+            shape = {
+                "month": r"20[0-9]{2}-[0-9]{2}",
+                "unreachable_since": r"[1-9][0-9]{12}",
+            }.get(name, r"[0-9a-f]{64}")
             if (
-                name not in ("month", "report", "problems")
+                name not in ("month", "report", "problems", "unreachable_since")
                 or re.fullmatch(shape, value) is None
             ):
                 raise ValueError("statistics cursor entry is invalid")
@@ -965,7 +972,31 @@ class NfzSourceCollector:
         archived: set[str],
     ) -> None:
         self._require_deadline(context)
-        answer = fetch_newest_report(client)
+        try:
+            answer = fetch_newest_report(client)
+        except httpx.TransportError, DaneGovRetryableError:
+            # The listing state holds; only the start of the outage is recorded.
+            now_ms = self._now_ms()
+            since = known.get("unreachable_since")
+            if since is None:
+                known["unreachable_since"] = str(now_ms)
+                incidents.append(
+                    IncidentDraft(
+                        _digest(
+                            [
+                                "jgp_statistics_unreachable",
+                                now_ms,
+                                context.run.identity.run_id,
+                            ]
+                        ),
+                        "jgp_statistics_unreachable",
+                        {"grace_days": _STATISTICS_GRACE_MS // 86_400_000},
+                    )
+                )
+            elif now_ms - int(since) >= _STATISTICS_GRACE_MS:
+                raise
+            return
+        _ = known.pop("unreachable_since", None)
         report = answer.report
         observation = self._observation(
             context,
