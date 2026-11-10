@@ -569,6 +569,19 @@ publishes the newest month. A month past the live pins alerts the owner and
 waits for a reviewed release; nothing is pinned automatically. Refreshing the
 figures is therefore one monthly `deploy_validation`.
 
+Since 2026-11-10 `dane.gov.pl` (`185.41.93.0/24`, Centralny Ośrodek
+Informatyki behind Imperva) answers only Polish addresses: a TCP probe from 40
+nodes in 25 countries connected only from Warsaw, and the production host,
+which leaves through a Finnish address, gets no answer (#344). While the
+listing is unreachable the NFZ run goes on without it: the statistics state
+keeps its month and report, records when the outage began and raises one
+`jgp_statistics_unreachable` incident. After 7 days the run fails, so the
+owner hears of it. A listing that answers with a changed shape still fails the
+run at once. Meanwhile the public NFZ provenance has no statistics entry, so a
+pending monthly report is not reported until the listing answers again. A
+watcher image older than this rule refuses a cursor that records an outage:
+roll forward, or clear that entry, rather than roll back.
+
 The annual dataset `3009` is not used for counts: at its granularity 94.5% of
 2025 cells are suppressed, so a group's national count spans a range about 3.7
 times wide. In August 2026, 734 of 740 reported group codes were groups of the

@@ -3,6 +3,7 @@ import json
 import sqlite3
 import time
 import zipfile
+from collections.abc import Callable
 from dataclasses import replace
 from itertools import count
 from pathlib import Path
@@ -254,7 +255,9 @@ def _dane_gov_transport(state: dict[str, bool]) -> httpx.MockTransport:
     ).read_bytes()
     newest = b"raport_SZP_i_kardiologia_2026_8.xml"
 
-    def handler(_request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if state.get("dane_geofenced"):
+            raise httpx.ConnectTimeout("timed out", request=request)
         if state.get("dane_busy"):
             return httpx.Response(503)
         if state.get("dane_html"):
@@ -395,6 +398,7 @@ def _setup(
     rotate_document_id: int = 43868,
     rotate_relations: bool = False,
     missing_comparison_root: bool = False,
+    nfz_now_ms: Callable[[], int] | None = None,
 ) -> tuple[ControlStore, WatcherOrchestrator, list[str], Path]:
     database = tmp_path / "control.sqlite3"
     calls: list[str] = []
@@ -555,6 +559,7 @@ def _setup(
                 rsk_client_factory=lambda settings: create_rsk_client(
                     settings, transport=_rsk_icd9_transport()
                 ),
+                now_ms=nfz_now_ms,
             ),
         )
     prepare_public_root(tmp_path / "public")
@@ -617,6 +622,7 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
     revised_jgp_file = False
     czs_state: dict[str, bool] = {}
     eli_state: dict[str, bool] = {}
+    nfz_clock_shift_ms = [0]
 
     def card(path: str, title: str, summary: str) -> bytes:
         return (
@@ -744,6 +750,7 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         czs_state=czs_state,
         eli_state=eli_state,
         independent_root_id=45000 if document_id == 45000 else None,
+        nfz_now_ms=lambda: time.time_ns() // 1_000_000 + nfz_clock_shift_ms[0],
     )
     try:
         first = store.claim_manual("nfz")
@@ -1001,17 +1008,48 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             revised_jgp_file = revised
             flipped = store.claim_manual("nfz")
             _ = orchestrator.run_claim(flipped, flipped.retry_policy)
-        for flag, failure in (
-            ("dane_html", SourceDriftWatcherError),
-            ("dane_busy", RetryableWatcherError),
+        eli_state["dane_html"] = True
+        unread = store.claim_manual("nfz")
+        before = store.load_source_state("nfz").cursor
+        with pytest.raises(SourceDriftWatcherError):
+            _ = orchestrator.run_claim(unread, unread.retry_policy)
+        assert store.load_source_state("nfz").cursor == before
+        eli_state["dane_html"] = False
+        # dane.gov.pl answers only Polish addresses. While it is unreachable the
+        # statistics state holds and one incident says so; the rest of the run
+        # goes on for a week, then the run fails so the owner hears of it.
+        day_ms = 86_400_000
+        statistics = cast(dict[str, str], before["statistics"])
+        for shift_days, flag, green in (
+            (-8, "dane_geofenced", True),
+            (-1.5, "dane_busy", True),
+            (0, "dane_geofenced", False),
         ):
             eli_state[flag] = True
+            nfz_clock_shift_ms[0] = int(shift_days * day_ms)
             unread = store.claim_manual("nfz")
-            before = store.load_source_state("nfz").cursor
-            with pytest.raises(failure):
+            ahead = store.load_source_state("nfz").cursor
+            if green:
                 _ = orchestrator.run_claim(unread, unread.retry_policy)
-            assert store.load_source_state("nfz").cursor == before
+                held = cast(
+                    dict[str, str], store.load_source_state("nfz").cursor["statistics"]
+                )
+                assert {k: v for k, v in held.items() if k != "unreachable_since"} == (
+                    statistics
+                )
+            else:
+                with pytest.raises(RetryableWatcherError):
+                    _ = orchestrator.run_claim(unread, unread.retry_policy)
+                assert store.load_source_state("nfz").cursor == ahead
             eli_state[flag] = False
+        assert _query(
+            database,
+            "SELECT count(*) FROM incidents WHERE incident_category = 'jgp_statistics_unreachable'",
+        ) == [(1,)]
+        nfz_clock_shift_ms[0] = 0
+        reachable = store.claim_manual("nfz")
+        _ = orchestrator.run_claim(reachable, reachable.retry_policy)
+        assert store.load_source_state("nfz").cursor["statistics"] == statistics
         amended_cursor = store.load_source_state("nfz").cursor
         eli_state["html"] = True
         blocked = store.claim_manual("nfz")

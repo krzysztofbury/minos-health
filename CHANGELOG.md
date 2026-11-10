@@ -29,6 +29,14 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The NFZ watcher no longer goes down when `dane.gov.pl` cannot be reached.
+  Since 2026-11-10 that site answers only Polish addresses, and the production
+  host leaves through a Finnish one. The run keeps the monthly report state,
+  raises one incident and watches its other sources; after 7 days it fails so
+  the owner hears of it (#344).
+- A failed durable watcher run waits 1 minute before the next claim, doubling
+  to 1 hour. It used the in-run 30-second retry cap, so an unreachable upstream
+  re-ran the whole NFZ collection about 24 times an hour (#344).
 - The validation API image pins Debian `apt` and `libapt-pkg6.0` 2.6.2 for
   CVE-2026-109518 (HIGH, DLA-4880-1): the pinned `python:3.14.10-slim-bookworm`
   base ships 2.6.1, and the API scan blocked every pull request. APT never runs
