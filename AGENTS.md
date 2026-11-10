@@ -18,6 +18,12 @@ representative benchmarks. Never weaken validation, provenance, privacy, or
 determinism for an unmeasured optimization, and do not dismiss a measured
 performance regression for developer convenience.
 
+## Agent workflow
+
+Queued work runs through the role skills on the project board named in
+`.agents/cos.json`. The approver escalates by `.agents/escalation.md`; retro
+appends to `.agents/retro.jsonl` and proposes rule changes as pull requests.
+
 ## Work Rhythm
 
 - Work in one checkout of this repository, wherever the environment places
