@@ -75,6 +75,11 @@ _MAX_ENABLED_SOURCES = 1000
 _MAX_SCHEDULED_SOURCES = 2000
 _MAX_STALE_CLAIMS = 1000
 _MAX_DURABLE_RETRY_FAILURES = 31
+# A failed durable run waits before the next claim: 1 min, doubling to 1 h. The
+# schedule's retry policy spaces attempts inside one run; reusing its 30 s cap
+# here re-ran a source with an unreachable upstream twice a minute.
+_DURABLE_RETRY_BASE_SECONDS = 60.0
+_DURABLE_RETRY_MAX_SECONDS = 3600.0
 _MAX_BLOB_SIZE_BYTES = 512 * 1024 * 1024
 _MAX_CONTROL_DATABASE_SIZE_BYTES = 2 * 1024 * 1024 * 1024
 _MAX_BACKUP_DURATION_SECONDS = 900.0
@@ -2800,11 +2805,10 @@ class ControlStore:
         now_ms: int,
     ) -> int | None:
         row = cast(
-            tuple[str, int, float, float, int, str | None] | None,
+            tuple[str, int, int, str | None] | None,
             self._connection.execute(
                 """
-                SELECT r.run_mode, r.scheduled_at_ms, ss.retry_base_seconds,
-                       ss.retry_max_seconds, ss.retry_failure_count,
+                SELECT r.run_mode, r.scheduled_at_ms, ss.retry_failure_count,
                        ss.pending_run_mode
                 FROM watcher_runs AS r
                 LEFT JOIN source_schedules AS ss
@@ -2821,22 +2825,15 @@ class ControlStore:
         )
         if row is None:
             raise ControlStorageError("failed watcher run is missing")
-        (
-            run_mode,
-            scheduled_at_ms,
-            retry_base_seconds,
-            retry_max_seconds,
-            failure_count,
-            pending_run_mode,
-        ) = row
+        run_mode, scheduled_at_ms, failure_count, pending_run_mode = row
         if run_mode == "manual":
             return None
         if not _is_run_mode(run_mode) or pending_run_mode != run_mode:
             raise ControlStorageError("durable schedule obligation is inconsistent")
         next_failure_count = min(failure_count + 1, _MAX_DURABLE_RETRY_FAILURES)
-        delay_seconds = retry_base_seconds
+        delay_seconds = _DURABLE_RETRY_BASE_SECONDS
         for _failure in range(1, next_failure_count):
-            delay_seconds = min(delay_seconds * 2, retry_max_seconds)
+            delay_seconds = min(delay_seconds * 2, _DURABLE_RETRY_MAX_SECONDS)
         retry_not_before_ms = now_ms + max(1, math.ceil(delay_seconds * 1000))
         _validate_timestamp(retry_not_before_ms, "schedule retry time")
         scheduled_mode = _scheduled_mode_for_claim(run_mode)
