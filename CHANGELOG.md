@@ -41,6 +41,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The validation edge pins Alpine `libxslt` 1.1.43-r4 for CVE-2026-87636 and
+  CVE-2026-9947 (HIGH): the upstream NGINX 1.31.7 digest ships 1.1.43-r3, and
+  the edge image scan blocked every pull request.
 - The NFZ watcher no longer goes down when `dane.gov.pl` cannot be reached.
   Since 2026-11-10 that site answers only Polish addresses, and the production
   host leaves through a Finnish one. The run keeps the monthly report state,
