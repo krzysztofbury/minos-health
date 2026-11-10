@@ -191,6 +191,51 @@ def test_status_exposes_incident_truncation_in_json_and_human_output(
     assert "  verified downloaded products: 10+" in output
 
 
+def test_resolve_incidents_closes_what_status_lists_and_previews_first(
+    status_database: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    command = [
+        "watcher",
+        "resolve-incidents",
+        "alpha",
+        "--category",
+        "upstream_failure",
+        "--created-before",
+        "2026-11-10T10:30:00Z",
+        "--database",
+        str(status_database),
+    ]
+
+    main([*command, "--dry-run"])
+    assert json.loads(capsys.readouterr().out) == {
+        "category": "upstream_failure",
+        "dry_run": True,
+        "matched": 1,
+        "remaining": 1,
+        "resolved": 0,
+        "source_id": "alpha",
+    }
+    main(["watcher", "status", "alpha", "--database", str(status_database), "--json"])
+    source = _object(_list(_decode_json_object(capsys.readouterr().out)["sources"])[0])
+    assert [_object(item)["category"] for item in _list(source["open_incidents"])] == [
+        "upstream_failure"
+    ]
+
+    main(command)
+    assert json.loads(capsys.readouterr().out)["resolved"] == 1
+    main(["watcher", "status", "--database", str(status_database), "--json"])
+    snapshot = _decode_json_object(capsys.readouterr().out)
+    assert _object(_list(snapshot["sources"])[0])["open_incidents"] == []
+    # A global incident is not the source's to close.
+    assert len(_list(snapshot["open_incidents"])) == 1
+
+    with pytest.raises(SystemExit) as naive:
+        main([*command[:6], "2026-11-10T10:30:00", *command[7:]])
+    assert naive.value.code == 1
+    assert capsys.readouterr().err == "minos: watcher command failed\n"
+
+
 def test_status_filters_source_and_uses_database_environment(
     status_database: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -112,6 +112,18 @@ def build_parser() -> ArgumentParser:
     _ = status.add_argument("source_id", nargs="?")
     _ = status.add_argument("--database", type=Path)
     _ = status.add_argument("--json", action="store_true", dest="status_json")
+    resolve = watcher_commands.add_parser(
+        "resolve-incidents",
+        help="Close one source's reviewed open incidents of one category.",
+    )
+    _ = resolve.add_argument("source_id")
+    _ = resolve.add_argument("--category", required=True)
+    _ = resolve.add_argument(
+        "--created-before",
+        help="Close only incidents created at or before this UTC time (ISO 8601).",
+    )
+    _ = resolve.add_argument("--database", type=Path)
+    _ = resolve.add_argument("--dry-run", action="store_true")
     _ = run_once.add_argument("source_id")
     for command in (
         preflight,
@@ -264,6 +276,9 @@ def main(
             else:
                 print(format_watcher_status(snapshot))
             return
+        if raw_arguments.get("watcher_command") == "resolve-incidents":
+            print(_resolve_incidents(raw_arguments))
+            return
         if raw_arguments.get("watcher_command") == "validate-public-rsk":
             from minos.ingest.watchers.rsk.publication import (
                 validate_deployed_rsk_projection,
@@ -344,6 +359,53 @@ def main(
             raise WatcherRuntimeError("watcher command is unsupported")
     except RuntimeError:
         parser.exit(1, "minos: watcher command failed\n")
+
+
+def _resolve_incidents(raw_arguments: dict[str, object]) -> str:
+    from datetime import datetime
+
+    from minos.ingest.watchers.config import WATCHER_SOURCE_CONFIGURATION_CODECS
+    from minos.ingest.watchers.control import ControlStore
+
+    database = raw_arguments.get("database")
+    source_id = raw_arguments.get("source_id")
+    category = raw_arguments.get("category")
+    created_before = raw_arguments.get("created_before")
+    if database is not None and not isinstance(database, Path):
+        raise WatcherRuntimeError("watcher database is invalid")
+    if not isinstance(source_id, str) or not isinstance(category, str):
+        raise WatcherRuntimeError("incident source and category are required")
+    cutoff_ms: int | None = None
+    if created_before is not None:
+        try:
+            moment = datetime.fromisoformat(cast(str, created_before))
+        except ValueError:
+            raise WatcherRuntimeError("incident cutoff is not ISO 8601") from None
+        if moment.utcoffset() is None:
+            raise WatcherRuntimeError("incident cutoff needs a time zone")
+        cutoff_ms = int(moment.timestamp() * 1000)
+    dry_run = raw_arguments.get("dry_run") is True
+    # Beside the running watcher: SQLite's writer lock orders the two, and the
+    # store never holds it longer than one bounded update.
+    with ControlStore.open(
+        resolve_status_database(database),
+        source_configuration_codecs=WATCHER_SOURCE_CONFIGURATION_CODECS,
+    ) as store:
+        result = store.resolve_incidents(
+            source_id, category, created_before_ms=cutoff_ms, apply=not dry_run
+        )
+    return json.dumps(
+        {
+            "source_id": source_id,
+            "category": category,
+            "dry_run": dry_run,
+            "matched": result.matched,
+            "resolved": result.resolved,
+            "remaining": result.remaining,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 def _add_watcher_paths(parser: ArgumentParser) -> None:

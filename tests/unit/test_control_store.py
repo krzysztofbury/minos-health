@@ -42,6 +42,7 @@ from minos.ingest.watchers.control import (
     SourceConfigurationCodec,
     SourceConfigurationCodecError,
     SourceConfigurationCodecRegistry,
+    SourceNotFoundError,
     SourceSchedule,
     StaleClaimError,
     UncertainControlOutcomeError,
@@ -2001,6 +2002,83 @@ def test_a_failing_source_backs_off_to_one_run_an_hour(
         3600,
         3600,
     ]
+
+
+def test_owner_closes_reviewed_incidents_of_one_category_and_audits_it(
+    store: ControlStore,
+    database_path: Path,
+    clock: _TestClock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Nothing else closes an incident: before this, every run failure and
+    # source change stayed open for good, and the real ones drowned (#344).
+    _configure_source(store)
+    for index, (category, source_id) in enumerate(
+        (
+            ("collection_failure", _SOURCE_ID),
+            ("collection_failure", _SOURCE_ID),
+            ("collection_failure", _SOURCE_ID),
+            ("source_drift", _SOURCE_ID),
+            ("collection_failure", None),
+            ("collection_failure", _SOURCE_ID),
+        )
+    ):
+        clock.set(_NOW_MS + index * 1000)
+        _ = store.record_incident(
+            IncidentDraft(f"incident-{index:010d}", category, {}),
+            source_id=source_id,
+        )
+    clock.set(_NOW_MS + 10_000)
+    open_ids = (
+        "SELECT incident_id FROM incidents WHERE resolved_at_ms IS NULL "
+        "ORDER BY incident_id"
+    )
+
+    preview = store.resolve_incidents(
+        _SOURCE_ID, "collection_failure", created_before_ms=_NOW_MS + 4000, apply=False
+    )
+    assert (preview.matched, preview.resolved, preview.remaining) == (3, 0, 3)
+    assert len(_query(database_path, open_ids)) == 6
+
+    monkeypatch.setattr(
+        "minos.ingest.watchers.control.store._MAX_RESOLVED_INCIDENTS", 2
+    )
+    first = store.resolve_incidents(
+        _SOURCE_ID, "collection_failure", created_before_ms=_NOW_MS + 4000
+    )
+    second = store.resolve_incidents(
+        _SOURCE_ID, "collection_failure", created_before_ms=_NOW_MS + 4000
+    )
+    assert (first.resolved, first.remaining) == (2, 1)
+    assert (second.resolved, second.remaining) == (1, 0)
+    # Another category, the global incident and one newer than the cutoff stay.
+    assert _query(database_path, open_ids) == [
+        ("incident-0000000003",),
+        ("incident-0000000004",),
+        ("incident-0000000005",),
+    ]
+    assert _query(
+        database_path,
+        "SELECT DISTINCT resolved_at_ms FROM incidents WHERE resolved_at_ms IS NOT NULL",
+    ) == [(_NOW_MS + 10_000,)]
+    audits = _query(
+        database_path,
+        """SELECT details_json FROM audit_events
+           WHERE event_type = 'incidents_resolved' ORDER BY state_revision""",
+    )
+    assert [json.loads(cast(str, row[0])) for row in audits] == [
+        {
+            "created_before_ms": _NOW_MS + 4000,
+            "incident_category": "collection_failure",
+            "resolved": resolved,
+        }
+        for resolved in (2, 1)
+    ]
+    # Without a cutoff, everything up to now closes.
+    rest = store.resolve_incidents(_SOURCE_ID, "collection_failure")
+    assert (rest.resolved, rest.remaining) == (1, 0)
+    with pytest.raises(SourceNotFoundError):
+        _ = store.resolve_incidents("missing", "collection_failure")
 
 
 def test_concurrent_retry_claimers_create_one_fenced_claim(
