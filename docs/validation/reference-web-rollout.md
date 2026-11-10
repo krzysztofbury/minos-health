@@ -236,6 +236,10 @@ layer now also pins musl and musl-utils 1.2.6-r3 and zlib 1.4-r0, the version
 Alpine 3.24 carries the fix in. No local container runtime was available, so
 the pull request's container job is the scan evidence.
 
+On 2026-11-10 the gate found fixable `CVE-2026-87636` and `CVE-2026-9947`
+(libxslt 1.1.43-r3) in the same digest. The layer now also pins libxslt
+1.1.43-r4. The pull request's container job is again the scan evidence.
+
 Host pre-cutover canaries stopped promotion when ordinary cold searches returned
 HTTP 429. Profiling isolated 320 ms in the first native dictionary construction
 inside the 250 ms request budget; later searches in that same process took
