@@ -158,6 +158,8 @@ class _Run:
         self.r2 = _R2(root)
         self.pushes: list[tuple[str, str]] = []
         self.push_fails = False
+        # (system, stage) per finished judgment stage, from the last run.
+        self.stages: list[tuple[str, str]] = []
 
     def __call__(self, capsys: pytest.CaptureFixture[str]) -> tuple[int, object]:
         def kuma(targets: UptimeKumaTargets) -> UptimeKumaClient:
@@ -192,7 +194,14 @@ class _Run:
         output = capsys.readouterr().out
         assert str(self.root) not in output
         assert list(self.work.iterdir()) == []
-        return code, cast(object, json.loads(output))
+        *stages, summary = output.splitlines()
+        self.stages = []
+        for line in stages:
+            stage = cast(dict[str, object], json.loads(line))
+            assert sorted(stage) == ["seconds", "stage", "system", "version"]
+            assert isinstance(stage["seconds"], float) and stage["seconds"] >= 0
+            self.stages.append((str(stage["system"]), str(stage["stage"])))
+        return code, cast(object, json.loads(summary))
 
 
 def _icd9_run(root: Path, czs: bytes, acceptance: Path | None = None) -> _Run:
@@ -212,6 +221,7 @@ def test_new_generation_is_judged_once_and_reported_every_run(
 
     first = run(capsys)
     reads = len(run.r2.reads)
+    stages = run.stages
     second = run(capsys)
 
     summary = {
@@ -226,6 +236,9 @@ def test_new_generation_is_judged_once_and_reported_every_run(
     }
     assert first == second == (0, summary)
     assert run.pushes == [("up", f"would_activate {release_id}")] * 2
+    names = ["fetch", "propose", "first_build", "second_build", "compare"]
+    assert stages == [("icd9-pl", name) for name in names]
+    assert run.stages == []
     # The live inputs and the new generation are fetched once, for the first run.
     assert reads == len(set(run.r2.reads)) > 1
     assert len(run.r2.reads) == reads
@@ -323,6 +336,8 @@ def test_fault_is_reported_and_retried_without_a_stored_verdict(
 
     failure = "fetch" if fault == "missing_blob" else "projection"
     assert (code, summary) == (1, {"version": 1, "failed": failure})
+    # Only finished stages are journaled; the failed fetch is the next one.
+    assert run.stages == []
     assert run.pushes == [("down", f"failed: {failure}")]
     assert not run.state.exists()
 
@@ -617,6 +632,7 @@ def test_accepted_bundle_is_handed_over_with_its_request(
         list[dict[str, object]], cast(dict[str, object], summary)["verdicts"]
     )
     assert verdict["decision"] == "would_activate"
+    assert run.stages[-1] == ("icd9-pl", "accept")
     request = cast(
         dict[str, str], json.loads((run.accepted / "request.json").read_text())
     )

@@ -8,7 +8,8 @@ bundle answers for earlier periods is unchanged in the candidate.
 import hashlib
 import shutil
 import sqlite3
-from contextlib import closing
+from collections.abc import Callable
+from contextlib import AbstractContextManager, closing, nullcontext
 from pathlib import Path
 from typing import ClassVar, Literal, Protocol, cast
 
@@ -91,6 +92,13 @@ def rejected(error: CandidateRejected) -> CandidateReport:
     )
 
 
+type Stage = Callable[[str], AbstractContextManager[None]]
+
+
+def _untimed(_name: str) -> AbstractContextManager[None]:
+    return nullcontext()
+
+
 def evaluate_candidate(
     candidate: DatasetManifest,
     *,
@@ -99,23 +107,28 @@ def evaluate_candidate(
     archive_root: Path,
     work: Path,
     policy: RegressionBounds,
+    stage: Stage = _untimed,
 ) -> CandidateReport:
     """Build the candidate twice in ``work`` and judge it against the live bundle.
 
-    ``terminology`` is the (system, origin) of the one new canonical release.
+    ``terminology`` is the (system, origin) of the one new canonical release;
+    ``stage`` wraps each build and the comparison, so a caller can time them.
     """
     live = ArtifactManifest.model_validate_json(
         (live_bundle / ARTIFACT_MANIFEST_NAME).read_bytes()
     )
     previous_id, release_id = _release_pair(live.dataset, candidate, terminology)
-    first = _build(candidate, archive_root, work / "first")
-    second = _build(candidate, archive_root, work / "second")
+    with stage("first_build"):
+        first = _build(candidate, archive_root, work / "first")
+    with stage("second_build"):
+        second = _build(candidate, archive_root, work / "second")
     # Only the first bundle is kept; the second exists to prove determinism.
     shutil.rmtree(work / "second")
     if first.database_sha256 != second.database_sha256:
         raise CandidateRejected("build", "build_is_not_deterministic")
     database = work / "first" / DATABASE_NAME
     with (
+        stage("compare"),
         closing(_read_only(database)) as built,
         closing(_read_only(live_bundle / DATABASE_NAME)) as served,
     ):
