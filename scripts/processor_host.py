@@ -57,8 +57,11 @@ READY_DELAY_S = 10.0
 # Two candidate builds near the 1 GiB database bound plus the fetched inputs.
 MIN_FREE_BYTES = 4 * 1024 * 1024 * 1024
 DOCKER_TIMEOUT_S = 60
-# Two builds at 0.5 CPU on the host; the lock blocks deploys for this long.
-RUN_TIMEOUT_S = 75 * 60
+# A judgment is two full builds, a comparison and acceptance at 0.5 CPU of the
+# host's one shared vCPU. The first host build (#353) outlived a 75-minute cap
+# that a workstation with the same limits met in 13 minutes. The lock blocks
+# deploys for this long; the unit timeout and the Kuma push window follow it.
+RUN_TIMEOUT_S = 4 * 60 * 60
 
 type Runner = Callable[[list[str], float], int]
 

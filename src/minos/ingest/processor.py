@@ -15,7 +15,9 @@ import os
 import re
 import shutil
 import sqlite3
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Generator
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -369,13 +371,19 @@ def _judge(
     reader_factory: Callable[[], BlobReader],
 ) -> CandidateReport:
     _clear(paths.work)
+
+    def stage(name: str) -> AbstractContextManager[None]:
+        return _stage(item.system, name)
+
     try:
         archive = paths.work / "archive"
-        _fetch(item, live, archive, reader_factory)
+        with stage("fetch"):
+            _fetch(item, live, archive, reader_factory)
         work = paths.work / "build"
         work.mkdir(mode=0o700)
         try:
-            candidate = _propose(item, live, archive, policy)
+            with stage("propose"):
+                candidate = _propose(item, live, archive, policy)
             report = evaluate_candidate(
                 candidate,
                 terminology=(
@@ -386,9 +394,10 @@ def _judge(
                 archive_root=archive,
                 work=work,
                 policy=policy,
+                stage=stage,
             )
             if report.decision == "would_activate":
-                _accept(item.system, report, paths, work / "first")
+                _accept(item.system, report, paths, work / "first", stage)
             return report
         except CandidateRejected as error:
             return rejected(error)
@@ -398,8 +407,26 @@ def _judge(
         _clear(paths.work)
 
 
+@contextmanager
+def _stage(system: str, name: str) -> Generator[None]:
+    """Journal each finished stage of a judgment with its duration (#353).
+
+    The runner kills a run at its cap; the stage after the last line is the one
+    it was in. The line names the system and stage only, never a path or input.
+    """
+    started = time.monotonic()
+    yield
+    seconds = round(time.monotonic() - started, 1)
+    line = {"version": 1, "system": system, "stage": name, "seconds": seconds}
+    print(json.dumps(line), flush=True)
+
+
 def _accept(
-    system: str, report: CandidateReport, paths: ProcessorPaths, bundle: Path
+    system: str,
+    report: CandidateReport,
+    paths: ProcessorPaths,
+    bundle: Path,
+    stage: Callable[[str], AbstractContextManager[None]],
 ) -> None:
     """Run criterion 4, then hand the first build to the host runner."""
     if paths.acceptance_directory is None or paths.accepted is None:
@@ -414,13 +441,14 @@ def _accept(
     ]
     if release.valid_from is None or report.database_sha256 != built.database_sha256:
         raise CandidateRejected("build", "accepted_bundle_identity_differs")
-    accept_candidate(
-        paths.live_bundle,
-        bundle,
-        system=system,
-        effective=polish_date(release.valid_from),
-        cases=paths.acceptance_directory,
-    )
+    with stage("accept"):
+        accept_candidate(
+            paths.live_bundle,
+            bundle,
+            system=system,
+            effective=polish_date(release.valid_from),
+            cases=paths.acceptance_directory,
+        )
     # One accepted bundle at a time; a newer verdict replaces the older one.
     _clear(paths.accepted)
     os.rename(bundle, paths.accepted / built.database_sha256)

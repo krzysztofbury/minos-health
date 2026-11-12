@@ -800,8 +800,9 @@ the reference API image, so it starts working after the API release that ships
    `minos-production-processor-r2-credentials` (ID
    `3lapt4pwp43x2rojdjzccsumhi`; its title starts with a space, so use the ID)
    with the fields `access key id` (32 hex) and `secret access key` (64 hex).
-2. In Kuma, create two push monitors with a heartbeat interval of 28800
-   seconds (six-hour timer, jitter and the run cap), **Retries 0** (a pending
+2. In Kuma, create two push monitors with a heartbeat interval of 43200
+   seconds (a quick run then a capped one: six-hour timer, jitter, the
+   4-hour run cap and activation), **Retries 0** (a pending
    push does not notify) and the Telegram notification: `data-update` for
    verdicts and `data-activation` for activation outcomes (#141 phase C).
    Their push tokens (the 32 characters after `/api/push/`) are the

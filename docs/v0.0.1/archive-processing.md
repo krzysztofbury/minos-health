@@ -281,8 +281,12 @@ limit. It mounts the public projections, the live bundle, the R2 key and the
 Kuma target read-only; only `/var/lib/minos/processor/{work,state}` are
 writable. It joins `minos_monitoring` for Kuma and a separate
 `minos-processor-egress` bridge for R2. The runner refuses to start below
-4 GiB free disk, kills a run after 75 minutes and empties the work directory
-on every exit.
+4 GiB free disk, kills a run after 4 hours and empties the work directory
+on every exit. A run holds the deployment lock throughout, so a deploy started
+during a long judgment fails fast. Each finished stage of a judgment (`fetch`,
+`propose`, `first_build`, `second_build`, `compare` and, when acceptance runs,
+`accept`) writes one journal line with the system, the stage and its seconds,
+so the stage after the last line is the one a killed run was in.
 
 One run:
 
@@ -353,9 +357,7 @@ overlapped a full test run) and wrote a 496.0 MiB database. Cgroup memory
 reached the 384 MiB limit, filled by page cache from the writes: anonymous
 memory peaked at 159 MiB and file cache at 242 MiB, with about 33,000 reclaim
 events and no OOM. The work directory peaked at 992 MiB. A bundle near the
-1 GiB bound roughly doubles both. Host timing is not measured yet: the host
-CPU is slower by an unknown factor, so the first production run is the
-evidence for the 75-minute cap. A failed run keeps its container for
+1 GiB bound roughly doubles both. A failed run keeps its container for
 `docker logs minos-processor` until the next run. In a stand-in network with a fake Kuma, the processor read the
 projection as UID 10005, loaded `/app/policy`, pushed `failed: fetch`
 (no egress), then `idle` for the live generation, and left the work directory
@@ -374,6 +376,20 @@ the RSK re-export of `013`, which this change reports as unchanged instead.
 The runner, the `minos_monitoring` network, the egress bridge, the read-only
 key and the Kuma push all worked on the host. No host build has run yet, so
 host build time is still unmeasured.
+
+First host build (2026-11-12, #353). After #352, 21 live inputs (product
+catalogs and grouping dictionaries the selection had not fetched) were copied
+to R2 create-once with the operator key, which left 58 of 58 pinned blobs
+present. The run judging RSK ICD-10 `015` was then killed at the old 75-minute
+cap: exit 137, no OOM, and no state written. At minute 64 it used 14% of one
+CPU and 210 MiB. The host has one shared vCPU; with nothing of ours busy, its
+CPU pressure was about 50% and its I/O pressure about 20%. The same judgment
+on a workstation in a systemd scope with the container's limits took 779
+seconds and 333 CPU seconds, filled the 512 MiB cgroup with page cache and
+returned `would_activate icd10-rsk-015-14aaec5db49f`. The search probe stayed
+up, its median latency rising from 294 to 376 ms during the run. The cap is now
+4 hours, the unit timeout 270 minutes and the Kuma push window 12 hours; the
+stage lines of the next host judgment are the evidence for revisiting them.
 
 Known limits, before Phase C: Kuma notifies only on a status change, so a
 second refusal while the monitor is already down does not reach Telegram
