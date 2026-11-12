@@ -6,7 +6,8 @@ After=docker.service minos-compose.service
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/python3 -I /opt/minos/bin/processor_host.py
-# The runner kills a container after 75 minutes; two activation attempts
-# with their checks add up to about 25 minutes.
-TimeoutStartSec=110min
+# The runner kills a container after 4 hours; two activation attempts
+# with their checks add up to about 25 minutes. It stays below the six-hour
+# timer period.
+TimeoutStartSec=270min
 Nice=10

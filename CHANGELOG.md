@@ -15,6 +15,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- Each finished stage of a processor judgment (`fetch`, `propose`, both
+  builds, `compare`, `accept`) writes one journal line with its seconds, so a
+  run killed at its cap shows the stage it was in (#353).
 - RSK ICD-10 corrections activate automatically (#351). RSK replaced `013`
   with `015` under the same 2025-10-17 validity start, so every data-update run
   since 2026-11-11 refused it as `not_newer_than_live_release` and held the
@@ -51,6 +54,12 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- A processor judgment may run for 4 hours instead of 75 minutes, and the
+  unit timeout is 270 minutes (#353). The first host build, of RSK ICD-10
+  `015`, was killed at the old cap. The host's one shared vCPU ran it far
+  slower than a workstation, which met the same container limits in 13
+  minutes. The data-update and data-activation Kuma push windows grow from 8
+  to 12 hours to cover a capped run after a quick one.
 - The data-update processor fetches the product catalogs and grouping
   dictionaries the live bundle pins (#351). It downloaded every other pinned
   input, so each candidate built against the current live bundle would have
