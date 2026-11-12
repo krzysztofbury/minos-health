@@ -22,3 +22,8 @@ No fixture or private-source validation authorizes data redistribution.
 broader title matches in source order, so result ranking is observable: titles
 that begin with the query (broader codes first), then titles that contain it,
 then the inclusion term.
+
+`rsk3.xml` reproduces the shapes of the RSK3 export of `015` (#351): the
+namespace without its trailing slash, modifiers written as their owner's code
+and digit, a second node block holding only expanded modifiers, and note
+groups coded as their owner and a colon, one unnamed and one named.

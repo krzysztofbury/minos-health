@@ -15,6 +15,16 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- RSK ICD-10 corrections activate automatically (#351). RSK replaced `013`
+  with `015` under the same 2025-10-17 validity start, so every data-update run
+  since 2026-11-11 refused it as `not_newer_than_live_release` and held the
+  monitor down. A newer numbered version whose start is not after the live
+  release now applies to service dates from its RSK file creation; earlier
+  dates keep the live release, which the JGP conditions pin. The parser reads
+  the RSK3 export format of `015`: the namespace without a trailing slash,
+  modifiers written `M00:1` and `M00.0:1`, a second node block of modifiers and
+  the note groups `T10:`, `T12:` and `T14.2:`. Expanded modifiers stay
+  modifiers, so `015` adds two codes, M72.3 and M72.5.
 - `minos watcher resolve-incidents <source> --category <category>` closes one
   source's reviewed open incidents of one category, oldest first and at most
   1000 per call, with `--created-before` and `--dry-run`, and writes one audit
@@ -41,6 +51,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The data-update processor fetches the product catalogs and grouping
+  dictionaries the live bundle pins (#351). It downloaded every other pinned
+  input, so each candidate built against the current live bundle would have
+  failed as `build/candidate_build_failed`. A test now requires every blob a
+  reviewed build reads to be a fetched input.
 - The validation edge pins Alpine `libxslt` 1.1.43-r4 for CVE-2026-87636 and
   CVE-2026-9947 (HIGH): the upstream NGINX 1.31.7 digest ships 1.1.43-r3, and
   the edge image scan blocked every pull request.

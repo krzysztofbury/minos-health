@@ -851,6 +851,40 @@ def test_icd11_files_no_live_release_pins_hold_the_monitor_down(
     ]
 
 
+def test_every_blob_a_reviewed_build_reads_is_a_live_input() -> None:
+    # Product catalogs and grouping dictionaries were not fetched, so every
+    # candidate build on the host failed (#351). A raw NFZ statistics report is
+    # provenance only: builds read its extract.
+    manifest = DatasetManifest.model_validate_json(
+        (
+            Path(__file__).parents[2]
+            / "manifests/sources/reference-conditions-public-validation.json"
+        ).read_text()
+    )
+    raw_reports = {
+        report.sha256
+        for report in (
+            manifest.jgp_statistics.reports if manifest.jgp_statistics else ()
+        )
+    }
+    pinned: set[str] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, dict):
+            fields = cast(dict[str, object], value)
+            if isinstance(fields.get("sha256"), str) and "size_bytes" in fields:
+                pinned.add(cast(str, fields["sha256"]))
+            for item in fields.values():
+                collect(item)
+        elif isinstance(value, list):
+            for item in cast(list[object], value):
+                collect(item)
+
+    collect(manifest.model_dump(mode="json"))
+    assert manifest.product_catalogs and manifest.grouping_dictionaries
+    assert pinned - raw_reports == {blob.sha256 for blob in source_files(manifest)}
+
+
 def test_every_reviewed_source_size_can_be_fetched_as_a_live_input() -> None:
     # The 117 MB ICD-11 PL source once failed every run with failed: fetch.
     manifest = DatasetManifest.model_validate_json(

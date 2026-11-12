@@ -40,8 +40,9 @@ The selection is transport provenance, not another dataset/artifact manifest:
 ```
 
 The selection must exactly cover the deduplicated bytes required by all selected
-terminology, Komunikat, catalog, conditions, MODTAR XML/display and reviewed
-legal-overlay inputs. Missing, additional, duplicate or conflicting objects fail.
+terminology, Komunikat, catalog, conditions, MODTAR XML/display, reviewed
+legal-overlay, ICD-11 map, statistics extract, product catalog and grouping
+dictionary inputs (the last two since #351). Missing, additional, duplicate or conflicting objects fail.
 Dataset identity and coverage are checked before creating a cloud client. The
 source manifest is read once and the verified model is passed to the builder;
 rotating its path during transfer cannot change the build's meaning.
@@ -105,17 +106,49 @@ The digests come from the watcher's `rsk_source_change` record and the archived
   accepts an unscoped terminology synonym only if its reviewed wording exists
   in every release of its system.
 
-A file with the live release's version and `validDateFrom` whose nodes and
-relations parse identically is `release_content_unchanged` (history), not a
-correction: RSK's 2026-09-22 re-export of `013` differs from the pin only in
-its namespace, root `version` attribute and export link (#184). Any other file
-not newer than the live release is `not_newer_than_live_release` and goes to
-the owner.
+A file with the live release's version whose nodes and relations parse
+identically is `release_content_unchanged` (history), whatever its
+`validDateFrom`, since a correction's live start is its file creation: RSK's 2026-09-22 re-export of `013` differs from the pin only in
+its namespace, root `version` attribute and export link (#184).
+
+A newer numbered version whose `validDateFrom` is not after the live release
+is a correction (#351: `015` replaced `013` with the same 2025-10-17 start).
+The live release cannot be replaced: JGP conditions pin it and its rows must
+stay byte-identical. With the policy's `"corrections": "from_file_creation"`
+(owner decision 2026-11-12) the correction therefore applies to service dates
+from its RSK file's `creationDate`, which must be after the live release's
+start, and a notice records the RSK start. Earlier service dates keep the live
+release, so a code the correction adds is not found for them. The same
+version with other content, an older or non-numeric version, a file created
+before the live start, and any correction under `"owner"` are
+`not_newer_than_live_release` and go to the owner.
 
 `manifests/policy/rsk-icd10-automatic.json` is the owner's class-level approval
-(2026-10-20). It pins the SHA-256 of the RSK description, which carries the
-licence statement, and the publisher; any change refuses the release. It also
-bounds removed codes (1%) and the concept count change (5%).
+(2026-10-20, corrections 2026-11-12). It pins the SHA-256 of the RSK
+description, which carries the licence statement, and the publisher; any
+change refuses the release. It also bounds removed codes (1%) and the concept
+count change (5%).
+
+The parser reads the RSK3 export of `015` (#351): the namespace without its
+trailing slash, modifiers written as their owner's code and digit (`M00:1`,
+and `M00.0:1` under each subcategory), a second `nodes` block that holds only
+the node's own modifiers, and the note groups `T10:`, `T12:` and `T14.2:`,
+which are the owner's code and a colon alone. Only notes may appear below a
+modifier or a note group, as in `013` and `015`. A modifier never becomes a
+diagnosis code, so `015` adds two concepts (M72.3, M72.5) to `013`'s 12,075
+classification codes while its expanded modifiers add 3,971 modifier nodes.
+
+Real-data evidence (2026-11-12, workstation): against a local build of the
+live dataset (`c5068838`, 730.3 MB database), `015` was `would_activate` from
+2026-11-05 in 328 seconds for both builds: 12,371 to 12,373 concepts, two
+added, none removed, two redescribed (G13.1 and I98 lose a double space), a
+823.6 MB database and `013`'s rows unchanged. The acceptance cases passed on
+2026-11-05, and the search budget's broadest ICD-10 term moved from 1,497,000
+to 1,516,000 operations. Its inclusion notes change answers: `cukrzyca typu I`
+now finds E10.0 to E10.4, and `nieprawidłowe plemniki` ranks R86.0 to R86.4
+before R86.9. The same run found that the processor did not fetch the product
+catalogs and grouping dictionaries the live bundle pins, so no candidate could
+build on the host; `source_files` now lists them.
 
 The command prints one JSON report with no paths or source text and exits 0
 for `would_activate`, 9 for a refusal that names its criterion (`bytes`,

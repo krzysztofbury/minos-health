@@ -3,7 +3,7 @@ import hashlib
 import json
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import pytest
 from fastapi import FastAPI
@@ -78,7 +78,11 @@ def _basic_info(product: bytes, **changes: object) -> dict[str, object]:
     return info
 
 
-def _policy(*, max_removed: float = 0.2) -> RskIcd10Policy:
+def _policy(
+    *,
+    max_removed: float = 0.2,
+    corrections: Literal["owner", "from_file_creation"] = "owner",
+) -> RskIcd10Policy:
     return RskIcd10Policy(
         schema_version=1,
         source_class="rsk-icd10",
@@ -91,6 +95,7 @@ def _policy(*, max_removed: float = 0.2) -> RskIcd10Policy:
         notices=("Synthetic notice.",),
         max_removed_code_ratio=max_removed,
         max_concept_count_change_ratio=0.2,
+        corrections=corrections,
     )
 
 
@@ -111,8 +116,9 @@ def _run_cli(
     product: bytes,
     policy: RskIcd10Policy,
     capsys: pytest.CaptureFixture[str],
+    **info_changes: object,
 ) -> tuple[int, dict[str, object]]:
-    info = json.dumps(_basic_info(product)).encode()
+    info = json.dumps(_basic_info(product, **info_changes)).encode()
     policy_path = root / "policy.json"
     _ = policy_path.write_text(policy.model_dump_json())
     arguments = [
@@ -168,6 +174,127 @@ def test_new_release_is_added_beside_the_closed_live_release(
     assert (release.source_version, release.publisher) == ("002", _PUBLISHER)
     assert release.source_url.endswith("00000000-0000-4000-8000-000000000002")
     assert not (tmp_path / "work" / "second").exists()
+
+
+def test_a_correction_applies_from_its_file_creation_beside_the_live_release(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # RSK republished the release in force as a newer version with the same
+    # validity start (015 over 013, #351). The live release stays for earlier
+    # service dates, so JGP conditions pinned to it keep their rows.
+    _, bundle = _live(tmp_path)
+
+    code, report = _run_cli(
+        tmp_path,
+        bundle,
+        _CHANGED,
+        _policy(corrections="from_file_creation"),
+        capsys,
+        version="003",
+        validDateFrom="2025-01-01T00:00:00.000+00:00",
+        # 23:30 UTC is already the next day in Poland, which service dates use.
+        files=[_xml_file(_CHANGED, "2025-12-01T23:30:00.000+00:00")],
+    )
+
+    assert (code, report["decision"]) == (0, "would_activate")
+    built = ArtifactManifest.model_validate_json(
+        (tmp_path / "work" / "first" / "manifest.json").read_bytes()
+    )
+    previous, release = built.dataset.sources
+    created = datetime(2025, 12, 1, 23, 30, tzinfo=UTC)
+    assert (previous.valid_from, previous.valid_to) == (_LIVE_FROM, created)
+    assert (release.source_version, release.valid_from) == ("003", created)
+    assert release.notices[-1].startswith(
+        "RSK lists version 003 as valid from 2025-01-01. Minos applies this "
+        + "correction to service dates from 2025-12-02"
+    )
+
+
+def _xml_file(product: bytes, created: str) -> dict[str, object]:
+    return {
+        "uuid": "00000000-0000-4000-8000-000000000002",
+        "sizeBytes": len(product),
+        "creationDate": created,
+        "extension": "xml",
+        "archived": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "corrections,version,created",
+    [
+        ("owner", "003", "2025-12-01T10:00:00.000+00:00"),
+        # The same version with other content is not a numbered correction.
+        ("from_file_creation", "002", "2025-12-01T10:00:00.000+00:00"),
+        ("from_file_creation", "001", "2025-12-01T10:00:00.000+00:00"),
+        ("from_file_creation", "00A", "2025-12-01T10:00:00.000+00:00"),
+        # A file created before or as the live release started cannot follow it.
+        ("from_file_creation", "003", "2024-12-31T23:00:00.000+00:00"),
+        ("from_file_creation", "003", "2025-01-01T00:00:00.000+00:00"),
+    ],
+)
+def test_a_correction_outside_the_owner_policy_goes_to_the_owner(
+    tmp_path: Path,
+    corrections: Literal["owner", "from_file_creation"],
+    version: str,
+    created: str,
+) -> None:
+    base, _ = _live(tmp_path)
+    info = _basic_info(
+        _CHANGED,
+        version=version,
+        validDateFrom="2025-01-01T00:00:00.000+00:00",
+        files=[_xml_file(_CHANGED, created)],
+    )
+
+    with pytest.raises(CandidateRejected) as refused:
+        _ = propose_icd10_release(
+            base,
+            tmp_path,
+            product_sha256=_archive(tmp_path, _CHANGED),
+            basic_info_sha256=_archive(tmp_path, json.dumps(info).encode()),
+            fetched_at=datetime(2025, 12, 2, tzinfo=UTC),
+            policy=_policy(corrections=corrections),
+        )
+
+    assert (refused.value.criterion, refused.value.code) == (
+        "history",
+        "not_newer_than_live_release",
+    )
+
+
+def test_a_reexport_of_a_live_correction_is_unchanged(tmp_path: Path) -> None:
+    # A live correction starts at its file creation, so RSK's validity start
+    # never equals it; a header-only re-export must still be idle (#351).
+    base, _ = _live(tmp_path)
+    corrected = base.sources[0].model_copy(
+        update={
+            "source_version": "003",
+            "valid_from": datetime(2025, 12, 1, 23, 30, tzinfo=UTC),
+        }
+    )
+    base = base.model_copy(update={"sources": (corrected,)})
+    info = _basic_info(
+        _REEXPORT,
+        version="003",
+        validDateFrom="2025-01-01T00:00:00.000+00:00",
+        files=[_xml_file(_REEXPORT, "2026-01-05T10:00:00.000+00:00")],
+    )
+
+    with pytest.raises(CandidateRejected) as refused:
+        _ = propose_icd10_release(
+            base,
+            tmp_path,
+            product_sha256=_archive(tmp_path, _REEXPORT),
+            basic_info_sha256=_archive(tmp_path, json.dumps(info).encode()),
+            fetched_at=datetime(2026, 1, 6, tzinfo=UTC),
+            policy=_policy(corrections="from_file_creation"),
+        )
+
+    assert (refused.value.criterion, refused.value.code) == (
+        "history",
+        "release_content_unchanged",
+    )
 
 
 def test_removing_codes_beyond_the_policy_bound_is_refused(

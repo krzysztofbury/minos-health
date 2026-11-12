@@ -2,8 +2,10 @@
 
 The candidate is the live dataset plus one new RSK ICD-10 release (#141 phase
 B). The previous release stays, closed at the new validity start, so answers
-for earlier service dates keep using it. Nothing here builds or activates the
-candidate; every refusal names the activation criterion that failed.
+for earlier service dates keep using it. A correction, a newer version whose
+RSK validity does not start after the live release, applies from its file's
+creation instead (#351). Nothing here builds or activates the candidate; every
+refusal names the activation criterion that failed.
 """
 
 import hashlib
@@ -23,6 +25,7 @@ from pydantic import (
     model_validator,
 )
 
+from minos.domain.jgp_ruleset import polish_date
 from minos.domain.reference import (
     ReferenceNode,
     ReferenceRelation,
@@ -75,6 +78,9 @@ class RskIcd10Policy(BaseModel):
     notices: Annotated[tuple[SourceText, ...], Field(min_length=1, max_length=16)]
     max_removed_code_ratio: float = Field(ge=0, le=0.2)
     max_concept_count_change_ratio: float = Field(ge=0, le=0.2)
+    # "owner" sends every correction to the owner; "from_file_creation" (owner
+    # decision of 2026-11-12, #351) lets one apply from its RSK file creation.
+    corrections: Literal["owner", "from_file_creation"] = "owner"
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -155,17 +161,36 @@ def propose_icd10_release(
         raise CandidateRejected("history", "release_already_closed")
     if previous.valid_from is None:
         raise CandidateRejected("history", "live_release_has_no_validity_start")
-    if (info.version, info.valid_from) == (
-        previous.source_version,
-        previous.valid_from,
-    ) and _same_classification(archive_root, product, previous):
+    if info.version == previous.source_version and _same_classification(
+        archive_root, product, previous
+    ):
         # A same-version re-export with identical classification events (#184:
         # RSK moved its export namespace) changes no answer; the pin stays.
+        # The start is not compared: a correction starts at its file creation,
+        # never at RSK's validity start (#351).
         raise CandidateRejected("history", "release_content_unchanged")
-    if info.valid_from <= previous.valid_from:
-        # A correction or backdated release changes answers for past service
-        # dates, so it always goes to the owner.
-        raise CandidateRejected("history", "not_newer_than_live_release")
+    valid_from = info.valid_from
+    notices = policy.notices
+    if valid_from <= previous.valid_from:
+        # A correction or backdated release would change answers for past
+        # service dates, and the live release cannot be replaced: JGP
+        # conditions pin it and its rows must stay. A newer version may apply
+        # from its file's creation if the owner allows it (#351).
+        valid_from = listed[0].creation_date
+        if (
+            policy.corrections != "from_file_creation"
+            or not _newer_version(info.version, previous.source_version)
+            or valid_from <= previous.valid_from
+        ):
+            raise CandidateRejected("history", "not_newer_than_live_release")
+        notices = (
+            *notices,
+            f"RSK lists version {info.version} as valid from "
+            + f"{polish_date(info.valid_from).isoformat()}. Minos applies this "
+            + "correction to service dates from "
+            + f"{polish_date(valid_from).isoformat()}, when RSK published the "
+            + "file; earlier service dates keep the previous release.",
+        )
     counts = _count_release(archive_root, product)
     release_id = f"icd10-rsk-{info.version.lower()}-{product.sha256[:12]}"
     try:
@@ -179,17 +204,22 @@ def propose_icd10_release(
             publisher=policy.publisher,
             fetched_at=fetched_at,
             source_created_at=listed[0].creation_date,
-            valid_from=info.valid_from,
+            valid_from=valid_from,
             valid_to=None,
             sha256=product.sha256,
             size_bytes=product.size_bytes,
             license=policy.license,
-            notices=policy.notices,
+            notices=notices,
             expected=counts,
         )
         return _with_release(base, previous, release)
     except ValidationError:
         raise CandidateRejected("parse", "candidate_manifest_invalid") from None
+
+
+def _newer_version(version: str, live: str) -> bool:
+    """RSK numbers versions 013, 015; anything else is left to the owner."""
+    return version.isdigit() and live.isdigit() and int(version) > int(live)
 
 
 def _latest_rsk(base: DatasetManifest) -> SourceManifest:
