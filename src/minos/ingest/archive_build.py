@@ -109,6 +109,13 @@ def source_files(manifest: DatasetManifest) -> Iterator[BlobIdentity]:
         yield from manifest.icd11_maps.files
     if manifest.jgp_statistics is not None:
         yield from (report.extract for report in manifest.jgp_statistics.reports)
+    # Missing until #351: the processor fetched an archive without them, so
+    # every candidate against a live bundle that pins them failed to build.
+    for products in manifest.product_catalogs:
+        yield from products.files
+    if manifest.grouping_dictionaries is not None:
+        yield manifest.grouping_dictionaries.specialties.source
+        yield manifest.grouping_dictionaries.discharge_modes.source
 
 
 class ArchiveS3Client(Protocol):
