@@ -271,6 +271,14 @@ class _XmlState:
             self.fail("appended node block holds a non-modifier")
         if not code:
             return
+        # Below a modifier or note group only notes appear in 013 and 015; a
+        # code there would ride into the release under a modifier (#351).
+        if any(
+            item.kind == "modifier" or item.grouping
+            for item in self.stack
+            if item.name == "node"
+        ):
+            self.fail("coded node below a modifier or note group")
         if re.fullmatch(r"[A-Z][0-9]{2}[-\u2013][A-Z][0-9]{2}", code):
             frame.kind, frame.lookup_code = "range", code.replace("\u2013", "-")
         elif re.fullmatch(r"[A-Z][0-9]{2}(\.[0-9]{1,2})?[*†]?", code):

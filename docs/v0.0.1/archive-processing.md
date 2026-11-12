@@ -40,8 +40,9 @@ The selection is transport provenance, not another dataset/artifact manifest:
 ```
 
 The selection must exactly cover the deduplicated bytes required by all selected
-terminology, Komunikat, catalog, conditions, MODTAR XML/display and reviewed
-legal-overlay inputs. Missing, additional, duplicate or conflicting objects fail.
+terminology, Komunikat, catalog, conditions, MODTAR XML/display, reviewed
+legal-overlay, ICD-11 map, statistics extract, product catalog and grouping
+dictionary inputs (the last two since #351). Missing, additional, duplicate or conflicting objects fail.
 Dataset identity and coverage are checked before creating a cloud client. The
 source manifest is read once and the verified model is passed to the builder;
 rotating its path during transfer cannot change the build's meaning.
@@ -105,9 +106,9 @@ The digests come from the watcher's `rsk_source_change` record and the archived
   accepts an unscoped terminology synonym only if its reviewed wording exists
   in every release of its system.
 
-A file with the live release's version and `validDateFrom` whose nodes and
-relations parse identically is `release_content_unchanged` (history), not a
-correction: RSK's 2026-09-22 re-export of `013` differs from the pin only in
+A file with the live release's version whose nodes and relations parse
+identically is `release_content_unchanged` (history), whatever its
+`validDateFrom`, since a correction's live start is its file creation: RSK's 2026-09-22 re-export of `013` differs from the pin only in
 its namespace, root `version` attribute and export link (#184).
 
 A newer numbered version whose `validDateFrom` is not after the live release
@@ -132,7 +133,8 @@ The parser reads the RSK3 export of `015` (#351): the namespace without its
 trailing slash, modifiers written as their owner's code and digit (`M00:1`,
 and `M00.0:1` under each subcategory), a second `nodes` block that holds only
 the node's own modifiers, and the note groups `T10:`, `T12:` and `T14.2:`,
-which are the owner's code and a colon alone. A modifier never becomes a
+which are the owner's code and a colon alone. Only notes may appear below a
+modifier or a note group, as in `013` and `015`. A modifier never becomes a
 diagnosis code, so `015` adds two concepts (M72.3, M72.5) to `013`'s 12,075
 classification codes while its expanded modifiers add 3,971 modifier nodes.
 

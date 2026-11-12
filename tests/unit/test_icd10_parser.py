@@ -117,6 +117,17 @@ def test_the_rsk3_export_format_adds_no_diagnosis_codes() -> None:
             "empty container",
         ),
         (b'code="M00:1*"', b'code="M00:12"', "code shape"),
+        # A diagnosis code may not ride in below a modifier or a note group.
+        (
+            '<node code="">\n                           <name>Próbna część'.encode(),
+            '<node code="Z99.9">\n                           <name>Próbna część'.encode(),
+            "below a modifier",
+        ),
+        (
+            '<node code="">\n                     <name>Przykład BNO'.encode(),
+            '<node code="Z99">\n                     <name>Przykład BNO'.encode(),
+            "below a modifier or note group",
+        ),
     ],
 )
 def test_rsk3_shapes_outside_the_reviewed_export_fail(

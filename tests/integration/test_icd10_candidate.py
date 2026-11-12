@@ -192,6 +192,8 @@ def test_a_correction_applies_from_its_file_creation_beside_the_live_release(
         capsys,
         version="003",
         validDateFrom="2025-01-01T00:00:00.000+00:00",
+        # 23:30 UTC is already the next day in Poland, which service dates use.
+        files=[_xml_file(_CHANGED, "2025-12-01T23:30:00.000+00:00")],
     )
 
     assert (code, report["decision"]) == (0, "would_activate")
@@ -199,12 +201,12 @@ def test_a_correction_applies_from_its_file_creation_beside_the_live_release(
         (tmp_path / "work" / "first" / "manifest.json").read_bytes()
     )
     previous, release = built.dataset.sources
-    created = datetime(2025, 12, 1, 10, tzinfo=UTC)
+    created = datetime(2025, 12, 1, 23, 30, tzinfo=UTC)
     assert (previous.valid_from, previous.valid_to) == (_LIVE_FROM, created)
     assert (release.source_version, release.valid_from) == ("003", created)
     assert release.notices[-1].startswith(
         "RSK lists version 003 as valid from 2025-01-01. Minos applies this "
-        + "correction to service dates from 2025-12-01"
+        + "correction to service dates from 2025-12-02"
     )
 
 
@@ -226,8 +228,9 @@ def _xml_file(product: bytes, created: str) -> dict[str, object]:
         ("from_file_creation", "002", "2025-12-01T10:00:00.000+00:00"),
         ("from_file_creation", "001", "2025-12-01T10:00:00.000+00:00"),
         ("from_file_creation", "00A", "2025-12-01T10:00:00.000+00:00"),
-        # A file created before the live release started cannot follow it.
+        # A file created before or as the live release started cannot follow it.
         ("from_file_creation", "003", "2024-12-31T23:00:00.000+00:00"),
+        ("from_file_creation", "003", "2025-01-01T00:00:00.000+00:00"),
     ],
 )
 def test_a_correction_outside_the_owner_policy_goes_to_the_owner(
@@ -257,6 +260,40 @@ def test_a_correction_outside_the_owner_policy_goes_to_the_owner(
     assert (refused.value.criterion, refused.value.code) == (
         "history",
         "not_newer_than_live_release",
+    )
+
+
+def test_a_reexport_of_a_live_correction_is_unchanged(tmp_path: Path) -> None:
+    # A live correction starts at its file creation, so RSK's validity start
+    # never equals it; a header-only re-export must still be idle (#351).
+    base, _ = _live(tmp_path)
+    corrected = base.sources[0].model_copy(
+        update={
+            "source_version": "003",
+            "valid_from": datetime(2025, 12, 1, 23, 30, tzinfo=UTC),
+        }
+    )
+    base = base.model_copy(update={"sources": (corrected,)})
+    info = _basic_info(
+        _REEXPORT,
+        version="003",
+        validDateFrom="2025-01-01T00:00:00.000+00:00",
+        files=[_xml_file(_REEXPORT, "2026-01-05T10:00:00.000+00:00")],
+    )
+
+    with pytest.raises(CandidateRejected) as refused:
+        _ = propose_icd10_release(
+            base,
+            tmp_path,
+            product_sha256=_archive(tmp_path, _REEXPORT),
+            basic_info_sha256=_archive(tmp_path, json.dumps(info).encode()),
+            fetched_at=datetime(2026, 1, 6, tzinfo=UTC),
+            policy=_policy(corrections="from_file_creation"),
+        )
+
+    assert (refused.value.criterion, refused.value.code) == (
+        "history",
+        "release_content_unchanged",
     )
 
 

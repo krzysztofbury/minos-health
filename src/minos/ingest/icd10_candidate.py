@@ -161,12 +161,13 @@ def propose_icd10_release(
         raise CandidateRejected("history", "release_already_closed")
     if previous.valid_from is None:
         raise CandidateRejected("history", "live_release_has_no_validity_start")
-    if (info.version, info.valid_from) == (
-        previous.source_version,
-        previous.valid_from,
-    ) and _same_classification(archive_root, product, previous):
+    if info.version == previous.source_version and _same_classification(
+        archive_root, product, previous
+    ):
         # A same-version re-export with identical classification events (#184:
         # RSK moved its export namespace) changes no answer; the pin stays.
+        # The start is not compared: a correction starts at its file creation,
+        # never at RSK's validity start (#351).
         raise CandidateRejected("history", "release_content_unchanged")
     valid_from = info.valid_from
     notices = policy.notices
