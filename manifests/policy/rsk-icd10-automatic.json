@@ -3,7 +3,7 @@
   "source_class": "rsk-icd10",
   "hcd": "00CD10",
   "approved_on": "2026-10-20",
-  "approval": "Owner decision 2026-10-20 (#141): a parseable RSK ICD-10 release that passes every activation criterion goes live without manual review.",
+  "approval": "Owner decision 2026-10-20 (#141): a parseable RSK ICD-10 release that passes every activation criterion goes live without manual review. Owner decision 2026-11-12 (#351): a newer RSK version whose validity does not start after the live release (a correction) passes the same criteria and applies to service dates from its RSK file creation.",
   "description_sha256": "ebec75b6c9bbded7b9f883f1ab5b6f04c581c07ad3c1fc6f1d305063d22a4b33",
   "publisher": "Biuro Światowej Organizacji Zdrowia w Polsce",
   "license": "CC BY-NC-SA 3.0 IGO (scope under review; treat as NC-constrained)",
@@ -17,5 +17,6 @@
     "Source-derived data and transformations remain subject to CC BY-NC-SA 3.0 IGO, https://creativecommons.org/licenses/by-nc-sa/3.0/igo/ . Software licensing does not replace source terms. Official downloads link upstream; raw archives remain private."
   ],
   "max_removed_code_ratio": 0.01,
-  "max_concept_count_change_ratio": 0.05
+  "max_concept_count_change_ratio": 0.05,
+  "corrections": "from_file_creation"
 }

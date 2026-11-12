@@ -66,8 +66,9 @@ MAX_POLICY_BYTES = 64 * 1024
 # Two terminologies, each with at most one new input set at a time.
 MAX_VERDICTS = 8
 # Part of every verdict key: bump it when a judgement rule changes, so stored
-# verdicts from older rules are judged again (2: unchanged RSK re-exports).
-RULES_VERSION = 2
+# verdicts from older rules are judged again (2: unchanged RSK re-exports;
+# 3: the RSK3 export format and corrections, #351).
+RULES_VERSION = 3
 _GENERATION = re.compile(r"generations/[1-9][0-9]*-([0-9a-f]{64})")
 # A JGP catalog is built from an original act (BAW AutomaticType 1) or a
 # consolidated text (3), as CatalogManifest admits; types 4 and 5 repeat
