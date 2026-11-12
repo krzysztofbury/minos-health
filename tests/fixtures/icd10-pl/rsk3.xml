@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<hcd xmlns="https://rsk3.ezdrowie.gov.pl" applicationdate="2017-04-24" closed="2" hcd="00CD10" maxchars="100" registrationdate="2017-06-22" version="15" visible="true">
+   <expirationreason>synthetic</expirationreason>
+   <name>Synthetic ICD-10</name>
+   <common_name>ICD10</common_name>
+   <codesformat>X99.99</codesformat>
+   <charset>ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.</charset>
+   <minreusetime>100</minreusetime>
+   <languages>PL/en</languages>
+   <link>https://example.invalid/synthetic-source</link>
+   <nodes>
+      <node code="M00">
+         <name>Kategoria próbna</name>
+         <attributes>
+            <attribute name="EN">Synthetic category</attribute>
+         </attributes>
+         <nodes>
+            <node code="M00:0">
+               <name>Próbne miejsce pierwsze</name>
+            </node>
+            <node code="M00:1*">
+               <name>Próbne miejsce drugie</name>
+            </node>
+            <node code="M00.0">
+               <name>Podkategoria próbna</name>
+               <nodes>
+                  <node code="">
+                     <name>Przykład opisowy</name>
+                  </node>
+               </nodes>
+               <nodes>
+                  <node code="M00.0:1">
+                     <name>Próbne miejsce drugie</name>
+                     <nodes>
+                        <node code="">
+                           <name>Próbna część</name>
+                        </node>
+                     </nodes>
+                  </node>
+               </nodes>
+            </node>
+         </nodes>
+      </node>
+      <node code="T10">
+         <name>Druga kategoria próbna</name>
+         <nodes>
+            <node code="T10:">
+               <name/>
+               <nodes>
+                  <node code="">
+                     <name>Przykład BNO</name>
+                  </node>
+               </nodes>
+            </node>
+         </nodes>
+      </node>
+      <node code="T14.2">
+         <name>Trzecia podkategoria próbna</name>
+         <nodes>
+            <node code="T14.2:">
+               <name>Próbny nagłówek:</name>
+               <nodes>
+                  <node code="">
+                     <name>otwarte BNO</name>
+                  </node>
+               </nodes>
+            </node>
+         </nodes>
+      </node>
+   </nodes>
+</hcd>

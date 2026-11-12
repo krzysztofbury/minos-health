@@ -20,10 +20,19 @@ from minos.domain.reference import (
 
 # RSK moved its export namespace with the rsk3 platform (#184): the reviewed
 # 013 XML of 2026-09-22 differs from the deployed one only in this namespace,
-# the root version attribute and the export link. A document uses one of them.
+# the root version attribute and the export link. The 015 export drops the
+# trailing slash (#351). A document uses one of them.
 NAMESPACES: frozenset[str] = frozenset(
-    ("http://rsk.rejestrymedyczne.csioz.gov.pl", "https://rsk3.ezdrowie.gov.pl/")
+    (
+        "http://rsk.rejestrymedyczne.csioz.gov.pl",
+        "https://rsk3.ezdrowie.gov.pl/",
+        "https://rsk3.ezdrowie.gov.pl",
+    )
 )
+# The 015 export writes a modifier as its owner's code, a colon and the digit
+# (`M00:1`, `M00.0:1`) instead of a bare digit, and three nodes as the owner's
+# code and a colon alone (`T10:`, `T12:`, `T14.2:`), which group notes (#351).
+_OWNED_MODIFIER = re.compile(r"([A-Z][0-9]{2}(?:\.[0-9])?[*†]?):([0-9][*†]?)?")
 CHUNK_SIZE_BYTES = 16 * 1024
 ROOT_ATTRIBUTES: frozenset[str] = frozenset(
     (
@@ -87,6 +96,10 @@ class _Frame:
     node_attributes: list[tuple[str, str]] = field(default_factory=list)
     kind: NodeKind | None = None
     lookup_code: str | None = None
+    # A coded node that only groups notes is treated like an uncoded one.
+    grouping: bool = False
+    # A node's second `nodes` block, which holds only its own modifiers.
+    modifiers_only: bool = False
 
 
 DEFAULT_XML_LIMITS = XmlLimits()
@@ -171,19 +184,29 @@ class _XmlState:
         if not qualified_name.startswith(prefix):
             self.fail("unsupported XML namespace")
         name = qualified_name[len(prefix) :]
-        self._validate_location(name, attributes)
-        frame = _Frame(name, attributes)
+        appended = self._validate_location(name, attributes)
+        frame = _Frame(name, attributes, modifiers_only=appended)
         if name == "node":
             self._start_node(frame)
         self.stack.append(frame)
 
-    def _validate_location(self, name: str, attributes: dict[str, str]) -> None:
+    def _validate_location(self, name: str, attributes: dict[str, str]) -> bool:
+        """Validate one element's place; True for a node's appended modifier block."""
         if not self.stack:
             if name != "hcd" or self.root_closed:
                 self.fail("unsupported XML root")
             self._validate_root(attributes)
-            return
+            return False
         parent = self.stack[-1]
+        # The 015 export appends the expanded modifiers of 189 nodes in a
+        # second `nodes` block after their notes (#351). One such block is
+        # accepted, and only for modifiers of that node.
+        appended = (
+            name == "nodes"
+            and parent.name == "node"
+            and parent.children[-1:] == ["nodes"]
+            and parent.children.count("nodes") == 1
+        )
         allowed: dict[str, tuple[str, ...]] = {
             "hcd": (*HEADER_FIELDS, "nodes"),
             "nodes": ("node",),
@@ -192,7 +215,9 @@ class _XmlState:
         }
         if name not in allowed.get(parent.name, ()):
             self.fail("unsupported XML structure")
-        if parent.name in ("hcd", "node"):
+        if appended:
+            parent.children.append(name)
+        elif parent.name in ("hcd", "node"):
             if name in parent.children:
                 self.fail("duplicate XML field")
             if parent.children and allowed[parent.name].index(name) <= allowed[
@@ -213,6 +238,7 @@ class _XmlState:
                     tuple(sorted(parent.attributes.items())), tuple(self.header_fields)
                 )
             )
+        return appended
 
     def _validate_root(self, attributes: dict[str, str]) -> None:
         if (
@@ -240,6 +266,9 @@ class _XmlState:
         if parent is not None and parent.name == "node":
             frame.parent_ordinal = parent.ordinal
         code = frame.attributes["code"]
+        owned = _OWNED_MODIFIER.fullmatch(code)
+        if self.stack[-1].modifiers_only and (owned is None or owned.group(2) is None):
+            self.fail("appended node block holds a non-modifier")
         if not code:
             return
         if re.fullmatch(r"[A-Z][0-9]{2}[-\u2013][A-Z][0-9]{2}", code):
@@ -256,6 +285,15 @@ class _XmlState:
             )
         elif re.fullmatch(r"[0-9]", code):
             frame.kind = "modifier"
+        elif owned is not None:
+            parent_code = parent.attributes.get("code", "") if parent else ""
+            if owned.group(1).rstrip("*†") != parent_code.rstrip("*†"):
+                self.fail("modifier code lacks its coded parent")
+            # A modifier never becomes a diagnosis code of its own.
+            if owned.group(2) is None:
+                frame.grouping = True
+            else:
+                frame.kind = "modifier"
         else:
             self.fail("unsupported ICD-10 code shape")
 
@@ -299,10 +337,11 @@ class _XmlState:
     def _end_node(self, frame: _Frame) -> None:
         if frame.ordinal is None or frame.source_name is None:
             self.fail("missing node identity or name")
-        if frame.attributes["code"] and not frame.source_name.strip():
+        coded = bool(frame.attributes["code"]) and not frame.grouping
+        if coded and not frame.source_name.strip():
             self.fail("coded node has an empty name")
         if (
-            not frame.attributes["code"]
+            not coded
             and not frame.source_name.strip()
             and "nodes" not in frame.children
         ):

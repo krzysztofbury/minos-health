@@ -66,6 +66,68 @@ def test_the_rsk3_namespace_yields_the_same_classification() -> None:
         _ = tuple(parse_icd10(BytesIO(mixed)))
 
 
+def test_the_rsk3_export_format_adds_no_diagnosis_codes() -> None:
+    # The 015 export (#351): no namespace slash, owned modifiers, a second
+    # node block of modifiers and note groups coded as their owner and a colon.
+    with (FIXTURES / "rsk3.xml").open("rb") as source:
+        events = tuple(parse_icd10(source))
+    nodes = {
+        event.source_code or event.source_text: event
+        for event in events
+        if isinstance(event, ReferenceNode)
+    }
+    lookups = {node.lookup_code for node in nodes.values()} - {None}
+    assert lookups == {"M00", "M00.0", "T10", "T14.2"}
+    assert {code: nodes[code].kind for code in ("M00:0", "M00:1*", "M00.0:1")} == {
+        "M00:0": "modifier",
+        "M00:1*": "modifier",
+        "M00.0:1": "modifier",
+    }
+    assert (nodes["T10:"].kind, nodes["T14.2:"].kind) == ("container", "text")
+    relations = {
+        (event.parent_ordinal, event.child_ordinal)
+        for event in events
+        if isinstance(event, ReferenceRelation)
+    }
+    for parent, child in (
+        ("M00.0", "M00.0:1"),
+        ("M00.0", "Przykład opisowy"),
+        ("T10", "T10:"),
+        ("T10:", "Przykład BNO"),
+        ("T14.2:", "otwarte BNO"),
+    ):
+        assert (nodes[parent].ordinal, nodes[child].ordinal) in relations
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "reason"),
+    [
+        (b'code="M00:0"', b'code="T10:0"', "coded parent"),
+        (b'code="M00.0:1"', b'code="M00:1"', "coded parent"),
+        (b'<node code="M00.0:1">', b'<node code="">', "non-modifier"),
+        (b'<node code="M00.0:1">', b'<node code="M00.0:">', "non-modifier"),
+        (
+            b"               </nodes>\n            </node>\n         </nodes>",
+            b"               </nodes>\n               <nodes/>\n            </node>\n         </nodes>",
+            "duplicate",
+        ),
+        (
+            '<node code="M00:0">\n               <name>Próbne miejsce pierwsze</name>'.encode(),
+            b'<node code="M00:">\n               <name/>',
+            "empty container",
+        ),
+        (b'code="M00:1*"', b'code="M00:12"', "code shape"),
+    ],
+)
+def test_rsk3_shapes_outside_the_reviewed_export_fail(
+    old: bytes, new: bytes, reason: str
+) -> None:
+    content = (FIXTURES / "rsk3.xml").read_bytes()
+    assert old in content
+    with pytest.raises(SourceError, match=reason):
+        _ = tuple(parse_icd10(BytesIO(content.replace(old, new, 1))))
+
+
 @pytest.mark.parametrize(
     ("filename", "reason"),
     [("dtd.xml", "prohibited"), ("unsupported.xml", "unsupported XML structure")],
