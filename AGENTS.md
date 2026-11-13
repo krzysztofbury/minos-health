@@ -34,8 +34,9 @@ appends to `.agents/retro.jsonl` and proposes rule changes as pull requests.
   diff and evidence. Run the full repository checks before submitting code.
   Reserve fault injection, container, cloud, and host checks for changes to
   those boundaries; verify real behavior there before claiming success.
-- Use the `pair-programmer` skill for TigerStyle review of substantial or
-  safety-sensitive changes, not every small edit. Pause for user review at
+- Review substantial or safety-sensitive changes with the `reviewer` skill,
+  applying its TigerStyle profile (this repository adopts TigerStyle), not
+  every small edit. Pause for user review at
   decisions and risk boundaries.
 - Keep one reviewable purpose per commit and use short imperative subjects.
 - Update docs, CHANGELOG and README in the same PR as the change. Never open a
