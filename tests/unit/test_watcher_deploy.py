@@ -416,3 +416,173 @@ def test_storage_key_upload_must_be_private_planned_and_r2_shaped(
         assert not (target / "storage-credentials").exists()
     # The upload never outlives staging, accepted or refused.
     assert not upload.exists()
+
+
+_WORKER = "https://dane-gov.worker.test"
+_PROXY_KEY = b"k" * 43 + b"\n"
+_OLD_PROXY_KEY = b"o" * 43 + b"\n"
+
+
+def _proxy_site(
+    staged: tuple[Path, Path, Path], *, installed: bytes | None = None
+) -> dict[str, object]:
+    """A live watcher with its R2 key mounted, before the Worker egress (#349)."""
+    root = staged[0]
+    credentials = root / "etc/watcher/aws/credentials"
+    credentials.parent.mkdir(parents=True, mode=0o750)
+    _ = credentials.write_bytes(_R2_KEY)
+    credentials.chmod(0o440)
+    if installed is not None:
+        key = root / "etc/watcher/dane-gov/proxy-key"
+        key.parent.mkdir(mode=0o750)
+        _ = key.write_bytes(installed)
+        key.chmod(0o440)
+    _, document = validation_host.load_compose(root / "compose.yaml")
+    watcher = watcher_host.service(document)
+    watcher["volumes"] = [
+        {
+            "type": "bind",
+            "source": str(credentials),
+            "target": "/run/secrets/aws-credentials",
+            "read_only": True,
+        }
+    ]
+    if installed is not None:
+        watcher_host.proxy_environment(
+            watcher, {"origin": _WORKER, "key_sha256": "0" * 64}
+        )
+    content = validation_host.canonical(document)
+    _ = (root / "compose.yaml").write_bytes(content)
+    egress = {"origin": _WORKER, "key_sha256": validation_host.sha256_bytes(_PROXY_KEY)}
+    directory = root / "watcher-stage" / NEW_REVISION
+    _ = (directory / "previous.json").write_bytes(content)
+    _ = (directory / "candidate.json").write_bytes(
+        validation_host.canonical(
+            watcher_host.render(document, STALE_WATCHER, None, egress)
+        )
+    )
+    _ = (directory / "dane-gov-proxy-key").write_bytes(_PROXY_KEY)
+    params: dict[str, object] = {
+        "revision": NEW_REVISION,
+        "root": str(root),
+        "dane_gov_proxy": egress,
+    }
+    _ = (directory / "prepared.json").write_text(json.dumps(params))
+    return params
+
+
+def test_proxy_render_adds_one_read_only_key_mount_and_its_environment(
+    staged: tuple[Path, Path, Path],
+) -> None:
+    params = _proxy_site(staged)
+    _, document = validation_host.load_compose(staged[0] / "compose.yaml")
+    egress = cast(dict[str, str], params["dane_gov_proxy"])
+
+    rendered = watcher_host.render(document, STALE_WATCHER, None, egress)
+    # A later key rotation renders the same layout, never a second mount.
+    rotated = watcher_host.render(rendered, STALE_WATCHER, None, egress)
+
+    for result in (rendered, rotated):
+        watcher = watcher_host.service(result)
+        environment = cast(dict[str, str], watcher["environment"])
+        assert environment["MINOS_WATCHER_DANE_GOV_PROXY_ORIGIN"] == _WORKER
+        assert environment["MINOS_WATCHER_DANE_GOV_PROXY_KEY_FILE"] == (
+            "/run/secrets/dane-gov-proxy-key"
+        )
+        assert watcher_host.proxy_mount(watcher) == {
+            "type": "bind",
+            "source": str(staged[0] / "etc/watcher/dane-gov/proxy-key"),
+            "target": "/run/secrets/dane-gov-proxy-key",
+            "read_only": True,
+        }
+    # The key itself never enters the Compose file.
+    assert _PROXY_KEY.strip() not in validation_host.canonical(rotated)
+
+
+def test_proxy_activation_installs_the_key_and_rollback_removes_it(
+    staged: tuple[Path, Path, Path],
+) -> None:
+    params = _proxy_site(staged)
+    key = staged[0] / "etc/watcher/dane-gov/proxy-key"
+    original = (staged[0] / "compose.yaml").read_bytes()
+
+    assert call(staged, "activate", params)["event"] == "watcher_activated"
+    assert key.read_bytes() == _PROXY_KEY
+    assert oct(key.stat().st_mode & 0o777) == "0o440"
+    assert oct(key.parent.stat().st_mode & 0o777) == "0o750"
+
+    assert call(staged, "rollback", params)["event"] == "watcher_rolled_back"
+    assert not key.exists()
+    assert (staged[0] / "compose.yaml").read_bytes() == original
+
+
+def test_a_rotated_proxy_key_rolls_back_to_the_previous_key(
+    staged: tuple[Path, Path, Path],
+) -> None:
+    params = _proxy_site(staged, installed=_OLD_PROXY_KEY)
+    key = staged[0] / "etc/watcher/dane-gov/proxy-key"
+
+    assert call(staged, "activate", params)["event"] == "watcher_activated"
+    assert key.read_bytes() == _PROXY_KEY
+    assert call(staged, "rollback", params)["event"] == "watcher_rolled_back"
+    assert key.read_bytes() == _OLD_PROXY_KEY
+
+
+def test_failed_proxy_activation_removes_the_new_key(
+    staged: tuple[Path, Path, Path],
+) -> None:
+    params = _proxy_site(staged)
+    state = docker_state(staged)
+    state["fail_after_watcher"] = 1
+    _ = (staged[2] / "docker-state.json").write_text(json.dumps(state))
+
+    with pytest.raises(DeployError, match="activation failed"):
+        _ = call(staged, "activate", params)
+
+    assert not (staged[0] / "etc/watcher/dane-gov/proxy-key").exists()
+
+
+@pytest.mark.parametrize("fault", ["none", "mode", "digest", "schema"])
+def test_proxy_key_upload_must_be_private_planned_and_key_shaped(
+    staged: tuple[Path, Path, Path], fault: str
+) -> None:
+    params = _proxy_site(staged)
+    root = staged[0]
+    target = root / "watcher-stage" / NEW_REVISION
+    (target / "dane-gov-proxy-key").unlink()
+    _, document = validation_host.load_compose(root / "compose.yaml")
+    egress = cast(dict[str, str], params["dane_gov_proxy"])
+    upload = root / "upload"
+    _ = upload.write_bytes(b"short\n" if fault == "schema" else _PROXY_KEY)
+    upload.chmod(0o644 if fault == "mode" else 0o600)
+    if fault == "digest":
+        egress = {**egress, "key_sha256": "0" * 64}
+
+    if fault == "none":
+        staged_key = watcher_host.stage_proxy_key(upload, target, document, egress)
+        assert staged_key.read_bytes() == _PROXY_KEY
+        assert oct(staged_key.stat().st_mode & 0o777) == "0o440"
+    else:
+        with pytest.raises(validation_host.HostError):
+            _ = watcher_host.stage_proxy_key(upload, target, document, egress)
+        assert not (target / "dane-gov-proxy-key").exists()
+    assert not upload.exists()
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://dane-gov.worker.test",
+        "https://dane-gov.worker.test/",
+        "https://dane-gov.worker.test/x",
+        "https://user@dane-gov.worker.test",
+        "https://Dane-Gov.worker.test",
+    ],
+)
+def test_a_proxy_plan_names_a_bare_https_origin(origin: str) -> None:
+    with pytest.raises(validation_host.HostError, match="proxy plan"):
+        _ = watcher_host.proxy(
+            {"dane_gov_proxy": {"origin": origin, "key_sha256": "0" * 64}}
+        )
+    with pytest.raises(ValueError):
+        _ = deploy_watcher.DaneGovProxy(origin=origin, key_sha256="0" * 64)

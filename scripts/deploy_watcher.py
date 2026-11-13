@@ -23,6 +23,16 @@ class StorageMigration(BaseModel):
     credentials_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
+class DaneGovProxy(BaseModel):
+    """The Polish egress for dane.gov.pl (#349); the key itself never enters the plan."""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
+    origin: str = Field(
+        pattern=r"^https://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$"
+    )
+    key_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class WatcherPlan(BaseModel):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", strict=True)
     revision: str = Field(pattern=r"^[0-9a-f]{40}$")
@@ -32,6 +42,7 @@ class WatcherPlan(BaseModel):
     compose_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     publish_run: int = Field(ge=1)
     storage: StorageMigration | None = None
+    dane_gov_proxy: DaneGovProxy | None = None
 
 
 class WatcherRelease(BaseModel):
@@ -54,6 +65,8 @@ class Arguments(argparse.Namespace):
     storage_bucket: str | None = None
     storage_endpoint: str | None = None
     storage_credentials: Path | None = None
+    dane_gov_proxy_origin: str | None = None
+    dane_gov_proxy_key: Path | None = None
 
 
 def program() -> bytes:
@@ -167,6 +180,17 @@ def upload_credentials(host: Host, plan: WatcherPlan, path: Path | None) -> None
     host.upload(path, f"/root/minos-watcher-{plan.revision}.storage-credentials")
 
 
+def upload_proxy_key(host: Host, plan: WatcherPlan, path: Path | None) -> None:
+    """Copy the Worker key file by scp; it never travels in command arguments."""
+    if path is None or plan.dane_gov_proxy is None:
+        raise DeployError("dane.gov.pl proxy needs --dane-gov-proxy-key at stage")
+    if hashlib.sha256(path.read_bytes()).hexdigest() != plan.dane_gov_proxy.key_sha256:
+        raise DeployError("dane.gov.pl proxy key file differs from the plan")
+    if path.stat().st_mode & 0o777 != 0o600:
+        raise DeployError("dane.gov.pl proxy key file must be mode 0600")
+    host.upload(path, f"/root/minos-watcher-{plan.revision}.dane-gov-proxy-key")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     _ = parser.add_argument(
@@ -179,6 +203,8 @@ def main() -> None:
     _ = parser.add_argument("--storage-bucket")
     _ = parser.add_argument("--storage-endpoint")
     _ = parser.add_argument("--storage-credentials", type=Path)
+    _ = parser.add_argument("--dane-gov-proxy-origin")
+    _ = parser.add_argument("--dane-gov-proxy-key", type=Path)
     arguments = Arguments()
     _ = parser.parse_args(namespace=arguments)
     command = cast(Literal["plan", "stage", "activate", "rollback"], arguments.command)
@@ -205,6 +231,18 @@ def main() -> None:
                         arguments.storage_credentials.read_bytes()
                     ).hexdigest(),
                 }
+            egress = None
+            if (arguments.dane_gov_proxy_origin is None) != (
+                arguments.dane_gov_proxy_key is None
+            ):
+                raise DeployError("dane.gov.pl proxy needs an origin and a key file")
+            if arguments.dane_gov_proxy_key is not None:
+                egress = {
+                    "origin": arguments.dane_gov_proxy_origin,
+                    "key_sha256": hashlib.sha256(
+                        arguments.dane_gov_proxy_key.read_bytes()
+                    ).hexdigest(),
+                }
             plan = WatcherPlan.model_validate(
                 {
                     "revision": arguments.revision,
@@ -212,6 +250,7 @@ def main() -> None:
                     "compose_sha256": facts["compose_sha256"],
                     "publish_run": arguments.publish_run,
                     "storage": storage,
+                    "dane_gov_proxy": egress,
                 }
             )
             reviewed(plan)
@@ -225,6 +264,8 @@ def main() -> None:
             reviewed(plan)
         if command == "stage" and plan.storage is not None:
             upload_credentials(host, plan, arguments.storage_credentials)
+        if command == "stage" and plan.dane_gov_proxy is not None:
+            upload_proxy_key(host, plan, arguments.dane_gov_proxy_key)
         result = host.call(command, plan.model_dump(), program=program())
         receipt = path.with_name(command + "-receipt.json")
         _ = receipt.write_text(json.dumps(result, indent=2) + "\n")
