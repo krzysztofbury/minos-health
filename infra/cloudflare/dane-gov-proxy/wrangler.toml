@@ -1,0 +1,16 @@
+# minos-dane-gov (#349). No account ID, route or workers.dev hostname belongs
+# in this file: wrangler takes the account from the owner's login, and the
+# route is given at deploy time (docs/v0.0.1/operations.md, "Polish Egress
+# For dane.gov.pl").
+name = "minos-dane-gov"
+main = "worker.mjs"
+compatibility_date = "2026-11-01"
+workers_dev = false
+preview_urls = false
+
+[vars]
+# Cloudflare locations allowed to call dane.gov.pl. Elsewhere the Worker
+# answers 503 at once, which the watcher treats as a retryable outage.
+ALLOWED_COLOS = "WAW"
+
+# The shared key is a Worker secret: `wrangler secret put PROXY_KEY`.
