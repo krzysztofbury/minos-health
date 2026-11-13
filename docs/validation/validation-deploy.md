@@ -567,7 +567,9 @@ uv run python -m scripts.deploy_watcher activate --plan <dir>/plan.json
   the new watcher. A failed activation or an explicit `rollback` restores the
   previous Compose and the previous key, or removes a first-installed one.
 - Later watcher releases keep the origin, mount and key from the live Compose.
-  A key rotation is the same release with the new key file and the same origin.
+  A key rotation passes the same flags, with the new key file and the same
+  origin, to the next watcher release; `stage` refuses an image the watcher
+  already runs, so it needs a newly published image.
 - The maintenance Ansible template does not render this mount. A host rebuilt
   from `site.yml` reads `dane.gov.pl` directly until this release runs again.
 

@@ -154,6 +154,7 @@ do not match the reviewed digest. There is no unfenced or implicit downgrade.
 | Generated reference database | Private API image and data artifact | GHCR digest, checksum, reproducible build |
 | Static web artifact | Private edge image and build artifact | GHCR digest, checksum, reproducible build |
 | Watcher runtime | Private watcher image | GHCR digest and bounded release retention |
+| `dane.gov.pl` proxy Worker | Cloudflare Workers, source in `infra/cloudflare/dane-gov-proxy/` | Redeploy from Git with the key from 1Password |
 | Uptime Kuma state | `/var/lib/minos/uptime-kuma`, mounted as `/app/data` | Complete stopped encrypted off-host backup; restore same pinned version first |
 | Domain | Registrar | Lock, 2FA, auto-renewal, recovery codes |
 | DNS and ingress | Cloudflare | Configuration record and recovery credentials |
@@ -600,7 +601,8 @@ and Compose mounts each file read-only into only that container:
 - bucket-scoped R2 access key for the watcher (S3-compatible credential file);
 - Uptime Kuma target JSON for the watcher, containing only version, source IDs,
   and 32-character alphanumeric push tokens;
-- the shared key of the `dane.gov.pl` proxy Worker for the watcher (see
+- the shared key of the `dane.gov.pl` proxy Worker for the watcher, which a
+  watcher release installs rather than Ansible (see
   [Polish egress](#polish-egress-for-danegovpl-349));
 - a separate bucket-scoped R2 key and a `data-update`/`data-activation` Kuma
   target for the data-update processor, in `/etc/minos/processor`, mode `0440`
@@ -674,7 +676,8 @@ used.
 
 Deploy or change the Worker only on the owner's request, from a workstation
 logged in with `wrangler login`. The route is given on the command line and
-never committed:
+never committed (`wrangler.toml` sets `workers_dev = false`; a `*.workers.dev`
+origin would need it set to `true`):
 
 ```sh
 cd infra/cloudflare/dane-gov-proxy
@@ -709,10 +712,13 @@ After it, check that the next NFZ run is green with
 `minos watcher status nfz --json`; a read through the Worker also clears the
 statistics cursor's `unreachable_since`.
 
-To rotate the key, generate a new one, store it in 1Password, put it as the
-Worker secret, and at once run a watcher release with the new key file. NFZ
-runs fail with 403 between the two steps. Rotate immediately after any
-suspected exposure.
+The key file is installed only by a watcher release, and `deploy_watcher`
+refuses an image the watcher already runs, so a rotation rides on the next
+watcher release from a new `main` commit. To rotate, generate a new key, store
+it in 1Password, put it as the Worker secret, and run that release with the
+new key file; NFZ runs between the two fail with 403. After a suspected
+exposure, replace the Worker secret at once even before a release is ready:
+the 403 failures until the release are the price of closing the Worker.
 
 ## Metrics And Alerts
 
