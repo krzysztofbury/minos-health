@@ -998,19 +998,27 @@ class NfzSourceCollector:
             return
         _ = known.pop("unreachable_since", None)
         report = answer.report
+        metadata: dict[str, JsonValue] = {
+            "title": report.title,
+            "month": report.month,
+            "resource_id": report.resource_id,
+            "published_date": report.published_date,
+            "size_bytes": report.size_bytes,
+            "response_headers": cast(dict[str, JsonValue], answer.headers),
+        }
+        if answer.proxy_colo is not None:
+            # The source stays the canonical dane.gov.pl URL; this records how
+            # the bytes arrived and where the Worker ran (#349), never its host.
+            metadata["fetched_via"] = {
+                "proxy": "cloudflare_worker",
+                "colo": answer.proxy_colo,
+            }
         observation = self._observation(
             context,
             "jgp_statistics_report",
             report.source_url,
             self._archive(context, answer.body, "application/json", archived),
-            {
-                "title": report.title,
-                "month": report.month,
-                "resource_id": report.resource_id,
-                "published_date": report.published_date,
-                "size_bytes": report.size_bytes,
-                "response_headers": cast(dict[str, JsonValue], answer.headers),
-            },
+            metadata,
         )
         observations.append(observation)
         latest = known.get("month")
