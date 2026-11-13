@@ -66,6 +66,9 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- The lockfile takes `opentelemetry-api` 1.45.2 for CVE-2026-126360, which
+  `pip-audit` reported for 1.45.1 on 2026-11-13 and which failed every
+  pull request. It arrives through FastAPI and the MCP SDK in the `api` extra.
 - A processor judgment may run for 4 hours instead of 75 minutes, and the
   unit timeout is 270 minutes (#353). The first host build, of RSK ICD-10
   `015`, was killed at the old cap. The host's one shared vCPU ran it far
