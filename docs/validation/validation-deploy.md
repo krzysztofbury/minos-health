@@ -530,6 +530,49 @@ works again once `deploy_tunnel rollback` restores the prior bytes or the next
 validation deployment starts from the new Compose; run that deployment soon
 after a tunnel update.
 
+### dane.gov.pl Egress (#349)
+
+The watcher reads the `dane.gov.pl` listing through the `minos-dane-gov`
+Worker ([operations](../v0.0.1/operations.md#polish-egress-for-danegovpl-349)).
+`deploy_watcher` installs the Worker origin and key with a watcher release,
+the same way the one-time R2 migration installed the R2 key
+([R2 migration](r2-migration.md)). `site.yml` is not run over the live host
+for it. Order: deploy the Worker and its secret, smoke it from the host,
+then release the watcher. A watcher with a key the Worker does not hold fails
+every NFZ run with 403.
+
+```sh
+uv run python -m scripts.deploy_watcher plan --plan <dir>/plan.json \
+  --revision <main sha> --image <published watcher digest> \
+  --publish-run <publish run id> \
+  --dane-gov-proxy-origin https://<worker-host> \
+  --dane-gov-proxy-key <tmp>/dane-gov-proxy-key
+uv run python -m scripts.deploy_watcher stage --plan <dir>/plan.json \
+  --dane-gov-proxy-key <tmp>/dane-gov-proxy-key
+uv run python -m scripts.deploy_watcher activate --plan <dir>/plan.json
+```
+
+- The key file comes from 1Password into a private temporary directory, mode
+  `0600`, holding only the key and at most one trailing newline. `plan` records
+  the origin and the key's SHA-256, never the key.
+- `stage` uploads the key by `scp` into root's home directory and refuses it
+  unless it is a private root-owned regular file with the key schema and the
+  planned digest. It deletes the upload, stages a copy owned like the R2 key
+  (root, the watcher secrets group, `0440`), and runs the isolated preflight
+  with the new image, the proxy environment and the staged key.
+- `activate` saves any live key, installs
+  `/etc/minos/watcher/dane-gov/proxy-key` beside the R2 key directory, writes
+  the Compose with `MINOS_WATCHER_DANE_GOV_PROXY_ORIGIN`,
+  `MINOS_WATCHER_DANE_GOV_PROXY_KEY_FILE` and the read-only mount, and starts
+  the new watcher. A failed activation or an explicit `rollback` restores the
+  previous Compose and the previous key, or removes a first-installed one.
+- Later watcher releases keep the origin, mount and key from the live Compose.
+  A key rotation passes the same flags, with the new key file and the same
+  origin, to the next watcher release; `stage` refuses an image the watcher
+  already runs, so it needs a newly published image.
+- The maintenance Ansible template does not render this mount. A host rebuilt
+  from `site.yml` reads `dane.gov.pl` directly until this release runs again.
+
 ### Uptime Kuma Updates (#274)
 
 `scripts/deploy_kuma.py` replaces only the `uptime-kuma` image under the same

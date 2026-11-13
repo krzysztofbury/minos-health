@@ -29,7 +29,10 @@ from minos.ingest.watchers.control import (
     SourceConfiguration,
 )
 from minos.ingest.watchers.czs.client import create_czs_client
-from minos.ingest.watchers.dane_gov.client import create_dane_gov_client
+from minos.ingest.watchers.dane_gov.client import (
+    DaneGovProxy,
+    create_dane_gov_client,
+)
 from minos.ingest.watchers.eli.client import create_eli_client
 from minos.ingest.watchers.nfz.collector import NfzSourceCollector
 from minos.ingest.watchers.nfz.discovery import create_nfz_client
@@ -256,7 +259,15 @@ def _dane_gov_transport(state: dict[str, bool]) -> httpx.MockTransport:
     newest = b"raport_SZP_i_kardiologia_2026_8.xml"
 
     def handler(request: httpx.Request) -> httpx.Response:
+        proxied = state.get("dane_proxied", False)
+        assert request.url.host == (
+            "dane-gov.worker.test" if proxied else "api.dane.gov.pl"
+        )
+        assert ("x-minos-proxy-key" in request.headers) == proxied
         if state.get("dane_geofenced"):
+            if proxied:
+                # The Worker's upstream call timed out (#349).
+                return httpx.Response(504, headers={"x-minos-colo": "WAW"})
             raise httpx.ConnectTimeout("timed out", request=request)
         if state.get("dane_busy"):
             return httpx.Response(503)
@@ -267,9 +278,10 @@ def _dane_gov_transport(state: dict[str, bool]) -> httpx.MockTransport:
         body = captured
         if state.get("new_month"):
             body = body.replace(newest, b"raport_SZP_i_kardiologia_2026_9.xml")
-        return httpx.Response(
-            200, content=body, headers={"content-type": "application/vnd.api+json"}
-        )
+        headers = {"content-type": "application/vnd.api+json"}
+        if proxied:
+            headers["x-minos-colo"] = "WAW"
+        return httpx.Response(200, content=body, headers=headers)
 
     return httpx.MockTransport(handler)
 
@@ -554,7 +566,10 @@ def _setup(
                 dane_gov_client_factory=lambda: create_dane_gov_client(
                     transport=_dane_gov_transport(
                         eli_state if eli_state is not None else {}
-                    )
+                    ),
+                    proxy=DaneGovProxy("https://dane-gov.worker.test", "k" * 43)
+                    if eli_state is not None and eli_state.get("dane_proxied")
+                    else None,
                 ),
                 rsk_client_factory=lambda settings: create_rsk_client(
                     settings, transport=_rsk_icd9_transport()
@@ -1050,6 +1065,36 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         reachable = store.claim_manual("nfz")
         _ = orchestrator.run_claim(reachable, reachable.retry_policy)
         assert store.load_source_state("nfz").cursor["statistics"] == statistics
+        # Through the Polish Worker (#349): a Worker 504 is the same outage
+        # with the same grace, and a read records the canonical dane.gov.pl
+        # source with the Worker's location, never the Worker's host.
+        eli_state["dane_proxied"] = True
+        for shift_days, geofenced in ((-1, True), (0, False)):
+            eli_state["dane_geofenced"] = geofenced
+            nfz_clock_shift_ms[0] = int(shift_days * day_ms)
+            proxied = store.claim_manual("nfz")
+            _ = orchestrator.run_claim(proxied, proxied.retry_policy)
+        eli_state["dane_geofenced"] = False
+        nfz_clock_shift_ms[0] = 0
+        assert store.load_source_state("nfz").cursor["statistics"] == statistics
+        assert _query(
+            database,
+            "SELECT count(*) FROM incidents WHERE incident_category = 'jgp_statistics_unreachable'",
+        ) == [(2,)]
+        source_identity, metadata_json = _query(
+            database,
+            "SELECT source_identity, metadata_json FROM observations WHERE observation_kind = 'jgp_statistics_report' ORDER BY observed_at_ms DESC, rowid DESC LIMIT 1",
+        )[0]
+        assert source_identity == (
+            "https://api.dane.gov.pl/media/resources/20261020/"
+            "raport_SZP_i_kardiologia_2026_8.xml"
+        )
+        assert json.loads(cast(str, metadata_json))["fetched_via"] == {
+            "proxy": "cloudflare_worker",
+            "colo": "WAW",
+        }
+        assert "worker.test" not in cast(str, metadata_json)
+        eli_state["dane_proxied"] = False
         amended_cursor = store.load_source_state("nfz").cursor
         eli_state["html"] = True
         blocked = store.claim_manual("nfz")

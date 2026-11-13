@@ -1076,3 +1076,46 @@ def test_real_health_rejects_incomplete_source_composition(
         connection.close()
     with pytest.raises(WatcherRuntimeError, match="configuration codec"):
         create_watcher_command(arguments).health()
+
+
+@pytest.mark.parametrize(
+    ("origin", "key", "error"),
+    [
+        ("https://dane-gov.worker.test", None, "origin and a key file"),
+        (None, b"k" * 43, "origin and a key file"),
+        ("http://dane-gov.worker.test", b"k" * 43, "origin is invalid"),
+        ("https://dane-gov.worker.test", b"short", "key is invalid"),
+        ("https://dane-gov.worker.test", b"k" * 43, None),
+    ],
+)
+def test_the_dane_gov_proxy_needs_an_origin_and_a_valid_key_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    origin: str | None,
+    key: bytes | None,
+    error: str | None,
+) -> None:
+    key_file = tmp_path / "dane-gov-proxy-key"
+    if origin is not None:
+        monkeypatch.setenv("MINOS_WATCHER_DANE_GOV_PROXY_ORIGIN", origin)
+    if key is not None:
+        _ = key_file.write_bytes(key)
+        key_file.chmod(0o440)
+        monkeypatch.setenv("MINOS_WATCHER_DANE_GOV_PROXY_KEY_FILE", str(key_file))
+    arguments = WatcherCommandArguments(
+        "health",
+        tmp_path / "control.sqlite3",
+        tmp_path / "staging",
+        tmp_path / "archive",
+        tmp_path / "watcher.lock",
+        None,
+    )
+
+    if error is None:
+        _ = create_watcher_command(arguments)
+        return
+    with pytest.raises(WatcherRuntimeError, match=error) as raised:
+        _ = create_watcher_command(arguments)
+    # Neither the key file path nor the Worker hostname reaches the message.
+    assert str(tmp_path) not in str(raised.value)
+    assert "worker.test" not in str(raised.value)

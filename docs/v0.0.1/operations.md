@@ -154,6 +154,7 @@ do not match the reviewed digest. There is no unfenced or implicit downgrade.
 | Generated reference database | Private API image and data artifact | GHCR digest, checksum, reproducible build |
 | Static web artifact | Private edge image and build artifact | GHCR digest, checksum, reproducible build |
 | Watcher runtime | Private watcher image | GHCR digest and bounded release retention |
+| `dane.gov.pl` proxy Worker | Cloudflare Workers, source in `infra/cloudflare/dane-gov-proxy/` | Redeploy from Git with the key from 1Password |
 | Uptime Kuma state | `/var/lib/minos/uptime-kuma`, mounted as `/app/data` | Complete stopped encrypted off-host backup; restore same pinned version first |
 | Domain | Registrar | Lock, 2FA, auto-renewal, recovery codes |
 | DNS and ingress | Cloudflare | Configuration record and recovery credentials |
@@ -600,6 +601,9 @@ and Compose mounts each file read-only into only that container:
 - bucket-scoped R2 access key for the watcher (S3-compatible credential file);
 - Uptime Kuma target JSON for the watcher, containing only version, source IDs,
   and 32-character alphanumeric push tokens;
+- the shared key of the `dane.gov.pl` proxy Worker for the watcher, which a
+  watcher release installs rather than Ansible (see
+  [Polish egress](#polish-egress-for-danegovpl-349));
 - a separate bucket-scoped R2 key and a `data-update`/`data-activation` Kuma
   target for the data-update processor, in `/etc/minos/processor`, mode `0440`
   root:`minos-processor` (see [the processor setup](#data-update-processor-setup)).
@@ -625,6 +629,96 @@ GitHub Actions stores no object-store credential. The Mikr.us R2 key
 bucket, relies on bucket lock rules for no-delete, is installed outside the
 repository, and is rotated immediately after any suspected exposure. Operator
 work uses the separate `minos-r2-operator` key.
+
+### Polish Egress For dane.gov.pl (#349)
+
+`dane.gov.pl` answers only Polish addresses, so the watcher reads the NFZ
+dataset 2581 listing through the `minos-dane-gov` Cloudflare Worker
+(`infra/cloudflare/dane-gov-proxy/`). Without proxy configuration the watcher
+calls `dane.gov.pl` directly, as local runs and tests do.
+
+- The Worker answers only
+  `GET /1.4/datasets/2581/resources?per_page=20&sort=-data_date` carrying
+  `x-minos-proxy-key`. A missing or wrong key gets 403, checked first, and any
+  other method, path or query 404; neither makes an upstream call. The watcher
+  treats 403 and 404 as source drift: the NFZ run fails at once, without the
+  7-day grace, because only the owner can fix a key or a route.
+- The key is 32 to 256 characters from `A-Z`, `a-z`, `0-9`, `-` and `_`, for
+  example `openssl rand -base64 48 | tr '+/' '-_' | tr -d '=\n'`. It lives in
+  exactly three places: the 1Password document
+  `minos-production-watcher-dane-gov-proxy-key` in the MinosHealth vault, the
+  Worker secret `PROXY_KEY`, and the host file
+  `/etc/minos/watcher/dane-gov/proxy-key` (root and the watcher secrets group,
+  mode `0440`, like the R2 key), mounted read-only at
+  `/run/secrets/dane-gov-proxy-key`. The watcher reads it once at start.
+- The watcher environment names only the Worker origin
+  (`MINOS_WATCHER_DANE_GOV_PROXY_ORIGIN`, a bare HTTPS origin) and the key
+  file (`MINOS_WATCHER_DANE_GOV_PROXY_KEY_FILE`): both or neither. Prefer a
+  route on the project's own zone to a `*.workers.dev` hostname, which carries
+  the Cloudflare account subdomain. No watcher error names the key, its file or
+  the Worker hostname.
+- Every Worker answer carries `x-minos-colo`, the Cloudflare location that ran
+  it, and `cache-control: no-store, no-transform`. The watcher refuses a 200
+  without a valid location, and the `jgp_statistics_report` observation
+  records `fetched_via: {"proxy": "cloudflare_worker", "colo": "WAW"}`.
+- The Worker calls `dane.gov.pl` only from the locations in its
+  `ALLOWED_COLOS` variable (`WAW`). Elsewhere it answers 503 at once. An
+  upstream timeout (20 seconds) or network error answers 504. The watcher
+  treats both as the `jgp_statistics_unreachable` outage with its 7-day grace.
+
+When that incident opens while the proxy is configured, run the smoke below
+and read `x-minos-colo`. If it is not `WAW`, Cloudflare moved the host's
+traffic. Check whether `dane.gov.pl` answers from the new location by adding
+it to `ALLOWED_COLOS` and calling again. If it refuses, open an issue for
+another Polish egress before the grace ends. Workers placement cannot pin a
+Cloudflare city (its hints name cloud regions or probe a host), so it is not
+used.
+
+Deploy or change the Worker only on the owner's request, from a workstation
+logged in with `wrangler login`. The route is given on the command line and
+never committed (`wrangler.toml` sets `workers_dev = false`; a `*.workers.dev`
+origin would need it set to `true`):
+
+```sh
+cd infra/cloudflare/dane-gov-proxy
+npx wrangler@4 secret put PROXY_KEY   # paste the key at the prompt
+npx wrangler@4 deploy --route '<worker-host>/*'
+```
+
+Smoke from the production host as root. The key reaches curl on standard
+input, never in its arguments:
+
+```sh
+origin='https://<worker-host>'
+listing='/1.4/datasets/2581/resources?per_page=20&sort=-data_date'
+key_header() {
+  printf 'header = "x-minos-proxy-key: %s"\n' \
+    "$(cat /etc/minos/watcher/dane-gov/proxy-key)"
+}
+curl -sS -o /dev/null -w '%{http_code}\n' "$origin$listing"     # 403
+key_header | curl -sS -K - -o /dev/null -w '%{http_code}\n' \
+  "$origin/1.4/datasets"                                        # 404
+key_header | curl -sS -K - -D - -o /tmp/dane-gov-listing.json \
+  -H 'accept-encoding: identity' "$origin$listing" \
+  | grep -iE '^(HTTP|x-minos-colo|content-encoding)'
+```
+
+Expect 200, `x-minos-colo: WAW` and no `content-encoding`, and a JSON body
+listing `raport_*` resources; delete it afterwards. The watcher validates the
+same answer on its next NFZ run. The watcher release that installs the key
+and origin is in the
+[deployment guide](../validation/validation-deploy.md#danegovpl-egress-349).
+After it, check that the next NFZ run is green with
+`minos watcher status nfz --json`; a read through the Worker also clears the
+statistics cursor's `unreachable_since`.
+
+The key file is installed only by a watcher release, and `deploy_watcher`
+refuses an image the watcher already runs, so a rotation rides on the next
+watcher release from a new `main` commit. To rotate, generate a new key, store
+it in 1Password, put it as the Worker secret, and run that release with the
+new key file; NFZ runs between the two fail with 403. After a suspected
+exposure, replace the Worker secret at once even before a release is ready:
+the 403 failures until the release are the price of closing the Worker.
 
 ## Metrics And Alerts
 

@@ -1100,6 +1100,28 @@ are bucket-scoped read/write: the bucket lock, not the token, provides the
 no-delete guarantee that the AWS put-only policy gave. CI holds no object-store
 credential. The capability evidence is in #200.
 
+### dane.gov.pl Through A Cloudflare Worker (#349, 2026-11-13)
+
+`dane.gov.pl` has answered only Polish source addresses since 2026-11-10
+(#344), and the Mikr.us host leaves through a Finnish one. The NFZ watcher
+reads the one dataset 2581 listing through `minos-dane-gov`, a Cloudflare
+Worker that the host's traffic reached in Warsaw. A Worker with a shared key
+and a fixed upstream URL was chosen over a Polish VPS (a host to run for one
+monthly listing), a WARP SOCKS container (it exits near the Finnish client)
+and dropping the listing (no automatic detection of a new month).
+
+- The Worker answers only that request; the upstream URL is a constant.
+- Cloudflare does not guarantee where it runs. Outside its `WAW` allowlist it
+  answers 503, which the watcher treats as the #345 outage with its 7-day
+  grace, and every answer reports the location in `x-minos-colo`.
+- The watcher's direct mode keeps its anonymous checks. The proxied mode sends
+  only the canonical listing request, and only to the configured origin with
+  the key. Evidence keeps the canonical `dane.gov.pl` source URL and records
+  the Worker's location, never its host.
+- The key is a host-managed secret file, like the R2 key; `deploy_watcher`
+  installs it on the live host because the Ansible playbook does not run over
+  the live deployment.
+
 ## Infrastructure Ownership
 
 - The Cloudflare dashboard and API own the zones, tunnel routing and the R2

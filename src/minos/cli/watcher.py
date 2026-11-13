@@ -34,6 +34,12 @@ from minos.ingest.watchers.control import (
     SourceConfigurationCodecRegistry,
     SourceSchedule,
 )
+from minos.ingest.watchers.dane_gov.client import (
+    DaneGovProxy,
+    DaneGovProxyError,
+    create_dane_gov_client,
+    load_dane_gov_proxy,
+)
 from minos.ingest.watchers.nfz.collector import NfzSourceCollector
 from minos.ingest.watchers.nfz.publication import NfzPublicProjectionPublisher
 from minos.ingest.watchers.orchestrator import (
@@ -145,6 +151,25 @@ class WatcherRuntimeSettings(BaseSettings):
     image_digest: str | None = None
     runtime_image_digest: str | None = None
     readiness_file: Path = _DEFAULT_READINESS_FILE
+    # The Polish egress for dane.gov.pl (#349): both or neither. Only the key
+    # file path is configured here; the key itself stays in that file.
+    dane_gov_proxy_origin: str | None = None
+    dane_gov_proxy_key_file: Path | None = None
+
+
+def dane_gov_proxy_from_settings(
+    settings: WatcherRuntimeSettings,
+) -> DaneGovProxy | None:
+    origin = settings.dane_gov_proxy_origin
+    key_file = settings.dane_gov_proxy_key_file
+    if origin is None and key_file is None:
+        return None
+    if origin is None or key_file is None:
+        raise WatcherRuntimeError("dane.gov.pl proxy needs an origin and a key file")
+    try:
+        return load_dane_gov_proxy(origin, key_file)
+    except DaneGovProxyError as error:
+        raise WatcherRuntimeError(str(error)) from None
 
 
 class WatcherCommand(Protocol):
@@ -613,6 +638,7 @@ def create_watcher_command(
         paths.staging_directory,
         maximum_size_bytes=limits.maximum_download_size_bytes,
         rsk_client_factory=rsk_client_factory,
+        dane_gov_proxy=dane_gov_proxy_from_settings(settings),
     )
     archive_backend = settings.archive_backend
     if archive_backend is None:
@@ -732,6 +758,7 @@ def create_runtime_collectors(
     *,
     maximum_size_bytes: int,
     rsk_client_factory: RskClientFactory | None = None,
+    dane_gov_proxy: DaneGovProxy | None = None,
 ) -> CollectorRegistry:
     staging = BlobStagingArea(
         staging_directory,
@@ -752,7 +779,14 @@ def create_runtime_collectors(
         "baw", BawSourceCollector(staging), required_schedule_modes=("scheduled",)
     )
     registry.register(
-        "nfz", NfzSourceCollector(staging), required_schedule_modes=("scheduled",)
+        "nfz",
+        NfzSourceCollector(
+            staging,
+            dane_gov_client_factory=lambda: create_dane_gov_client(
+                proxy=dane_gov_proxy
+            ),
+        ),
+        required_schedule_modes=("scheduled",),
     )
     return registry
 
@@ -813,8 +847,12 @@ def _create_production_preflight(
         ),
         secrets=ReadableSecretsProbe(
             (credential_file,)
-            if target_file is None
-            else (credential_file, target_file)
+            + (() if target_file is None else (target_file,))
+            + (
+                ()
+                if settings.dane_gov_proxy_key_file is None
+                else (settings.dane_gov_proxy_key_file,)
+            )
         ),
         control_database=ControlDatabaseCopyProbe(
             paths.database,

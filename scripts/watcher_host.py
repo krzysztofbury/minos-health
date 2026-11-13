@@ -28,6 +28,15 @@ AWS_STORAGE_ENVIRONMENT = (
     "AWS_REGION",
     "MINOS_WATCHER_S3_EXPECTED_BUCKET_OWNER",
 )
+# The Polish egress for dane.gov.pl (#349). Only the origin and a digest of the
+# key enter the plan; the key travels by scp and lives in one host file.
+PROXY_ORIGIN = re.compile(
+    r"https://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]"
+)
+PROXY_KEY = re.compile(rb"[A-Za-z0-9_-]{32,256}\n?")
+PROXY_KEY_TARGET = "/run/secrets/dane-gov-proxy-key"
+PROXY_ORIGIN_ENVIRONMENT = "MINOS_WATCHER_DANE_GOV_PROXY_ORIGIN"
+PROXY_KEY_ENVIRONMENT = "MINOS_WATCHER_DANE_GOV_PROXY_KEY_FILE"
 # Exactly one reference API colour is preserved beside these services (#192).
 PRESERVED = {"edge", "cloudflared", "uptime-kuma"}
 PYTHON = "/app/.venv/bin/python"
@@ -84,10 +93,72 @@ def storage_environment(environment: dict[str, str], migration: dict[str, str]) 
     environment["MINOS_WATCHER_S3_ENDPOINT"] = migration["endpoint"]
 
 
+def proxy(params: dict[str, object]) -> dict[str, str] | None:
+    value = params.get("dane_gov_proxy")
+    if value is None:
+        return None
+    host.require(isinstance(value, dict), "dane.gov.pl proxy plan is invalid")
+    fields = cast(dict[str, object], value)
+    host.require(
+        set(fields) == {"origin", "key_sha256"}
+        and isinstance(fields["origin"], str)
+        and PROXY_ORIGIN.fullmatch(fields["origin"]) is not None
+        and isinstance(fields["key_sha256"], str)
+        and re.fullmatch(r"[0-9a-f]{64}", fields["key_sha256"]) is not None,
+        "dane.gov.pl proxy plan is invalid",
+    )
+    return cast(dict[str, str], fields)
+
+
+def proxy_key_source(selected: dict[str, object]) -> Path:
+    """The live key file sits beside the watcher's R2 key directory.
+
+    In production that is /etc/minos/watcher/dane-gov/proxy-key.
+    """
+    credentials = Path(cast(str, credentials_mount(selected)["source"]))
+    return credentials.parent.parent / "dane-gov" / "proxy-key"
+
+
+def proxy_environment(selected: dict[str, object], migration: dict[str, str]) -> None:
+    """Point the watcher at the Worker; repeating it (a key rotation) is a no-op."""
+    environment = cast(dict[str, str], selected["environment"])
+    environment[PROXY_ORIGIN_ENVIRONMENT] = migration["origin"]
+    environment[PROXY_KEY_ENVIRONMENT] = PROXY_KEY_TARGET
+    volumes: list[object] = [
+        mount
+        for mount in cast(list[object], selected["volumes"])
+        if not (
+            isinstance(mount, dict)
+            and cast(dict[str, object], mount).get("target") == PROXY_KEY_TARGET
+        )
+    ]
+    volumes.append(
+        {
+            "type": "bind",
+            "source": str(proxy_key_source(selected)),
+            "target": PROXY_KEY_TARGET,
+            "read_only": True,
+        }
+    )
+    selected["volumes"] = volumes
+
+
+def proxy_mount(selected: dict[str, object]) -> dict[str, object]:
+    mounts = [
+        cast(dict[str, object], mount)
+        for mount in cast(list[object], selected["volumes"])
+        if isinstance(mount, dict)
+        and cast(dict[str, object], mount).get("target") == PROXY_KEY_TARGET
+    ]
+    host.require(len(mounts) == 1, "dane.gov.pl proxy key mount differs")
+    return mounts[0]
+
+
 def render(
     document: dict[str, object],
     image: str,
     migration: dict[str, str] | None = None,
+    egress: dict[str, str] | None = None,
 ) -> dict[str, object]:
     host.require(IMAGE.fullmatch(image) is not None, "watcher image must be pinned")
     result = copy.deepcopy(document)
@@ -106,6 +177,8 @@ def render(
         environment[name] = image.split("@", 1)[1]
     if migration is not None:
         storage_environment(environment, migration)
+    if egress is not None:
+        proxy_environment(selected, egress)
     return result
 
 
@@ -173,6 +246,84 @@ def swap_credentials(
         if not previous.exists():
             host.write_once(previous, live.read_bytes())
         content = staged.read_bytes()
+    host.write_private(live, content)
+    os.chown(live, status.st_uid, status.st_gid)
+    live.chmod(status.st_mode & 0o777)
+
+
+def proxy_upload(revision: str) -> Path:
+    # Root's home (0700), never the world-traversable stage tree.
+    return Path("/root") / f"minos-watcher-{revision}.dane-gov-proxy-key"
+
+
+def stage_proxy_key(
+    upload: Path,
+    target: Path,
+    current: dict[str, object],
+    egress: dict[str, str],
+) -> Path:
+    """Validate the uploaded Worker key and keep a private copy beside the plan.
+
+    It takes the R2 key's owner, group and mode (root, the watcher secrets
+    group, 0440): the same host secret pattern.
+    """
+    staged = target / "dane-gov-proxy-key"
+    if upload.exists():
+        uploaded = upload.lstat()
+        content = upload.read_bytes()
+        upload.unlink()
+        host.require(
+            stat.S_ISREG(uploaded.st_mode)
+            and uploaded.st_uid == os.geteuid()
+            and stat.S_IMODE(uploaded.st_mode) == 0o600,
+            "uploaded dane.gov.pl proxy key is not private",
+        )
+        host.require(
+            PROXY_KEY.fullmatch(content) is not None,
+            "dane.gov.pl proxy key schema is invalid",
+        )
+        host.require(
+            host.sha256_bytes(content) == egress["key_sha256"],
+            "dane.gov.pl proxy key digest differs from the plan",
+        )
+        status = Path(cast(str, credentials_mount(service(current))["source"])).stat()
+        host.write_private(staged, content)
+        os.chown(staged, status.st_uid, status.st_gid)
+        staged.chmod(status.st_mode & 0o777)
+    host.require(
+        staged.is_file()
+        and host.sha256_bytes(staged.read_bytes()) == egress["key_sha256"],
+        "staged dane.gov.pl proxy key is missing",
+    )
+    return staged
+
+
+def swap_proxy_key(current: dict[str, object], target: Path, *, restore: bool) -> None:
+    """Install the staged key, or put back exactly what was there before."""
+    credentials = Path(cast(str, credentials_mount(service(current))["source"]))
+    live = proxy_key_source(service(current))
+    previous = target / "dane-gov-proxy-key.previous"
+    absent = target / "dane-gov-proxy-key.absent"
+    if restore:
+        if previous.is_file():
+            content = previous.read_bytes()
+        else:
+            if absent.is_file() and live.exists():
+                live.unlink()
+            return
+    else:
+        if not previous.exists() and not absent.exists():
+            if live.exists():
+                host.write_once(previous, live.read_bytes())
+            else:
+                host.write_once(absent, b"")
+        content = (target / "dane-gov-proxy-key").read_bytes()
+    if not live.parent.is_dir():
+        directory = credentials.parent.stat()
+        live.parent.mkdir(mode=0o750)
+        os.chown(live.parent, directory.st_uid, directory.st_gid)
+        live.parent.chmod(stat.S_IMODE(directory.st_mode))
+    status = credentials.stat()
     host.write_private(live, content)
     os.chown(live, status.st_uid, status.st_gid)
     live.chmod(status.st_mode & 0o777)
@@ -439,10 +590,11 @@ def stage(layout: host.Layout, params: dict[str, object]) -> dict[str, object]:
     before = baseline(layout)
     image = cast(str, params["image"])
     migration = storage(params)
-    candidate = render(current, image, migration)
+    egress = proxy(params)
+    candidate = render(current, image, migration, egress)
     host.require(service(current)["image"] != image, "watcher already uses candidate")
     target.mkdir(mode=0o700, parents=True, exist_ok=True)
-    preflight = candidate
+    preflight = copy.deepcopy(candidate)
     if migration is not None:
         staged = stage_credentials(
             credentials_upload(cast(str, params["revision"])),
@@ -451,8 +603,14 @@ def stage(layout: host.Layout, params: dict[str, object]) -> dict[str, object]:
             migration,
         )
         # The isolated preflight probes R2 with the new key before any swap.
-        preflight = copy.deepcopy(candidate)
         credentials_mount(service(preflight))["source"] = str(staged)
+    if egress is not None:
+        staged_key = stage_proxy_key(
+            proxy_upload(cast(str, params["revision"])), target, current, egress
+        )
+        # The preflight reads the new key; the live file is untouched until
+        # activation.
+        proxy_mount(service(preflight))["source"] = str(staged_key)
     host.write_once(target / "previous.json", content)
     host.write_once(target / "candidate.json", host.canonical(candidate))
     host.write_once(target / "baseline.json", host.canonical(before))
@@ -515,8 +673,13 @@ def transition(
         )
         selected, label = candidate, "activate"
     migration = storage(params)
+    egress = proxy(params)
     if migration is not None:
         swap_credentials(
+            cast(dict[str, object], json.loads(previous)), target, restore=rollback
+        )
+    if egress is not None:
+        swap_proxy_key(
             cast(dict[str, object], json.loads(previous)), target, restore=rollback
         )
     host.write_private(layout.compose, selected)
@@ -529,6 +692,10 @@ def transition(
             raise
         if migration is not None:
             swap_credentials(
+                cast(dict[str, object], json.loads(previous)), target, restore=True
+            )
+        if egress is not None:
+            swap_proxy_key(
                 cast(dict[str, object], json.loads(previous)), target, restore=True
             )
         host.write_private(layout.compose, previous)

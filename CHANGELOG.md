@@ -15,6 +15,16 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- The NFZ watcher can read the `dane.gov.pl` dataset 2581 listing through
+  `minos-dane-gov`, a Cloudflare Worker that calls `dane.gov.pl` from Warsaw
+  (#349). `dane.gov.pl` has answered only Polish addresses since 2026-11-10
+  and the host leaves through a Finnish one. The Worker answers only that one
+  request, needs a shared key, and reports its Cloudflare location, which the
+  evidence records next to the canonical source URL. Outside Warsaw it answers
+  503 at once, which keeps the outage inside the 7-day grace. The watcher
+  reads the Worker origin and key file from its environment and calls
+  `dane.gov.pl` directly without them. `deploy_watcher` installs both with a
+  release (`--dane-gov-proxy-origin`, `--dane-gov-proxy-key`).
 - Each finished stage of a processor judgment (`fetch`, `propose`, both
   builds, `compare`, `accept`) writes one journal line with its seconds, so a
   run killed at its cap shows the stage it was in (#353).
