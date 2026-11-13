@@ -582,6 +582,20 @@ pending monthly report is not reported until the listing answers again. A
 watcher image older than this rule refuses a cursor that records an outage:
 roll forward, or clear that entry, rather than roll back.
 
+The production watcher therefore reads the listing through `minos-dane-gov`, a
+Cloudflare Worker (#349). A Worker runs in the Cloudflare location the
+caller's traffic lands on, and its request to `dane.gov.pl` leaves from that
+location. On 2026-11-10 the host's traffic landed in Warsaw (`WAW`), and a
+throwaway Worker read the listing with 200 from there, while the same request
+straight from the host timed out. The Worker answers only the one listing
+request, with a shared key, and reports its location in `x-minos-colo`; the
+watcher records that location with the evidence, and the source URL stays the
+canonical `dane.gov.pl` one. Cloudflare does not guarantee the location: a
+routing change can run the Worker in Helsinki, Stockholm or Frankfurt, where
+`dane.gov.pl` may refuse it. Outside its allowlist (`WAW`) the Worker answers
+503 at once, which the watcher treats as the outage above, with the same
+7-day grace. See [operations](operations.md#polish-egress-for-danegovpl-349).
+
 The annual dataset `3009` is not used for counts: at its granularity 94.5% of
 2025 cells are suppressed, so a group's national count spans a range about 3.7
 times wide. In August 2026, 734 of 740 reported group codes were groups of the
