@@ -90,7 +90,6 @@ export function createHandler({
           "user-agent": USER_AGENT,
         },
         redirect: "manual",
-        cache: "no-store",
         signal: controller.signal,
       });
       // Read the whole body under the same deadline. Any transfer coding the
