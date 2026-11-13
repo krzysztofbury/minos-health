@@ -50,6 +50,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- `AGENTS.md` points substantial reviews at the `reviewer` role skill and its
+  TigerStyle profile, which replaced the `pair-programmer` skill.
 - `/jgp` and `/jgp/{code}` show today's catalog and group under their own URL
   instead of redirecting to the dated page, and are the indexable JGP pages:
   `index, follow`, self canonical, cached until midnight in Poland. Code pages
