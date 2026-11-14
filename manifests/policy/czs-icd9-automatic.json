@@ -25,7 +25,7 @@
     "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision.",
     "The owner authorized noncommercial public reference search on 2026-10-01. Official raw download links point upstream; the Minos private archive is not exposed. This is not commercial redistribution clearance."
   ],
-  "max_backdating_days": 92,
+  "max_backdating_days": 366,
   "max_removed_code_ratio": 0.01,
   "max_concept_count_change_ratio": 0.05
 }

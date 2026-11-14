@@ -239,7 +239,7 @@ generation and a same-version NFZ workbook beside the previous pair:
   side of a changed `data_od` or `data_do`, and the publication day for a title,
   status or annotation change. The previous generation closes at that Polish
   midnight, so earlier service dates keep it.
-- Refusals: backdating beyond `max_backdating_days` (92, owner policy; history
+- Refusals: backdating beyond `max_backdating_days` (366, owner policy; history
   `retroactive_amendment_exceeds_bound`), a generation number not newer than
   the live one, an effective day not after the live generation's start
   (`effective_day_not_after_live_release`), a republication with identical entries (`release_content_unchanged`,
@@ -395,11 +395,13 @@ Known limits, before Phase C: Kuma notifies only on a status change, so a
 second refusal while the monitor is already down does not reach Telegram
 (the durable per-candidate delivery in
 [failed data updates](operations.md#failed-data-updates-and-telegram) is still
-open). The 92-day ICD-9 bound is usually not the operative one: a generation
-whose effective day is not after the live generation's start is refused
-(`effective_day_not_after_live_release`), so the effective bound is the
-smaller of 92 days and the time since the live generation started. The
-processor's reports are the evidence for revisiting it.
+open). The ICD-9 bound was 92 days until 2026-11-14, when generation 94
+(published 2026-11-13) added two codes from 2026-01-01, 316 days back, and
+was refused; the owner raised it to 366, the policy model's ceiling (#359). A
+generation whose effective day is not after the live generation's start is
+still refused (`effective_day_not_after_live_release`), so the effective
+bound is the smaller of 366 days and the time since the live generation
+started. The processor's reports are the evidence for revisiting it.
 
 ## Data-Only Activation (#141 Phase C)
 

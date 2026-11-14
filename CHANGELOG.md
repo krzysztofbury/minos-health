@@ -50,6 +50,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Changed
 
+- Automatic CZS ICD-9 activation accepts a generation that applies up to 366
+  days before its publication, instead of 92 (#359). Generation 94 (5.91,
+  published 2026-11-13) adds two codes from 2026-01-01, 316 days back, and was
+  refused, which held the Data Update monitor down. With the new bound it is
+  proposed from 2026-01-01 and generation 93 closes there.
 - `AGENTS.md` points substantial reviews at the `reviewer` role skill and its
   TigerStyle profile, which replaced the `pair-programmer` skill.
 - `/jgp` and `/jgp/{code}` show today's catalog and group under their own URL
