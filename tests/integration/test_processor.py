@@ -262,7 +262,7 @@ def test_a_new_judge_rejudges_stored_inputs(
 ) -> None:
     run = _icd9_run(
         tmp_path,
-        icd9._generation(start="2026-01-01"),  # pyright: ignore[reportPrivateUsage]
+        icd9._generation(start=icd9.BEYOND_BOUND),  # pyright: ignore[reportPrivateUsage]
     )
     _ = run(capsys)
     run.r2.reads.clear()
@@ -278,7 +278,7 @@ def test_refused_generation_stays_down_without_a_rebuild(
 ) -> None:
     run = _icd9_run(
         tmp_path,
-        icd9._generation(start="2026-01-01"),  # pyright: ignore[reportPrivateUsage]
+        icd9._generation(start=icd9.BEYOND_BOUND),  # pyright: ignore[reportPrivateUsage]
     )
 
     first = run(capsys)
@@ -679,7 +679,7 @@ def test_an_accepted_bundle_without_an_accepting_verdict_is_dropped(
 ) -> None:
     run = _icd9_run(
         tmp_path,
-        icd9._generation(start="2026-01-01"),  # pyright: ignore[reportPrivateUsage]
+        icd9._generation(start=icd9.BEYOND_BOUND),  # pyright: ignore[reportPrivateUsage]
         _acceptance(tmp_path),
     )
     stale = run.accepted / ("c" * 64)

@@ -845,7 +845,8 @@ surface uses that one rule (owner, 2026-10-25, #235; it supersedes treating
 them as ambiguous). A CZS
 ICD-9 generation governs from its earliest changed procedure date, never later
 than its publication day, with backdating bounded by the policy (92
-days, owner-confirmed 2026-10-21). For phase C (owner, 2026-10-21) the
+days, owner-confirmed 2026-10-21; raised to 366 days on 2026-11-14, #359,
+after generation 94 added codes 316 days back). For phase C (owner, 2026-10-21) the
 processor's R2 key is read-write and also writes the receipts, activation
 outcomes use a second `data-activation` Kuma monitor, the live bundle's
 manifest is authoritative (a reviewed release may not drop a live release),

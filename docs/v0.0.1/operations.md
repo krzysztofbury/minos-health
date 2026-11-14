@@ -685,32 +685,46 @@ npx wrangler@4 secret put PROXY_KEY   # paste the key at the prompt
 npx wrangler@4 deploy --route '<worker-host>/*'
 ```
 
-Smoke from the production host as root. The key reaches curl on standard
-input, never in its arguments:
+Smoke the Worker from the production host before the watcher release, which
+is when the host key file first exists. Run it from the workstation with the
+key file the release will use (`<tmp>/dane-gov-proxy-key`, from 1Password,
+mode `0600`). curl runs on the host, so the Worker sees the host's Cloudflare
+location; the key travels over SSH on standard input, never in arguments, and
+nothing is written on the host:
 
 ```sh
-origin='https://<worker-host>'
-listing='/1.4/datasets/2581/resources?per_page=20&sort=-data_date'
-key_header() {
-  printf 'header = "x-minos-proxy-key: %s"\n' \
-    "$(cat /etc/minos/watcher/dane-gov/proxy-key)"
+host='root@minos-production.tailf879de.ts.net'
+ssh_host() {
+  ssh -i ~/.ssh/minos_mikrus_ed25519 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=infra/ansible/known_hosts "$host" "$@"
 }
-curl -sS -o /dev/null -w '%{http_code}\n' "$origin$listing"     # 403
-key_header | curl -sS -K - -o /dev/null -w '%{http_code}\n' \
-  "$origin/1.4/datasets"                                        # 404
-key_header | curl -sS -K - -D - -o /tmp/dane-gov-listing.json \
-  -H 'accept-encoding: identity' "$origin$listing" \
-  | grep -iE '^(HTTP|x-minos-colo|content-encoding)'
+url='https://<worker-host>/1.4/datasets/2581/resources?per_page=20&sort=-data_date'
+key_header() {
+  printf 'header = "x-minos-proxy-key: %s"\n' "$(cat <tmp>/dane-gov-proxy-key)"
+}
+ssh_host "curl -sS -o /dev/null -w '%{http_code}\n' '$url'" </dev/null  # 403
+key_header | ssh_host "curl -sS -K - -o /dev/null -w '%{http_code}\n' \
+  'https://<worker-host>/1.4/datasets'"                                # 404
+key_header | ssh_host "curl -sS -K - -D /dev/stderr -o /dev/null \
+  -H 'accept-encoding: identity' '$url' 2>&1 \
+  | grep -iE '^(HTTP|x-minos-colo|content-encoding)'"
 ```
 
-Expect 200, `x-minos-colo: WAW` and no `content-encoding`, and a JSON body
-listing `raport_*` resources; delete it afterwards. The watcher validates the
-same answer on its next NFZ run. The watcher release that installs the key
-and origin is in the
+Expect 200, `x-minos-colo: WAW` and no `content-encoding`. The watcher
+validates the body on its next NFZ run. The watcher release that installs the
+key and origin is in the
 [deployment guide](../validation/validation-deploy.md#danegovpl-egress-349).
 After it, check that the next NFZ run is green with
 `minos watcher status nfz --json`; a read through the Worker also clears the
 statistics cursor's `unreachable_since`.
+
+First rollout (2026-11-13 and 14): the Worker runs on the route
+`dane-gov.minoshealth.pl/*`, which the zone's existing proxied wildcard record
+covered without a DNS change. The host smoke returned 403, 404, and 200 from
+`WAW` with 20 report resources (44,245 bytes). Watcher release `f1737733`
+activated at 19:17:44Z, and the next scheduled NFZ run (2026-11-14 04:00 UTC)
+recorded `fetched_via: {"proxy": "cloudflare_worker", "colo": "WAW"}` and
+cleared `unreachable_since`.
 
 The key file is installed only by a watcher release, and `deploy_watcher`
 refuses an image the watcher already runs, so a rotation rides on the next

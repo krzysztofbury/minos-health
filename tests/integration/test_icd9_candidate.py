@@ -18,6 +18,8 @@ from tests.integration.test_canonical_reference import canonical_manifest
 
 _POLICY = Path(__file__).parents[2] / "manifests/policy/czs-icd9-automatic.json"
 _HEADER = 'czas_pub="2026-09-24T08:35:45" nr_gen="93"'
+# 367 days before the 2026-10-15 publication; the policy allows 366.
+BEYOND_BOUND = "2025-10-13"
 _ADDED = (
     '<pozycja_slownika kod="A02" nazwa="Synthetic added procedure" status="A">'
     + '<daty_proc data_od="{start}"/></pozycja_slownika>\n</komunikat>'
@@ -113,7 +115,7 @@ def test_new_generation_governs_from_its_earliest_changed_date(
 
 def _case(name: str) -> bytes:
     if name == "backdated_beyond_bound":
-        return _generation(start="2026-01-01")
+        return _generation(start=BEYOND_BOUND)
     if name == "older_generation":
         return _generation(generation="92")
     if name == "republished_unchanged":
@@ -163,6 +165,26 @@ def test_proposal_names_the_failed_criterion(
         )
 
     assert (refused.value.criterion, refused.value.code) == (criterion, code)
+
+
+def test_code_added_a_full_bound_back_governs_from_its_start(tmp_path: Path) -> None:
+    # Generation 94 (#359) added codes from 2026-01-01, 316 days before its
+    # publication. An addition exactly 366 days back is still accepted.
+    base = canonical_manifest(tmp_path)
+
+    proposed = propose_icd9_release(
+        base,
+        tmp_path,
+        czs_sha256=_archive(tmp_path, _generation(start="2025-10-14")),
+        fetched_at=datetime(2026, 10, 15, tzinfo=UTC),
+        policy=CzsIcd9Policy.load(_POLICY),
+    )
+
+    *_, previous_workbook, release, _companion = proposed.sources
+    previous = proposed.sources[1]
+    starts = datetime(2025, 10, 13, 22, tzinfo=UTC)
+    assert (previous.valid_to, release.valid_from) == (starts, starts)
+    assert previous_workbook.context_for == previous.release_id
 
 
 @pytest.mark.parametrize("notice", ["Generation {nr_gen}.", "Version {version!r}."])

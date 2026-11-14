@@ -537,8 +537,9 @@ Worker ([operations](../v0.0.1/operations.md#polish-egress-for-danegovpl-349)).
 `deploy_watcher` installs the Worker origin and key with a watcher release,
 the same way the one-time R2 migration installed the R2 key
 ([R2 migration](r2-migration.md)). `site.yml` is not run over the live host
-for it. Order: deploy the Worker and its secret, smoke it from the host,
-then release the watcher. A watcher with a key the Worker does not hold fails
+for it. Order: deploy the Worker and its secret, smoke it from the host with
+the release's key file (the host file does not exist yet), then release the
+watcher. A watcher with a key the Worker does not hold fails
 every NFZ run with 403.
 
 ```sh

@@ -53,3 +53,6 @@ crash.*.log
 coverage.xml
 htmlcov/
 /test-output/
+
+# Wrangler local state from Worker deploys (#349)
+.wrangler/
