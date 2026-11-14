@@ -390,6 +390,10 @@ returned `would_activate icd10-rsk-015-14aaec5db49f`. The search probe stayed
 up, its median latency rising from 294 to 376 ms during the run. The cap is now
 4 hours, the unit timeout 270 minutes and the Kuma push window 12 hours; the
 stage lines of the next host judgment are the evidence for revisiting them.
+That judgment, on 2026-11-12 after the #354 release, took 82 minutes: fetch
+26 s, propose 8 s, first build 2381 s, second build 2237 s, compare 37 s and
+accept 229 s. It returned `would_activate icd10-rsk-015-14aaec5db49f`, and the
+processor activated `015` at 18:52:27Z with receipt 1.
 
 Known limits, before Phase C: Kuma notifies only on a status change, so a
 second refusal while the monitor is already down does not reach Telegram

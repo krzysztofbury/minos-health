@@ -55,6 +55,11 @@ signed-release and deployment-acceptance gates remain #41/#27.
   published 2026-11-13) adds two codes from 2026-01-01, 316 days back, and was
   refused, which held the Data Update monitor down. With the new bound it is
   proposed from 2026-01-01 and generation 93 closes there.
+- The `dane.gov.pl` Worker smoke in `operations.md` runs from the workstation
+  with the release's key file, because the host key file exists only after the
+  watcher release. The page also records the first rollout: route
+  `dane-gov.minoshealth.pl/*`, and the first proxied NFZ run read from `WAW`
+  (#349).
 - `AGENTS.md` points substantial reviews at the `reviewer` role skill and its
   TigerStyle profile, which replaced the `pair-programmer` skill.
 - `/jgp` and `/jgp/{code}` show today's catalog and group under their own URL
