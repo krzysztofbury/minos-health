@@ -15,6 +15,13 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- JGP statistics now include the NFZ monthly report for September 2026
+  (`dane.gov.pl` resource 3001500, published 2026-11-17), so the release
+  covers September 2025 to September 2026. Automatic activation of later
+  reports is #365. The reviewed conditions manifest now also pins the releases
+  the processor activated: RSK ICD-10 `015` (2026-11-12) and CZS ICD-9
+  generation 94 with its NFZ 5.91 workbook (2026-11-14), copied from the live
+  bundle's manifest, so a reviewed release no longer drops them.
 - The NFZ watcher can read the `dane.gov.pl` dataset 2581 listing through
   `minos-dane-gov`, a Cloudflare Worker that calls `dane.gov.pl` from Warsaw
   (#349). `dane.gov.pl` has answered only Polish addresses since 2026-11-10

@@ -411,10 +411,18 @@ def _report(month: str, day: str, resource: int, size: int) -> Statistics:
 
 
 def _pinned_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[_Run, bytes]:
-    """A live bundle pinning the real reports; August 2026 is the newest pin."""
+    """A live bundle pinning the real reports up to August 2026.
+
+    Cut at August so a newly pinned month does not turn September into a pin.
+    """
     base, bundle = icd9._live(tmp_path)  # pyright: ignore[reportPrivateUsage]
-    pins = JgpStatistics.model_validate_json(
+    pinned_reports = JgpStatistics.model_validate_json(
         (ROOT / "manifests/sources/jgp-statistics.json").read_bytes()
+    )
+    pins = pinned_reports.model_copy(
+        update={
+            "reports": tuple(r for r in pinned_reports.reports if r.month <= "2026-08")
+        }
     )
     live = processor._read_live  # pyright: ignore[reportPrivateUsage]
 

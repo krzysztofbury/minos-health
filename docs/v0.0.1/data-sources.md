@@ -547,14 +547,16 @@ reviewed layout, a title that no longer names points, an unknown hospital
 level, a repeated row, formatted cell text, numbers outside plain ASCII
 notation, any DTD, and more rows than reviewed.
 
-`manifests/sources/jgp-statistics.json` pins the twelve reports for September
-2025 to August 2026 (743,499,116 bytes, each with its `dane.gov.pl` resource
-ID and publication date). The raw reports are provenance: builds read one
-canonical extract per report (about 2.2 MB, 26 MB for all twelve), written by
+`manifests/sources/jgp-statistics.json` pins the thirteen reports for
+September 2025 to September 2026 (800,492,673 bytes, each with its
+`dane.gov.pl` resource ID and publication date); the manifest holds at most 36.
+The raw reports are provenance: builds read one canonical extract per report
+(about 2.2 MB, 29 MB for all thirteen), written by
 `scripts/extract_jgp_statistics.py` through the same parser and pinned beside
 the raw report. The Data Update processor downloads every live input on each
-run under one 600-second deadline, so raw reports in the build would have
-raised that download from 147 MB to 890 MB; with extracts it is 173 MB. An
+run under one 600-second deadline; with the first twelve reports, raw reports
+in the build would have raised that download from 147 MB to 890 MB, while
+with extracts it was 173 MB. An
 extract must name its report's month and SHA-256, match its reviewed counts,
 keep sorted unique rows and agree on month and age, or the build refuses it.
 Reference schema 12 stores every figure of every
