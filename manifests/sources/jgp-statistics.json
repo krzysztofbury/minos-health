@@ -1,5 +1,5 @@
 {
-  "release_id": "jgp-statistics-2581-2025-09-2026-08",
+  "release_id": "jgp-statistics-2581-2025-09-2026-09",
   "dataset": "https://dane.gov.pl/pl/dataset/2581",
   "publisher": "Narodowy Fundusz Zdrowia",
   "license": "CC0 1.0",
@@ -211,6 +211,23 @@
         "sha256": "f5195feef4569ec8b5505a9af3e27ebd81e315eef3765e15ad8a71f6d62b3353",
         "size_bytes": 2317225,
         "group_figures": 11627,
+        "section_figures": 210
+      }
+    },
+    {
+      "month": "2026-09",
+      "resource_id": 3001500,
+      "source_url": "https://api.dane.gov.pl/media/resources/20261117/raport_SZP_i_kardiologia_2026_9.xml",
+      "published_on": "2026-11-17",
+      "sha256": "ca1fa4517c9716da2fe3de309116b2dbc7cfb411b9c1a61b44718abc28b5edf2",
+      "size_bytes": 56993557,
+      "fetched_at": "2026-11-19T08:47:51Z",
+      "group_rows": 4984,
+      "section_rows": 70,
+      "extract": {
+        "sha256": "84c38155f73c5396f840444f8e7fbb2790281944c30c6eedde4c380547275d22",
+        "size_bytes": 2274131,
+        "group_figures": 11405,
         "section_figures": 210
       }
     }

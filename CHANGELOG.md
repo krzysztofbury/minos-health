@@ -15,6 +15,10 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Added
 
+- JGP statistics now include the NFZ monthly report for September 2026
+  (`dane.gov.pl` resource 3001500, published 2026-11-17), so the release
+  covers September 2025 to September 2026. Automatic activation of later
+  reports is #365.
 - The NFZ watcher can read the `dane.gov.pl` dataset 2581 listing through
   `minos-dane-gov`, a Cloudflare Worker that calls `dane.gov.pl` from Warsaw
   (#349). `dane.gov.pl` has answered only Polish addresses since 2026-11-10
