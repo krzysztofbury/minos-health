@@ -14,8 +14,7 @@
       "evidence": "The definition places the hernia in the groin. The pinned Polish category uses pachwinowa. Whole-phrase terminology equivalence; no laterality or complication inferred.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd10-rsk-013-f3dc9811520e"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "diabetes-type-1",
@@ -27,8 +26,7 @@
       "evidence": "Opening definition explicitly gives the insulin-dependent synonym, matching the pinned category wording. Type is explicit in the entire phrase; no inference from treatment.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd10-rsk-013-f3dc9811520e"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "diabetes-type-2",
@@ -40,8 +38,7 @@
       "evidence": "Opening definition explicitly gives the non-insulin-dependent synonym, matching the pinned category wording. No inference from current insulin treatment; surrounding complication qualifiers remain.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd10-rsk-013-f3dc9811520e"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "copd-abbreviation",
@@ -53,8 +50,7 @@
       "evidence": "Opening definition expands POChP. The plural spelling is the pinned Polish category wording, not a claim of exacerbation or multiple conditions.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd10-rsk-013-f3dc9811520e"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "appendix-excision-full",
@@ -66,8 +62,7 @@
       "evidence": "Opening definition explicitly identifies surgical removal of the appendix. Pinned NFZ procedure wording is Appendektomia. No operative technique inferred.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "appendix-excision-short",
@@ -80,7 +75,6 @@
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
       "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
       "whole_query_only": true
     },
     {
@@ -94,7 +88,6 @@
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
       "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
       "whole_query_only": true
     },
     {
@@ -107,8 +100,7 @@
       "evidence": "Opening definition explicitly identifies gallbladder removal, matching NFZ Cholecystektomia. No laparoscopic or open technique inferred.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "hip-implant-colloquial",
@@ -121,7 +113,6 @@
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
       "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
       "whole_query_only": true
     },
     {
@@ -134,8 +125,7 @@
       "evidence": "Definition describes replacing the natural joint with an artificial joint. Pinned NFZ wording has total and partial alternatives; both stay visible, no technique is inferred.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "knee-implant-colloquial",
@@ -148,7 +138,6 @@
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
       "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68",
       "whole_query_only": true
     },
     {
@@ -161,8 +150,7 @@
       "evidence": "Operation description explicitly describes ultrasonic lens fragmentation and simultaneous aspiration. Rewrite is the pinned Polish NFZ wording, not a US ICD-9-CM import. No implant, anesthetic or eligibility inference.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "tonsillectomy",
@@ -174,8 +162,7 @@
       "evidence": "Opening definition explicitly identifies removal of palatine tonsils, matching the pinned Polish NFZ wording. Does not infer adenoid removal.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review, PR 128; not practitioner validation",
-      "reviewed_on": "2026-10-04",
-      "release_id": "icd9-czs-5-90-gen-93-e3c744634e68"
+      "reviewed_on": "2026-10-04"
     },
     {
       "id": "wordnet-heart-infarction",
@@ -187,8 +174,7 @@
       "evidence": "Pinned omw-pl:2.0 synset omw-pl-14112855-n contains both phrases. Archive SHA-256 afe0034c25f7c8ff71390768ec238380086cf382164840a9e55237ec9e872c7b. Expand the explicit heart phrase, never shorten it to ambiguous zawal. Source labels retain acuity and complication distinctions.",
       "status": "reviewed",
       "reviewer": "Automated source terminology review; not practitioner validation",
-      "reviewed_on": "2026-10-05",
-      "release_id": "icd10-rsk-013-f3dc9811520e"
+      "reviewed_on": "2026-10-05"
     },
     {
       "id": "wordnet-appendix-short",
@@ -201,7 +187,6 @@
       "status": "reviewed",
       "reviewer": "Automated source terminology review; not practitioner validation",
       "reviewed_on": "2026-10-05",
-      "release_id": "icd10-rsk-013-f3dc9811520e",
       "whole_query_only": true
     },
     {
@@ -259,7 +244,7 @@
       "fetched_at": "2026-09-29T14:24:40.621000Z",
       "source_created_at": null,
       "valid_from": null,
-      "valid_to": null,
+      "valid_to": "2025-12-31T23:00:00Z",
       "sha256": "e3c744634e68f23d5ecbfecb50ece831140eb8533ab72b8a1b3ee54594024b1b",
       "size_bytes": 1630852,
       "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
@@ -321,7 +306,7 @@
       "fetched_at": "2026-09-21T18:26:46Z",
       "source_created_at": "2026-08-05T10:43:22.502000Z",
       "valid_from": "2025-10-16T22:00:00Z",
-      "valid_to": null,
+      "valid_to": "2026-11-05T16:00:19.223000Z",
       "sha256": "f3dc9811520e45079655eecb123e857818c5a14189fa605996daa3aa3fe7b88f",
       "size_bytes": 12738027,
       "license": "CC BY-NC-SA 3.0 IGO (scope under review; treat as NC-constrained)",
@@ -370,6 +355,101 @@
         "concepts": 35692,
         "descriptions": 35692
       }
+    },
+    {
+      "expected": {
+        "concepts": 12373,
+        "descriptions": 24737,
+        "nodes": 40232,
+        "relations": 40210
+      },
+      "fetched_at": "2026-11-11T03:00:00.033000Z",
+      "license": "CC BY-NC-SA 3.0 IGO (scope under review; treat as NC-constrained)",
+      "notices": [
+        "Source: RSK/CeZ and Biuro Światowej Organizacji Zdrowia w Polsce.",
+        "The fetch timestamp is the archived watcher observation timestamp of the product file.",
+        "The Polish translation was not prepared by WHO; WHO is not responsible for its content or accuracy. The WHO 2019 English edition is binding and authentic.",
+        "Minos preserves the source hierarchy and text, derives contextual dotted lookup codes and marker-free search keys, and does not infer billability. Numeric modifiers are not expanded into diagnosis codes.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+        "On 2026-10-20 the owner authorized automatic activation of RSK ICD-10 PL releases published under the same RSK licence statement for noncommercial public reference search (#141). Search remains noncommercial; RSK content must not become a dependency of paid features.",
+        "Source-derived data and transformations remain subject to CC BY-NC-SA 3.0 IGO, https://creativecommons.org/licenses/by-nc-sa/3.0/igo/ . Software licensing does not replace source terms. Official downloads link upstream; raw archives remain private.",
+        "RSK lists version 015 as valid from 2025-10-17. Minos applies this correction to service dates from 2026-11-05, when RSK published the file; earlier service dates keep the previous release."
+      ],
+      "origin": "rsk",
+      "publisher": "Biuro Światowej Organizacji Zdrowia w Polsce",
+      "release_id": "icd10-rsk-015-14aaec5db49f",
+      "sha256": "14aaec5db49fa668b29f1ca615e1989e8f0ce141a787ab45778861cc53b61bc0",
+      "size_bytes": 17488285,
+      "source_created_at": "2026-11-05T16:00:19.223000Z",
+      "source_file_id": "4edaa2bd-2eee-456e-822e-f5ee97936f6d",
+      "source_url": "https://rsk3.ezdrowie.gov.pl/api/rsk/file/get/4edaa2bd-2eee-456e-822e-f5ee97936f6d",
+      "source_version": "015",
+      "system": "icd10-pl",
+      "valid_from": "2026-11-05T16:00:19.223000Z",
+      "valid_to": null
+    },
+    {
+      "expected": {
+        "concepts": 10181,
+        "descriptions": 10181,
+        "nodes": 10181,
+        "relations": 0
+      },
+      "fetched_at": "2026-11-14T04:00:17.233000Z",
+      "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+      "notices": [
+        "Source: NFZ Centralne Zasoby Slownikowe, ICD-9 PL 5.91, generation 94. Historical pinned capture, not a latest-version selector.",
+        "The fetch timestamp is the archived watcher observation timestamp; source publication and generation timestamps have no stated timezone and are retained in the source header.",
+        "CZS is the single canonical ICD-9 catalog. Exact source codes, titles, statuses, procedure date bounds and annotations are preserved. The XML supplies no hierarchy; no parent or billability inference is made.",
+        "Same-version workbook hierarchy is separately attributed supporting evidence joined only by exact lookup code. Workbook-only codes and conflicting workbook titles do not extend or override the canonical catalog.",
+        "This generation governs from its earliest changed procedure date, never later than its publication day; earlier service dates keep the previous generation.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision. Support complete coding of documented care, never coding beyond documentation.",
+        "The owner authorized noncommercial public reference search on 2026-10-01 and automatic activation of CZS ICD-9 PL generations on 2026-10-20 (#141). Official raw download links point upstream; the Minos private archive is not exposed. This is not commercial redistribution clearance."
+      ],
+      "origin": "czs",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "release_id": "icd9-czs-5-91-gen-94-053dbb837f3d",
+      "sha256": "053dbb837f3da707beb281c606a63099ed31966d81aa374fdc980a49e1837fef",
+      "size_bytes": 1631170,
+      "source_created_at": null,
+      "source_file_id": "ICD9:94",
+      "source_url": "https://slowniki.nfz.gov.pl/WersjeSlownikow/PobierzXml?kodSlownika=ICD9&nrGen=94",
+      "source_version": "5.91",
+      "system": "icd9-pl",
+      "valid_from": "2025-12-31T23:00:00Z",
+      "valid_to": null
+    },
+    {
+      "context_for": "icd9-czs-5-91-gen-94-053dbb837f3d",
+      "expected": {
+        "concepts": 10061,
+        "descriptions": 10061,
+        "nodes": 13054,
+        "relations": 12952
+      },
+      "fetched_at": "2026-11-14T04:00:17.233000Z",
+      "license": "No stated publisher license; owner-authorized public-data validation, not a legal clearance determination",
+      "notices": [
+        "Source: NFZ ICD-9 PL 5.91 companion workbook, supporting hierarchy only, not a separately selectable catalog.",
+        "The exact selected table is ICD-9_PL followed by one space. The distinct ICD-9_PL table without that space is not merged or silently substituted.",
+        "This workbook is linked to CZS generation 94, SHA-256 053dbb837f3da707beb281c606a63099ed31966d81aa374fdc980a49e1837fef, by the same ICD-9 PL version. Exact-code links expose workbook ancestors separately, never as CZS-supplied facts.",
+        "The workbook supplies explicit column levels and containment, not procedure status, applicability dates, synonyms or billability. Canonical CZS titles and status/date evidence always remain authoritative.",
+        "Raw code/title cells, conflicting title/code-form evidence, inclusion/exclusion text and notes remain in this immutable source graph. Workbook-only codes and workbook annotations are not canonical search matches. No leading zeros or absent parents are invented.",
+        "No publisher endorses Minos. Reference only, not medical advice or a binding NFZ settlement decision.",
+        "The owner authorized noncommercial public reference search on 2026-10-01. Official raw download links point upstream; the Minos private archive is not exposed. This is not commercial redistribution clearance."
+      ],
+      "origin": "nfz-workbook",
+      "publisher": "Narodowy Fundusz Zdrowia",
+      "release_id": "icd9-nfz-5-91-gen-94-main-b19cc8ecbb17",
+      "sha256": "b19cc8ecbb17b5517a77b8b011288941583159392b4c6b74db6ad5066f154d05",
+      "size_bytes": 1229078,
+      "source_created_at": null,
+      "source_file_id": "icd-9_pl_cm_v_5.91.xlsx#ICD-9_PL ",
+      "source_url": "https://www.nfz.gov.pl/download/gfx/nfz/pl/defaultstronaopisowa/782/1/2/icd-9_pl_cm_v_5.91.xlsx",
+      "source_version": "5.91",
+      "system": "icd9-pl",
+      "valid_from": null,
+      "valid_to": null
     }
   ],
   "komunikaty": [
