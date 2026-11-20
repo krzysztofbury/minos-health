@@ -83,6 +83,21 @@ signed-release and deployment-acceptance gates remain #41/#27.
 
 ### Fixed
 
+- FastAPI 0.163.2 for GHSA-f56c-v883-vx8r, a denial of service through
+  quadratic processing of query, header and form parameters (published
+  2026-11-17, affecting 0.123.2 up to 0.163.1). The weekly Python group
+  proposed 0.162.5, which is still affected; this change takes the rest of
+  that group (pydantic 2.14.3, loguru 0.8.0, boto3 1.44.2, botocore 1.44.3,
+  ruff 0.17.5, zizmor 1.32.0 and test-only updates) with it.
+- Uptime Kuma 2.5.11 for GHSA-437w-j82f-9vjh (an admin-only RCE through an
+  upstream package) and the Node.js 22.23.5 security release in 2.5.10,
+  released through `scripts/deploy_kuma.py`. The Kuma release smoke now
+  upgrades from 2.5.9, the release production runs.
+- `cloudflared` 2026.11.0 in the runtime pins, Ansible and the CI ingress
+  check, released through `scripts/deploy_tunnel.py`.
+- The API and standalone CLI take the rebuilt `python:3.14.10-slim-bookworm`
+  and `debian:bookworm-slim` digests, and CI takes `sigstore/cosign-installer`
+  4.1.3.
 - The lockfile takes `opentelemetry-api` 1.45.2 for CVE-2026-126360, which
   `pip-audit` reported for 1.45.1 on 2026-11-13 and which failed every
   pull request. It arrives through FastAPI and the MCP SDK in the `api` extra.

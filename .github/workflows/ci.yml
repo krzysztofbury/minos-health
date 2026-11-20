@@ -89,7 +89,7 @@ jobs:
             --inventory localhost, --connection local \
             --module-name ansible.builtin.template \
             --args "src=${GITHUB_WORKSPACE}/infra/ansible/templates/minos-compose.yml.j2 dest=${RUNNER_TEMP}/minos-compose.yaml" \
-            --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","uptime_kuma_gid":10003,"uptime_kuma_image_reference":"docker.io/louislam/uptime-kuma@sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0","uptime_kuma_uid":10003,"watcher_archive_backend":"s3","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_endpoint":"https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com","watcher_secrets_gid":10002,"watcher_uid":10001,"watcher_uptime_kuma_required":false}'
+            --extra-vars '{"cloudflared_credential_path":"/etc/minos/cloudflared/11111111-2222-3333-4444-555555555555.json","uptime_kuma_gid":10003,"uptime_kuma_image_reference":"docker.io/louislam/uptime-kuma@sha256:ebc6299a1bc8bd4a29e0bddcc04f11440e3690b1c52e19558006eeefb5a8b019","uptime_kuma_uid":10003,"watcher_archive_backend":"s3","watcher_expected_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_gid":10001,"watcher_image_repository":"ghcr.io/example/minos-health-watcher","watcher_runtime_image_digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","watcher_s3_bucket":"minos-ci-fixture","watcher_s3_endpoint":"https://0123456789abcdef0123456789abcdef.eu.r2.cloudflarestorage.com","watcher_secrets_gid":10002,"watcher_uid":10001,"watcher_uptime_kuma_required":false}'
           for exposure in public tailnet; do
             uvx --from ansible-core==2.21.4 ansible localhost \
               --inventory localhost, --connection local \
@@ -113,11 +113,11 @@ jobs:
           docker compose --file "$RUNNER_TEMP/minos-compose.yaml" config --quiet
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/cloudflared-config.yml:/etc/cloudflared/config.yml:ro" \
-            docker.io/cloudflare/cloudflared@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba \
+            docker.io/cloudflare/cloudflared@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344 \
             tunnel --config /etc/cloudflared/config.yml ingress validate
           docker run --rm --network none \
             --volume "$RUNNER_TEMP/cloudflared-public-status-config.yml:/etc/cloudflared/config.yml:ro" \
-            docker.io/cloudflare/cloudflared@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba \
+            docker.io/cloudflare/cloudflared@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344 \
             tunnel --config /etc/cloudflared/config.yml ingress validate
 
       - name: Verify the production systemd unit
@@ -151,7 +151,7 @@ jobs:
 
       - name: Install cosign
         if: steps.scope.outputs.docs_only != 'true'
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
       # The owner publishes server.json by hand (docs/v0.0.1/operations.md);
       # CI proves the registry accepts it with the same verified publisher.

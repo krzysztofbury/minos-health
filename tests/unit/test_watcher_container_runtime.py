@@ -39,7 +39,7 @@ def rendered_production_compose_source() -> str:
         "{{ uptime_kuma_gid }}": "10003",
         "{{ uptime_kuma_image_reference }}": (
             "docker.io/louislam/uptime-kuma@sha256:"
-            "053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0"
+            "ebc6299a1bc8bd4a29e0bddcc04f11440e3690b1c52e19558006eeefb5a8b019"
         ),
         "{{ watcher_uptime_kuma_required | string | lower }}": "false",
         "{{ cloudflared_credential_path }}": (
@@ -268,7 +268,7 @@ def test_rendered_production_compose_smoke_parses_real_cli_settings(
 
     assert uptime_kuma["image"] == (
         "docker.io/louislam/uptime-kuma@sha256:"
-        "053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0"
+        "ebc6299a1bc8bd4a29e0bddcc04f11440e3690b1c52e19558006eeefb5a8b019"
     )
     assert uptime_kuma["platform"] == "linux/amd64"
     assert uptime_kuma["pull_policy"] == "missing"
@@ -536,7 +536,7 @@ def test_ansible_enforces_restore_staging_secret_and_runtime_boundaries() -> Non
     assert "watcher_uptime_kuma_required" in playbook
     assert (
         "docker.io/louislam/uptime-kuma@sha256:"
-        + "053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0"
+        + "ebc6299a1bc8bd4a29e0bddcc04f11440e3690b1c52e19558006eeefb5a8b019"
         in playbook
     )
     assert "recurse: true" not in playbook
