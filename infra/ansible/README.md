@@ -15,7 +15,7 @@ The watcher image and host identity use the release-contract UID/GID
 are mounted only into the watcher. The R2 key (#200) remains an
 operator-supplied host file in the S3-compatible credential format; no secret
 value is stored in this directory.
-Self-hosted Uptime Kuma 2.5.9 uses dedicated UID/GID `10003:10003`, the pinned
+Self-hosted Uptime Kuma 2.5.11 uses dedicated UID/GID `10003:10003`, the pinned
 official MIT `slim-rootless` image on `linux/amd64`, no Docker socket or host port,
 a private monitoring network, a separate outbound HTTP monitor and notification
 network, and persistent `/var/lib/minos/uptime-kuma` data.
@@ -513,9 +513,9 @@ bind-mounted data. Do not run the two Kuma services concurrently.
 
    Keep Kuma stopped while the complete directory is archived, encrypted, moved
    off-host, and checked. Restore the same pinned Uptime Kuma version first. The
-   accepted image is version 2.5.9, official MIT `slim-rootless` on
+   accepted image is version 2.5.11, official MIT `slim-rootless` on
    `linux/amd64`, at
-   `sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0`.
+   `sha256:ebc6299a1bc8bd4a29e0bddcc04f11440e3690b1c52e19558006eeefb5a8b019`.
    Ansible fails closed on an image change while preserved data exists. Image
    upgrades go through `scripts.deploy_kuma`, which keeps a stopped copy of the
    data and rewrites the marker (#274); see

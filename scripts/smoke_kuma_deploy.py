@@ -32,8 +32,8 @@ from scripts.smoke_tunnel_deploy import service as standin
 ROOT = Path(__file__).resolve().parents[1]
 STANDIN = ROOT / "tests/fixtures/cloudflared-standin"
 BROKEN = ROOT / "tests/fixtures/kuma-broken"
-# The release before the pinned one: 2.5.8-slim-rootless.
-PREVIOUS = "docker.io/louislam/uptime-kuma@sha256:970f01d661de548b88c7e6012d3574666d033b1de6a323fc1bebfc3cb3b4c437"
+# The release before the pinned one: 2.5.9-slim-rootless.
+PREVIOUS = "docker.io/louislam/uptime-kuma@sha256:053a48927ee714b1da78c6810041a44a266bd8c06dc30ead5b3f459d0f219fb0"
 STUB = re.compile(
     r"FROM docker\.io/louislam/uptime-kuma:([0-9.]+)-slim-rootless@(sha256:[0-9a-f]{64})"
 )

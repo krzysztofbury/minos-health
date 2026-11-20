@@ -114,7 +114,7 @@ services:
   cloudflared:
     # cloudflared 2026.10.4. Dependabot updates packaging/runtime-pins; change
     # every pin with it and update a live host with scripts/deploy_tunnel.py.
-    image: docker.io/cloudflare/cloudflared@sha256:4955524aeaa379e154023d5a027c250f7b35041a2e7e950cf13f144bc9b9c5ba
+    image: docker.io/cloudflare/cloudflared@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344
     pull_policy: missing
     restart: unless-stopped
     user: "65532:65532"
