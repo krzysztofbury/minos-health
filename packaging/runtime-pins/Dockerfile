@@ -4,5 +4,5 @@
 # Change them together, then release cloudflared with scripts/deploy_tunnel.py
 # and Uptime Kuma with scripts/deploy_kuma.py (#274). Kuma pins the multi-arch
 # index digest that Dependabot tracks; Compose selects linux/amd64.
-FROM docker.io/cloudflare/cloudflared:2026.11.0@sha256:b94b96edf2c9c4360f8879c8580cfaa99077f19c849ec595ca2f711b27d4f344
-FROM docker.io/louislam/uptime-kuma:2.5.11-slim-rootless@sha256:ebc6299a1bc8bd4a29e0bddcc04f11440e3690b1c52e19558006eeefb5a8b019
+FROM docker.io/cloudflare/cloudflared:2026.11.1@sha256:e613aadbc2d9511785d2e67a86b0c8ac18dd63a3f9af0d06faf04cbfdcb35f2d
+FROM docker.io/louislam/uptime-kuma:2.5.12-slim-rootless@sha256:212d2131952eded9b2508620455f15f5c2c85c262aafd23b97a7447c53e1d1bc
