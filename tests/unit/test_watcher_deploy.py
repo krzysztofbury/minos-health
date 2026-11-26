@@ -157,7 +157,6 @@ def test_unrelated_compose_and_changed_preserved_service_cannot_claim_recovery(
     with pytest.raises(DeployError) as failure:
         _ = call(staged, "activate")
     assert failure.value.details["recovery"] == {"restored": False}
-    # The failed check is named, not an empty envelope.
     assert failure.value.details["failure"] == {
         "preserved": False,
         "healthy": True,
@@ -414,7 +413,6 @@ def test_storage_key_upload_must_be_private_planned_and_r2_shaped(
         with pytest.raises(validation_host.HostError):
             _ = watcher_host.stage_credentials(upload, target, document, migration)
         assert not (target / "storage-credentials").exists()
-    # The upload never outlives staging, accepted or refused.
     assert not upload.exists()
 
 
@@ -495,7 +493,6 @@ def test_proxy_render_adds_one_read_only_key_mount_and_its_environment(
             "target": "/run/secrets/dane-gov-proxy-key",
             "read_only": True,
         }
-    # The key itself never enters the Compose file.
     assert _PROXY_KEY.strip() not in validation_host.canonical(rotated)
 
 

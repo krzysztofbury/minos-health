@@ -204,7 +204,6 @@ def test_real_pinned_ruleset_prepares_and_derives_dated_candidates() -> None:
         assert (f72.basis, f72.fully_interpreted) == ("retained_fact", True)
         assert 7991 in f72.evidence_rows
         assert october.preparation.procedures[0].rank == 3
-        # The same encounter in June resolves the original 46/2026 composite.
         june = derive_candidates(
             connection,
             dataset,

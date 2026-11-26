@@ -86,7 +86,6 @@ def _prepare_fixture(work: Path) -> None:
     blob = work / "blobs/sha256" / cast(str, sources[0]["sha256"])
     blob.parent.mkdir(parents=True)
     _ = blob.write_bytes((ROOT / "tests/fixtures/icd10-pl/minimal.xml").read_bytes())
-    # Host-only fixture helpers are not mounted into the frozen runtime.
     sys.path.insert(0, str(ROOT))
     from tests.fixtures.icd9_workbook import archive_bytes, workbook_manifest
     from tests.fixtures.icd9_xml import XML, source_manifest

@@ -36,6 +36,7 @@ from minos.ingest.watchers.service import WatcherReadiness, WatcherService
 from minos.ingest.watchers.uptime_kuma import UptimeKumaError
 
 
+@pytest.mark.to_delete(issue=376)
 def test_module_reports_version() -> None:
     completed = subprocess.run(
         [sys.executable, "-m", "minos", "--version"],
@@ -93,6 +94,7 @@ class _WatcherCommand:
         return f"{target_revision}-{target_sha256}"
 
 
+@pytest.mark.to_delete(issue=376)
 def test_watcher_cli_commands_use_the_adapter_seam(tmp_path: Path) -> None:
     command = _WatcherCommand()
     received: list[WatcherCommandArguments] = []
@@ -1116,6 +1118,5 @@ def test_the_dane_gov_proxy_needs_an_origin_and_a_valid_key_file(
         return
     with pytest.raises(WatcherRuntimeError, match=error) as raised:
         _ = create_watcher_command(arguments)
-    # Neither the key file path nor the Worker hostname reaches the message.
     assert str(tmp_path) not in str(raised.value)
     assert "worker.test" not in str(raised.value)

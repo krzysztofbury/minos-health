@@ -104,7 +104,6 @@ _EMPTY = b"<ss:Cell />"
 @pytest.mark.parametrize(
     ("content", "changes", "message"),
     [
-        # The reporting month is read from the headers, never assumed.
         (None, {"month": "2026-09", "source_url": URL.replace("_8.xml", "_9.xml")},
          "header differs"),
         (None, {"group_rows": 35}, "exceeds its reviewed group rows"),
@@ -162,7 +161,6 @@ def test_a_repeated_row_fails_closed(
 
 
 def test_one_sided_and_exponent_values_parse() -> None:
-    # A count without points is still a figure; an exponent mean stay is read.
     content = _edited(b">411923.06<", b"><", within=_A22)
     content = content.replace(b">7.8971999999999998<", b">9.7199999999999995E-2<", 1)
     figures = _parse(content)

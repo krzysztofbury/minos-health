@@ -71,7 +71,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 
 .shell { width: 100%; max-width: 72rem; margin-inline: auto; padding-inline: var(--gutter); }
 .shell-narrow { max-width: 48rem; }
-/* Stepped encounter builder: one step at a time, the case card beside it. */
 .wizard { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "steps steps" "panel card"; gap: 1.25rem 1.5rem; margin-top: 1.25rem; align-items: start; }
 .wizard-steps { grid-area: steps; }
 .wizard-progress { display: none; margin-bottom: 0.5rem; color: var(--muted); font-size: var(--text-sm); font-weight: 600; }
@@ -185,7 +184,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 /* The notice sits above the form until the result repeats it in place. */
 .page-grouper:has(.wizard-panel.is-result) #group-availability { display: none; }
 #group-status { margin-block: 0.5rem 1rem; color: var(--ink-soft); }
-/* Result: qualifying groups first, then why, then everything else. */
 .verdict { margin-bottom: 1.25rem; }
 .verdict-title { font-size: var(--text-xl); }
 .verdict-group { margin-bottom: 1rem; padding: 1.1rem 1.25rem; border: 1px solid var(--line); border-left: 5px solid var(--ok); border-radius: var(--radius); }
@@ -220,7 +218,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .doc-checks { margin-block: 1.25rem; padding: 1rem 1.25rem; border-left: 4px solid var(--warn); border-radius: 0 var(--radius) var(--radius) 0; background: var(--warn-bg); }
 .doc-checks h3 { font-size: var(--text-md); }
 .doc-checks ul { margin: 0.5rem 0 0; padding-left: 1.1rem; font-size: var(--text-sm); }
-/* Reported products: what each one did to the case, before the groups it shaped. */
 .product-effects { margin-block: 0 1.25rem; padding: 0.9rem 1.1rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .product-effects h3 { font-size: var(--text-md); }
 .product-effects ul { margin: 0.4rem 0 0; padding: 0; list-style: none; }
@@ -267,7 +264,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .skip-link { position: fixed; z-index: 50; top: 0.75rem; left: 0.75rem; padding: 0.7rem 1rem; border-radius: var(--radius); color: #fff; background: var(--ink); transform: translateY(-200%); }
 .skip-link:focus { transform: none; }
 
-/* Header and navigation: identical on every page. */
 .site-header { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--line); background: var(--surface); }
 .site-header-inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 4rem; }
 .brand { display: inline-flex; align-items: center; gap: 0.6rem; min-height: 44px; color: var(--ink); text-decoration: none; }
@@ -298,7 +294,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
   .menu { display: block; }
 }
 
-/* Footer: identical on every page. */
 .site-footer { border-top: 1px solid var(--line); background: var(--surface); }
 .site-footer-inner { display: grid; gap: 0.5rem; padding-block: 1.5rem; }
 .footer-note { color: var(--muted); font-size: var(--text-sm); text-wrap: balance; }
@@ -306,7 +301,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .footer-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; font-size: var(--text-sm); }
 .footer-nav a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink-soft); }
 
-/* Shared building blocks. */
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 44px; padding: 0.55rem 1.1rem; border: 1px solid var(--accent); border-radius: var(--radius); color: #fff; background: var(--accent); cursor: pointer; font-weight: 600; text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { .button:hover { color: #fff; background: var(--accent-strong); text-decoration: none; } }
 /* Small controls keep their look and take a finger-sized hit area. */
@@ -333,7 +327,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 .page-meta { margin-bottom: 0.5rem; color: var(--muted); font-size: var(--text-sm); }
 .breadcrumbs { display: flex; flex-wrap: wrap; gap: 1rem 0.4rem; margin-bottom: 0.75rem; color: var(--muted); font-size: var(--text-sm); }
 
-/* Home: search first. */
 .search-hero { padding-top: clamp(1.25rem, 6vh, 3.5rem); padding-bottom: 1rem; }
 .search-title { font-size: var(--text-2xl); }
 .search-lead { margin-top: 0.3rem; color: var(--ink-soft); font-size: var(--text-md); }
@@ -407,7 +400,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
   .suggestion-system { grid-column: 2; }
 }
 
-/* Dictionaries. */
 .dictionary-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 1rem; margin: 0; padding: 0; list-style: none; }
 .dictionary-card { display: flex; flex-direction: column; gap: 0.35rem; height: 100%; padding: 1.25rem; border: 1px solid var(--line); border-radius: var(--radius-lg); color: var(--ink); background: var(--surface); text-decoration: none; }
 @media (hover: hover) and (pointer: fine) { a.dictionary-card:hover { border-color: var(--accent); color: var(--ink); text-decoration: none; } }
@@ -488,7 +480,6 @@ code, .code { font-family: var(--font-code); font-variant-numeric: tabular-nums;
 
 .detail-permalink { display: inline-flex; align-items: center; min-height: 44px; margin-top: 0.5rem; font-size: var(--text-sm); font-weight: 600; }
 
-/* Server-rendered code pages: the answer first, the rest one click away. */
 .answer-head { padding-top: 1rem; }
 .answer-head .breadcrumbs { margin-bottom: 0.55rem; }
 .answer-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.7rem; margin: 0; }
@@ -608,7 +599,6 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
   .answer-flow { padding-left: 0.9rem; }
   .answer-card::before { left: -0.5rem; width: 0.5rem; }
   .answer-card::after { left: -0.5rem; }
-  /* A long name keeps the full width; the code and the points share a line. */
   .answer-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "chip points mark" "name name name"; gap: 0.25rem 0.45rem; padding-inline: 0.7rem; }
   .answer-row .code-chip { grid-area: chip; }
   .answer-row .pts, .answer-row .jgp-absent { grid-area: points; justify-self: end; }
@@ -743,7 +733,6 @@ details[open] > summary > .chevron { transform: rotate(45deg); }
 .prose address { font-style: normal; }
 .prose .callout { padding: 1rem 1.1rem; border-left: 4px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; background: var(--accent-tint); }
 
-/* 404. */
 .not-found { max-width: 40rem; padding-top: 4rem; }
 .not-found-code { color: var(--accent); font-family: var(--font-code); font-size: var(--text-xl); font-weight: 600; }
 .not-found-actions { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1.5rem; }

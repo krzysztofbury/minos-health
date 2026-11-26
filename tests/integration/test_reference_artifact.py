@@ -134,7 +134,6 @@ def test_build_reopen_and_recursive_cte_preserve_the_agreed_model(
             "Synthetic fixture, not RSK content",
             "Apache-2.0 OR MIT (synthetic fixture only)",
         )
-        # Indexed token results are explicitly ordered by source identity, not FTS rank.
         assert connection.execute(
             "SELECT node_ordinal FROM concept_description_fts JOIN concept_description ON concept_description.id=concept_description_fts.rowid WHERE concept_description_fts MATCH 'synthetic' ORDER BY node_ordinal"
         ).fetchall() == [(1,), (3,), (4,), (7,), (8,), (10,)]
@@ -150,7 +149,6 @@ def test_same_inputs_produce_identical_database_bytes(tmp_path: Path) -> None:
     assert (tmp_path / "first" / "minos.db").read_bytes() == (
         tmp_path / "second" / "minos.db"
     ).read_bytes()
-    # The bundle carries planner statistics, built from the final rows (#228).
     with open_reference_connection(tmp_path / "first") as connection:
         statistics = cast(
             list[tuple[str]],

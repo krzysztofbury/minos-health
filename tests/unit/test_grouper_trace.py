@@ -64,7 +64,6 @@ def test_near_miss_rechecks_routing_and_never_asks_about_death() -> None:
     reported = replace(facts(), discharge_mode=1)
     misses = near_misses(transfer, reported, evaluate_group(transfer, reported))
     assert len(misses) == 1 and misses[0].fact == "discharge_mode"
-    # The domain returns the fact/condition identity, never a suggested code/value.
     assert not hasattr(misses[0], "suggested_value")
     death = rules(5, node(5, "discharge_mode", c.DischargeMode((9,))))
     assert near_misses(death, reported, evaluate_group(death, reported)) == ()

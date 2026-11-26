@@ -257,7 +257,6 @@ def test_a_group_page_shows_only_its_own_clauses_as_the_condition() -> None:
     assert '<p class="cond-clause">lista C22</p>' in head
     assert '<p class="cond-or">lub</p>' in head
     assert "cytowana lista C22B" not in head
-    # The cited row stays in the source record.
     assert "cytowana lista C22B" in page
 
 
@@ -293,6 +292,7 @@ def test_a_long_mcp_listing_keeps_every_group_with_its_headline() -> None:
     assert len(json.dumps(compact).encode()) < MAX_JGP_LIST_BYTES
 
 
+@pytest.mark.to_delete(issue=377)
 def test_a_short_mcp_listing_is_returned_whole() -> None:
     listing = _listing(3)
 

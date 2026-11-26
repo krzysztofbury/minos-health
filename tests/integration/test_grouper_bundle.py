@@ -123,7 +123,6 @@ def test_bundle_index_reads_lists_roles_and_sheet_scope(tmp_path: Path) -> None:
     ]
     # Program-membership-only groups have no directional list to reach.
     assert groups["N09"].requirements == groups["N11"].requirements == ()
-    # 1ae lists are scoped to their sheet even where list identities repeat.
     assert [(g.code, sorted(g.requirements[0].codes)) for g in emergency.groups] == [
         ("AU01", ["G60.4"])
     ]
@@ -310,7 +309,6 @@ def test_reviewed_binding_applies_only_declared_modifiers(
                 _ = final_points(connection, opened.dataset, result, frozenset())
             return
         plain = final_points(connection, opened.dataset, result, frozenset())
-        # A shared cache answers exactly as a fresh one, request after request.
         shared = PreparedSources()
         for _ in range(2):
             assert (

@@ -131,7 +131,7 @@ def test_reader_retains_a_label_resuming_after_directional_lists() -> None:
     age = next(n for n in primary.conditions if n.kind == "patient_age")
     group = next(g for g in primary.groups if g.code == "A01")
     assert age.source_rows == (20,) and age.identity in group.roots
-    assert len(group.roots) == 2  # separate reference roots, no implicit conjunction
+    assert len(group.roots) == 2
 
 
 def test_contextual_below_list_uses_its_cited_declaration_not_a_case_folded_name() -> (
@@ -708,7 +708,6 @@ def test_commas_enumerate_clauses_like_oraz_and_lub_binds_tighter() -> None:
 def test_guard_consequence_needs_the_whole_reviewed_shape(annotation: str) -> None:
     sheet = _guard_sheet(annotation)
     validate_characteristics(sheet)
-    # Extra wording must not turn numbers into codes or drop an exception.
     assert not any(n.kind == "not" for n in sheet.conditions)
     selectors = {s.identity: s for s in sheet.selectors}
     assert not any(

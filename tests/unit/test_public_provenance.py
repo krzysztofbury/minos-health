@@ -1132,7 +1132,6 @@ def test_citations_survive_generation_gc_and_legacy_upgrade(tmp_path: Path) -> N
     assert (root / "citations" / f"1-{first_digest}.json").read_bytes() == first_files[
         "api/v1/provenance/rsk.json"
     ]
-    # The operator's explicit rebuild cannot change an already-cited fact.
     replacement_digest, replacement_files = _generation_files("replacement")
     with pytest.raises(
         PublicPublicationError, match="citation revision already differs"
@@ -1166,7 +1165,6 @@ def test_citation_capacity_refuses_new_pointer_without_evicting(
         _ = publisher.publish(2, new_digest, new_files)
     assert publisher.current() == (1, f"1-{digest}")
     assert publisher.citation_revisions() == frozenset({1})
-    # Retrying a retained record at the quota remains possible.
     assert publisher.publish(1, digest, files) == f"1-{digest}"
 
 

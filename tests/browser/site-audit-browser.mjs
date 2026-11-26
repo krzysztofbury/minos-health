@@ -103,7 +103,6 @@ try {
     });
     await send("Page.navigate", { url: origin + route });
     await loaded;
-    // Let deferred scripts and their first requests settle.
     await new Promise(resolve => setTimeout(resolve, 600));
   }
   async function inspect(route, expected, mode, width) {

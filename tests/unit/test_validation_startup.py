@@ -389,7 +389,6 @@ def test_a_new_api_that_is_not_warm_still_gets_the_edge_in_time(
 
     assert result["status"] == "completed"
     assert result["search_warm"] == outcome
-    # The wait ends by its own bound, before the time the edge needs.
     assert startup.launched["edge"] <= 10 - host.EDGE_RESERVE_S
     if answer == "unsupported":
         assert warming == [2]

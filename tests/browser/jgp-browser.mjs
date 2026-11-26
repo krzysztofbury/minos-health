@@ -68,7 +68,6 @@ try {
   for (const [name, width, height] of [["desktop", 1440, 1000], ["laptop", 1024, 768], ["mobile", 390, 844]]) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width < 500 });
 
-    // A shared comparison pins the dataset, both dates and source-backed filters.
     await visit("/jgp/2026-12-31", "document.querySelector('a[href^=\"/jgp/porownaj/\"]')");
     await evaluate("document.querySelector('a[href^=\"/jgp/porownaj/\"]').click()");
     await wait("document.readyState === 'complete' && document.getElementById('compare-go')?.hidden === false");
@@ -112,7 +111,6 @@ try {
       continue;
     }
 
-    // Catalog: chapters closed, filter revealed only by jgp.js, base-points label.
     await visit("/jgp/2026-07-10", "!document.querySelector('.jgp-filter').hidden");
     assert.deepEqual(await evaluate(listed), ["A01", "PZD02", "H21", "J01AJ", "AU35C", "SU52"]);
     assert.equal(await evaluate("document.querySelector('.site-nav [aria-current=page]').textContent.trim()"), "Grupy JGP");
@@ -121,10 +119,7 @@ try {
     await noOverflow();
     await shot(`jgp-catalog-${name}`);
 
-    // Filter: case and diacritics folded, local only, no request and no URL change.
-    // A chapter opened by hand before filtering is open again once it clears.
     await evaluate("document.getElementById('k-1ae-1').open = true");
-    // A collapsed catalog opens for matches and closes again afterwards.
     await evaluate("document.querySelector('.jgp-catalog-part details').open = false");
     const before = requests.length;
     await send("Runtime.evaluate", { expression: "document.getElementById('jgp-filter').focus()" });
@@ -147,9 +142,6 @@ try {
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.jgp-chapter')].map(chapter => chapter.id + ':' + chapter.open + ':' + chapter.hidden)"), ["k-1a-1:false:false", "k-1ae-1:true:false"]);
     assert.deepEqual(await evaluate("[...document.querySelectorAll('.jgp-catalog-part > details')].map(branch => branch.open)"), [false, true]);
 
-    // The date is DD.MM.RRRR whatever the browser language; typed digits are
-    // masked, and a keyboard edit waits for Enter. It navigates by path, never
-    // by query string.
     assert.equal(await evaluate("document.getElementById('jgp-date').value"), "10.07.2026");
     await send("Runtime.evaluate", { expression: "const field = document.getElementById('jgp-date'); field.focus(); field.select()" });
     await send("Input.insertText", { text: "11072026" });
@@ -160,13 +152,11 @@ try {
     await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
     await wait("location.pathname === '/jgp/2026-07-11' && document.querySelector('.jgp-row')");
     assert.ok((await evaluate("document.querySelector('h1').textContent")).includes("11.07.2026"));
-    // The Polish calendar picks a day and navigates at once.
     await evaluate("document.querySelector('.jgp-date .picker-button').click()");
     await wait("!document.getElementById('picker').hidden && document.querySelector('#picker .picker-title').textContent === 'lipiec 2026'");
     await evaluate("document.querySelector('#picker [data-value=\"2026-07-10\"]').click()");
     await wait("location.pathname === '/jgp/2026-07-10' && document.querySelector('.jgp-row')");
 
-    // The zakres picker opens over the page without widening it.
     await visit("/jgp/2026-07-10", "document.querySelector('.jgp-scopes')");
     await evaluate("document.querySelector('.jgp-scopes > summary').click()");
     await wait("document.querySelector('.jgp-scopes').open");
@@ -181,7 +171,6 @@ try {
     assert.deepEqual(await evaluate(listed), ["A01", "H21"]);
     assert.ok((await evaluate("document.querySelector('.jgp-scopes summary').textContent")).includes("chirurgia ogólna"));
 
-    // Group page from a catalog row click.
     await visit("/jgp/2026-07-10", "document.querySelector('.jgp-row')");
     await evaluate("document.querySelector('.jgp-row[href=\"/jgp/2026-07-10/PZD02\"]').click()");
     await wait("location.pathname === '/jgp/2026-07-10/PZD02' && document.querySelector('.jgp-values') && document.fonts.status === 'loaded'");
@@ -194,7 +183,6 @@ try {
     await noOverflow();
     await shot(`jgp-group-${name}`);
 
-    // Explicit gap before the first covered release.
     await visit("/jgp/2026-04-30", "document.querySelector('h1')");
     assert.equal(await evaluate("document.querySelector('h1').textContent"), "Brak zweryfikowanego katalogu JGP dla tego dnia");
     await noOverflow();

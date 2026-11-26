@@ -192,7 +192,6 @@ def main(output: Path, tag: str) -> None:
         assert rolled_back["image_matches"] is True, rolled_back
         assert tunnel_host.baseline(layout) == preserved
 
-        # A good candidate activates, then rolls back to the original bytes.
         params = stage(images["new"], "c")
         activated = call("activate", params)
         assert activated["event"] == "tunnel_activated", activated

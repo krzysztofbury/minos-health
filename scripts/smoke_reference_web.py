@@ -409,7 +409,6 @@ def main(arguments: Arguments) -> None:
         )
         assert cast(dict[str, object], concept["concept"])["parents"] == []
         assert concept["jgp"] is None
-        # The agent endpoint answers through the same edge (#216).
         listed = mcp_call(base, "tools/list", {})
         assert len(cast(list[object], listed["tools"])) == 12
         searched = mcp_call(
@@ -438,7 +437,6 @@ def main(arguments: Arguments) -> None:
         assert get_json(base, concept_route + "?date=2026-07-10")[0] == 404
         assert get_json(base, concept_route, {})[0] == 405
         assert get_page(base, concept_route)[1] == ["no-store"]
-        # JGP routes: one call per group page, path-only dates, explicit gaps.
         group_route = "/api/v1/jgp/2026-07-10/groups/PZD02"
         status, group, _ = get_json(base, group_route)
         assert status == 200
@@ -448,7 +446,6 @@ def main(arguments: Arguments) -> None:
         assert get_json(base, "/api/v1/jgp/2026-07-10/sections")[0] == 200
         assert get_json(base, "/api/v1/jgp/2026-07-10/sections/1a/1")[0] == 200
         status, gap, _ = get_json(base, "/api/v1/jgp/2026-06-30/groups/PZD02")
-        # The API's explicit gap, not an edge 404 for an unrouted path.
         assert (status, cast(dict[str, str], gap["error"])["code"]) == (
             404,
             "no_ruleset_for_date",
@@ -456,8 +453,6 @@ def main(arguments: Arguments) -> None:
         status, refused, _ = get_json(base, group_route + "?date=2026-07-10")
         assert (status, refused) == (404, {})  # nginx refuses queries before the API
         assert get_json(base, group_route, {})[0] == 405
-        # JGP pages: dated pages cache like other pages, "today" never does, and
-        # the edge adds no second Cache-Control to the API's own header.
         for route, status, cache in (
             ("/jgp/2026-07-10", 200, "public"),
             ("/jgp/2026-07-10/PZD02", 200, "public"),

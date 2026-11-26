@@ -39,7 +39,6 @@ def _references(eli: str, section: str, extra: str) -> dict[str, object]:
 
 
 def test_reviewed_pins_are_the_manifest_sources() -> None:
-    # Re-pinning a dictionary must also update what the watcher compares.
     manifest = cast(
         dict[str, dict[str, dict[str, str]]],
         json.loads(

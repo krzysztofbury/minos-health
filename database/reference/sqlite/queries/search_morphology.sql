@@ -34,8 +34,6 @@ WITH matching(document_id) AS (
       ON concept.source_release_id = :release_id AND concept.node_ordinal = candidates.ordinal
     WHERE candidates.ordinal NOT IN (SELECT value FROM json_each(:excluded))
 )
--- Lexical and structural, not clinical: a code's own title before inclusion
--- text, a title that begins with the query before one that only contains it,
--- a broader code before its narrower codes, then source order.
+-- Why: the ranking is lexical and structural, never clinical.
 SELECT ordinal, document_id FROM ranked WHERE position = 1
 ORDER BY supplementary, title_rank, prefix_rank, code_depth, jgp_count DESC, ordinal LIMIT :row_limit;

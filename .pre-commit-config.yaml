@@ -55,6 +55,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(?:src/|tests/|scripts/|pyproject\.toml$|uv\.lock$)
+      - id: audit-ratchet
+        name: comment and marked-test ratchet
+        entry: uv run python scripts/audit_ratchet.py check
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: bandit
         name: bandit
         entry: uv run bandit -q -r src

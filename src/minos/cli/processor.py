@@ -153,8 +153,6 @@ def execute_finalize(
             # The new data is live; only its R2 record is missing.
             up, message = False, "activation failed: receipt"
             summary["receipt"] = "failed"
-    # Every outcome is pushed to the data-activation monitor; a failed push is
-    # recorded in the summary and fails the run.
     try:
         with kuma_factory(targets) as kuma:
             kuma.report(ACTIVATION_SOURCE, up=up, message=message)

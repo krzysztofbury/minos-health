@@ -52,7 +52,6 @@
     dateInput.addEventListener("minos:picked", go);
   }
 
-  // Long group lists open one by one; this opens or closes them together.
   var toggle = document.querySelector(".answer-toggle");
   if (toggle instanceof HTMLButtonElement) {
     var groups = Array.prototype.slice.call(document.querySelectorAll(".answer-group"));
@@ -102,10 +101,8 @@
       .replace(/ł/g, "l");
   }
 
-  // The server's count line comes back when the filter clears.
   var hint = status ? status.textContent : "";
   var keys = rows.map(function (row) { return fold(row.getAttribute("data-search") || ""); });
-  // Chapters the user opened before filtering come back when the filter clears.
   var opened = null;
   var catalogsOpened = null;
   if (rows.length === 0) return; // nothing to filter; the status says so

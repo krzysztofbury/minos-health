@@ -569,6 +569,7 @@ def test_status_human_output_escapes_terminal_controls(
     assert "failure\\x1b[2J\\nnext-line\\u202e" in output
 
 
+@pytest.mark.to_delete(issue=376)
 def test_status_parser_errors_remain_exit_two(status_database: Path) -> None:
     with pytest.raises(SystemExit) as captured:
         main(

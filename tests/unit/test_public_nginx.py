@@ -32,7 +32,6 @@ def test_nginx_exposes_only_the_exact_public_projection_endpoint() -> None:
     assert "root /var/lib/minos/public/baw;" in configuration
     assert "try_files /current/api/v1/provenance/baw.json =404;" in configuration
     assert "default_type application/json;" in configuration
-    # Uncacheable unless a public page or static asset is explicitly listed.
     assert "add_header Cache-Control $minos_cache_control always;" in configuration
     cache_map = configuration.split("map $request_uri $minos_cache_route {", 1)[1]
     cache_map = cache_map.split("}", 1)[0]

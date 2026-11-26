@@ -19,9 +19,6 @@ RELEASES: dict[str, object] = {
 
 
 class Handler(BaseHTTPRequestHandler):
-    # Concept lookups fail with a server error, tree lookups with the closed
-    # deadline answer, Gruper refuses as busy, MCP answers a tool error;
-    # everything else succeeds.
     def _answer(self, status: int, body: object) -> None:
         content = json.dumps(body).encode()
         self.send_response(status)

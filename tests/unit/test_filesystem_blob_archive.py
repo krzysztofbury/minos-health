@@ -341,6 +341,7 @@ def test_filesystem_archive_rejects_directory_sync_failure(
         _ = FilesystemBlobArchive(tmp_path / "archive")
 
 
+@pytest.mark.to_delete(issue=375)
 def test_filesystem_archive_resynchronizes_existing_directory_after_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -106,7 +106,6 @@ def test_materializer_serializes_validated_host_material_atomically(
     ("host", "port", "exposure", "pinned"),
     [
         ("minos-production.tail1234.ts.net", "22", "tailnet", "{host}"),
-        # Port 22 alone is not the tailnet, and neither is a tailnet name elsewhere.
         ("synthetic.example.test", "22", "public", "{host}"),
         ("minos-production.tail1234.ts.net", "2222", "public", "[{host}]:2222"),
     ],

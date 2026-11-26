@@ -78,7 +78,7 @@ def test_source_text_is_escaped_and_labelled_as_base_points() -> None:
     page = index_page(RULESET, [group], [], None, CALENDAR)
     assert "<script>alert" not in page and "&lt;script&gt;" in page
     assert "Rozdział &lt;i&gt;" in page
-    assert "brak wartości" in page  # absent points are not zero
+    assert "brak wartości" in page
     assert "Punkty bazowe wg katalogu, bez modyfikatorów." in page
     assert 'content="noindex, follow"' in page
     assert '<script src="/jgp.js" defer></script>' in page

@@ -239,7 +239,6 @@ def test_new_generation_is_judged_once_and_reported_every_run(
     names = ["fetch", "propose", "first_build", "second_build", "compare"]
     assert stages == [("icd9-pl", name) for name in names]
     assert run.stages == []
-    # The live inputs and the new generation are fetched once, for the first run.
     assert reads == len(set(run.r2.reads)) > 1
     assert len(run.r2.reads) == reads
 
@@ -491,7 +490,6 @@ def test_a_report_alerts_once_then_stays_listed_without_holding_the_monitor(
         ("up", "pending statistics 2026-09"),
     ]
 
-    # A replaced report keeps its month and is news again; a pin ends it all.
     run.pushes.clear()
     _nfz(run.public, czs, _report("2026-09", "20261120", 2900001, 57567445), revision=8)
     _ = run(capsys)

@@ -48,7 +48,6 @@ def test_undated_pages_show_today_under_the_one_indexable_url(
     dated = client.get(path.replace("/jgp", "/jgp/2026-07-10", 1))
     assert response.status_code == dated.status_code == 200
     assert robots_and_canonical(response.text) == ("index, follow", path)
-    # A dated twin of the same answer stays out of the index under its own URL.
     assert robots_and_canonical(dated.text) == (
         "noindex, follow",
         path.replace("/jgp", "/jgp/2026-07-10", 1),
@@ -227,6 +226,7 @@ def test_gaps_render_explicit_uncached_errors(
     assert response.headers["Cache-Control"] == "no-store"
 
 
+@pytest.mark.to_delete(issue=377)
 def test_pages_are_read_only(client: TestClient) -> None:
     assert client.post("/jgp/2026-07-10/PZD02").status_code == 405
 
@@ -245,7 +245,6 @@ def test_app_routing_agrees_with_the_edge_allowlist(
 ) -> None:
     response = client.get(path)
     if edge_page_pattern().search(path):
-        # Accepted paths always reach a page handler: HTML or a redirect.
         assert response.status_code in (200, 301, 302, 404)
         if response.status_code not in (301, 302):
             assert response.headers["content-type"].startswith("text/html")
@@ -270,8 +269,6 @@ def test_the_jgp_sitemap_lists_the_undated_pages_in_force_today(
         "/jgp",
         *(f"/jgp/{code}" for code in ("A01", "PZD02", "H21", "J01AJ", "AU35C", "SU52")),
     ]
-    # Every listed page answers on that day; the list follows the date.
     assert all(client.get(path).status_code == 200 for path in paths)
     assert sitemap_on(date(2026, 6, 15)) == (200, ["/jgp", "/jgp/A01", "/jgp/PZD02"])
-    # Before the first covered day there is nothing to index.
     assert sitemap_on(date(2026, 4, 30))[0] == 404

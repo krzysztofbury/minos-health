@@ -121,7 +121,6 @@ def test_release_replaces_only_kuma_and_rollback_restores_its_data(
     before = others(kuma)
     values = params(kuma)
     assert call(kuma, "stage", values)["event"] == "kuma_staged"
-    # Resuming a completed stage is accepted against identical records.
     assert call(kuma, "stage", values)["event"] == "kuma_staged"
     assert compose.read_bytes() == original
     assert not compose_calls(kuma, "stop") and not compose_calls(kuma, "up")
@@ -209,7 +208,6 @@ def test_staging_refuses_before_any_live_change(kuma: Site, change: str) -> None
     with pytest.raises(DeployError):
         _ = call(kuma, "stage", values)
     assert compose.read_bytes() == original
-    # Activation cannot proceed without staged evidence.
     with pytest.raises(DeployError):
         _ = call(kuma, "activate", values)
     assert not compose_calls(kuma, "stop") and not compose_calls(kuma, "up")
@@ -271,7 +269,6 @@ def test_a_failure_before_kuma_starts_keeps_its_data_and_a_retry_backs_up_again(
     # copy the failed attempt took.
     assert call(kuma, "rollback", values)["data_restored"] is False
     database = (data(kuma) / "kuma.db").read_bytes()
-    # A retry backs up the data as it is now, and rollback returns exactly that.
     assert call(kuma, "activate", values)["image_matches"] is True
     assert call(kuma, "rollback", values)["data_restored"] is True
     assert (data(kuma) / "kuma.db").read_bytes() == (

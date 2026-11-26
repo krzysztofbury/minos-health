@@ -62,7 +62,10 @@ appends to `.agents/retro.jsonl` and proposes rule changes as pull requests.
 - Keep control flow explicit and bounded. Handle every error path; never advance
   watcher state after an incomplete, ambiguous, or failed operation.
 - Comments explain non-obvious intent, invariants, or source constraints. Do not
-  narrate syntax.
+  narrate syntax. A comment is a tool pragma or one line starting `Why: ` in the
+  file's comment syntax; a reason that spans modules goes in a decision record.
+  Name a shortcut in an issue, not a comment; Ruff's `FIX` and `ERA001` rules
+  enforce it.
 - Production code must be warning-clean under Ruff, BasedPyright, and mypy.
 
 ## Tests
@@ -73,6 +76,15 @@ appends to `.agents/retro.jsonl` and proposes rule changes as pull requests.
   accessors or generated models. No test-count or coverage-percentage target
   substitutes for evidence at the changed boundary.
 - Integration tests exercise real component boundaries with bounded fixtures.
+- A test earns its place when a plausible wrong change makes it fail for the
+  reason it exists; follow the `test-audit` skill's test proof. Never add a
+  `to_delete` marker; a marked test goes when its issue is done.
+- `scripts/audit_ratchet.py check` runs as a pre-commit hook (CI runs the
+  hooks) and counts comments in Python, SQL, JavaScript, HTML and CSS, and
+  `to_delete` markers, per file; neither may rise. `apps/web/vendor/` is
+  marked `linguist-vendored` and not counted. After a change that lowers a
+  count, run `uv run python scripts/audit_ratchet.py update` and commit
+  `.agents/audit-baseline.json`.
 - Docker Compose exercises the same application artifacts and commands used on
   the Mikr.us production host. R2 object-store semantics (create-once writes,
   SHA-256 checksums, bucket locks) need evidence against a real R2 bucket.

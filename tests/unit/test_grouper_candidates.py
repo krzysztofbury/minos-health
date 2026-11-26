@@ -146,6 +146,7 @@ def test_indexes_must_belong_to_the_resolved_sources() -> None:
         _ = derive(prepared(), (twice, twice), SOURCES)
 
 
+@pytest.mark.to_delete(issue=377)
 def test_requirement_without_codes_or_families_is_refused() -> None:
     with pytest.raises(GrouperError, match="no codes"):
         _ = requirement(1, set())
