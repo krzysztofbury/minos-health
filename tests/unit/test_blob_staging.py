@@ -84,6 +84,7 @@ def test_staging_rejects_producer_mismatch_and_cleans_up(tmp_path: Path) -> None
     assert not staged_path.exists()
 
 
+@pytest.mark.to_delete(issue=375)
 def test_staging_requires_paired_strict_producer_identity(tmp_path: Path) -> None:
     staging = BlobStagingArea(tmp_path / "staging")
 
@@ -257,6 +258,7 @@ def test_staging_revalidates_directory_permissions_before_each_file(
             raise AssertionError("an insecure staging directory must not be used")
 
 
+@pytest.mark.to_delete(issue=375)
 def test_staged_blob_rejects_non_integer_runtime_size(tmp_path: Path) -> None:
     with BlobStagingArea(tmp_path / "staging").stage() as writer:
         _ = writer.write(b"x")

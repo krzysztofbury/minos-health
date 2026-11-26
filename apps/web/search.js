@@ -112,7 +112,6 @@
     syncReset();
   }
 
-  // Reset only offers something while an available source differs from the default.
   function syncReset() {
     resetFilters.hidden = boxes.every(function (box) {
       return box.disabled || box.checked === (DEFAULT_SYSTEMS.indexOf(box.value) >= 0);
@@ -266,7 +265,6 @@
     });
   }
 
-  /* Grouped results. */
   function badgeFor(hit, system) {
     var status = hit.source_attributes && hit.source_attributes.status;
     if (system === "icd9-pl" && status && status !== "A") return element("span", "badge badge-warn", "Status " + status + " w CZS" + (hit.match_type === "folded_tokens" ? "; bez polskich znaków" : ""));

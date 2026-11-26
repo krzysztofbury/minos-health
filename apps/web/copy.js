@@ -1,4 +1,3 @@
-/* Copy buttons on the command blocks, which stay plain selectable text, and tool links. */
 (function () {
   "use strict";
   // A link to a tool lands on its folded row; open it rather than ask for a second click.

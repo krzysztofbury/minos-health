@@ -112,7 +112,6 @@ def test_product_catalogs_bind_one_pinned_act_each(tmp_path: Path) -> None:
     ).dataset.model_dump(mode="json")
     act = dataset["product_catalogs"][0]
     for broken in (
-        # Pins of another BAW document cannot classify this act.
         [{**act, "baw_document_id": act["baw_document_id"] + 1}],
         # Two pin sets for one act would make the classification ambiguous.
         [act, {**act, "release_id": "products-synthetic-copy"}],

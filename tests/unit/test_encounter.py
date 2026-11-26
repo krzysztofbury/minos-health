@@ -432,7 +432,6 @@ def test_hospitalization_level_diagnosis_is_a_distinct_reported_level() -> None:
     data["principal_diagnosis"] = {"code": "A00", "hospitalization_level": True}
     result = parse_encounter(json.dumps(data).encode())
     assert result.principal_diagnosis == Diagnosis("A00", None, True)
-    # Omitted level is unknown attribution, not a hospitalization-level report.
     assert result.secondary_diagnoses == (Diagnosis("B00"),)
     with pytest.raises(EncounterInputError, match="two reporting levels"):
         _ = Diagnosis("A00", "ward-a", True)

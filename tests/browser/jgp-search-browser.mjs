@@ -74,7 +74,6 @@ try {
     await send("Fetch.disable");
     await wait('document.querySelector("#query") && !document.querySelector("#query").disabled');
     assert.equal(await evaluate('document.querySelector("input[value=jgp]").disabled'), false);
-    // Focus, Space, Tab and Enter exercise native chip and result navigation.
     await evaluate('document.querySelectorAll("input[name=system]").forEach(box => { if (box.checked) box.click(); }); document.querySelector("input[value=jgp]").focus()');
     await key(" ", 32);
     assert.equal(await evaluate('document.querySelector("input[value=jgp]").checked'), true);

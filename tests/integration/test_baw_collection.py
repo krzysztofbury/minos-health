@@ -961,8 +961,6 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
         assert _query(
             database, "SELECT count(*) FROM source_changes WHERE source_id = 'nfz'"
         ) == [(9,)]
-        # A new amendment of a pinned legal dictionary is one review item; one
-        # that clears and returns is a second item, never a reused change ID.
         for present in (True, True, False, True):
             eli_state["new_amendment"] = present
             amended = store.claim_manual("nfz")
@@ -984,8 +982,6 @@ def test_nfz_order_dispatches_to_baw_graph_or_retained_root_once(
             for entry in amended_entries
             if entry["channel"] == "eli" and entry["dictionary"] == "discharge_modes"
         ] == [["amendment:DU/2026/1500"]]
-        # A new monthly report is one review item, however many runs see it. A
-        # listing that goes backwards is one incident, and the month holds.
         for present in (True, True, False, False):
             eli_state["new_month"] = present
             reported = store.claim_manual("nfz")

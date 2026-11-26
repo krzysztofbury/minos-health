@@ -708,7 +708,6 @@ def create_app(
                         round((time.monotonic() - began) * 1000), 10_000
                     ),
                     "result_count": getattr(request.state, "result_count", None),
-                    # Where a grouping request spent its time (#222).
                     "phases": grouping_phases(request),
                     "dataset_id": dataset_identity(
                         cast(ReferencePool, app.state.pool).manifest.dataset

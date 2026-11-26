@@ -298,7 +298,6 @@ def _list_summaries(
 ) -> list[Json]:
     if not identities:
         return []
-    # Count only the selected declarations, in one bounded query.
     rows = cast(
         list[tuple[int, str, str, int, int]],
         connection.execute(

@@ -574,11 +574,13 @@ def test_unknown_and_missing_configuration_codecs_fail_closed(
             _ = unconfigured_store.claim_manual(_SOURCE_ID)
 
 
+@pytest.mark.to_delete(issue=374)
 def test_source_configuration_codec_registry_is_bounded() -> None:
     with pytest.raises(ValueError, match="exceeds its bound"):
         _ = SourceConfigurationCodecRegistry(_OversizedCodecMapping())
 
 
+@pytest.mark.to_delete(issue=374)
 def test_source_configuration_codec_registry_bounds_repeated_item_visits() -> None:
     codecs = _RepeatedKeyCodecMapping()
 
@@ -588,6 +590,7 @@ def test_source_configuration_codec_registry_bounds_repeated_item_visits() -> No
     assert codecs.visits == 65
 
 
+@pytest.mark.to_delete(issue=374)
 def test_source_configuration_codec_registry_rejects_non_text_keys() -> None:
     invalid = cast(
         Mapping[str, SourceConfigurationCodec],
@@ -1673,6 +1676,7 @@ def test_post_commit_failure_closes_writer_with_uncertain_outcome(
         replacement.close()
 
 
+@pytest.mark.to_delete(issue=374)
 def test_closed_store_and_reconciliation_limit_fail_explicitly(
     store: ControlStore,
 ) -> None:
@@ -2074,7 +2078,6 @@ def test_owner_closes_reviewed_incidents_of_one_category_and_audits_it(
         }
         for resolved in (2, 1)
     ]
-    # Without a cutoff, everything up to now closes.
     rest = store.resolve_incidents(_SOURCE_ID, "collection_failure")
     assert (rest.resolved, rest.remaining) == (1, 0)
     with pytest.raises(SourceNotFoundError):
@@ -2162,6 +2165,7 @@ def test_successful_due_run_completes_pending_obligation(
     assert store.claim_one_overdue() is None
 
 
+@pytest.mark.to_delete(issue=374)
 def test_store_rejects_caller_owned_connections(tmp_path: Path) -> None:
     connection = sqlite3.connect(
         tmp_path / "caller-owned.sqlite3",

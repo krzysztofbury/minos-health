@@ -102,8 +102,7 @@ class CatalogManifest(BaseModel):
     row_applicability: Annotated[
         tuple[RowApplicability, ...], Field(max_length=32)
     ] = ()
-    # #46 supplies a reviewed MODTAR binding; until then modifiers are unbound,
-    # which is not the same as an empty set of applicable modifiers.
+    # Why: "unbound" is not an empty modifier set; reviewed bindings come in the dataset's modifier_bindings.
     modifier_binding: Literal["unbound"]
     document_url: Annotated[
         str,

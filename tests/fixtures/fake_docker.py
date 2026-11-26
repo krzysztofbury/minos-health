@@ -255,7 +255,6 @@ def main(arguments: list[str]) -> int:
         case ["run", "--rm", *rest] if rest[-2:-1] == ["-p"]:
             output = [cast(str, state["kuma_version"])]
         case ["compose", *rest] if rest[-2:] == ["stop", "uptime-kuma"]:
-            # A failed stop leaves Kuma running.
             if state.get("fail_kuma_stop"):
                 state["fail_kuma_stop"] = False
                 status = 1

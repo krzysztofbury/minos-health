@@ -1,4 +1,3 @@
-// The minos-dane-gov Worker (#349), run under Node with an injected upstream.
 import assert from "node:assert/strict";
 import { timingSafeEqual } from "node:crypto";
 import test from "node:test";
@@ -59,7 +58,6 @@ test("the listing passes through with only the selected headers", async () => {
   assert.equal(init.redirect, "manual");
   assert.equal(init.headers["accept-encoding"], "identity");
   assert.equal(init.headers["user-agent"], "minos-health/0.0.1 dane-gov-watcher");
-  // The key and any caller header never travel upstream.
   assert.equal(JSON.stringify(init).includes(KEY), false);
   assert.equal("cookie" in init.headers, false);
 });

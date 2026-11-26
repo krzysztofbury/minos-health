@@ -103,7 +103,6 @@ class Page:
     body_class: str = ""
     head_extra: str = ""
     values: dict[str, str] = field(default_factory=dict[str, str])
-    # Values computed only when the page renders (the MCP tool catalog).
     computed: Callable[[], dict[str, str]] | None = None
 
 

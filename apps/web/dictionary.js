@@ -83,7 +83,6 @@
     return request;
   }
 
-  /* Rendering. */
   function treeItem(child, level) {
     var item = element("li");
     item.setAttribute("role", "treeitem");
@@ -220,7 +219,6 @@
     if (handled) event.preventDefault();
   });
 
-  /* Detail panel. */
   function factList(attributes) {
     var list = element("dl", "detail-facts");
     attributes.forEach(function (attribute) {
@@ -310,7 +308,6 @@
     });
   }
 
-  /* Full tree, deep links and narrowing. */
   function showRoots() {
     filtered = false;
     reset.hidden = true;

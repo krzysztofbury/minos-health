@@ -65,7 +65,6 @@ def test_index_terms_and_inclusions_find_their_icd11_category(
     client: TestClient, bundle: Path
 ) -> None:
     release = _release(bundle, "icd11-pl")
-    # An undated ICD-11 release is listed and answers dated questions too.
     listed = cast(Json, client.get("/api/v1/releases").json())
     assert release in [
         item["release_id"] for item in cast(list[Json], listed["releases"])
@@ -107,7 +106,6 @@ def test_icd11_page_shows_uri_notice_and_who_map_but_no_jgp_context(
     assert "Wersja przedostateczna ICD-11" in text
     assert f"{icd11.BASE}/3" in text
     assert "syntetyczny termin indeksu" in text
-    # The 11-to-10 table links to the ICD-10 page with WHO's own title.
     assert '<a class="code-chip" href="/slowniki/icd-10/E11">E11</a>' in text
     assert "Syntetyczny tytuł WHO" in text
     assert "jgp-memberships" not in text
@@ -125,7 +123,6 @@ def test_icd10_page_and_concept_lists_who_rows_verbatim(
         ).json(),
     )
 
-    # A postcoordinated cluster keeps its published code and is not linked.
     assert '<span class="code-chip">1A00&amp;XN0</span> Synthetic / cluster' in page
     rows = cast(list[Json], cast(Json, concept["icd11_map"])["rows"])
     assert [(row["table"], row["source_row"], row["icd11_code"]) for row in rows] == [

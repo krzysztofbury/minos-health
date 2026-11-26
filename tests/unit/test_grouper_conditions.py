@@ -114,7 +114,6 @@ def test_two_required_procedures_never_share_one_code() -> None:
         facts(("10.2", "retained", 3)),
     )
     assert dated.nodes[-1].reason == "distinct_date_rule_unreviewed"
-    # A fact a nested expression might reuse is not paired by guesswork.
     either = node(11, "any", c.Expression((2,)))
     nested = node(12, "all", c.Expression((1, 11)))
     result = evaluate_group(
@@ -255,7 +254,6 @@ def test_stay_length_is_usable_only_with_a_complete_product_free_report(
             settlement_products=tuple(SettlementProduct(code) for code in products),
         ),
     )
-    # Unclassified products leave even the preparation duration unknown.
     assert prepared.ward_adjusted_days == (None if products else 9)
     assert facts_from(prepared).days == days
 

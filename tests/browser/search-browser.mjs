@@ -77,7 +77,6 @@ try {
     const icd9 = await evaluate('[...document.querySelectorAll(".result-group")][1].querySelector(".result")?.getAttribute("href")');
     assert.ok(icd9 && /^\/slowniki\/icd-9\/[A-Z0-9.]+(?:\/jgp\/20\d\d-\d\d-\d\d)?$/.test(icd9), "unexpected ICD-9 result link");
     assert.equal(await overflow(), false);
-    // A section folds from its header and comes back with its results.
     await evaluate('document.querySelector(".result-toggle").click()');
     assert.equal(await evaluate('document.querySelector(".result-toggle").getAttribute("aria-expanded")'), "false");
     assert.equal(await evaluate('document.getElementById(document.querySelector(".result-toggle").getAttribute("aria-controls")).hidden'), true);
@@ -104,7 +103,6 @@ try {
   assert.ok(requests.filter((request) => request.url.endsWith("/api/v1/search")).every((request) => request.postData && (JSON.parse(request.postData).system === 'jgp' || JSON.parse(request.postData).release_id)));
   assert.equal(await evaluate('localStorage.getItem("minos.search.filters.v1")'), null, 'Reading defaults and searching must not create preferences');
   assert.equal(await evaluate('Boolean(localStorage.length || sessionStorage.length || document.cookie)'), false);
-  // A copied command is the command alone, without the button's label.
   await send("Page.addScriptToEvaluateOnNewDocument", { source: 'Object.defineProperty(navigator, "clipboard", { value: { writeText: (text) => { window.copied = text; return Promise.resolve(); } } });' });
   await send("Page.navigate", { url: new URL("/dla-agentow", url).href });
   await wait('document.querySelector(".copy-button")');

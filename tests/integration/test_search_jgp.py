@@ -77,7 +77,6 @@ def test_search_counts_are_dated_exact_membership_not_classification_families(
             hit.jgp_group_count == 0 and hit.jgp_service_date is None
             for hit in early.hits
         )
-        # One pool cache answers every date exactly as the uncached reads (#225).
         cache = BundleCache()
         for day, uncached in ((date(2026, 7, 1), result), (date(2026, 1, 1), early)):
             for _ in range(2):

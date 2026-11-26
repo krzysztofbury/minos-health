@@ -42,7 +42,6 @@ def _call(client: TestClient, name: str, arguments: Json) -> tuple[bool, Json]:
     result = _rpc(client, "tools/call", {"name": name, "arguments": arguments})
     structured = cast(Json, result["structuredContent"])
     text = cast(list[Json], result["content"])[0]["text"]
-    # The text block is the same JSON value as the structured content.
     assert json.loads(cast(str, text)) == structured
     return bool(result.get("isError")), structured
 
@@ -85,12 +84,10 @@ def test_catalog_is_read_only_typed_compact_and_documented(
         for name, argument in properties.items():
             assert cast(Json, argument).get("description"), (tool["name"], name)
         assert '"title"' not in json.dumps(tool["inputSchema"])
-        # The page's example call is valid against the published schema.
         jsonschema.validate(
             EXAMPLES[cast(str, tool["name"])], cast(Json, tool["inputSchema"])
         )
     assert sorted(tool.name for tool in catalog()) == names
-    # Every description routes to a sibling, and only to tools that exist.
     for tool in tools:
         description = cast(str, tool["description"])
         mentioned: set[str] = set(re.findall(r"\b[a-z]+(?:_[a-z0-9]+)+\b", description))

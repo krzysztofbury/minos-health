@@ -56,7 +56,6 @@ def test_the_rsk3_namespace_yields_the_same_classification() -> None:
     )
     assert moved != original
     assert tuple(parse_icd10(BytesIO(moved))) == tuple(parse_icd10(BytesIO(original)))
-    # One document may not mix the two reviewed namespaces.
     mixed = original.replace(
         b"<nodes>",
         b'<nodes xmlns="https://rsk3.ezdrowie.gov.pl/">',
@@ -117,7 +116,6 @@ def test_the_rsk3_export_format_adds_no_diagnosis_codes() -> None:
             "empty container",
         ),
         (b'code="M00:1*"', b'code="M00:12"', "code shape"),
-        # A diagnosis code may not ride in below a modifier or a note group.
         (
             '<node code="">\n                           <name>Próbna część'.encode(),
             '<node code="Z99.9">\n                           <name>Próbna część'.encode(),

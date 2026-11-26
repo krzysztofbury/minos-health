@@ -57,7 +57,6 @@ def test_an_extract_round_trips_to_the_parsed_figures() -> None:
     pin, content = _raw()
     figures = parse_report(io.BytesIO(content), pin)
     extract = write_extract(figures, pin)
-    # One report has one extract: canonical bytes, whatever the source order.
     reversed_figures = type(figures)(
         tuple(reversed(figures.groups)), tuple(reversed(figures.sections))
     )

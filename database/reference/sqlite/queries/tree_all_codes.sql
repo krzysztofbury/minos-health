@@ -1,4 +1,3 @@
--- Every structural code in source order, for the per-dictionary sitemap.
 SELECT concept.lookup_code
 FROM concept
 CROSS JOIN reference_node AS node

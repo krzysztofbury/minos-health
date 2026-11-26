@@ -104,9 +104,7 @@ def test_reviewed_overrides_split_twin_rows_at_the_2027_boundary(
         False,
         True,
     )
-    assert (
-        windows[("1a", 7)][1] == manifest.service_evidence
-    )  # untouched row keeps release evidence
+    assert windows[("1a", 7)][1] == manifest.service_evidence
 
 
 def test_overrides_must_match_existing_rows_and_their_notes(tmp_path: Path) -> None:

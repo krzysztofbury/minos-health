@@ -75,6 +75,7 @@ strict = true
 testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
+  "to_delete(issue): marked by a test audit for replacement; see the issue",
   "rsk_live: explicit opt-in compatibility test for an ignored private RSK capture",
   "icd9_live: explicit opt-in compatibility test for privately archived pinned NFZ ICD-9 evidence",
   "jgp_live: explicit opt-in compatibility test for privately archived pinned NFZ JGP catalog workbooks",
@@ -87,4 +88,5 @@ target-version = "py314"
 per-file-target-version = { "scripts/validation_host.py" = "py312", "scripts/watcher_host.py" = "py312", "scripts/tunnel_host.py" = "py312", "scripts/kuma_host.py" = "py312", "scripts/measure_reference_host.py" = "py312", "scripts/processor_host.py" = "py312" }
 
 [tool.ruff.lint]
-select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
+# Why: shortcuts and dead code go to issues, not comments (AGENTS.md, Implementation).
+select = ["B", "E4", "E7", "E9", "F", "I", "UP", "FIX", "ERA001"]

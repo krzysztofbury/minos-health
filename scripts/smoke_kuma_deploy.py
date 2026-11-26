@@ -201,8 +201,6 @@ def main(output: Path, tag: str) -> None:
         assert secret(data) == identity
         assert tunnel_host.baseline(layout, kuma_host.NAME) == preserved
 
-        # The pinned release: real staging, activation on the same data, and
-        # rollback of the previous image onto its stopped copy.
         values = params(pinned)
         assert call("stage", values)["event"] == "kuma_staged"
         activated = call("activate", values)

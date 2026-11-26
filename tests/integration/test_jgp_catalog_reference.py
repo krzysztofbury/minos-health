@@ -36,7 +36,7 @@ def test_catalog_build_stores_rows_values_and_scopes_beside_ranks(
     manifest = catalog_manifest(tmp_path)
     built = build_reference_artifact(manifest, tmp_path, tmp_path / "bundle")
     assert built.schema_version == 4
-    assert built.row_counts["procedure_rank"] == 4  # schema 3 content kept
+    assert built.row_counts["procedure_rank"] == 4
     assert built.row_counts["group_definition"] == 7
     assert built.row_counts["catalog_scope"] == 136
     with open_reference_bundle(tmp_path / "bundle") as (connection, _):
@@ -55,7 +55,7 @@ def test_catalog_build_stores_rows_values_and_scopes_beside_ranks(
             """SELECT count(*) FROM group_base_value JOIN group_definition
               USING (release_id, catalog, source_row)
             WHERE code = 'A01' AND measure = 'planned_hospitalization'"""
-        ).fetchone() == (0,)  # empty source cell stays absent
+        ).fetchone() == (0,)
         repeated = connection.execute(
             """SELECT grouped.source_row, group_concat(scope.label, '|')
             FROM group_definition AS grouped
@@ -138,7 +138,7 @@ def test_open_time_invariants_mirror_parser_rules(
     copy = tmp_path / "tampered.db"
     _ = copy.write_bytes((tmp_path / "bundle/minos.db").read_bytes())
     with closing(sqlite3.connect(copy)) as connection:
-        validate_catalog_bindings(connection, manifest)  # untouched passes
+        validate_catalog_bindings(connection, manifest)
         _ = connection.executescript(tamper)
         with pytest.raises(ArtifactError, match=message):
             validate_catalog_bindings(connection, manifest)

@@ -214,7 +214,6 @@ def main(output: Path, image: str) -> None:
             "watcher_image_matches": True,
         }, answer
         assert watcher_host.baseline(layout) == baseline
-        # A valid update then exercises success and explicit rollback boundaries.
         _ = selected.pop("entrypoint")
         selected["labels"] = {"minos.smoke.revision": revision}
         validation_host.write_private(

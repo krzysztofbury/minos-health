@@ -67,6 +67,7 @@ def test_each_node_keeps_its_nearest_depth_in_this_release_and_relation(
     assert _walk(connection, 5) == [(1, 1), (2, 3), (3, 2), (4, 1)]
 
 
+@pytest.mark.to_delete(issue=377)
 def test_rows_carry_the_node_fields_the_callers_read(
     connection: sqlite3.Connection,
 ) -> None:
@@ -88,6 +89,7 @@ def test_descendants_walk_the_other_way(connection: sqlite3.Connection) -> None:
     assert _walk(connection, 6, direction="descendants") == []
 
 
+@pytest.mark.to_delete(issue=377)
 def test_a_node_without_edges_has_an_empty_walk(
     connection: sqlite3.Connection,
 ) -> None:

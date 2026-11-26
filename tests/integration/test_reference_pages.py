@@ -54,7 +54,6 @@ def test_code_page_is_crawlable_html_with_hierarchy_and_structured_data(
     )
     assert '<meta name="robots" content="index, follow">' in page
     assert 'href="https://minoshealth.pl/slowniki/icd-10/E11.0"' in page
-    # Ancestors are real links, so crawlers can walk the hierarchy.
     assert 'href="/slowniki/icd-10/E00-E99"' in page
     assert 'href="/slowniki/icd-10/E11"' in page
     assert "Przykład opisowy" in page
@@ -120,7 +119,6 @@ def test_dictionary_hubs_link_their_top_level_without_javascript(
     icd9 = client.get("/slowniki/icd-9").text
     assert "Spis kodów spoza hierarchii (" in icd9
     assert 'href="/slowniki/icd-9/00.00001"' in icd9
-    # A bundle without ICD-11 keeps the hub, with nothing to link.
     icd11 = client.get("/slowniki/icd-11")
     assert icd11.status_code == 200 and "chapter-index" not in icd11.text
     assert client.get("/slowniki/icd-10?x=1").status_code == 400

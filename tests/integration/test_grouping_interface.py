@@ -97,7 +97,6 @@ def test_http_reuses_release_static_inputs_without_changing_answers(
     monkeypatch.setattr(pipeline, "load_graph", counted)
     app = create_app(grouping_bundle(tmp_path))
     with TestClient(app) as client:
-        # The background warm-up loads every sheet once; requests add none.
         assert cast(pipeline.PreparedSources, app.state.grouping_prepared).warmed.wait(
             10
         )
@@ -121,7 +120,6 @@ def test_first_request_after_start_uses_warmed_inputs(
     app = create_app(grouping_bundle(tmp_path))
     with TestClient(app) as client:
         prepared = cast(pipeline.PreparedSources, app.state.grouping_prepared)
-        # #149: the first request after a restart must not pay the build.
         assert prepared.warmed.wait(10)
         monkeypatch.setattr(pipeline, "load_graph", unexpected)
         monkeypatch.setattr(pipeline, "load_bundle_algorithm", unexpected)
@@ -139,7 +137,6 @@ def test_dictionaries_offer_named_codes_with_derived_children(tmp_path: Path) ->
         assert response.headers["cache-control"] == "public, max-age=300"
         answer = cast(dict[str, dict[str, object]], response.json())
         assert client.get("/api/v1/grouping/dictionaries").json() == answer
-    # Each table cites its Dziennik Ustaw act and the authentic pinned file.
     assert {
         name: (answer[name]["eli"], answer[name]["source_url"])
         for name in ("specialties", "discharge_modes")
@@ -216,7 +213,6 @@ def test_warmup_status_reaches_the_configured_api_logger(
         "duration_ms",
     }
     assert searched[0]["status"] == "completed"
-    # #189: startup phase timings reach the same configured hierarchy.
     startup = [
         cast(dict[str, object], json.loads(record.getMessage()))
         for record in caplog.records
@@ -275,7 +271,6 @@ def test_every_group_outcome_is_explained_by_the_trace_alone(tmp_path: Path) -> 
         unsupported = cast(
             dict[str, object], client.post("/api/v1/group", json=unknown_report).json()
         )
-    # Without an evaluable product report there is no trace; the answer says why.
     assert unsupported["status"] == "unsupported_product_report"
     assert any(
         "produkt" in text for text in cast(list[str], unsupported["limitations"])
@@ -311,7 +306,6 @@ def test_every_group_outcome_is_explained_by_the_trace_alone(tmp_path: Path) -> 
             for item in cast(list[dict[str, object]], answer["underivable"])
         }
         answered = set(evaluated) | set(placed) | underivable
-        # Every titled or characterised group is answered, none twice.
         assert answered >= titled | characterised, name
         assert len(set(evaluated)) == len(evaluated) and not set(evaluated) & set(
             placed
@@ -334,7 +328,6 @@ def test_every_group_outcome_is_explained_by_the_trace_alone(tmp_path: Path) -> 
                 if event["kind"] in ("all", "any"):
                     parameters = cast(dict[str, object], event["parameters"])
                     pending.extend(cast(list[int], parameters.get("children", [])))
-            # The trace is exactly the consulted conditions, nothing dangling.
             assert set(nodes) == consulted, (name, group["group"])
             verdicts = {str(event["verdict"]) for event in trace}
             causes = set(cast(list[str], group["reasons"]))
@@ -438,7 +431,6 @@ def test_post_privacy_for_valid_invalid_exception_and_url_paths(
             "dataset_id",
             "phases",
         }
-        # Phases are named durations, never request content (#222).
         phases = cast(dict[str, object] | None, logged["phases"])
         if phases is None:
             # The JSON check and the URL-query guard refuse before admission.

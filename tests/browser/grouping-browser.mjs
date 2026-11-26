@@ -53,7 +53,6 @@ try {
     await wait("document.readyState === 'complete' && document.querySelector('#group-fields') && !document.querySelector('#group-fields').disabled && document.fonts.status === 'loaded'");
     await shot("grouping-empty-" + name, false);
     const e = body.encounter;
-    // Step 1: dates in Polish format regardless of browser language; missing facts block the step.
     await type("#admitted", e.admitted_on.split("-").reverse().join(""));
     assert.equal(await evaluate("document.getElementById('admitted').value"), pl(e.admitted_on));
     await set("#discharged", pl(e.discharged_on));
@@ -69,19 +68,16 @@ try {
       assert.equal(await top("#admitted"), await top("#discharged"));
       assert.equal(await top("#age"), await top("#discharge-select"));
     }
-    // Explanations are tooltips, not text between label and field.
     await click(".tip[aria-label='Wyjaśnienie: wiek w dniu przyjęcia']");
     assert.ok(await evaluate("!document.getElementById('tooltip').hidden && document.getElementById('tooltip').textContent.includes('Ukończone lata')"));
     await click("h2#step-0-title");
     assert.ok(await evaluate("document.getElementById('tooltip').hidden"));
-    // Official discharge modes; the calendar speaks Polish whatever the browser language.
     await wait("document.querySelector(\"#discharge-select option[value='9']\")");
     assert.ok(await evaluate("document.querySelector(\"#discharge-select option[value='9']\").textContent.includes('zgon pacjenta')"));
     await click("#admitted + .picker-button");
     assert.ok(await evaluate("!document.getElementById('picker').hidden && /^(styczeń|luty|marzec|kwiecień|maj|czerwiec|lipiec|sierpień|wrzesień|październik|listopad|grudzień) \\d{4}$/.test(document.querySelector('.picker-title').textContent)"));
     assert.ok(await evaluate("Array.from(document.querySelectorAll('.picker-weekday')).map(c => c.textContent).join(' ') === 'pn wt śr cz pt so nd'"));
     await shot("grouping-calendar-" + name, false);
-    // The arrows change the month and leave the calendar open.
     const shown = await evaluate("document.querySelector('.picker-title').textContent");
     await click(".picker-nav:last-child");
     assert.equal(await evaluate("document.getElementById('picker').hidden"), false);
@@ -97,9 +93,7 @@ try {
     await click("input[name=month-mode][value=discharge]");
     await shot("grouping-hospitalization-" + name, false);
     await next(1);
-    // Step 2: the first stay starts with the episode dates.
     assert.equal(await evaluate("document.querySelector('#wards input.date-pl').value"), pl(e.admitted_on));
-    // Specialty search by name; hospital wards rank first.
     await set("#wards input[role=combobox]", "wewnętrz");
     await evaluate("document.querySelector('#wards input[role=combobox]').focus()");
     await wait("document.querySelector('#wards [role=option]')");
@@ -111,7 +105,6 @@ try {
     assert.ok(await evaluate("document.getElementById('case-summary').textContent.includes('Oddział chorób wewnętrznych')"));
     await set("#wards input[role=combobox]", e.stays[0].department);
     await next(2);
-    // Step 3: keyboard code search with complete suggestion labels, then the exact documented code.
     await set("#principal input", "E11.0");
     await evaluate("document.querySelector('#principal input').focus()");
     await wait("document.querySelector('#principal [role=option]')");
@@ -124,7 +117,6 @@ try {
     await set("#principal input", e.principal_diagnosis.code);
     await evaluate("const p=document.querySelector('#principal select'); p.value='episode'; p.dispatchEvent(new Event('change',{bubbles:true}))");
     await next(3);
-    // Step 4: one procedure occurrence attributed to the first stay, then the product report.
     await click("#add-procedure");
     await set("#procedures .search-box input", e.procedures[0].code);
     await set("#procedures input.date-pl", pl(e.procedures[0].performed_on));
@@ -143,7 +135,6 @@ try {
     await evaluate("window.scrollTo(0,0)");
     await wait("document.getAnimations().every(a => a.playState !== 'running')");
     await shot("grouping-result-" + name);
-    // A modifier is confirmed from the group's own possibilities and re-evaluates the case.
     if (await evaluate(`!!document.querySelector('.verdict-group[data-group="${expected}"] .modifier input')`)) {
       await click(`.verdict-group[data-group="${expected}"] .modifier input`);
       await wait(`(() => { const box = document.querySelector('.verdict-group[data-group="${expected}"] .modifier input'); return box && box.checked && document.getElementById('group-status').className === 'visually-hidden' && document.getElementById('case-summary').textContent.includes('Potwierdzone modyfikatory'); })()`);
@@ -151,14 +142,12 @@ try {
       await click(`.verdict-group[data-group="${expected}"] .modifier input`);
       await wait(`(() => { const box = document.querySelector('.verdict-group[data-group="${expected}"] .modifier input'); return box && !box.checked; })()`);
     }
-    // Out-of-scope groups arrive once per reason and render as catalog code lists.
     const skipped = "Array.from(document.querySelectorAll('.result-technical details')).find(d => d.querySelector('summary').textContent.startsWith('Grupy poza oceną'))";
     await evaluate(`document.querySelector('.result-technical').open = true; (${skipped}).open = true`);
     assert.ok(await evaluate(`Number((${skipped}).querySelector('summary').textContent.match(/\\((\\d+)\\)/)[1]) > 0`));
     assert.ok(await evaluate(`Array.from((${skipped}).querySelectorAll('p.group-help')).some(p => /^1ae?: \\S/.test(p.textContent))`));
     await evaluate("document.querySelector('.result-technical').open = false");
 
-    // Hold a fresh evaluation, edit the case, and release the obsolete answer.
     hold = true;
     await click("[data-goto='3']"); await step(3); await next(4);
     for (let i = 0; i < 200 && !held; i++) await new Promise(r => setTimeout(r, 50));
@@ -170,7 +159,6 @@ try {
     assert.equal(await evaluate("document.querySelectorAll('.verdict-group').length"), 0);
     await set("#age", String(e.age_completed_years));
     await click("[data-goto='3']"); await step(3);
-    // A complete report with products: the first row opens, an empty code blocks the step.
     await click("input[name=product-report][value=present]");
     await wait("document.querySelectorAll('#products .fact-row').length === 1 && !document.getElementById('product-list').hidden");
     await click("#step-next");
@@ -189,7 +177,6 @@ try {
     await next(4);
     await wait("document.getElementById('group-answer').textContent.includes('Raport produktów jest niepełny')");
     assert.equal(await evaluate("document.querySelectorAll('.verdict-group').length"), 0);
-    // The notice offers both ways out: it is not a dead end.
     await click("#group-answer .button-quiet");
     await step(3);
     assert.equal(await evaluate("document.querySelector('input[name=product-report]:checked').value"), "present");

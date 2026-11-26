@@ -56,7 +56,6 @@
     f.control.append(input, calendarButton("date", title + ": wybierz z kalendarza")); return input;
   }
 
-  /* Tooltips: tap or click pins, hover and focus preview, Escape closes. */
   var tooltip = byId("tooltip"), tipOwner = null, tipPinned = false;
   function showTip(owner, pinned) {
     if (tipOwner && tipOwner !== owner) hideTip(true);
@@ -121,7 +120,6 @@
     if (index === RESULT) evaluateCase();
   }
 
-  /* Validation: problems are listed above the step and point to the field to fix. */
   function clearErrors() { errorsBox.hidden = true; errorsBox.replaceChildren(); form.querySelectorAll("[aria-invalid]").forEach(function (input) { input.removeAttribute("aria-invalid"); }); form.querySelectorAll(".choice.is-invalid").forEach(function (group) { group.classList.remove("is-invalid"); }); }
   // A corrected field drops its error mark at once; the list refreshes on the next step change.
   function clearMark(target) { if (target.type === "radio") { var group = target.closest(".choice"); if (group) group.classList.remove("is-invalid"); } else if (target.removeAttribute) target.removeAttribute("aria-invalid"); }
@@ -235,7 +233,6 @@
   }
   function renumberProducts() { products.forEach(function (item, i) { item.title.textContent = "Produkt " + (i + 1); }); }
 
-  /* One combobox for ICD codes (server search) and specialties (local dictionary). */
   function combobox(parent, title, settings) {
     var f = field(parent, title, { tip: settings.tip, control: "search-box" }), input = el("input"), list = el("ul", undefined, "suggestions");
     var hint = el("p", settings.idle, "field-hint"); hint.setAttribute("aria-live", "polite");
@@ -286,7 +283,6 @@
       pick: function (hit) { return { value: hit.code, label: hit.label }; }
     };
   }
-  /* Specialties: official names, hospital wards first, derived children's codes marked. */
   var specialties = [], specialtyByCode = {};
   function fold(text) { return text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ł/g, "l"); }
   function specialtyName(entry) { return entry.name + (entry.derived ? ", dla dzieci" : ""); }
@@ -392,7 +388,6 @@
     return { schema_version: 1, encounter: data, service_date: serviceDate(), reporting_month: reportingMonth() + "-01", declared_modifiers: declared.slice() };
   }
 
-  /* Case card: what will be evaluated, step by step, with a way back to each step. */
   function codeLine(item, role) {
     var line = el("p", undefined, "case-code"), c = code(item);
     if (!CODE.test(c)) { line.append(el("span", "Nie wybrano kodu", "is-empty")); return line; }
@@ -441,7 +436,6 @@
     if (!summary.childNodes.length) summary.append(el("li", "Tu pojawią się wpisane dane.", "case-section is-empty"));
   }
 
-  /* Plain-language reading of one consulted condition, in catalog vernacular. */
   function lists(event) {
     var s = event.selector; if (!s) return "";
     var labels = (s.list_labels || []).filter(Boolean);
@@ -508,7 +502,6 @@
     var section = /section\s+(\d+)\((\w+)\)/.exec(m.source_citation || "");
     return m.symbol.indexOf("manual-") === 0 && section ? "dopłata z § " + section[1] + " ust. " + section[2] : "modyfikator " + m.symbol;
   }
-  /* Modifiers are confirmed per group, from the possibilities the rules return. */
   function modifierBox(parent, group) {
     var list = group.final_points ? group.final_points.modifiers.filter(function (m) { return m.outcome === "possible" || m.outcome === "applied"; }) : [];
     if (!list.length) return;
@@ -690,7 +683,6 @@
   byId("add-secondary").addEventListener("click", function () { var item = addCode("secondary"); invalidate(); if (item) item.search.input.focus(); });
   byId("add-procedure").addEventListener("click", function () { var item = addCode("procedure"); invalidate(); if (item) item.search.input.focus(); });
   byId("add-product").addEventListener("click", function () { var item = addProduct(); invalidate(); if (item) item.code.focus(); });
-  // Choosing a report with products opens its first row, ready to type.
   form.querySelectorAll("input[name=product-report]").forEach(function (input) { input.addEventListener("change", function () { if (input.value === "present" && !products.length) { addProduct(); syncChoices(); products[0].code.focus(); } }); });
   byId("clear-case").addEventListener("click", clearCase);
   window.addEventListener("pagehide", clearCase);

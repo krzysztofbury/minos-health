@@ -270,7 +270,6 @@ def test_filesystem_runtime_factory_completes_manual_rsk_run(tmp_path: Path) -> 
         )
     assert (public_root / "current" / "api/v1/provenance/rsk.json").is_file()
 
-    # Empty public storage recovers both issued citations, not just latest.
     retained = {
         path.name: path.read_bytes()
         for path in (public_root / "citations").glob("*.json")

@@ -239,7 +239,6 @@ def test_same_service_start_keeps_both_amendments_selectable(tmp_path: Path) -> 
         assert "<td>8 040,00</td><td>12 871,72</td>" in response.text
         assert "Synthetic 74/2026/DSOZ (2026-07-23)" in response.text
         assert "Synthetic 102/2026/DSOZ (2026-09-23)" in response.text
-        # A date outside the selected release is refused, never substituted.
         assert client.get(path.replace("2026-07-10", "2026-06-30")).status_code == 404
 
 

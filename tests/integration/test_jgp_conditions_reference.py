@@ -356,7 +356,6 @@ def test_conditions_are_reconstructed_once_per_verified_database(
         with open_reference_bundle(bundle):
             pass
     assert calls == ["validated"]
-    # A changed database has another verified digest and is reconstructed again.
     with sqlite3.connect(bundle / "minos.db") as connection:
         _ = connection.execute(
             "UPDATE characteristics_evidence SET source_text='unreviewed magic'"

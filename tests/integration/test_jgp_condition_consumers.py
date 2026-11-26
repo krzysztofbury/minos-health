@@ -220,7 +220,6 @@ def test_http_exposes_source_traced_rules_and_dated_list_pages(tmp_path: Path) -
         assert response.status_code == 200
         assert response.json()["conditions"]["status"] == "fully_interpreted"
         page = client.get("/jgp/2026-07-01/A01").text
-        # The source's own words come first; the structure is one click away.
         assert page.index('class="cond-clause"') < page.index("Struktura warunku")
         assert 'href="/jgp/2026-07-01/listy/1a/' in page.split("Struktura warunku")[0]
         listing = client.get("/api/v1/jgp/2026-07-01/lists/1a/2/pages/1")
@@ -579,7 +578,6 @@ def test_dated_concept_routes_keep_dates_errors_cache_and_query_privacy(
                 and response.headers["cache-control"] == "no-store"
             )
         uncovered = client.get("/slowniki/icd-10/E11.0/jgp/2026-06-30")
-        # A page for people: branded HTML, not an API error envelope.
         assert uncovered.headers["content-type"].startswith("text/html")
         assert "Brak zweryfikowanego katalogu JGP dla tego dnia" in uncovered.text
         refused = client.get(
@@ -644,7 +642,6 @@ def test_pages_for_today_link_each_other_by_their_undated_urls(
     assert 'href="/jgp/A01"' in concept and 'href="/jgp/2026-07-01/A01"' not in concept
     assert re.search(r'href="/jgp#k-1a-[0-9]+">Pokaż w katalogu', group)
     assert 'href="/jgp/2026-07-01#' not in group
-    # Codes a rule names lead to the undated code page; dated pages keep the day.
     assert code_link("icd10-pl", "E11.0", "2026-07-01", True, current=True) == (
         '<a href="/slowniki/icd-10/E11.0"><span class="code-chip">E11.0</span></a>'
     )
@@ -666,7 +663,6 @@ def test_undated_concept_page_survives_a_missing_time_zone(
     monkeypatch.setattr("minos.http.app.today_in_poland", unavailable)
     with TestClient(create_app(consumer_bundle(tmp_path))) as client:
         page = client.get("/slowniki/icd-10/E11.0")
-    # The ICD page never depended on the clock; only its JGP section is omitted.
     assert page.status_code == 200
     assert "E11.0" in page.text and 'id="jgp-date"' not in page.text
 
@@ -710,7 +706,6 @@ def test_pages_start_with_the_answer_and_keep_the_notes_one_click_away(
     assert "Punkty bazowe" not in lead and "stan na" not in lead
     rail = code[code.index('"answer-rail"') :]
     assert "Punkty bazowe z katalogu, bez modyfikatorów" in rail
-    # The day link names a picker that exists, and the licence stays in view.
     assert part(code, '"answer-meta"', '"answer-lead"').count('href="#jgp-date"') == 1
     assert code.count('id="jgp-date"') == 1
     assert "licencja CC BY-NC-SA" in part(code, '"answer-main"', '"answer-rail"')
@@ -723,7 +718,6 @@ def test_structured_rules_read_as_a_nested_tree_in_polish(tmp_path: Path) -> Non
         listing = client.get("/jgp/2026-07-01/listy/1a/1/1").text
         diagnosis = client.get("/slowniki/icd-10/E11.0/jgp/2026-07-01").text
     rules = group[group.index('<ul class="jgp-rules">') :]
-    # Children nest under their conjunction; no internal node ids are shown.
     assert rules.startswith(
         '<ul class="jgp-rules"><li><strong>Wszystkie poniższe elementy</strong>'
     )
@@ -732,10 +726,8 @@ def test_structured_rules_read_as_a_nested_tree_in_polish(tmp_path: Path) -> Non
     assert "2 pozycje źródłowe" in group and "pozycji źródłowych)" not in group
     # Inline row references never borrow the bordered block style.
     assert '<span class="detail-source">' not in group + listing
-    # The code is shown once, as the chip, not repeated in the title text.
     assert '<span class="code-chip">100.01</span>' in listing
     assert "<span>100.01 " not in listing
-    # Release identity sits in the collapsed provenance, not the visible line.
     visible = group.split("<details><summary>Pochodzenie", 1)[0]
     assert "SHA-256 skoroszytu" not in visible
     assert "Grupy zabiegowe kierowane procedurą" in diagnosis

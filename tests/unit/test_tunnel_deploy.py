@@ -119,7 +119,6 @@ def test_only_the_tunnel_image_changes_and_rollback_restores_the_bytes(
     before = others(tunnel)
     values = params(tunnel)
     assert call(tunnel, "stage", values)["event"] == "tunnel_staged"
-    # Resuming a completed stage is accepted against identical records.
     assert call(tunnel, "stage", values)["event"] == "tunnel_staged"
     assert compose.read_bytes() == original
     runs = [
@@ -187,7 +186,6 @@ def test_staging_refuses_before_any_live_change(
     )
     assert not (stage / "prepared.json").exists()
     assert not ups(tunnel)
-    # Activation cannot proceed without staged evidence.
     with pytest.raises(DeployError):
         _ = call(tunnel, "activate", values)
     assert not ups(tunnel)

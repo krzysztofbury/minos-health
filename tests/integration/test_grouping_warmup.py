@@ -98,7 +98,6 @@ def test_failed_sheet_keeps_truthful_progress_and_bounded_recovery(
         assert not prepared.warmed.is_set()
         return
     assert attempts == summary["attempts"] == 2
-    # Independent entries complete before retry, despite the first sheet failure.
     assert sum(
         event["stage"] == "products"
         and event["attempt"] == 1
@@ -115,7 +114,6 @@ def test_failed_sheet_keeps_truthful_progress_and_bounded_recovery(
         assert summary["sheets"] == len(sheets)
         assert prepared.warmed.is_set()
 
-        # Recovered entries must supply the first real HTTP answer without rebuild.
         def unexpected(*_args: object) -> CharacteristicsGraph:
             raise AssertionError("completed warm-up rebuilt a sheet")
 
@@ -186,7 +184,6 @@ def test_a_request_never_waits_past_its_budget_behind_a_slow_sheet(
             assert entered.wait(10)
             with pool.borrow() as lease:
                 began = monotonic()
-                # Other entries stay free while the sheet is being read.
                 _ = prepared.algorithm(lease.connection)
                 with pytest.raises(QueryTimeoutError):
                     _ = prepared.sheet(lease.connection, release_id, catalog, wait=0.05)
@@ -195,7 +192,6 @@ def test_a_request_never_waits_past_its_budget_behind_a_slow_sheet(
             release.set()
         with pytest.raises(QueryTimeoutError):
             _ = first.result(10)
-        # A failed reader leaves the entry to the next caller.
         with pool.borrow() as lease:
             graph, _index = prepared.sheet(lease.connection, release_id, catalog)
             again, _index = prepared.sheet(lease.connection, release_id, catalog)

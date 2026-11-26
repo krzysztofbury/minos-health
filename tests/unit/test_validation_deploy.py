@@ -301,7 +301,7 @@ def test_update_changes_only_validation_services_and_is_resumable(
     }
     cast(dict[str, object], expected["networks"])["reference-blue"] = {"internal": True}
     assert rendered == expected
-    assert (root / "compose.yaml").read_bytes() == before  # staging is not activation
+    assert (root / "compose.yaml").read_bytes() == before
 
     assert host("prepare", params)["bundle_installed"] is True
     _ = host("stage", {**params, "archive_sha256": "0" * 64})  # resumed: bundle exists
@@ -319,7 +319,7 @@ def test_update_changes_only_validation_services_and_is_resumable(
     calls = cast(list[list[str]], docker_state(site)["calls"])
     started = [call[-1] for call in calls if call[0] == "compose" and "up" in call]
     assert started == ["reference-api-blue", "edge"]
-    # The live API serves through the old edge until the new edge is healthy.
+    # Why: the live API serves through the old edge until the new edge is healthy.
     assert calls.index(["stop", "--time", "10", "api-0"]) > max(
         index for index, call in enumerate(calls) if call[0] == "compose"
     )
@@ -1196,7 +1196,6 @@ def test_processor_activator_retries_after_a_restored_failed_start(
     second = activator.stage(bundle, database)
     activated = activator.activate(second)
 
-    # The write-once records accept the same second attempt.
     assert restored == before
     assert second == first
     assert activated["status"] == "activated"

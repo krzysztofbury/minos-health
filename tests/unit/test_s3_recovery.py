@@ -378,7 +378,6 @@ def test_download_is_etag_pinned_and_rejects_replacement_or_checksum_change(
             selected = downloaded.candidate
         assert client.get_calls[-1]["IfMatch"] == client.objects[selected.key].etag
 
-        # An object replaced between HEAD and GET never reaches the staging file.
         client.replace_before_get = True
         with pytest.raises(RecoveryStorageError, match="ETag-pinned"):
             with remote.download_verified(selected, staging):

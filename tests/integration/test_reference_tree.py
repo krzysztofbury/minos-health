@@ -108,7 +108,6 @@ def test_supporting_hierarchy_keeps_canonical_titles_and_unplaced_codes(
     assert roots["hierarchy_release_id"] == WORKBOOK
     assert [item["code"] for item in roots["children"]] == ["AA", "88"]
     assert not child(roots, "88")["canonical"]
-    # CZS codes without a workbook position are listed, never re-parented.
     assert [item["code"] for item in roots["unplaced"]] == ["00.00001"]
     assert {"name": "Status w źródle", "key": "status", "value": "A"} in roots[
         "unplaced"

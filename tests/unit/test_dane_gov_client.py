@@ -49,7 +49,6 @@ def test_the_newest_report_comes_from_the_listing() -> None:
     assert answer.report.size_bytes == 57567445
     assert answer.report.source_url.endswith("raport_SZP_i_kardiologia_2026_8.xml")
     assert answer.unrecognized == ()
-    # The stored evidence is the response itself.
     assert answer.body == CAPTURED
 
 
