@@ -446,6 +446,7 @@ def main(arguments: Arguments) -> None:
         assert get_json(base, "/api/v1/jgp/2026-07-10/sections")[0] == 200
         assert get_json(base, "/api/v1/jgp/2026-07-10/sections/1a/1")[0] == 200
         status, gap, _ = get_json(base, "/api/v1/jgp/2026-06-30/groups/PZD02")
+        # Why: the error code proves the API answered; the edge's own 404 for an unrouted path has none.
         assert (status, cast(dict[str, str], gap["error"])["code"]) == (
             404,
             "no_ruleset_for_date",

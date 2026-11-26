@@ -123,6 +123,7 @@ def test_bundle_index_reads_lists_roles_and_sheet_scope(tmp_path: Path) -> None:
     ]
     # Program-membership-only groups have no directional list to reach.
     assert groups["N09"].requirements == groups["N11"].requirements == ()
+    # Why: 1ae list identities repeat across sheets; each list stays scoped to its sheet.
     assert [(g.code, sorted(g.requirements[0].codes)) for g in emergency.groups] == [
         ("AU01", ["G60.4"])
     ]

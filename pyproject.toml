@@ -88,5 +88,5 @@ target-version = "py314"
 per-file-target-version = { "scripts/validation_host.py" = "py312", "scripts/watcher_host.py" = "py312", "scripts/tunnel_host.py" = "py312", "scripts/kuma_host.py" = "py312", "scripts/measure_reference_host.py" = "py312", "scripts/processor_host.py" = "py312" }
 
 [tool.ruff.lint]
-# Why: shortcuts and dead code go to issues, not comments (AGENTS.md, Comments).
+# Why: shortcuts and dead code go to issues, not comments (AGENTS.md, Implementation).
 select = ["B", "E4", "E7", "E9", "F", "I", "UP", "FIX", "ERA001"]

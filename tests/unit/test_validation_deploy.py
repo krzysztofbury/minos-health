@@ -319,6 +319,7 @@ def test_update_changes_only_validation_services_and_is_resumable(
     calls = cast(list[list[str]], docker_state(site)["calls"])
     started = [call[-1] for call in calls if call[0] == "compose" and "up" in call]
     assert started == ["reference-api-blue", "edge"]
+    # Why: the live API serves through the old edge until the new edge is healthy.
     assert calls.index(["stop", "--time", "10", "api-0"]) > max(
         index for index, call in enumerate(calls) if call[0] == "compose"
     )
