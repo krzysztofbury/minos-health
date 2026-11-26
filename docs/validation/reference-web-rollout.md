@@ -239,7 +239,9 @@ the pull request's container job is the scan evidence.
 On 2026-11-26 Alpine 3.24 no longer served libexpat 2.10.0-r0, so the edge
 image stopped building (every pull request since 2026-11-23 failed the
 container job). The layer now pins libexpat 2.11.0-r0, the version Alpine 3.24
-serves; the other pins were unchanged and still available.
+serves; the other pins were unchanged and still available. The same day the gate found
+fixable `CVE-2026-86144` (HIGH, libxml2 2.13.9-r2) in the upstream digest, so
+the layer also pins libxml2 2.13.9-r3.
 
 On 2026-11-10 the gate found fixable `CVE-2026-87636` and `CVE-2026-9947`
 (libxslt 1.1.43-r3) in the same digest. The layer now also pins libxslt

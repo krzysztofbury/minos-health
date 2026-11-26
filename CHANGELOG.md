@@ -21,7 +21,8 @@ signed-release and deployment-acceptance gates remain #41/#27.
   counts from rising in Python, SQL, JavaScript, HTML and CSS. Ruff now
   rejects TODO-style comments and commented-out code.
 - The validation edge pins Alpine `libexpat` 2.11.0-r0: Alpine 3.24 no longer
-  serves 2.10.0-r0, so the edge image could not build.
+  serves 2.10.0-r0, so the edge image could not build. It also pins `libxml2`
+  2.13.9-r3 for CVE-2026-86144 (HIGH), which the edge scan found the same day.
 - JGP statistics now include the NFZ monthly report for September 2026
   (`dane.gov.pl` resource 3001500, published 2026-11-17), so the release
   covers September 2025 to September 2026. Automatic activation of later
